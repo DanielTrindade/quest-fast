@@ -1,0 +1,31 @@
+schema: spec-driven
+
+context: |
+  Produto: quest-fast — plataforma unificada para mestrar e jogar D&D 5e.
+  A plataforma É a mesa: fichas, dados, combate, mundo e (futuramente) o campo
+  de batalha acontecem dentro dela. O Discord fica apenas com voz e roleplay;
+  não há integração com Discord além do login (OAuth).
+
+  Público: mesas próprias, self-hosted. Não é SaaS multi-tenant.
+
+  Stack:
+  - client/  Vite + React + TypeScript + TanStack Router + TanStack Query
+  - server/  Hono (Node) — REST + WebSocket + auth + serve o SPA buildado
+  - shared/  tipos e regras 5e puras (modificadores, parser de dados)
+  - db/      Drizzle ORM + SQLite (arquivo; sem Docker no MVP)
+  - auth     Discord OAuth, sessão em cookie HttpOnly
+
+  Regras de arquitetura:
+  - Um único processo Node serve SPA + API + WebSocket.
+  - O cliente NUNCA é fonte de verdade. Rolagens, permissões e estado de
+    combate são calculados e autorizados no servidor.
+  - Toda lógica 5e pura vive em shared/ e é testada com testes unitários.
+  - Textos de produto e documentação em português (pt-BR).
+
+rules:
+  proposal:
+    - Sempre incluir uma seção "Non-goals" explícita
+    - Justificar por que construir em vez de usar ferramenta gratuita existente
+  tasks:
+    - Fatiar verticalmente (cada fase deve ser usável numa sessão real), nunca por camada
+    - Incluir tasks de teste para lógica pura e para RBAC
