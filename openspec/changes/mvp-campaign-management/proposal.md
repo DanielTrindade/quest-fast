@@ -44,4 +44,5 @@ Nenhuma — repositório novo, sem capacidades existentes.
 - Stack nova: Vite + React + TypeScript (SPA), Hono em Node (REST + WebSocket + estáticos), Drizzle ORM + SQLite, Discord OAuth.
 - Um único processo em produção; um `Dockerfile`; sem Docker Compose e sem Postgres no MVP.
 - **Pré-requisito operacional:** o app não inicia sem uma aplicação registrada no Discord Developer Portal (client id, client secret e redirect URI).
+- **Depende de `design-system-foundation`:** o `client/`, a camada de tokens e os componentes que as telas da fase 0 consomem são entregues lá, não aqui.
 - Uploads de imagem gravados em disco local atrás de uma abstração `Asset`, já preparada para o volume de mapas do change `vtt-battlefield`.

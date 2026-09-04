@@ -35,6 +35,7 @@ Nenhuma — repositório novo.
 
 - Monorepo leve: `client/` (Vite + React), `server/` (Hono), `shared/` (regras 5e puras), `db/` (Drizzle + SQLite).
 - Um processo, um build, um `Dockerfile`. Sem Postgres e sem Docker Compose.
+- Depende de `design-system-foundation`, que entrega o `client/`, os tokens e os componentes da fase 0.
 - Pré-requisito: aplicação registrada no Discord Developer Portal.
 
 ## Fases
