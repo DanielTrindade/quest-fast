@@ -1,0 +1,17 @@
+# dependencias
+node_modules/
+
+# builds
+dist/
+storybook-static/
+coverage/
+
+# logs e ambiente
+*.log
+.env
+.env.*
+!.env.example
+
+# SO e editor
+.DS_Store
+Thumbs.db

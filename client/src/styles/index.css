@@ -1,0 +1,313 @@
+/* ==========================================================================
+   quest-fast - design tokens e base
+   Fonte da verdade: openspec/changes/design-system-foundation/design.md
+
+   Regras globais:
+   - Cor nunca crua em componente: use os tokens --color-* declarados abaixo.
+   - Tema escuro e o padrao e respeita prefers-color-scheme. Tema claro completo.
+   - Regra unica de raio: 6px (control), 10px (panel), full (avatar/badge-pill).
+   - Todo movimento dentro de prefers-reduced-motion.
+   ========================================================================== */
+
+@import "tailwindcss";
+@import "@fontsource-variable/geist/wght.css";
+@import "@fontsource-variable/geist-mono/wght.css";
+
+/* --------------------------------------------------------------------------
+   @theme static - tokens semanticos (Tailwind v4, plugin do Vite)
+   Os valores abaixo sao o default: tema ESCURO.
+   O tema claro e declarado nos blocos [data-theme] mais abaixo.
+   "static" garante que TODOS os tokens virem custom properties reais no CSS,
+   mesmo sem utilitario usando ainda. Componentes consomem via var(--token);
+   sem isso o Tailwind poda token sem uso e o var() quebra em runtime.
+   -------------------------------------------------------------------------- */
+@theme static {
+  /* ---- Cor: semantica, nunca crua no componente ---- */
+  --color-surface: #16181d;
+  --color-surface-raised: #1d2026;
+  --color-surface-overlay: #22252d;
+  --color-surface-secret: #131519;
+
+  --color-text-primary: #edeff3;
+  --color-text-secondary: #c6c9d1;
+  --color-text-muted: #8e939e;
+
+  --color-border-subtle: #2a2e37;
+  --color-border-strong: #3d424e;
+  --color-border-control: #7b8290;
+
+  /* Preenchimento solido (botao, badge, barra). Escolhidos para que
+     --color-accent-fg branco passe WCAG AA por cima: 4.63, 5.56 e 5.38.
+     Iguais nos dois temas, para a marca nao mudar de cor. */
+  --color-accent: #3b6fe0;
+  --color-danger: #c62a30;
+  --color-success: #0f7a4a;
+  --color-accent-fg: #ffffff;
+
+  /* Texto e icone coloridos. Um preenchimento solido NAO serve como texto:
+     o preenchimento e escolhido contra o branco por cima dele, o texto e
+     escolhido contra a superficie atras dele. Sao problemas opostos, entao
+     sao tokens diferentes. Estes passam >=4.5 em TODA superficie do tema.
+     Use estes em "turno ativo", "+5 HP", "-3 HP" e afins. */
+  --color-accent-text: #7aa5f5;
+  --color-danger-text: #ff8d8a;
+  --color-success-text: #4fd18a;
+
+  --color-focus-ring: #7aa5f5;
+
+  /* ---- Tipografia ----
+     TODO (task 1.3): verificar a licenca de Cabinet Grotesk (Fontshare) e
+     Geist e Geist Mono são servidas localmente pelo Fontsource (OFL-1.1),
+     com font-display: swap. Cabinet permanece pendente; Geist é o fallback. */
+  --font-display: "Cabinet Grotesk", "Geist Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Geist Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono Variable", ui-monospace, "Cascadia Code", Consolas, monospace;
+
+  /* ---- Escala tipografica (tamanho / altura-de-linha) ---- */
+  --text-display: 32px;
+  --text-display--line-height: 36px;
+  --text-h1: 24px;
+  --text-h1--line-height: 28px;
+  --text-h2: 18px;
+  --text-h2--line-height: 24px;
+  --text-body: 14px;
+  --text-body--line-height: 20px;
+  --text-small: 13px;
+  --text-small--line-height: 18px;
+  --text-micro: 11px;
+  --text-micro--line-height: 16px;
+
+  /* ---- Escala de espaco (grid de 4px) ----
+     Estes sao os oito valores da escala. Use apenas eles. */
+  --spacing-1: 4px;
+  --spacing-2: 8px;
+  --spacing-3: 12px;
+  --spacing-4: 16px;
+  --spacing-6: 24px;
+  --spacing-8: 32px;
+  --spacing-12: 48px;
+  --spacing-16: 64px;
+
+  /* ---- Regra unica de raio ----
+     6px em input, botao e chip; 10px em card, painel e dialog;
+     full em avatar e badge-pill. Nenhum outro raio entra no sistema. */
+  --radius-control: 6px;
+  --radius-panel: 10px;
+  --radius-full: 9999px;
+
+  /* ---- Escala de motion ----
+     instant: hover e active; quick: toggle, tab, popover;
+     settle: dialog, toast, sheet. Easing unico em todo o sistema. */
+  --duration-instant: 80ms;
+  --duration-quick: 140ms;
+  --duration-settle: 220ms;
+  --ease-settle: cubic-bezier(0.16, 1, 0.3, 1);
+  --default-transition-duration: 140ms;
+  --default-transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* --------------------------------------------------------------------------
+   Tema claro
+   Alterna por prefers-color-scheme quando o usuario nao forca tema, ou por
+   data-theme="light" num container raiz. Nunca inverter o tema dentro de um
+   componente: o tema e sempre aplicado na raiz.
+   -------------------------------------------------------------------------- */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --color-surface: #f7f8fa;
+    --color-surface-raised: #ffffff;
+    --color-surface-overlay: #ffffff;
+    --color-surface-secret: #eff1f4;
+    --color-text-primary: #16181d;
+    --color-text-secondary: #4b515c;
+    --color-text-muted: #62676f;
+    --color-border-subtle: #e3e6eb;
+    --color-border-strong: #c9ceda;
+    --color-border-control: #7b8290;
+    --color-focus-ring: #2b54c4;
+    /* Texto colorido escurece no claro; o preenchimento solido nao muda. */
+    --color-accent-text: #2b54c4;
+    --color-danger-text: #c62a30;
+    --color-success-text: #0f7a4a;
+    color-scheme: light;
+  }
+}
+
+[data-theme="light"] {
+  --color-surface: #f7f8fa;
+  --color-surface-raised: #ffffff;
+  --color-surface-overlay: #ffffff;
+  --color-surface-secret: #eff1f4;
+  --color-text-primary: #16181d;
+  --color-text-secondary: #4b515c;
+  --color-text-muted: #62676f;
+  --color-border-subtle: #e3e6eb;
+  --color-border-strong: #c9ceda;
+  --color-border-control: #7b8290;
+  --color-focus-ring: #2b54c4;
+  --color-accent-text: #2b54c4;
+  --color-danger-text: #c62a30;
+  --color-success-text: #0f7a4a;
+  color-scheme: light;
+}
+
+/* Forca o escuro num subtree, mesmo com o sistema em claro. Usado pelo lab
+   do Storybook para exibir os dois temas lado a lado. */
+[data-theme="dark"] {
+  --color-surface: #16181d;
+  --color-surface-raised: #1d2026;
+  --color-surface-overlay: #22252d;
+  --color-surface-secret: #131519;
+  --color-text-primary: #edeff3;
+  --color-text-secondary: #c6c9d1;
+  --color-text-muted: #8e939e;
+  --color-border-subtle: #2a2e37;
+  --color-border-strong: #3d424e;
+  --color-border-control: #7b8290;
+  --color-focus-ring: #7aa5f5;
+  --color-accent-text: #7aa5f5;
+  --color-danger-text: #ff8d8a;
+  --color-success-text: #4fd18a;
+  color-scheme: dark;
+}
+
+/* --------------------------------------------------------------------------
+   Base
+   -------------------------------------------------------------------------- */
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  html {
+    font-family: var(--font-sans);
+    background-color: var(--color-surface);
+    color: var(--color-text-primary);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    margin: 0;
+    font-size: var(--text-body);
+    line-height: var(--text-body--line-height);
+  }
+
+  *:focus-visible {
+    outline: 2px solid var(--color-focus-ring);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background-color: color-mix(in oklab, var(--color-accent) 30%, transparent);
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Movimento reduzido: tudo colapsa para o estado final imediatamente.
+   -------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Controles compartilhados pelo produto e pelo laboratório.
+   -------------------------------------------------------------------------- */
+.qf-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-2);
+  min-height: 44px;
+  padding: var(--spacing-2) var(--spacing-4);
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  font: 500 var(--text-body)/var(--text-body--line-height) var(--font-sans);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: transform var(--duration-instant) var(--ease-settle);
+}
+.qf-button--primary { background: var(--color-accent); color: var(--color-accent-fg); }
+.qf-button--danger { background: var(--color-danger); color: var(--color-accent-fg); }
+.qf-button--secondary {
+  background: var(--color-surface-raised);
+  color: var(--color-text-primary);
+  border-color: var(--color-border-control);
+}
+.qf-button--ghost { background: transparent; color: var(--color-accent-text); }
+.qf-button:hover:not(:disabled) { text-decoration: underline; text-underline-offset: 3px; }
+.qf-button:active:not(:disabled) { transform: scale(0.98); }
+.qf-button:disabled {
+  cursor: not-allowed;
+  background: var(--color-surface-overlay);
+  border-color: var(--color-border-subtle);
+  color: var(--color-text-muted);
+}
+.qf-button[aria-busy="true"] { cursor: progress; }
+.qf-button__loading {
+  width: 16px;
+  height: 12px;
+  border-radius: var(--radius-control);
+  background: currentColor;
+  opacity: 0.6;
+}
+.qf-field { display: grid; gap: var(--spacing-2); min-width: 0; }
+.qf-field label { font-weight: 500; color: var(--color-text-primary); }
+.qf-field input {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: var(--spacing-2) var(--spacing-3);
+  background: var(--color-surface-raised);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border-control);
+  border-radius: var(--radius-control);
+  font: inherit;
+}
+.qf-field input::placeholder { color: var(--color-text-muted); opacity: 1; }
+.qf-field input[aria-invalid="true"] { border-color: var(--color-danger-text); }
+.qf-field input:disabled { background: var(--color-surface-secret); color: var(--color-text-muted); cursor: not-allowed; }
+.qf-field__hint, .qf-field__error { font-size: var(--text-small); line-height: var(--text-small--line-height); }
+.qf-field__hint { color: var(--color-text-muted); }
+.qf-field__error { color: var(--color-danger-text); }
+.qf-surface {
+  padding: var(--spacing-4);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-panel);
+  color: var(--color-text-primary);
+}
+.qf-surface--base { background: var(--color-surface); }
+.qf-surface--raised { background: var(--color-surface-raised); }
+.qf-surface--overlay { background: var(--color-surface-overlay); }
+.qf-surface--secret {
+  background: var(--color-surface-secret);
+  border-style: dashed;
+  border-color: var(--color-border-control);
+}
+.qf-surface__restriction {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  margin-bottom: var(--spacing-3);
+  font-size: var(--text-small);
+  color: var(--color-text-secondary);
+}
+.qf-skeleton {
+  height: 16px;
+  border-radius: var(--radius-control);
+  background: var(--color-border-strong);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .qf-button__loading, .qf-skeleton { animation: qf-loading 1.4s ease-in-out infinite alternate; }
+  @keyframes qf-loading { to { opacity: 0.45; } }
+}
+@media (prefers-reduced-motion: reduce) {
+  .qf-button:active:not(:disabled) { transform: none; }
+}
