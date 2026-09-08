@@ -127,4 +127,5 @@ Fase 3  mundo
 ## Open Questions
 
 - Formato de armazenamento de condições no `Combatant`: lista de strings livres ou enum fixo das condições 5e. Decidir na fase 2, quando a tela existir.
+- **Campanha criada por engano não tem saída, e isso não estava previsto.** O mestre não pode sair da própria campanha, para que a mesa não fique sem mestre, e encerrar/arquivar está nos Non-Goals. As duas regras isoladas são corretas; juntas, tornam a campanha permanente e irremovível para quem a criou. Mantido fora do MVP por decisão explícita — a limpeza, se precisar, é no SQLite. Quando entrar, a semântica escolhida é **arquivamento reversível** (`campaigns.archived_at`, filtrado por padrão na listagem), não exclusão em cascata: preserva o histórico da mesa e admite volta atrás.
 - Se o feed deve ter retenção limitada (últimos N eventos) ou histórico completo por campanha. Sem impacto de arquitetura; decidir quando o volume real aparecer.

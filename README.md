@@ -59,14 +59,15 @@ Em dois terminais:
 
 ```sh
 npm run dev               # API na porta 3000
-npm run dev:client        # SPA na porta 5173, com proxy de /api para a 3000
+npm run dev:client        # SPA na porta 5273, com proxy de /api para a 3000
 ```
 
-Abra <http://localhost:5173>. Para o login funcionar neste modo, troque
-`DISCORD_REDIRECT_URI` para a porta 5173 e cadastre essa URI no Discord também.
+Abra <http://localhost:5273>. Para o login funcionar neste modo, troque
+`DISCORD_REDIRECT_URI` para a porta 5273 e cadastre essa URI no Discord também.
 
-A porta 5173 é fixa (`strictPort`): se estiver ocupada, o Vite falha em vez de
-mudar de porta em silêncio, o que quebraria a Redirect URI cadastrada.
+A porta 5273 é fixa (`strictPort`), e não a 5173 padrão do Vite: se estiver
+ocupada, ele falha em vez de mudar de porta em silêncio, o que quebraria a
+Redirect URI cadastrada.
 
 Para ver as telas sem passar pelo Discord, o seed cria uma campanha de exemplo
 e imprime um cookie de sessão válido:
