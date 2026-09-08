@@ -1,0 +1,28 @@
+{
+  "name": "@quest-fast/db",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./schema": "./src/schema.ts"
+  },
+  "scripts": {
+    "generate": "drizzle-kit generate",
+    "migrate": "node src/migrate.ts",
+    "studio": "drizzle-kit studio",
+    "typecheck": "tsc -b"
+  },
+  "dependencies": {
+    "@quest-fast/shared": "*",
+    "better-sqlite3": "^13.0.3",
+    "drizzle-orm": "^0.45.2"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/node": "^26.4.1",
+    "drizzle-kit": "^0.31.10",
+    "typescript": "~5.9.0"
+  }
+}

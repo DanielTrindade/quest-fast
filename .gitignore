@@ -7,6 +7,14 @@ storybook-static/
 coverage/
 test-results/
 
+# banco local (backup e o proprio arquivo do SQLite)
+*.db
+*.db-shm
+*.db-wal
+
+# uploads gravados em disco pelo Asset
+uploads/
+
 # logs e ambiente
 *.log
 .env

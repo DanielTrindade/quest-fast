@@ -58,6 +58,10 @@ Para uma instância self-hosted com uma mesa, Postgres é infraestrutura sem con
 
 *Alternativa considerada:* Postgres desde o início, descartada por antecipar um requisito — concorrência de escrita e múltiplas instâncias — que a escala alvo não tem.
 
+**Driver (decidido na fase 0):** `better-sqlite3` com `drizzle-orm/better-sqlite3`. É o caminho principal do Drizzle para SQLite e tem API estável. O módulo é nativo, mas instala por binário pré-compilado — verificado nesta máquina em 11s, sem toolchain de build — e a imagem do `Dockerfile` o compila quando não houver binário para a plataforma.
+
+*Alternativa considerada:* `node:sqlite`, embutido no Node 22, que dispensaria o módulo nativo por completo e é suportado por `drizzle-orm/node-sqlite`. Descartada porque ainda emite `ExperimentalWarning` e sua API pode mudar sem aviso, o que é caro num produto self-hosted de vida longa. A troca entre os dois é de import do cliente e do migrator, não de schema nem de consulta.
+
 ### 6. Discord OAuth como único login
 
 O público inteiro já tem Discord. OAuth é menos código que credenciais (sem hash, sem rate-limit de senha, sem fluxo de recuperação) e traz nome e avatar prontos, o que elimina a necessidade de uma tela de perfil editável.

@@ -3,21 +3,31 @@
   "private": true,
   "version": "0.0.0",
   "workspaces": [
+    "shared",
+    "db",
+    "server",
     "client"
   ],
   "scripts": {
-    "dev": "npm --workspace client run dev",
+    "dev": "npm --workspace server run dev",
+    "dev:client": "npm --workspace client run dev",
     "build": "npm --workspace client run build",
+    "start": "npm --workspace server run start",
     "preview": "npm --workspace client run preview",
     "lint": "npm --workspace client run lint",
     "storybook": "npm --workspace client run storybook",
     "build-storybook": "npm --workspace client run build-storybook",
+    "db:generate": "npm --workspace db run generate",
+    "db:migrate": "npm --workspace db run migrate",
+    "typecheck": "npm --workspace shared run typecheck && npm --workspace db run typecheck && npm --workspace server run typecheck",
+    "test": "npm --workspace shared run test && npm --workspace server run test",
     "test:tokens": "npm --workspace client run test:tokens",
     "test:design": "npm run build-storybook && node scripts/verify-design-system.mjs"
   },
   "allowScripts": {
     "esbuild@0.28.2": true,
-    "esbuild@0.25.12": true
+    "esbuild@0.25.12": true,
+    "better-sqlite3@13.0.3": true
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0"
