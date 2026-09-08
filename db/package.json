@@ -12,7 +12,8 @@
     "generate": "drizzle-kit generate",
     "migrate": "node src/migrate.ts",
     "studio": "drizzle-kit studio",
-    "typecheck": "tsc -b"
+    "typecheck": "tsc -b",
+    "seed": "node src/seed.ts"
   },
   "dependencies": {
     "@quest-fast/shared": "*",

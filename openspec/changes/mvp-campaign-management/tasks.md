@@ -1,19 +1,20 @@
 ## Estado da implementação — 2026-09-08
 
-Fase 0 em andamento. O servidor está completo e verificado; falta a interface e o empacotamento.
+Fase 0 concluída, com uma pendência humana. O produto entrega o ciclo login → campanha → convite → membros e sobe em container.
 
-- Entregue e verificado: monorepo com `shared/`, `db/`, `server/` e o `client/` já existente; Hono servindo `/api/health`, a API e o SPA com fallback de rota; Drizzle sobre SQLite com a primeira migração aplicada; OAuth do Discord com `state` contra CSRF; sessão em cookie HttpOnly invalidada no servidor pelo logout; campanhas, convite, entrada, membros, saída e remoção; `requireAuth` e `requireCampaignRole`.
-- Verificação desta sessão: `npm test` com 48 testes aprovados (10 em `shared/`, 38 em `server/`) e `npm run typecheck` limpo nos três workspaces. Os testes de RBAC percorrem o fluxo real de OAuth com um Discord falso, sem rede.
-- Decisão registrada no `design.md`: driver `better-sqlite3` em vez do `node:sqlite` experimental.
-- **Bloqueio humano na 1.5:** as variáveis estão documentadas em `.env.example`, mas registrar a aplicação no Discord Developer Portal exige uma conta Discord e não pode ser feito pelo agente. Até lá o login não roda de ponta a ponta contra o Discord real — a suíte cobre o fluxo com um provedor falso.
-- Pendente na fase 0: 1.2 (TanStack Router no `client/`), 1.10 (tela de membros), 1.14 (`Dockerfile` e README de self-host).
+- Entregue e verificado: monorepo com `shared/`, `db/`, `server/` e `client/`; Hono servindo API e SPA no mesmo processo; Drizzle sobre SQLite; OAuth do Discord com `state` contra CSRF; sessão em cookie HttpOnly invalidada no servidor; campanhas, convite, entrada, membros, saída e remoção; `requireAuth` e `requireCampaignRole`; TanStack Router com guarda que consulta a API; telas de login, listagem e campanha.
+- Verificação desta sessão: `npm test` com 50 testes aprovados (10 em `shared/`, 40 em `server/`), `npm run typecheck` limpo nos três workspaces, `npm run lint` sem avisos e `npm run build` do SPA. A imagem Docker foi construída e exercitada: migra na subida, responde `/api/health`, recusa rota de dados sem sessão, serve o SPA, preserva o banco no volume entre reinícios e roda como `node`, não root.
+- Defeitos encontrados na verificação e corrigidos: ordem instável dos membros quando várias entradas caem no mesmo segundo; as container queries de `campanha.css` não valiam fora do `AppShell`, por falta de contexto de container; e o limiar de duas colunas era inalcançável na largura da página. Os dois primeiros ganharam teste; o terceiro é afirmado por medição na verificação de interface.
+- Decisões registradas no `design.md`: driver `better-sqlite3` em vez do `node:sqlite` experimental.
+- **Bloqueio humano na 1.5:** as variáveis estão documentadas em `.env.example` e no README, mas registrar a aplicação no Discord Developer Portal exige uma conta Discord e não pode ser feito pelo agente. Até lá o login não roda de ponta a ponta contra o Discord real — a suíte cobre o fluxo com um provedor falso, e `npm run db:seed` abre a interface sem passar pelo Discord.
+- `db/src/seed.ts` antecipa parte da tarefa 5.2; a campanha de exemplo completa, com personagens e statblock, continua pendente para o fechamento do MVP.
 
 ## 1. Fase 0 — Fundação e primeira fatia vertical (entregável)
 
 Meta: um usuário loga com o Discord, cria uma campanha, convida alguém e vê a lista de membros. Ao fim desta fase o produto sobe em produção.
 
 - [x] 1.1 `git init`, `.gitignore` e estrutura do monorepo (`client/`, `server/`, `shared/`, `db/`)
-- [ ] 1.2 Scaffold `client/` com Vite + React + TypeScript + TanStack Router
+- [x] 1.2 Scaffold `client/` com Vite + React + TypeScript + TanStack Router
 - [x] 1.3 Scaffold `server/` com Hono em Node, servindo o build do `client/` e um `/api/health`
 - [x] 1.4 Drizzle + SQLite: conexão, script de migração e primeira migração vazia
 - [ ] 1.5 Registrar a aplicação no Discord Developer Portal e documentar as variáveis de ambiente (`DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `DISCORD_REDIRECT_URI`)
@@ -21,11 +22,11 @@ Meta: um usuário loga com o Discord, cria uma campanha, convida alguém e vê a
 - [x] 1.7 Sessão em cookie HttpOnly, middleware `requireAuth` e rota de logout
 - [x] 1.8 Tabelas `Campaign` e `CampaignMember`; criar campanha (criador vira mestre) e listar as campanhas do usuário
 - [x] 1.9 Código de convite único e fluxo de entrada na campanha
-- [ ] 1.10 Página de membros: listar com nome, papel e data de entrada
+- [x] 1.10 Página de membros: listar com nome, papel e data de entrada
 - [x] 1.11 Sair da campanha (jogador) e remover membro (mestre)
 - [x] 1.12 Middleware `requireCampaignRole` — resolve o papel a partir de `CampaignMember` em toda rota de campanha
 - [x] 1.13 Testes de integração de RBAC: jogador não remove membro, não-membro não lê a campanha
-- [ ] 1.14 `Dockerfile` de processo único e README com os passos de self-host
+- [x] 1.14 `Dockerfile` de processo único e README com os passos de self-host
 
 ## 2. Fase 1 — Personagens, dados e feed ao vivo
 

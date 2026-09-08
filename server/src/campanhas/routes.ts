@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { and, eq, desc } from 'drizzle-orm';
+import { and, desc, eq, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { campaignMembers, campaigns, users, type Db } from '@quest-fast/db';
 import { gerarCodigoConvite, normalizarCodigoConvite } from '@quest-fast/shared';
@@ -138,7 +138,13 @@ export function rotasDeCampanhas() {
       .from(campaignMembers)
       .innerJoin(users, eq(users.id, campaignMembers.userId))
       .where(eq(campaignMembers.campaignId, c.var.campanhaId))
-      .orderBy(campaignMembers.entrouEm)
+      // Mestre primeiro; depois ordem de entrada. Sem o desempate por id, dois
+      // membros que entraram no mesmo segundo sairiam em ordem indefinida.
+      .orderBy(
+        sql`case ${campaignMembers.papel} when 'mestre' then 0 else 1 end`,
+        campaignMembers.entrouEm,
+        campaignMembers.id,
+      )
       .all();
     return c.json({ membros });
   });

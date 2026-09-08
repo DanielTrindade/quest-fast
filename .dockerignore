@@ -1,0 +1,17 @@
+node_modules
+**/node_modules
+dist
+**/dist
+storybook-static
+**/storybook-static
+test-results
+coverage
+.git
+.env
+.env.*
+*.db
+*.db-shm
+*.db-wal
+uploads
+openspec
+docs

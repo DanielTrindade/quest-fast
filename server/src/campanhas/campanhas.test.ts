@@ -245,3 +245,33 @@ test('toda rota de campanha exige sessão', async (t) => {
     });
   }
 });
+
+test('a lista de membros começa pelo mestre, mesmo com entradas no mesmo segundo', async () => {
+  const m = montarMesa({ ...PERFIS, quarta: { discordId: '444', nome: 'Pedro Alves', avatarUrl: null } });
+  const mestre = comoUsuario(m, await entrar(m, 'lia'));
+  const campanha = await corpo<CampanhaCriada>(
+    await mestre('/api/campanhas', { method: 'POST', body: JSON.stringify({ nome: 'Ecos' }) }),
+  );
+
+  for (const codigo of ['rafael', 'intrusa', 'quarta']) {
+    const jogador = comoUsuario(m, await entrar(m, codigo));
+    await jogador('/api/campanhas/entrar', { method: 'POST', body: JSON.stringify({ codigo: campanha.codigoConvite }) });
+  }
+
+  const { membros } = await corpo<RespostaMembros>(await mestre(`/api/campanhas/${campanha.id}/membros`));
+  assert.equal(membros[0].papel, 'mestre');
+  assert.deepEqual(
+    membros.slice(1).map((membro) => membro.papel),
+    ['jogador', 'jogador', 'jogador'],
+  );
+});
+
+test('a ordem dos membros é estável entre chamadas', async () => {
+  const { mestre, campanha } = await mesaComCampanha();
+  const primeira = await corpo<RespostaMembros>(await mestre(`/api/campanhas/${campanha.id}/membros`));
+  const segunda = await corpo<RespostaMembros>(await mestre(`/api/campanhas/${campanha.id}/membros`));
+  assert.deepEqual(
+    primeira.membros.map((membro) => membro.id),
+    segunda.membros.map((membro) => membro.id),
+  );
+});

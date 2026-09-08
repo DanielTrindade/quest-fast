@@ -22,7 +22,8 @@
     "typecheck": "npm --workspace shared run typecheck && npm --workspace db run typecheck && npm --workspace server run typecheck",
     "test": "npm --workspace shared run test && npm --workspace server run test",
     "test:tokens": "npm --workspace client run test:tokens",
-    "test:design": "npm run build-storybook && node scripts/verify-design-system.mjs"
+    "test:design": "npm run build-storybook && node scripts/verify-design-system.mjs",
+    "db:seed": "npm --workspace db run seed"
   },
   "allowScripts": {
     "esbuild@0.28.2": true,

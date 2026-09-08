@@ -1,5 +1,3 @@
-import { randomInt } from 'node:crypto';
-
 /**
  * O código é ditado em voz alta na mesa. O alfabeto exclui os caracteres que
  * se confundem ao falar ou ao ler: O e 0, I e 1, L.
@@ -11,10 +9,23 @@ export const TAMANHO_CODIGO_CONVITE = 6;
 /** Separadores que aparecem quando alguém copia o código à mão. */
 const SEPARADORES = /[\s-]+/g;
 
+/**
+ * Maior múltiplo do alfabeto que cabe em um byte. Sortear acima disso e usar
+ * o resto enviesaria as primeiras letras do alfabeto.
+ */
+const LIMITE_SEM_VIES = Math.floor(256 / ALFABETO_CONVITE.length) * ALFABETO_CONVITE.length;
+
+/** Usa Web Crypto, presente no Node e no navegador: `shared/` roda nos dois. */
 export function gerarCodigoConvite(): string {
   let codigo = '';
-  for (let i = 0; i < TAMANHO_CODIGO_CONVITE; i++) {
-    codigo += ALFABETO_CONVITE[randomInt(ALFABETO_CONVITE.length)];
+  const buffer = new Uint8Array(TAMANHO_CODIGO_CONVITE);
+  while (codigo.length < TAMANHO_CODIGO_CONVITE) {
+    crypto.getRandomValues(buffer);
+    for (const byte of buffer) {
+      if (byte >= LIMITE_SEM_VIES) continue;
+      codigo += ALFABETO_CONVITE[byte % ALFABETO_CONVITE.length];
+      if (codigo.length === TAMANHO_CODIGO_CONVITE) break;
+    }
   }
   return codigo;
 }

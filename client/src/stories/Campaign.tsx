@@ -10,7 +10,7 @@ import { EmptyState } from '../components/EmptyState';
 import { Skeleton } from '../components/Skeleton';
 import { Surface } from '../components/Surface';
 import { Toast, ToastProvider } from '../components/Toast';
-import './campaign.css';
+import '../styles/campanha.css';
 
 // Dados e ações locais do laboratório. Autorização e persistência ficam no MVP.
 const initialMembers = [
