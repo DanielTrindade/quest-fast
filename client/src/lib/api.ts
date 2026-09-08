@@ -1,81 +1,82 @@
 import type {
-  CampanhaCriada,
-  CampanhaDetalhe,
-  EntradaNaCampanha,
-  RespostaCampanhas,
-  RespostaMe,
-  RespostaMembros,
+  CampaignDetail,
+  CampaignJoin,
+  CampaignsResponse,
+  CreatedCampaign,
+  MeResponse,
+  MembersResponse,
 } from '@quest-fast/shared';
 
 /**
- * Cliente da API. O servidor é a fonte de verdade: aqui não há cálculo de
- * papel nem de visibilidade, apenas transporte e tradução de erro.
+ * API client. The server is the source of truth: there is no role or
+ * visibility computation here, only transport and error translation.
  */
 
-export class ErroDaApi extends Error {
-  // Campo declarado e atribuído no corpo: `erasableSyntaxOnly` proíbe
-  // propriedades de parâmetro, que exigiriam transformação de tipo.
+export class ApiError extends Error {
+  // Field declared and assigned in the body: `erasableSyntaxOnly` forbids
+  // parameter properties, which would require a type-driven transform.
   readonly status: number;
 
-  constructor(status: number, mensagem: string) {
-    super(mensagem);
+  constructor(status: number, message: string) {
+    super(message);
     this.status = status;
   }
 
-  /** Sessão ausente ou expirada: o app deve voltar para a tela de login. */
-  get naoAutenticado() {
+  /** Missing or expired session: the app should return to the login screen. */
+  get unauthenticated() {
     return this.status === 401;
   }
 }
 
-async function pedir<T>(caminho: string, init: RequestInit = {}): Promise<T> {
-  const resposta = await fetch(caminho, {
+async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const response = await fetch(path, {
     ...init,
     credentials: 'same-origin',
     headers: { 'content-type': 'application/json', ...(init.headers ?? {}) },
   });
 
-  if (!resposta.ok) {
-    // Erro do servidor vem como { erro }. Uma falha de rede ou um HTML de
-    // proxy não vêm, e não podem virar "undefined" na tela.
-    const corpo = await resposta.json().catch(() => null);
-    const mensagem =
-      corpo && typeof corpo === 'object' && typeof (corpo as { erro?: unknown }).erro === 'string'
-        ? (corpo as { erro: string }).erro
+  if (!response.ok) {
+    // A server error arrives as { error }. A network failure or a proxy's HTML
+    // does not, and must not turn into "undefined" on screen. The fallback is
+    // player-facing text, so it stays in Portuguese.
+    const payload = await response.json().catch(() => null);
+    const message =
+      payload && typeof payload === 'object' && typeof (payload as { error?: unknown }).error === 'string'
+        ? (payload as { error: string }).error
         : 'Não foi possível falar com o servidor.';
-    throw new ErroDaApi(resposta.status, mensagem);
+    throw new ApiError(response.status, message);
   }
 
-  if (resposta.status === 204) return undefined as T;
-  return (await resposta.json()) as T;
+  if (response.status === 204) return undefined as T;
+  return (await response.json()) as T;
 }
 
 export const api = {
-  me: () => pedir<RespostaMe>('/api/auth/me'),
-  sair: () => pedir<void>('/api/auth/logout', { method: 'POST' }),
+  me: () => request<MeResponse>('/api/auth/me'),
+  signOut: () => request<void>('/api/auth/logout', { method: 'POST' }),
 
-  campanhas: () => pedir<RespostaCampanhas>('/api/campanhas'),
+  campaigns: () => request<CampaignsResponse>('/api/campaigns'),
 
-  criarCampanha: (nome: string, descricao: string) =>
-    pedir<CampanhaCriada>('/api/campanhas', {
+  createCampaign: (name: string, description: string) =>
+    request<CreatedCampaign>('/api/campaigns', {
       method: 'POST',
-      body: JSON.stringify({ nome, descricao }),
+      body: JSON.stringify({ name, description }),
     }),
 
-  entrarNaCampanha: (codigo: string) =>
-    pedir<EntradaNaCampanha>('/api/campanhas/entrar', {
+  joinCampaign: (code: string) =>
+    request<CampaignJoin>('/api/campaigns/join', {
       method: 'POST',
-      body: JSON.stringify({ codigo }),
+      body: JSON.stringify({ code }),
     }),
 
-  campanha: (id: string) => pedir<CampanhaDetalhe>(`/api/campanhas/${id}`),
-  membros: (id: string) => pedir<RespostaMembros>(`/api/campanhas/${id}/membros`),
+  campaign: (id: string) => request<CampaignDetail>(`/api/campaigns/${id}`),
+  members: (id: string) => request<MembersResponse>(`/api/campaigns/${id}/members`),
 
-  sairDaCampanha: (id: string) => pedir<void>(`/api/campanhas/${id}/membros/eu`, { method: 'DELETE' }),
+  leaveCampaign: (id: string) => request<void>(`/api/campaigns/${id}/members/me`, { method: 'DELETE' }),
 
-  removerMembro: (campanhaId: string, membroId: string) =>
-    pedir<void>(`/api/campanhas/${campanhaId}/membros/${membroId}`, { method: 'DELETE' }),
+  removeMember: (campaignId: string, memberId: string) =>
+    request<void>(`/api/campaigns/${campaignId}/members/${memberId}`, { method: 'DELETE' }),
 };
 
-/** O login sai do SPA: o Discord responde ao servidor, não ao cliente. */
-export const CAMINHO_LOGIN = '/api/auth/discord';
+/** Login leaves the SPA: Discord answers the server, not the client. */
+export const LOGIN_PATH = '/api/auth/discord';

@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve, join, relative } from 'node:path';
 
-// Cobre CSS, que não passa pelo parser JSX do ESLint. Cores só na fonte de tokens.
+// Covers CSS, which ESLint's JSX parser never sees. Colors only in the token source.
 const root = resolve(import.meta.dirname, '..');
 const tokens = resolve(root, 'client/src/styles/index.css');
 const errors = [];

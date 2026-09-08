@@ -1,4 +1,4 @@
-// Diagnóstico local pelo navegador integrado. Não modifica dados do produto.
+// Local diagnosis through the built-in browser. Does not modify product data.
 // Uso: node scripts/inspect-storybook.mjs <browserPageId> [screenshot.png]
 import { execFileSync } from 'node:child_process';
 import { writeFileSync } from 'node:fs';

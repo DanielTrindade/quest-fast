@@ -20,7 +20,13 @@ context: |
   - O cliente NUNCA é fonte de verdade. Rolagens, permissões e estado de
     combate são calculados e autorizados no servidor.
   - Toda lógica 5e pura vive em shared/ e é testada com testes unitários.
-  - Textos de produto e documentação em português (pt-BR).
+  - Textos de produto e documentação em português (pt-BR): é o que a mesa lê.
+  - Código em inglês, sem exceção: identificadores, nomes de arquivo e de
+    diretório, comentários, rotas da API, campos e valores de JSON, colunas
+    e índices do banco, e descrições de teste. A fronteira é nítida — string
+    visível ao usuário fica em pt-BR, todo o resto é inglês. Mensagens de erro
+    devolvidas pela API são texto visível: o campo chama-se `error`, o conteúdo
+    é português.
 
 rules:
   proposal:

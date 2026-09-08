@@ -3,94 +3,95 @@ import Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import { schema, type Db } from '@quest-fast/db';
-import { criarApp } from './app.ts';
-import type { ClienteDiscord, PerfilDiscord } from './auth/discord.ts';
+import { createApp } from './app.ts';
+import { DiscordFailure, type DiscordClient, type DiscordProfile } from './auth/discord.ts';
+import { SESSION_COOKIE, STATE_COOKIE } from './auth/session.ts';
 import type { Env } from './env.ts';
 
-const MIGRACOES = resolve(import.meta.dirname, '../../db/migrations');
+const MIGRATIONS = resolve(import.meta.dirname, '../../db/migrations');
 
-/** Banco em memória com o schema real aplicado pelas migrações versionadas. */
-export function criarDbDeTeste(): Db {
+/** In-memory database with the real schema applied by versioned migrations. */
+export function createTestDb(): Db {
   const sqlite = new Database(':memory:');
   sqlite.pragma('foreign_keys = ON');
   const db = drizzle(sqlite, { schema });
-  migrate(db, { migrationsFolder: MIGRACOES });
+  migrate(db, { migrationsFolder: MIGRATIONS });
   return db;
 }
 
-export const envDeTeste: Env = {
-  porta: 0,
+export const testEnv: Env = {
+  port: 0,
   dbFile: ':memory:',
-  clientDir: './nao-usado',
-  discordClientId: 'id-de-teste',
-  discordClientSecret: 'segredo-de-teste',
+  clientDir: './unused',
+  discordClientId: 'test-id',
+  discordClientSecret: 'test-secret',
   discordRedirectUri: 'http://localhost/api/auth/discord/callback',
-  cookieSeguro: false,
+  secureCookie: false,
 };
 
 /**
- * Discord falso: o teste escolhe qual perfil o código devolve, sem rede e sem
- * credenciais. `códigoInvalido` simula a recusa do provedor.
+ * Fake Discord: the test picks which profile a code returns, with no network
+ * and no credentials. An unknown code simulates the provider refusing.
  */
-export function criarDiscordFalso(perfis: Record<string, PerfilDiscord>): ClienteDiscord {
+export function createFakeDiscord(profiles: Record<string, DiscordProfile>): DiscordClient {
   return {
-    urlDeAutorizacao: (state) => `https://discord.test/authorize?state=${state}`,
-    async trocarCodigoPorPerfil(codigo) {
-      const perfil = perfis[codigo];
-      if (!perfil) throw new (await import('./auth/discord.ts')).FalhaNoDiscord('código desconhecido');
-      return perfil;
+    authorizationUrl: (state) => `https://discord.test/authorize?state=${state}`,
+    async exchangeCodeForProfile(code) {
+      const profile = profiles[code];
+      if (!profile) throw new DiscordFailure('unknown code');
+      return profile;
     },
   };
 }
 
-export type Mesa = ReturnType<typeof montarMesa>;
+export type TestApp = ReturnType<typeof createTestApp>;
 
-export function montarMesa(perfis: Record<string, PerfilDiscord>) {
-  const db = criarDbDeTeste();
-  const app = criarApp({ db, env: envDeTeste, discord: criarDiscordFalso(perfis), servirClient: false });
+export function createTestApp(profiles: Record<string, DiscordProfile>) {
+  const db = createTestDb();
+  const app = createApp({ db, env: testEnv, discord: createFakeDiscord(profiles), serveClient: false });
   return { db, app };
 }
 
-function cookieDaResposta(resposta: Response, nome: string): string | undefined {
-  for (const bruto of resposta.headers.getSetCookie()) {
-    const [par] = bruto.split(';');
-    const [chave, valor] = par.split('=');
-    if (chave === nome && valor) return valor;
+function cookieFromResponse(response: Response, name: string): string | undefined {
+  for (const raw of response.headers.getSetCookie()) {
+    const [pair] = raw.split(';');
+    const [key, value] = pair.split('=');
+    if (key === name && value) return value;
   }
   return undefined;
 }
 
 /**
- * Percorre o fluxo real de OAuth — início, `state` e callback — e devolve o
- * cookie de sessão. Autenticar por atalho esconderia defeito no fluxo.
+ * Walks the real OAuth flow — start, `state` and callback — and returns the
+ * session cookie. Authenticating by shortcut would hide defects in the flow.
  */
-export async function entrar(mesa: Mesa, codigo: string): Promise<string> {
-  const inicio = await mesa.app.request('/api/auth/discord');
-  const state = cookieDaResposta(inicio, 'qf_oauth_state');
-  if (!state) throw new Error('fluxo de login não emitiu o cookie de state');
+export async function signIn(app: TestApp, code: string): Promise<string> {
+  const start = await app.app.request('/api/auth/discord');
+  const state = cookieFromResponse(start, STATE_COOKIE);
+  if (!state) throw new Error('login flow did not emit the state cookie');
 
-  const callback = await mesa.app.request(`/api/auth/discord/callback?code=${codigo}&state=${state}`, {
-    headers: { cookie: `qf_oauth_state=${state}` },
+  const callback = await app.app.request(`/api/auth/discord/callback?code=${code}&state=${state}`, {
+    headers: { cookie: `${STATE_COOKIE}=${state}` },
   });
-  const sessao = cookieDaResposta(callback, 'qf_sessao');
-  if (!sessao) throw new Error(`login falhou para o código ${codigo}`);
-  return sessao;
+  const session = cookieFromResponse(callback, SESSION_COOKIE);
+  if (!session) throw new Error(`login failed for code ${code}`);
+  return session;
 }
 
-/** Requisição autenticada como o dono do cookie de sessão. */
-export function comoUsuario(mesa: Mesa, sessao: string) {
-  return (caminho: string, init: RequestInit = {}) =>
-    mesa.app.request(caminho, {
+/** Authenticated request as the owner of the session cookie. */
+export function asUser(app: TestApp, session: string) {
+  return (path: string, init: RequestInit = {}) =>
+    app.app.request(path, {
       ...init,
       headers: {
         'content-type': 'application/json',
         ...(init.headers ?? {}),
-        cookie: `qf_sessao=${sessao}`,
+        cookie: `${SESSION_COOKIE}=${session}`,
       },
     });
 }
 
-/** `Response.json()` devolve `unknown`; o teste declara o contrato esperado. */
-export async function corpo<T>(resposta: Response): Promise<T> {
-  return (await resposta.json()) as T;
+/** `Response.json()` returns `unknown`; the test declares the expected shape. */
+export async function body<T>(response: Response): Promise<T> {
+  return (await response.json()) as T;
 }

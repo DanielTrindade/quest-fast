@@ -1,12 +1,14 @@
 import { DiscordLogo } from '@phosphor-icons/react';
 import { Surface } from '../components/Surface';
-import { CAMINHO_LOGIN } from '../lib/api';
+import { LOGIN_PATH } from '../lib/api';
 
 /**
- * O login sai do SPA por navegação real: quem responde ao Discord é o
- * servidor. Por isso é um link, não um fetch.
+ * Login leaves the SPA through a real navigation: the server is what answers
+ * Discord. That is why this is a link, not a fetch.
+ *
+ * Visible copy stays in Portuguese — it is what the table reads.
  */
-export function Entrar({ falhou }: { falhou: boolean }) {
+export function Login({ failed }: { failed: boolean }) {
   return (
     <main className="flex min-h-dvh items-center justify-center bg-surface p-4 text-text-primary sm:p-8">
       <Surface className="w-full max-w-md p-6">
@@ -18,14 +20,14 @@ export function Entrar({ falhou }: { falhou: boolean }) {
           Ficha, dados, combate e mundo no mesmo lugar. O Discord fica com a voz.
         </p>
 
-        {falhou && (
+        {failed && (
           <p role="alert" className="mt-4 text-small text-danger-text">
             Não foi possível entrar com o Discord. Tente novamente.
           </p>
         )}
 
         <a
-          href={CAMINHO_LOGIN}
+          href={LOGIN_PATH}
           className="qf-button qf-button--primary mt-6 inline-flex w-full justify-center no-underline"
         >
           <DiscordLogo size={18} aria-hidden="true" />

@@ -8,8 +8,8 @@
 .campaign-section-heading > span { color: var(--color-text-muted); font: var(--text-small)/var(--text-small--line-height) var(--font-mono); }
 .campaign-roster { padding-block: 0; }
 .campaign-roster ul { list-style: none; padding: 0; margin: 0; }
-/* A linha do mestre não tem ação. Sem colunas compartilhadas o selo de papel
-   escorrega para o lugar do botão e a coluna de papéis deixa de existir. */
+/* The master's row has no action. Without shared columns the role badge
+   slides into the button's slot and the role column stops existing. */
 .campaign-roster ul { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; column-gap: var(--spacing-3); }
 .campaign-roster ul .qf-member { display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; }
 .campaign-roster ul .qf-member > .qf-badge { grid-column: 3; justify-self: start; }
@@ -33,8 +33,8 @@
 @container (max-width: 480px) {
   .campaign-heading h1 { font-size: var(--text-h1); line-height: var(--text-h1--line-height); }
   .campaign-user { display: none; }
-  /* Em telas estreitas cada linha volta a empilhar; as colunas compartilhadas
-     não cabem ao lado do nome. */
+  /* On narrow screens each row stacks again; the shared columns do not fit
+     beside the name. */
   .campaign-roster ul { display: block; }
   .campaign-roster .qf-member { display: grid; grid-template-columns: 40px minmax(0, 1fr); }
   .campaign-roster ul .qf-member { grid-template-columns: 40px minmax(0, 1fr); }

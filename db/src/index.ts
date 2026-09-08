@@ -5,15 +5,15 @@ import * as schema from './schema.ts';
 export * from './schema.ts';
 export { schema };
 
-export type Db = ReturnType<typeof criarDb>;
+export type Db = ReturnType<typeof createDb>;
 
-/** Caminho padrão do arquivo; `DB_FILE` sobrescreve no self-host. */
-export const CAMINHO_DB_PADRAO = 'quest-fast.db';
+/** Default file path; `DB_FILE` overrides it when self-hosting. */
+export const DEFAULT_DB_PATH = 'quest-fast.db';
 
-export function criarDb(caminho = process.env.DB_FILE ?? CAMINHO_DB_PADRAO) {
-  const sqlite = new Database(caminho);
-  // WAL melhora leituras concorrentes; as chaves estrangeiras do schema só
-  // são aplicadas pelo SQLite quando ligadas explicitamente por conexão.
+export function createDb(path = process.env.DB_FILE ?? DEFAULT_DB_PATH) {
+  const sqlite = new Database(path);
+  // WAL improves concurrent reads; the schema's foreign keys are only
+  // enforced by SQLite when turned on explicitly, per connection.
   sqlite.pragma('journal_mode = WAL');
   sqlite.pragma('foreign_keys = ON');
   return drizzle(sqlite, { schema });

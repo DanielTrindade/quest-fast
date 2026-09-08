@@ -1,44 +1,44 @@
 /**
- * O código é ditado em voz alta na mesa. O alfabeto exclui os caracteres que
- * se confundem ao falar ou ao ler: O e 0, I e 1, L.
+ * The code is read aloud at the table. The alphabet leaves out characters
+ * that get confused when spoken or read: O and 0, I and 1, L.
  */
-export const ALFABETO_CONVITE = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+export const INVITE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 
-export const TAMANHO_CODIGO_CONVITE = 6;
+export const INVITE_CODE_LENGTH = 6;
 
-/** Separadores que aparecem quando alguém copia o código à mão. */
-const SEPARADORES = /[\s-]+/g;
+/** Separators that show up when someone copies the code by hand. */
+const SEPARATORS = /[\s-]+/g;
 
 /**
- * Maior múltiplo do alfabeto que cabe em um byte. Sortear acima disso e usar
- * o resto enviesaria as primeiras letras do alfabeto.
+ * Largest multiple of the alphabet that fits in a byte. Drawing above this
+ * and taking the remainder would bias the first letters of the alphabet.
  */
-const LIMITE_SEM_VIES = Math.floor(256 / ALFABETO_CONVITE.length) * ALFABETO_CONVITE.length;
+const UNBIASED_LIMIT = Math.floor(256 / INVITE_ALPHABET.length) * INVITE_ALPHABET.length;
 
-/** Usa Web Crypto, presente no Node e no navegador: `shared/` roda nos dois. */
-export function gerarCodigoConvite(): string {
-  let codigo = '';
-  const buffer = new Uint8Array(TAMANHO_CODIGO_CONVITE);
-  while (codigo.length < TAMANHO_CODIGO_CONVITE) {
+/** Uses Web Crypto, present in Node and in the browser: `shared/` runs on both. */
+export function generateInviteCode(): string {
+  let code = '';
+  const buffer = new Uint8Array(INVITE_CODE_LENGTH);
+  while (code.length < INVITE_CODE_LENGTH) {
     crypto.getRandomValues(buffer);
     for (const byte of buffer) {
-      if (byte >= LIMITE_SEM_VIES) continue;
-      codigo += ALFABETO_CONVITE[byte % ALFABETO_CONVITE.length];
-      if (codigo.length === TAMANHO_CODIGO_CONVITE) break;
+      if (byte >= UNBIASED_LIMIT) continue;
+      code += INVITE_ALPHABET[byte % INVITE_ALPHABET.length];
+      if (code.length === INVITE_CODE_LENGTH) break;
     }
   }
-  return codigo;
+  return code;
 }
 
 /**
- * Devolve o código em forma canônica, ou `undefined` quando a entrada não
- * pode ser um código. Quem chama decide o erro a exibir.
+ * Returns the code in canonical form, or `undefined` when the input cannot be
+ * a code. The caller decides which error to show.
  */
-export function normalizarCodigoConvite(entrada: string): string | undefined {
-  const candidato = entrada.replace(SEPARADORES, '').toUpperCase();
-  if (candidato.length !== TAMANHO_CODIGO_CONVITE) return undefined;
-  for (const char of candidato) {
-    if (!ALFABETO_CONVITE.includes(char)) return undefined;
+export function normalizeInviteCode(input: string): string | undefined {
+  const candidate = input.replace(SEPARATORS, '').toUpperCase();
+  if (candidate.length !== INVITE_CODE_LENGTH) return undefined;
+  for (const char of candidate) {
+    if (!INVITE_ALPHABET.includes(char)) return undefined;
   }
-  return candidato;
+  return candidate;
 }

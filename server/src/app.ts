@@ -1,17 +1,17 @@
 import { Hono } from 'hono';
 import { serveStatic } from '@hono/node-server/serve-static';
-import { rotasDeAuth } from './auth/routes.ts';
-import { rotasDeCampanhas } from './campanhas/routes.ts';
-import type { Contexto, Deps } from './contexto.ts';
+import { authRoutes } from './auth/routes.ts';
+import { campaignRoutes } from './campaigns/routes.ts';
+import type { Context, Deps } from './context.ts';
 import { requireAuth } from './middleware.ts';
 
-export type OpcoesDaApp = Deps & {
-  /** Quando falso, o SPA não é servido — usado pelos testes de integração. */
-  servirClient?: boolean;
+export type AppOptions = Deps & {
+  /** When false the SPA is not served — used by the integration tests. */
+  serveClient?: boolean;
 };
 
-export function criarApp({ servirClient = true, ...deps }: OpcoesDaApp) {
-  const app = new Hono<Contexto>();
+export function createApp({ serveClient = true, ...deps }: AppOptions) {
+  const app = new Hono<Context>();
 
   app.use('*', async (c, next) => {
     c.set('deps', deps);
@@ -20,21 +20,21 @@ export function criarApp({ servirClient = true, ...deps }: OpcoesDaApp) {
 
   app.get('/api/health', (c) => c.json({ status: 'ok' }));
 
-  app.route('/api/auth', rotasDeAuth());
+  app.route('/api/auth', authRoutes());
 
   app.get('/api/auth/me', requireAuth, (c) => {
-    const { id, nome, avatarUrl } = c.var.usuario;
-    return c.json({ usuario: { id, nome, avatarUrl } });
+    const { id, name, avatarUrl } = c.var.user;
+    return c.json({ user: { id, name, avatarUrl } });
   });
 
-  app.route('/api/campanhas', rotasDeCampanhas());
+  app.route('/api/campaigns', campaignRoutes());
 
-  // Toda rota sob /api que não existe é erro de API, nunca o HTML do SPA.
-  app.all('/api/*', (c) => c.json({ erro: 'Rota não encontrada.' }, 404));
+  // Any missing route under /api is an API error, never the SPA's HTML.
+  app.all('/api/*', (c) => c.json({ error: 'Rota não encontrada.' }, 404));
 
-  if (servirClient) {
+  if (serveClient) {
     app.use('/*', serveStatic({ root: deps.env.clientDir }));
-    // Fallback do SPA: rotas do TanStack Router não existem em disco.
+    // SPA fallback: TanStack Router routes do not exist on disk.
     app.get('/*', serveStatic({ root: deps.env.clientDir, path: 'index.html' }));
   }
 

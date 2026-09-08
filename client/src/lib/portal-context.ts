@@ -1,4 +1,4 @@
 import { createContext } from 'react';
 
-// O laboratório fornece um destino dentro de cada tema. No app, usa a raiz.
+// The lab supplies a target inside each theme. In the app it uses the root.
 export const PortalContext = createContext<HTMLElement | undefined>(undefined);

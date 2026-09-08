@@ -7,17 +7,17 @@ import {
 } from '@tanstack/react-router';
 import type { QueryClient } from '@tanstack/react-query';
 import { ToastProvider } from './components/Toast';
-import { ErroDaApi, api } from './lib/api';
-import { BarraDaConta } from './telas/BarraDaConta';
-import { Campanha } from './telas/Campanha';
-import { Campanhas } from './telas/Campanhas';
-import { Entrar } from './telas/Entrar';
+import { ApiError, api } from './lib/api';
+import { AccountBar } from './screens/AccountBar';
+import { Campaign } from './screens/Campaign';
+import { Campaigns } from './screens/Campaigns';
+import { Login } from './screens/Login';
 
-type ContextoDoRouter = { queryClient: QueryClient };
+type RouterContext = { queryClient: QueryClient };
 
-const consultaMe = { queryKey: ['me'], queryFn: api.me };
+const meQuery = { queryKey: ['me'], queryFn: api.me };
 
-const rootRoute = createRootRouteWithContext<ContextoDoRouter>()({
+const rootRoute = createRootRouteWithContext<RouterContext>()({
   component: () => (
     <ToastProvider>
       <Outlet />
@@ -25,39 +25,39 @@ const rootRoute = createRootRouteWithContext<ContextoDoRouter>()({
   ),
 });
 
-const entrarRoute = createRoute({
+const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/entrar',
-  // A chave é omitida quando não há erro, para que navegar até /entrar não
-  // passe a exigir `search`.
-  validateSearch: (busca: Record<string, unknown>): { erro?: 'discord' } =>
-    busca.erro === 'discord' ? { erro: 'discord' } : {},
-  component: function TelaDeEntrada() {
-    return <Entrar falhou={entrarRoute.useSearch().erro === 'discord'} />;
+  path: '/login',
+  // The key is omitted when there is no error, so navigating to /login does
+  // not start requiring `search`.
+  validateSearch: (search: Record<string, unknown>): { error?: 'discord' } =>
+    search.error === 'discord' ? { error: 'discord' } : {},
+  component: function LoginScreen() {
+    return <Login failed={loginRoute.useSearch().error === 'discord'} />;
   },
 });
 
 /**
- * Rota sem caminho que guarda tudo que exige sessão. A verificação é uma
- * chamada real à API: o cliente não decide sozinho se está autenticado.
+ * Pathless route guarding everything that requires a session. The check is a
+ * real API call: the client does not decide on its own whether it is signed in.
  */
-const autenticadoRoute = createRoute({
+const authenticatedRoute = createRoute({
   getParentRoute: () => rootRoute,
-  id: 'autenticado',
+  id: 'authenticated',
   beforeLoad: async ({ context }) => {
     try {
-      const { usuario } = await context.queryClient.ensureQueryData(consultaMe);
-      return { usuario };
-    } catch (erro) {
-      if (erro instanceof ErroDaApi && erro.naoAutenticado) throw redirect({ to: '/entrar' });
-      throw erro;
+      const { user } = await context.queryClient.ensureQueryData(meQuery);
+      return { user };
+    } catch (error) {
+      if (error instanceof ApiError && error.unauthenticated) throw redirect({ to: '/login' });
+      throw error;
     }
   },
-  component: function Autenticado() {
-    const { usuario } = autenticadoRoute.useRouteContext();
+  component: function Authenticated() {
+    const { user } = authenticatedRoute.useRouteContext();
     return (
       <div className="min-h-dvh bg-surface text-text-primary">
-        <BarraDaConta nome={usuario.nome} avatarUrl={usuario.avatarUrl} />
+        <AccountBar name={user.name} avatarUrl={user.avatarUrl} />
         <Outlet />
       </div>
     );
@@ -68,31 +68,31 @@ const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
   beforeLoad: () => {
-    throw redirect({ to: '/campanhas' });
+    throw redirect({ to: '/campaigns' });
   },
 });
 
-const campanhasRoute = createRoute({
-  getParentRoute: () => autenticadoRoute,
-  path: '/campanhas',
-  component: Campanhas,
+const campaignsRoute = createRoute({
+  getParentRoute: () => authenticatedRoute,
+  path: '/campaigns',
+  component: Campaigns,
 });
 
-const campanhaRoute = createRoute({
-  getParentRoute: () => autenticadoRoute,
-  path: '/campanhas/$campanhaId',
-  component: function TelaDaCampanha() {
-    return <Campanha campanhaId={campanhaRoute.useParams().campanhaId} />;
+const campaignRoute = createRoute({
+  getParentRoute: () => authenticatedRoute,
+  path: '/campaigns/$campaignId',
+  component: function CampaignScreen() {
+    return <Campaign campaignId={campaignRoute.useParams().campaignId} />;
   },
 });
 
 const routeTree = rootRoute.addChildren([
   indexRoute,
-  entrarRoute,
-  autenticadoRoute.addChildren([campanhasRoute, campanhaRoute]),
+  loginRoute,
+  authenticatedRoute.addChildren([campaignsRoute, campaignRoute]),
 ]);
 
-export function criarRouter(queryClient: QueryClient) {
+export function createAppRouter(queryClient: QueryClient) {
   return createRouter({
     routeTree,
     context: { queryClient },
@@ -102,6 +102,6 @@ export function criarRouter(queryClient: QueryClient) {
 
 declare module '@tanstack/react-router' {
   interface Register {
-    router: ReturnType<typeof criarRouter>;
+    router: ReturnType<typeof createAppRouter>;
   }
 }

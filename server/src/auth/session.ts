@@ -1,27 +1,27 @@
 import { randomUUID } from 'node:crypto';
 import { and, eq, gt, lt } from 'drizzle-orm';
-import { sessions, users, type Db, type User } from '@quest-fast/db';
-import type { PerfilDiscord } from './discord.ts';
+import { sessions, users, type Db, type UserRow } from '@quest-fast/db';
+import type { DiscordProfile } from './discord.ts';
 
-export const COOKIE_SESSAO = 'qf_sessao';
-export const COOKIE_STATE = 'qf_oauth_state';
+export const SESSION_COOKIE = 'qf_session';
+export const STATE_COOKIE = 'qf_oauth_state';
 
-/** Trinta dias: uma mesa costuma jogar quinzenalmente. */
-export const DURACAO_SESSAO_MS = 30 * 24 * 60 * 60 * 1000;
+/** Thirty days: a table usually plays every couple of weeks. */
+export const SESSION_DURATION_MS = 30 * 24 * 60 * 60 * 1000;
 
 /**
- * Cria o usuário no primeiro acesso e atualiza nome e avatar nos seguintes.
- * O `discordId` é a identidade estável; nome e avatar mudam no Discord.
+ * Creates the user on first access and refreshes name and avatar on later
+ * ones. `discordId` is the stable identity; name and avatar change on Discord.
  */
-export function upsertUsuarioDoDiscord(db: Db, perfil: PerfilDiscord): User {
-  const existente = db.select().from(users).where(eq(users.discordId, perfil.discordId)).get();
-  const agora = new Date();
+export function upsertDiscordUser(db: Db, profile: DiscordProfile): UserRow {
+  const existing = db.select().from(users).where(eq(users.discordId, profile.discordId)).get();
+  const now = new Date();
 
-  if (existente) {
+  if (existing) {
     return db
       .update(users)
-      .set({ nome: perfil.nome, avatarUrl: perfil.avatarUrl, atualizadoEm: agora })
-      .where(eq(users.id, existente.id))
+      .set({ name: profile.name, avatarUrl: profile.avatarUrl, updatedAt: now })
+      .where(eq(users.id, existing.id))
       .returning()
       .get();
   }
@@ -30,39 +30,39 @@ export function upsertUsuarioDoDiscord(db: Db, perfil: PerfilDiscord): User {
     .insert(users)
     .values({
       id: randomUUID(),
-      discordId: perfil.discordId,
-      nome: perfil.nome,
-      avatarUrl: perfil.avatarUrl,
-      criadoEm: agora,
-      atualizadoEm: agora,
+      discordId: profile.discordId,
+      name: profile.name,
+      avatarUrl: profile.avatarUrl,
+      createdAt: now,
+      updatedAt: now,
     })
     .returning()
     .get();
 }
 
-export function criarSessao(db: Db, userId: string, agora = new Date()): { id: string; expiraEm: Date } {
+export function createSession(db: Db, userId: string, now = new Date()): { id: string; expiresAt: Date } {
   const id = randomUUID();
-  const expiraEm = new Date(agora.getTime() + DURACAO_SESSAO_MS);
-  db.insert(sessions).values({ id, userId, criadaEm: agora, expiraEm }).run();
-  return { id, expiraEm };
+  const expiresAt = new Date(now.getTime() + SESSION_DURATION_MS);
+  db.insert(sessions).values({ id, userId, createdAt: now, expiresAt }).run();
+  return { id, expiresAt };
 }
 
-/** Devolve o usuário da sessão, ou `undefined` se ela não existe ou expirou. */
-export function usuarioDaSessao(db: Db, sessaoId: string, agora = new Date()): User | undefined {
-  const linha = db
+/** Returns the session's user, or `undefined` if it does not exist or expired. */
+export function sessionUser(db: Db, sessionId: string, now = new Date()): UserRow | undefined {
+  const row = db
     .select({ user: users })
     .from(sessions)
     .innerJoin(users, eq(users.id, sessions.userId))
-    .where(and(eq(sessions.id, sessaoId), gt(sessions.expiraEm, agora)))
+    .where(and(eq(sessions.id, sessionId), gt(sessions.expiresAt, now)))
     .get();
-  return linha?.user;
+  return row?.user;
 }
 
-/** Logout invalida no servidor; apagar o cookie sozinho não encerraria nada. */
-export function destruirSessao(db: Db, sessaoId: string): void {
-  db.delete(sessions).where(eq(sessions.id, sessaoId)).run();
+/** Logout invalidates on the server; dropping the cookie alone ends nothing. */
+export function destroySession(db: Db, sessionId: string): void {
+  db.delete(sessions).where(eq(sessions.id, sessionId)).run();
 }
 
-export function limparSessoesExpiradas(db: Db, agora = new Date()): void {
-  db.delete(sessions).where(lt(sessions.expiraEm, agora)).run();
+export function deleteExpiredSessions(db: Db, now = new Date()): void {
+  db.delete(sessions).where(lt(sessions.expiresAt, now)).run();
 }

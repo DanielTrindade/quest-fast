@@ -1,4 +1,4 @@
-// Composição shadcn/ui sobre Radix, adaptada aos tokens e ícones do quest-fast.
+// shadcn/ui composition over Radix, adapted to quest-fast tokens and icons.
 import * as Primitive from '@radix-ui/react-dialog';
 import { useContext, type ComponentProps } from 'react';
 import { X } from '@phosphor-icons/react';

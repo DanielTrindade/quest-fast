@@ -68,8 +68,8 @@
 .qf-dice [data-natural="20"] { color: var(--color-accent-text); }
 .qf-dice [data-natural="1"] { color: var(--color-danger-text); }
 .qf-dice__natural { margin-top: var(--spacing-3); font-size: var(--text-small); font-weight: 500; }
-/* Telas fora do AppShell precisam do mesmo contexto de container, ou as
-   consultas de campanha.css nunca casam e o layout não responde. */
+/* Screens outside AppShell need the same container context, or the queries
+   in campaign.css never match and the layout stops responding. */
 .qf-page { container-type: inline-size; min-width: 0; }
 .qf-shell { position: relative; container-type: inline-size; min-width: 0; background: var(--color-surface); color: var(--color-text-primary); }
 .qf-shell__header { display: flex; flex-wrap: wrap; align-items: center; gap: var(--spacing-4); padding: var(--spacing-4) var(--spacing-6); border-bottom: 1px solid var(--color-border-subtle); }

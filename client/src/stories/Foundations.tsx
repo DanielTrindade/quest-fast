@@ -43,7 +43,7 @@ type FoundationsProps = { section?: 'all' | SectionName };
 function contrast(a: string, b: string) {
   const luminance = (hex: string) => {
     if (!/^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(hex)) return NaN;
-    // O build CSS encurta #ffffff para #fff. A medição deve aceitar ambos.
+    // The CSS build shortens #ffffff to #fff. The measurement must accept both.
     const normalized = hex.length === 4 ? '#' + [...hex.slice(1)].map(char => char + char).join('') : hex;
     const [r, g, blue] = [1, 3, 5].map((start) => {
       const value = parseInt(normalized.slice(start, start + 2), 16) / 255;

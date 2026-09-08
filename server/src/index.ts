@@ -1,30 +1,30 @@
 import { serve } from '@hono/node-server';
-import { criarDb } from '@quest-fast/db';
-import { criarApp } from './app.ts';
-import { criarClienteDiscord } from './auth/discord.ts';
-import { limparSessoesExpiradas } from './auth/session.ts';
-import { EnvInvalido, lerEnv } from './env.ts';
+import { createDb } from '@quest-fast/db';
+import { createApp } from './app.ts';
+import { createDiscordClient } from './auth/discord.ts';
+import { deleteExpiredSessions } from './auth/session.ts';
+import { InvalidEnv, readEnv } from './env.ts';
 
 try {
-  const env = lerEnv();
-  const db = criarDb(env.dbFile);
-  limparSessoesExpiradas(db);
+  const env = readEnv();
+  const db = createDb(env.dbFile);
+  deleteExpiredSessions(db);
 
-  const discord = criarClienteDiscord({
+  const discord = createDiscordClient({
     clientId: env.discordClientId,
     clientSecret: env.discordClientSecret,
     redirectUri: env.discordRedirectUri,
   });
 
-  const app = criarApp({ db, env, discord });
+  const app = createApp({ db, env, discord });
 
-  serve({ fetch: app.fetch, port: env.porta }, (info) => {
-    console.log(`quest-fast em http://localhost:${info.port}`);
+  serve({ fetch: app.fetch, port: env.port }, (info) => {
+    console.log(`quest-fast on http://localhost:${info.port}`);
   });
-} catch (erro) {
-  if (erro instanceof EnvInvalido) {
-    console.error(erro.message);
+} catch (error) {
+  if (error instanceof InvalidEnv) {
+    console.error(error.message);
     process.exit(1);
   }
-  throw erro;
+  throw error;
 }

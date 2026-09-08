@@ -1,27 +1,27 @@
 /**
- * Cliente do OAuth do Discord. O `fetch` é injetável para que os testes
- * exercitem o fluxo inteiro sem rede e sem credenciais reais.
+ * Discord OAuth client. `fetch` is injectable so tests can exercise the whole
+ * flow without the network and without real credentials.
  */
 
-export type PerfilDiscord = {
+export type DiscordProfile = {
   discordId: string;
-  nome: string;
+  name: string;
   avatarUrl: string | null;
 };
 
-export type ClienteDiscord = {
-  urlDeAutorizacao(state: string): string;
-  trocarCodigoPorPerfil(codigo: string): Promise<PerfilDiscord>;
+export type DiscordClient = {
+  authorizationUrl(state: string): string;
+  exchangeCodeForProfile(code: string): Promise<DiscordProfile>;
 };
 
-export class FalhaNoDiscord extends Error {}
+export class DiscordFailure extends Error {}
 
-const AUTORIZACAO = 'https://discord.com/oauth2/authorize';
+const AUTHORIZE = 'https://discord.com/oauth2/authorize';
 const TOKEN = 'https://discord.com/api/oauth2/token';
-const USUARIO = 'https://discord.com/api/users/@me';
+const USER = 'https://discord.com/api/users/@me';
 
-/** Só precisamos da identidade: nome e avatar. Nada de servidores ou e-mail. */
-const ESCOPO = 'identify';
+/** We only need identity: name and avatar. No guilds, no email. */
+const SCOPE = 'identify';
 
 type Config = {
   clientId: string;
@@ -31,66 +31,72 @@ type Config = {
 };
 
 /**
- * O Discord entrega `avatar` como hash. Sem avatar, cai no padrão derivado do
- * id — assim a lista de membros nunca fica com um espaço vazio.
+ * Discord returns `avatar` as a hash. Without an avatar it falls back to null,
+ * and the component renders initials instead of an empty slot.
  */
-export function montarAvatarUrl(discordId: string, hash: string | null | undefined): string | null {
+export function buildAvatarUrl(discordId: string, hash: string | null | undefined): string | null {
   if (!hash) return null;
-  const extensao = hash.startsWith('a_') ? 'gif' : 'png';
-  return `https://cdn.discordapp.com/avatars/${discordId}/${hash}.${extensao}`;
+  const extension = hash.startsWith('a_') ? 'gif' : 'png';
+  return `https://cdn.discordapp.com/avatars/${discordId}/${hash}.${extension}`;
 }
 
-export function criarClienteDiscord({ clientId, clientSecret, redirectUri, fetchImpl = fetch }: Config): ClienteDiscord {
+export function createDiscordClient({
+  clientId,
+  clientSecret,
+  redirectUri,
+  fetchImpl = fetch,
+}: Config): DiscordClient {
   return {
-    urlDeAutorizacao(state) {
-      const url = new URL(AUTORIZACAO);
+    authorizationUrl(state) {
+      const url = new URL(AUTHORIZE);
       url.searchParams.set('client_id', clientId);
       url.searchParams.set('redirect_uri', redirectUri);
       url.searchParams.set('response_type', 'code');
-      url.searchParams.set('scope', ESCOPO);
+      url.searchParams.set('scope', SCOPE);
       url.searchParams.set('state', state);
       url.searchParams.set('prompt', 'none');
       return url.toString();
     },
 
-    async trocarCodigoPorPerfil(codigo) {
-      const corpo = new URLSearchParams({
+    async exchangeCodeForProfile(code) {
+      const body = new URLSearchParams({
         client_id: clientId,
         client_secret: clientSecret,
         grant_type: 'authorization_code',
-        code: codigo,
+        code,
         redirect_uri: redirectUri,
       });
 
-      const respostaToken = await fetchImpl(TOKEN, {
+      const tokenResponse = await fetchImpl(TOKEN, {
         method: 'POST',
         headers: { 'content-type': 'application/x-www-form-urlencoded' },
-        body: corpo,
+        body,
       });
-      if (!respostaToken.ok) {
-        throw new FalhaNoDiscord(`Troca de código recusada pelo Discord (${respostaToken.status}).`);
+      if (!tokenResponse.ok) {
+        throw new DiscordFailure(`Discord refused the code exchange (${tokenResponse.status}).`);
       }
-      const token = (await respostaToken.json()) as { access_token?: string };
-      if (!token.access_token) throw new FalhaNoDiscord('Discord não devolveu access_token.');
+      const token = (await tokenResponse.json()) as { access_token?: string };
+      if (!token.access_token) throw new DiscordFailure('Discord returned no access_token.');
 
-      const respostaUsuario = await fetchImpl(USUARIO, {
+      const userResponse = await fetchImpl(USER, {
         headers: { authorization: `Bearer ${token.access_token}` },
       });
-      if (!respostaUsuario.ok) {
-        throw new FalhaNoDiscord(`Leitura do perfil recusada pelo Discord (${respostaUsuario.status}).`);
+      if (!userResponse.ok) {
+        throw new DiscordFailure(`Discord refused the profile read (${userResponse.status}).`);
       }
-      const perfil = (await respostaUsuario.json()) as {
+      const profile = (await userResponse.json()) as {
         id?: string;
         username?: string;
         global_name?: string | null;
         avatar?: string | null;
       };
-      if (!perfil.id) throw new FalhaNoDiscord('Perfil do Discord veio sem id.');
+      if (!profile.id) throw new DiscordFailure('Discord profile came back without an id.');
 
       return {
-        discordId: perfil.id,
-        nome: perfil.global_name?.trim() || perfil.username?.trim() || 'Aventureiro sem nome',
-        avatarUrl: montarAvatarUrl(perfil.id, perfil.avatar),
+        discordId: profile.id,
+        // Fallback name is player-facing text, so it stays in Portuguese.
+        name: profile.global_name?.trim() || profile.username?.trim() || 'Aventureiro sem nome',
+        avatarUrl: buildAvatarUrl(profile.id, profile.avatar),
       };
     },
   };

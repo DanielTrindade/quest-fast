@@ -10,9 +10,9 @@ import { EmptyState } from '../components/EmptyState';
 import { Skeleton } from '../components/Skeleton';
 import { Surface } from '../components/Surface';
 import { Toast, ToastProvider } from '../components/Toast';
-import '../styles/campanha.css';
+import '../styles/campaign.css';
 
-// Dados e ações locais do laboratório. Autorização e persistência ficam no MVP.
+// Local lab data and actions. Authorization and persistence live in the MVP.
 const initialMembers = [
   { id: 'lia', name: 'Lia Martins', role: 'master' as const, joined: '02 set. 2026' },
   { id: 'rafael', name: 'Rafael Costa', role: 'player' as const, joined: '03 set. 2026' },

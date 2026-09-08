@@ -3,20 +3,20 @@ import { createRoot } from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider } from '@tanstack/react-router';
 import './styles/index.css';
-import { ErroDaApi } from './lib/api';
-import { criarRouter } from './router';
+import { ApiError } from './lib/api';
+import { createAppRouter } from './router';
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      // Repetir uma requisição sem sessão só adia o redirecionamento ao login.
-      retry: (tentativas, erro) => !(erro instanceof ErroDaApi && erro.naoAutenticado) && tentativas < 2,
+      // Retrying a request with no session only delays the login redirect.
+      retry: (attempts, error) => !(error instanceof ApiError && error.unauthenticated) && attempts < 2,
       refetchOnWindowFocus: false,
     },
   },
 });
 
-const router = criarRouter(queryClient);
+const router = createAppRouter(queryClient);
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

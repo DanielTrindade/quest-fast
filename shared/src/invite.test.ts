@@ -1,57 +1,57 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ALFABETO_CONVITE, TAMANHO_CODIGO_CONVITE, gerarCodigoConvite, normalizarCodigoConvite } from './invite.ts';
+import { INVITE_ALPHABET, INVITE_CODE_LENGTH, generateInviteCode, normalizeInviteCode } from './invite.ts';
 
-test('gera código com o tamanho definido', () => {
-  assert.equal(gerarCodigoConvite().length, TAMANHO_CODIGO_CONVITE);
+test('generates a code of the defined length', () => {
+  assert.equal(generateInviteCode().length, INVITE_CODE_LENGTH);
 });
 
-test('gera código apenas com caracteres do alfabeto sem ambiguidade', () => {
+test('generates codes using only the unambiguous alphabet', () => {
   for (let i = 0; i < 200; i++) {
-    for (const char of gerarCodigoConvite()) {
-      assert.ok(ALFABETO_CONVITE.includes(char), `caractere inesperado: ${char}`);
+    for (const char of generateInviteCode()) {
+      assert.ok(INVITE_ALPHABET.includes(char), `unexpected character: ${char}`);
     }
   }
 });
 
-test('o alfabeto não contém caracteres que se confundem ao ditar o código', () => {
-  for (const ambiguo of ['O', '0', 'I', '1', 'L']) {
-    assert.ok(!ALFABETO_CONVITE.includes(ambiguo), `${ambiguo} deveria estar fora do alfabeto`);
+test('the alphabet holds no characters that get confused when read aloud', () => {
+  for (const ambiguous of ['O', '0', 'I', '1', 'L']) {
+    assert.ok(!INVITE_ALPHABET.includes(ambiguous), `${ambiguous} should be out of the alphabet`);
   }
 });
 
-test('normaliza caixa e espaços em volta', () => {
-  assert.equal(normalizarCodigoConvite('  mesa42 '), 'MESA42');
+test('normalizes case and surrounding spaces', () => {
+  assert.equal(normalizeInviteCode('  mesa42 '), 'MESA42');
 });
 
-test('normaliza separadores usados por quem copia o código à mão', () => {
-  assert.equal(normalizarCodigoConvite('mes-a42'), 'MESA42');
-  assert.equal(normalizarCodigoConvite('MES A42'), 'MESA42');
+test('normalizes separators used by whoever copies the code by hand', () => {
+  assert.equal(normalizeInviteCode('mes-a42'), 'MESA42');
+  assert.equal(normalizeInviteCode('MES A42'), 'MESA42');
 });
 
-test('recusa código com tamanho diferente do esperado', () => {
-  assert.equal(normalizarCodigoConvite('MESA4'), undefined);
-  assert.equal(normalizarCodigoConvite('MESA425'), undefined);
+test('rejects a code whose length differs from the expected one', () => {
+  assert.equal(normalizeInviteCode('MESA4'), undefined);
+  assert.equal(normalizeInviteCode('MESA425'), undefined);
 });
 
-test('recusa código com caractere fora do alfabeto', () => {
-  assert.equal(normalizarCodigoConvite('MES@42'), undefined);
-  assert.equal(normalizarCodigoConvite('MESA4O'), undefined);
+test('rejects a code with a character outside the alphabet', () => {
+  assert.equal(normalizeInviteCode('MES@42'), undefined);
+  assert.equal(normalizeInviteCode('MESA4O'), undefined);
 });
 
-test('recusa entrada vazia', () => {
-  assert.equal(normalizarCodigoConvite(''), undefined);
-  assert.equal(normalizarCodigoConvite('   '), undefined);
+test('rejects empty input', () => {
+  assert.equal(normalizeInviteCode(''), undefined);
+  assert.equal(normalizeInviteCode('   '), undefined);
 });
 
-test('gera códigos com entropia suficiente para não repetir na prática', () => {
-  // Uma colisão em 500 sorteios é possível e não indica defeito. Um gerador
-  // quebrado, porém, colapsa para pouquíssimos valores distintos.
-  const gerados = new Set(Array.from({ length: 500 }, () => gerarCodigoConvite()));
-  assert.ok(gerados.size >= 495, `apenas ${gerados.size} códigos distintos em 500`);
+test('generates codes with enough entropy not to repeat in practice', () => {
+  // One collision in 500 draws is possible and does not indicate a defect. A
+  // broken generator, however, collapses to very few distinct values.
+  const generated = new Set(Array.from({ length: 500 }, () => generateInviteCode()));
+  assert.ok(generated.size >= 495, `only ${generated.size} distinct codes out of 500`);
 });
 
-test('usa toda a extensão do alfabeto ao longo de muitos sorteios', () => {
-  const vistos = new Set([...Array.from({ length: 400 }, () => gerarCodigoConvite()).join('')]);
-  assert.equal(vistos.size, ALFABETO_CONVITE.length);
+test('uses the full alphabet across many draws', () => {
+  const seen = new Set([...Array.from({ length: 400 }, () => generateInviteCode()).join('')]);
+  assert.equal(seen.size, INVITE_ALPHABET.length);
 });

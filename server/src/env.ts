@@ -1,43 +1,44 @@
 /**
- * Variáveis de ambiente do servidor. O app não sobe sem as credenciais do
- * Discord: é o pré-requisito operacional declarado na proposal.
+ * Server environment variables. The app does not start without the Discord
+ * credentials: that is the operational prerequisite stated in the proposal.
  */
 export type Env = {
-  porta: number;
+  port: number;
   dbFile: string | undefined;
-  /** Diretório do build do client servido em produção. */
+  /** Directory of the client build served in production. */
   clientDir: string;
   discordClientId: string;
   discordClientSecret: string;
   discordRedirectUri: string;
-  /** Cookies com `Secure` exigem HTTPS; desligado no desenvolvimento local. */
-  cookieSeguro: boolean;
+  /** `Secure` cookies require HTTPS; off for local development. */
+  secureCookie: boolean;
 };
 
-export class EnvInvalido extends Error {}
+export class InvalidEnv extends Error {}
 
-function obrigatoria(fonte: NodeJS.ProcessEnv, nome: string): string {
-  const valor = fonte[nome]?.trim();
-  if (!valor) {
-    throw new EnvInvalido(
-      `Variável de ambiente ${nome} não definida. Veja .env.example e o README para registrar a aplicação no Discord Developer Portal.`,
+function required(source: NodeJS.ProcessEnv, name: string): string {
+  const value = source[name]?.trim();
+  if (!value) {
+    throw new InvalidEnv(
+      `Environment variable ${name} is not set. See .env.example and the README to register the application on the Discord Developer Portal.`,
     );
   }
-  return valor;
+  return value;
 }
 
-export function lerEnv(fonte: NodeJS.ProcessEnv = process.env): Env {
-  const porta = Number(fonte.PORT ?? 3000);
-  if (!Number.isInteger(porta) || porta <= 0 || porta > 65535) {
-    throw new EnvInvalido(`PORT inválida: ${fonte.PORT}`);
+export function readEnv(source: NodeJS.ProcessEnv = process.env): Env {
+  const port = Number(source.PORT ?? 3000);
+  if (!Number.isInteger(port) || port <= 0 || port > 65535) {
+    throw new InvalidEnv(`Invalid PORT: ${source.PORT}`);
   }
   return {
-    porta,
-    dbFile: fonte.DB_FILE?.trim() || undefined,
-    clientDir: fonte.CLIENT_DIR?.trim() || '../client/dist',
-    discordClientId: obrigatoria(fonte, 'DISCORD_CLIENT_ID'),
-    discordClientSecret: obrigatoria(fonte, 'DISCORD_CLIENT_SECRET'),
-    discordRedirectUri: obrigatoria(fonte, 'DISCORD_REDIRECT_URI'),
-    cookieSeguro: (fonte.COOKIE_SECURE ?? (fonte.NODE_ENV === 'production' ? 'true' : 'false')) === 'true',
+    port,
+    dbFile: source.DB_FILE?.trim() || undefined,
+    clientDir: source.CLIENT_DIR?.trim() || '../client/dist',
+    discordClientId: required(source, 'DISCORD_CLIENT_ID'),
+    discordClientSecret: required(source, 'DISCORD_CLIENT_SECRET'),
+    discordRedirectUri: required(source, 'DISCORD_REDIRECT_URI'),
+    secureCookie:
+      (source.COOKIE_SECURE ?? (source.NODE_ENV === 'production' ? 'true' : 'false')) === 'true',
   };
 }

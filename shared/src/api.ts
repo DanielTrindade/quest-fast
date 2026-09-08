@@ -1,52 +1,52 @@
-import type { Papel } from './roles.ts';
+import type { Role } from './role.ts';
 
 /**
- * Contrato entre servidor e cliente. Datas trafegam como ISO 8601; a
- * formatação para a mesa é decisão do cliente.
+ * Contract between server and client. Dates travel as ISO 8601; formatting
+ * for the table is the client's decision.
  */
 
-export type RespostaErro = { erro: string };
+export type ErrorResponse = { error: string };
 
-export type UsuarioPublico = {
+export type PublicUser = {
   id: string;
-  nome: string;
+  name: string;
   avatarUrl: string | null;
 };
 
-export type CampanhaResumo = {
+export type CampaignSummary = {
   id: string;
-  nome: string;
-  descricao: string;
-  papel: Papel;
-  entrouEm: string;
+  name: string;
+  description: string;
+  role: Role;
+  joinedAt: string;
 };
 
-/** `codigoConvite` só existe quando quem lê é o mestre. */
-export type CampanhaDetalhe = {
+/** `inviteCode` is only present when the reader is the master. */
+export type CampaignDetail = {
   id: string;
-  nome: string;
-  descricao: string;
-  papel: Papel;
-  codigoConvite?: string;
+  name: string;
+  description: string;
+  role: Role;
+  inviteCode?: string;
 };
 
-export type CampanhaCriada = CampanhaDetalhe & { codigoConvite: string };
+export type CreatedCampaign = CampaignDetail & { inviteCode: string };
 
-export type EntradaNaCampanha = {
+export type CampaignJoin = {
   id: string;
-  nome: string;
-  papel: Papel;
+  name: string;
+  role: Role;
 };
 
-export type MembroDaCampanha = {
+export type CampaignMember = {
   id: string;
-  usuarioId: string;
-  nome: string;
+  userId: string;
+  name: string;
   avatarUrl: string | null;
-  papel: Papel;
-  entrouEm: string;
+  role: Role;
+  joinedAt: string;
 };
 
-export type RespostaMe = { usuario: UsuarioPublico };
-export type RespostaCampanhas = { campanhas: CampanhaResumo[] };
-export type RespostaMembros = { membros: MembroDaCampanha[] };
+export type MeResponse = { user: PublicUser };
+export type CampaignsResponse = { campaigns: CampaignSummary[] };
+export type MembersResponse = { members: CampaignMember[] };

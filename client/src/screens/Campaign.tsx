@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Users } from '@phosphor-icons/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
-import type { MembroDaCampanha } from '@quest-fast/shared';
+import type { CampaignMember } from '@quest-fast/shared';
 import { Avatar } from '../components/Avatar';
 import { Badge } from '../components/Badge';
 import { Button } from '../components/Button';
@@ -12,54 +12,55 @@ import { EmptyState } from '../components/EmptyState';
 import { Skeleton } from '../components/Skeleton';
 import { Surface } from '../components/Surface';
 import { Toast } from '../components/Toast';
-import { ErroDaApi, api } from '../lib/api';
-import { formatarData, papelParaBadge } from '../lib/papel';
-import '../styles/campanha.css';
+import { ApiError, api } from '../lib/api';
+import { formatDate } from '../lib/format';
+import '../styles/campaign.css';
 
-function mensagemDoErro(erro: unknown) {
-  return erro instanceof ErroDaApi ? erro.message : 'Algo deu errado. Tente novamente.';
+/** Visible copy stays in Portuguese — it is what the table reads. */
+function errorMessage(error: unknown) {
+  return error instanceof ApiError ? error.message : 'Algo deu errado. Tente novamente.';
 }
 
-function RemoverMembro({
-  campanhaId,
-  membro,
-  aoRemover,
+function RemoveMember({
+  campaignId,
+  member,
+  onRemoved,
 }: {
-  campanhaId: string;
-  membro: MembroDaCampanha;
-  aoRemover: () => void;
+  campaignId: string;
+  member: CampaignMember;
+  onRemoved: () => void;
 }) {
-  const [aberto, setAberto] = useState(false);
-  const remover = useMutation({
-    mutationFn: () => api.removerMembro(campanhaId, membro.id),
+  const [open, setOpen] = useState(false);
+  const remove = useMutation({
+    mutationFn: () => api.removeMember(campaignId, member.id),
     onSuccess: () => {
-      setAberto(false);
-      aoRemover();
+      setOpen(false);
+      onRemoved();
     },
   });
 
   return (
     <Dialog
-      open={aberto}
-      onOpenChange={setAberto}
+      open={open}
+      onOpenChange={setOpen}
       trigger={
-        <Button variant="ghost" aria-label={`Remover ${membro.nome}`}>
+        <Button variant="ghost" aria-label={`Remover ${member.name}`}>
           Remover
         </Button>
       }
-      title={`Remover ${membro.nome}?`}
+      title={`Remover ${member.name}?`}
       description="Esta pessoa deixará de participar da campanha. Você poderá convidá-la novamente."
     >
-      {remover.isError && (
+      {remove.isError && (
         <p role="alert" className="text-small text-danger-text">
-          {mensagemDoErro(remover.error)}
+          {errorMessage(remove.error)}
         </p>
       )}
       <div className="qf-dialog__actions">
-        <Button variant="secondary" onClick={() => setAberto(false)}>
+        <Button variant="secondary" onClick={() => setOpen(false)}>
           Cancelar
         </Button>
-        <Button variant="danger" loading={remover.isPending} onClick={() => remover.mutate()}>
+        <Button variant="danger" loading={remove.isPending} onClick={() => remove.mutate()}>
           Remover jogador
         </Button>
       </div>
@@ -67,32 +68,32 @@ function RemoverMembro({
   );
 }
 
-function SairDaCampanha({ campanhaId }: { campanhaId: string }) {
-  const [aberto, setAberto] = useState(false);
-  const navegar = useNavigate();
-  const sair = useMutation({
-    mutationFn: () => api.sairDaCampanha(campanhaId),
-    onSuccess: () => navegar({ to: '/campanhas' }),
+function LeaveCampaign({ campaignId }: { campaignId: string }) {
+  const [open, setOpen] = useState(false);
+  const navigate = useNavigate();
+  const leave = useMutation({
+    mutationFn: () => api.leaveCampaign(campaignId),
+    onSuccess: () => navigate({ to: '/campaigns' }),
   });
 
   return (
     <Dialog
-      open={aberto}
-      onOpenChange={setAberto}
+      open={open}
+      onOpenChange={setOpen}
       trigger={<Button variant="ghost">Sair da campanha</Button>}
       title="Sair desta campanha?"
       description="Você perde o acesso ao conteúdo da mesa. Para voltar, precisará do código de convite."
     >
-      {sair.isError && (
+      {leave.isError && (
         <p role="alert" className="text-small text-danger-text">
-          {mensagemDoErro(sair.error)}
+          {errorMessage(leave.error)}
         </p>
       )}
       <div className="qf-dialog__actions">
-        <Button variant="secondary" onClick={() => setAberto(false)}>
+        <Button variant="secondary" onClick={() => setOpen(false)}>
           Ficar
         </Button>
-        <Button variant="danger" loading={sair.isPending} onClick={() => sair.mutate()}>
+        <Button variant="danger" loading={leave.isPending} onClick={() => leave.mutate()}>
           Sair da campanha
         </Button>
       </div>
@@ -100,66 +101,64 @@ function SairDaCampanha({ campanhaId }: { campanhaId: string }) {
   );
 }
 
-export function Campanha({ campanhaId }: { campanhaId: string }) {
-  const cliente = useQueryClient();
-  const [removido, setRemovido] = useState(false);
+export function Campaign({ campaignId }: { campaignId: string }) {
+  const queryClient = useQueryClient();
+  const [removed, setRemoved] = useState(false);
 
-  const campanha = useQuery({
-    queryKey: ['campanha', campanhaId],
-    queryFn: () => api.campanha(campanhaId),
+  const campaign = useQuery({
+    queryKey: ['campaign', campaignId],
+    queryFn: () => api.campaign(campaignId),
   });
-  const membros = useQuery({
-    queryKey: ['membros', campanhaId],
-    queryFn: () => api.membros(campanhaId),
+  const members = useQuery({
+    queryKey: ['members', campaignId],
+    queryFn: () => api.members(campaignId),
   });
 
-  const aoRemover = () => {
-    setRemovido(true);
-    cliente.invalidateQueries({ queryKey: ['membros', campanhaId] });
+  const onRemoved = () => {
+    setRemoved(true);
+    queryClient.invalidateQueries({ queryKey: ['members', campaignId] });
   };
 
-  if (campanha.isError) {
+  if (campaign.isError) {
     return (
       <main className="qf-page mx-auto w-full max-w-3xl p-4 sm:p-8">
         <Surface>
           <p role="alert" className="text-body text-danger-text">
-            {mensagemDoErro(campanha.error)}
+            {errorMessage(campaign.error)}
           </p>
         </Surface>
       </main>
     );
   }
 
-  const eMestre = campanha.data?.papel === 'mestre';
+  const isMaster = campaign.data?.role === 'master';
 
   return (
     <main className="qf-page mx-auto w-full max-w-6xl p-4 sm:p-8">
       <header className="campaign-heading">
         <div className="min-w-0">
           <p className="campaign-eyebrow">Sua mesa</p>
-          <h1>{campanha.data?.nome ?? 'Carregando…'}</h1>
-          {campanha.data?.descricao && <p className="campaign-description">{campanha.data.descricao}</p>}
+          <h1>{campaign.data?.name ?? 'Carregando…'}</h1>
+          {campaign.data?.description && <p className="campaign-description">{campaign.data.description}</p>}
         </div>
-        {!campanha.isPending && !eMestre && <SairDaCampanha campanhaId={campanhaId} />}
+        {!campaign.isPending && !isMaster && <LeaveCampaign campaignId={campaignId} />}
       </header>
 
       <div className="campaign-layout">
-        <section className="campaign-members" aria-labelledby="titulo-membros">
+        <section className="campaign-members" aria-labelledby="members-title">
           <div className="campaign-section-heading">
-            <h2 id="titulo-membros">
+            <h2 id="members-title">
               <Users size={20} aria-hidden="true" />
               Membros
             </h2>
-            <span>
-              {membros.isSuccess ? `${membros.data.membros.length} na mesa` : 'Carregando…'}
-            </span>
+            <span>{members.isSuccess ? `${members.data.members.length} na mesa` : 'Carregando…'}</span>
           </div>
 
           <Surface className="campaign-roster">
-            {membros.isPending && (
+            {members.isPending && (
               <div className="qf-stack" role="region" aria-label="Carregando membros" aria-busy="true">
-                {[0, 1, 2].map((linha) => (
-                  <div key={linha} className="qf-member">
+                {[0, 1, 2].map((row) => (
+                  <div key={row} className="qf-member">
                     <Skeleton shape="avatar" />
                     <div className="qf-stack">
                       <Skeleton width="60%" />
@@ -170,31 +169,32 @@ export function Campanha({ campanhaId }: { campanhaId: string }) {
               </div>
             )}
 
-            {membros.isError && (
+            {members.isError && (
               <p role="alert" className="text-body text-danger-text">
-                {mensagemDoErro(membros.error)}
+                {errorMessage(members.error)}
               </p>
             )}
 
-            {membros.isSuccess && (
+            {members.isSuccess && (
               <ul>
-                {membros.data.membros.map((membro) => (
-                  <li key={membro.id} className="qf-member">
-                    <Avatar name={membro.nome} src={membro.avatarUrl ?? undefined} />
+                {members.data.members.map((member) => (
+                  <li key={member.id} className="qf-member">
+                    <Avatar name={member.name} src={member.avatarUrl ?? undefined} />
                     <div className="campaign-member-info">
-                      <span className="campaign-member-name">{membro.nome}</span>
-                      <span className="campaign-member-date">Entrou em {formatarData(membro.entrouEm)}</span>
+                      <span className="campaign-member-name">{member.name}</span>
+                      <span className="campaign-member-date">Entrou em {formatDate(member.joinedAt)}</span>
                     </div>
-                    <Badge role={papelParaBadge(membro.papel)} />
-                    {eMestre && membro.papel === 'jogador' && (
-                      <RemoverMembro campanhaId={campanhaId} membro={membro} aoRemover={aoRemover} />
+                    {/* Role and Badge share the same vocabulary, so no mapping. */}
+                    <Badge role={member.role} />
+                    {isMaster && member.role === 'player' && (
+                      <RemoveMember campaignId={campaignId} member={member} onRemoved={onRemoved} />
                     )}
                   </li>
                 ))}
               </ul>
             )}
 
-            {membros.isSuccess && membros.data.membros.length === 1 && eMestre && (
+            {members.isSuccess && members.data.members.length === 1 && isMaster && (
               <EmptyState
                 title="Falta reunir a mesa"
                 description="Compartilhe o código de convite para os jogadores entrarem."
@@ -204,29 +204,29 @@ export function Campanha({ campanhaId }: { campanhaId: string }) {
           </Surface>
 
           <p className="campaign-footnote">
-            {eMestre
+            {isMaster
               ? 'Você é o mestre desta campanha e gerencia quem participa.'
               : 'O mestre gerencia os convites e os membros desta campanha.'}
           </p>
         </section>
 
         <aside className="campaign-aside" aria-label="Convite">
-          {/* O código só chega ao mestre; para jogador a API nem o devolve. */}
-          {campanha.data?.codigoConvite && (
+          {/* The code only reaches the master; the API omits it for a player. */}
+          {campaign.data?.inviteCode && (
             <Surface>
               <p className="campaign-eyebrow">Convite</p>
               <p className="mt-1 mb-3 text-small text-text-secondary">
                 Quem tiver este código entra na campanha como jogador.
               </p>
-              <CopyField value={campanha.data.codigoConvite} />
+              <CopyField value={campaign.data.inviteCode} />
             </Surface>
           )}
         </aside>
       </div>
 
       <Toast
-        open={removido}
-        onOpenChange={setRemovido}
+        open={removed}
+        onOpenChange={setRemoved}
         variant="success"
         title="Jogador removido"
         description="A lista de membros foi atualizada."

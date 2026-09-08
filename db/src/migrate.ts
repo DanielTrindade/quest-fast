@@ -1,7 +1,7 @@
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import { resolve } from 'node:path';
-import { criarDb } from './index.ts';
+import { createDb } from './index.ts';
 
-const db = criarDb();
+const db = createDb();
 migrate(db, { migrationsFolder: resolve(import.meta.dirname, '../migrations') });
-console.log('Migrações aplicadas.');
+console.log('Migrations applied.');

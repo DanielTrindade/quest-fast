@@ -68,7 +68,7 @@ try {
     }
   }
   if (!filter || filter === '--specs') {
-    // Cenários interativos adicionais exercitam os componentes reais, com o diálogo aberto.
+    // Extra interactive scenarios exercise the real components, dialog open.
     for (const theme of ['dark', 'light']) {
       await page.setViewportSize({ width: 1280, height: 900 });
       await visit('componentes-dialog--padrao', theme);
@@ -108,7 +108,7 @@ try {
       const controls = await page.locator('button, select, summary').evaluateAll(elements => elements.filter(el => el.getClientRects().length).map(el => ({ label: el.textContent, height: el.getBoundingClientRect().height })));
       expect(controls.filter(control => control.height < 44)).toEqual([]);
     }
-    // Preferência de sistema e movimento reduzido, incluindo alterações em tempo real.
+    // System preference and reduced motion, including runtime changes.
     for (const theme of ['dark', 'light']) {
       await page.emulateMedia({ colorScheme: theme, reducedMotion: 'reduce' });
       await visit('foundations--default', 'system');

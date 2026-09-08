@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "b3473c5e-b4c2-45d7-aff1-9dadac55f8df",
+  "id": "54e040d4-5107-4534-9176-d32b35c4b541",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "campaign_members": {
@@ -28,15 +28,15 @@
           "notNull": true,
           "autoincrement": false
         },
-        "papel": {
-          "name": "papel",
+        "role": {
+          "name": "role",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
-        "entrou_em": {
-          "name": "entrou_em",
+        "joined_at": {
+          "name": "joined_at",
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
@@ -45,8 +45,8 @@
         }
       },
       "indexes": {
-        "campaign_members_campanha_usuario_idx": {
-          "name": "campaign_members_campanha_usuario_idx",
+        "campaign_members_campaign_user_idx": {
+          "name": "campaign_members_campaign_user_idx",
           "columns": [
             "campaign_id",
             "user_id"
@@ -103,30 +103,30 @@
           "notNull": true,
           "autoincrement": false
         },
-        "nome": {
-          "name": "nome",
+        "name": {
+          "name": "name",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
-        "descricao": {
-          "name": "descricao",
+        "description": {
+          "name": "description",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
           "default": "''"
         },
-        "codigo_convite": {
-          "name": "codigo_convite",
+        "invite_code": {
+          "name": "invite_code",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
-        "criada_em": {
-          "name": "criada_em",
+        "created_at": {
+          "name": "created_at",
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
@@ -135,10 +135,10 @@
         }
       },
       "indexes": {
-        "campaigns_codigo_convite_idx": {
-          "name": "campaigns_codigo_convite_idx",
+        "campaigns_invite_code_idx": {
+          "name": "campaigns_invite_code_idx",
           "columns": [
-            "codigo_convite"
+            "invite_code"
           ],
           "isUnique": true
         }
@@ -165,16 +165,16 @@
           "notNull": true,
           "autoincrement": false
         },
-        "criada_em": {
-          "name": "criada_em",
+        "created_at": {
+          "name": "created_at",
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
           "default": "(unixepoch())"
         },
-        "expira_em": {
-          "name": "expira_em",
+        "expires_at": {
+          "name": "expires_at",
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
@@ -226,8 +226,8 @@
           "notNull": true,
           "autoincrement": false
         },
-        "nome": {
-          "name": "nome",
+        "name": {
+          "name": "name",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -240,16 +240,16 @@
           "notNull": false,
           "autoincrement": false
         },
-        "criado_em": {
-          "name": "criado_em",
+        "created_at": {
+          "name": "created_at",
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
           "default": "(unixepoch())"
         },
-        "atualizado_em": {
-          "name": "atualizado_em",
+        "updated_at": {
+          "name": "updated_at",
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
