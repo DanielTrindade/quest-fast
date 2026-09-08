@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { eq } from 'drizzle-orm';
 import { generateInviteCode } from '@quest-fast/shared';
 import { campaignMembers, campaigns, createDb, sessions, users } from './index.ts';
 
@@ -14,16 +15,25 @@ import { campaignMembers, campaigns, createDb, sessions, users } from './index.t
 
 const db = createDb();
 
-const master = { id: randomUUID(), discordId: 'seed-master', name: 'Lia Martins', avatarUrl: null };
-const players = [
-  { id: randomUUID(), discordId: 'seed-rafael', name: 'Rafael Costa', avatarUrl: null },
-  { id: randomUUID(), discordId: 'seed-ana', name: 'Ana Beatriz', avatarUrl: null },
-  { id: randomUUID(), discordId: 'seed-pedro', name: 'Pedro Alves', avatarUrl: null },
+const seedUsers = [
+  { discordId: 'seed-master', name: 'Lia Martins', avatarUrl: null },
+  { discordId: 'seed-rafael', name: 'Rafael Costa', avatarUrl: null },
+  { discordId: 'seed-ana', name: 'Ana Beatriz', avatarUrl: null },
+  { discordId: 'seed-pedro', name: 'Pedro Alves', avatarUrl: null },
 ];
 
-for (const user of [master, ...players]) {
-  db.insert(users).values(user).onConflictDoNothing().run();
+/** Upserts by the unique discordId and returns the stored row, so reruns of
+ * the seed reuse existing ids instead of referencing fresh UUIDs. */
+function ensureUser(profile: (typeof seedUsers)[number]) {
+  db.insert(users)
+    .values({ id: randomUUID(), ...profile })
+    .onConflictDoNothing()
+    .run();
+  return db.select().from(users).where(eq(users.discordId, profile.discordId)).get()!;
 }
+
+const master = ensureUser(seedUsers[0]);
+const players = seedUsers.slice(1).map(ensureUser);
 
 // Sample content stays in Portuguese: it is what the table reads.
 const campaign = {
