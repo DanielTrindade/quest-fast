@@ -42,9 +42,11 @@ type FoundationsProps = { section?: 'all' | SectionName };
 
 function contrast(a: string, b: string) {
   const luminance = (hex: string) => {
-    if (!/^#[0-9a-f]{6}$/i.test(hex)) return NaN;
+    if (!/^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(hex)) return NaN;
+    // O build CSS encurta #ffffff para #fff. A medição deve aceitar ambos.
+    const normalized = hex.length === 4 ? '#' + [...hex.slice(1)].map(char => char + char).join('') : hex;
     const [r, g, blue] = [1, 3, 5].map((start) => {
-      const value = parseInt(hex.slice(start, start + 2), 16) / 255;
+      const value = parseInt(normalized.slice(start, start + 2), 16) / 255;
       return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
     });
     return 0.2126 * r + 0.7152 * g + 0.0722 * blue;
@@ -125,7 +127,7 @@ export function Foundations({ section = 'all' }: FoundationsProps) {
 
       {visible('typography') && <section id={sectionId('typography')} aria-labelledby={sectionId('typography-title')} className="foundations__section">
         <h2 id={sectionId('typography-title')}>Uma hierarquia de leitura</h2>
-        <p className="foundations__description">Geist e Geist Mono carregadas localmente. Cabinet Grotesk segue prevista para títulos; enquanto isso, eles usam Geist.</p>
+        <p className="foundations__description">Space Grotesk nos títulos, Geist na interface e Geist Mono nos números. Três fontes carregadas localmente, com licença aberta.</p>
         <div className="type-specimens">{TYPE_SCALE.map((step) => <div key={step.token} className="type-specimen">
           <p className="type-specimen__meta"><code>{step.token}</code><span>{step.spec}px</span></p>
           <p className={step.className}>{step.sample}</p>

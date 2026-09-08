@@ -1,4 +1,5 @@
 import { useId, type InputHTMLAttributes } from 'react';
+import { Input } from './Input';
 
 type FieldProps = InputHTMLAttributes<HTMLInputElement> & {
   label: string;
@@ -14,7 +15,7 @@ export function Field({ label, hint, error, id, className = '',
     .filter(Boolean).join(' ') || undefined;
   return <div className={`qf-field ${className}`}>
     <label htmlFor={inputId}>{label}{props.required && <span aria-hidden="true"> *</span>}</label>
-    <input {...props} id={inputId} aria-invalid={error ? true : invalid}
+    <Input {...props} id={inputId} aria-invalid={error ? true : invalid}
       aria-describedby={descriptions} />
     {hint && <p id={`${inputId}-hint`} className="qf-field__hint">{hint}</p>}
     {error && <p id={`${inputId}-error`} className="qf-field__error">{error}</p>}

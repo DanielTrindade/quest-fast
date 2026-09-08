@@ -1,0 +1,45 @@
+.campaign-heading { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: var(--spacing-6); margin-bottom: var(--spacing-8); }
+.campaign-heading h1 { font: 600 var(--text-display)/var(--text-display--line-height) var(--font-display); letter-spacing: -0.04em; margin-top: var(--spacing-2); }
+.campaign-eyebrow { font-size: var(--text-small); color: var(--color-text-muted); }
+.campaign-description { color: var(--color-text-secondary); margin-top: var(--spacing-2); }
+.campaign-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--spacing-6); }
+.campaign-section-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--spacing-3); margin-bottom: var(--spacing-4); }
+.campaign-section-heading h2 { display: flex; align-items: center; gap: var(--spacing-2); font-size: var(--text-h2); font-weight: 500; }
+.campaign-section-heading > span { color: var(--color-text-muted); font: var(--text-small)/var(--text-small--line-height) var(--font-mono); }
+.campaign-roster { padding-block: 0; }
+.campaign-roster ul { list-style: none; padding: 0; margin: 0; }
+/* A linha do mestre não tem ação. Sem colunas compartilhadas o selo de papel
+   escorrega para o lugar do botão e a coluna de papéis deixa de existir. */
+.campaign-roster ul { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; column-gap: var(--spacing-3); }
+.campaign-roster ul .qf-member { display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; }
+.campaign-roster ul .qf-member > .qf-badge { grid-column: 3; justify-self: start; }
+.campaign-roster ul .qf-member > button { grid-column: 4; justify-self: start; }
+.qf-member { display: flex; flex-wrap: wrap; align-items: center; gap: var(--spacing-3); min-width: 0; padding-block: var(--spacing-4); }
+.qf-member + .qf-member { border-top: 1px solid var(--color-border-subtle); }
+.qf-member > .qf-stack, .campaign-member-info { flex: 1 1 120px; min-width: 0; display: grid; gap: var(--spacing-1); }
+.campaign-member-name { font-weight: 500; }
+.campaign-member-date { color: var(--color-text-muted); font-size: var(--text-small); }
+.campaign-footnote { margin-top: var(--spacing-3); color: var(--color-text-muted); font-size: var(--text-small); }
+.campaign-aside { display: grid; align-content: start; gap: var(--spacing-4); }
+.campaign-session-title { font: 600 var(--text-h1)/var(--text-h1--line-height) var(--font-display); margin-top: var(--spacing-3); letter-spacing: -0.025em; }
+.campaign-session-note { font-size: var(--text-small); color: var(--color-text-muted); margin-top: var(--spacing-4); }
+.campaign-session-link { display: flex; align-items: center; gap: var(--spacing-1); margin-top: var(--spacing-4); font-size: var(--text-small); color: var(--color-text-secondary); }
+.campaign-note-title { font-weight: 600; margin-bottom: var(--spacing-2); }
+.campaign-aside .qf-surface--secret > p:last-child { color: var(--color-text-secondary); font-size: var(--text-small); }
+.qf-stack { display: grid; gap: var(--spacing-3); }
+@container (min-width: 1000px) {
+  .campaign-layout { grid-template-columns: minmax(0, 1fr) 280px; }
+}
+@container (max-width: 480px) {
+  .campaign-heading h1 { font-size: var(--text-h1); line-height: var(--text-h1--line-height); }
+  .campaign-user { display: none; }
+  /* Em telas estreitas cada linha volta a empilhar; as colunas compartilhadas
+     não cabem ao lado do nome. */
+  .campaign-roster ul { display: block; }
+  .campaign-roster .qf-member { display: grid; grid-template-columns: 40px minmax(0, 1fr); }
+  .campaign-roster ul .qf-member { grid-template-columns: 40px minmax(0, 1fr); }
+  .campaign-roster .qf-member .qf-badge,
+  .campaign-roster ul .qf-member > .qf-badge { grid-column: 2; justify-self: start; }
+  .campaign-roster .qf-member > button,
+  .campaign-roster ul .qf-member > button { grid-column: 2; justify-self: start; }
+}

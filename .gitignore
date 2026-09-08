@@ -5,6 +5,7 @@ node_modules/
 dist/
 storybook-static/
 coverage/
+test-results/
 
 # logs e ambiente
 *.log

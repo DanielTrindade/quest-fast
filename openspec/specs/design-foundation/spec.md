@@ -1,5 +1,14 @@
-## ADDED Requirements
+# design-foundation Specification
 
+## Purpose
+Definir as garantias visuais que todo componente e toda tela do quest-fast devem
+sustentar: contraste legível nos dois temas, respeito à preferência de movimento
+reduzido, um único tema por página e uma linguagem consistente para o conteúdo
+restrito ao mestre. Estas garantias valem para a fundação já construída e para
+qualquer interface acrescentada depois; elas não descrevem componentes
+específicos, que evoluem no catálogo do Storybook.
+
+## Requirements
 ### Requirement: Contraste acessível nos dois temas
 O sistema SHALL garantir que texto, rótulos de botão, campos de formulário, placeholders, textos de ajuda e mensagens de erro atinjam no mínimo o contraste WCAG AA contra a superfície em que aparecem, tanto no tema escuro quanto no claro.
 
@@ -31,7 +40,7 @@ O sistema SHALL desativar transições, animações de entrada e a animação do
 - **THEN** ele é apresentado sem animação de brilho ou pulso, mantendo a forma que reserva o espaço
 
 ### Requirement: Tema único por página
-O sistema SHALL aplicar um único tema a toda a superfície visível, e SHALL impedir que um componente ou seção force o tema oposto ao da página.
+O sistema SHALL aplicar um único tema a toda a superfície visível das páginas do produto, e SHALL impedir que um componente ou seção force o tema oposto ao da página. A comparação de temas lado a lado pertence exclusivamente ao laboratório Storybook.
 
 #### Scenario: Tema aplicado na raiz
 - **WHEN** o tema é definido na raiz da aplicação
@@ -40,6 +49,14 @@ O sistema SHALL aplicar um único tema a toda a superfície visível, e SHALL im
 #### Scenario: Preferência do sistema
 - **WHEN** o usuário não escolheu tema manualmente
 - **THEN** o sistema adota o tema indicado por `prefers-color-scheme` e o mantém em toda a página
+
+#### Scenario: Portal de diálogo
+- **WHEN** um diálogo é aberto em uma página com tema definido
+- **THEN** seu conteúdo herda os tokens do tema da página, mesmo sendo renderizado em um portal
+
+#### Scenario: Tentativa de inversão local
+- **WHEN** uma seção recebe `data-theme` com o tema oposto ao da raiz
+- **THEN** suas cores continuam derivando do tema da raiz
 
 ### Requirement: Linguagem de conteúdo secreto
 O sistema SHALL identificar conteúdo visível apenas ao mestre por três sinais simultâneos e redundantes: superfície recuada com borda tracejada, ícone e rótulo textual. A identificação SHALL NOT depender apenas de cor.
@@ -55,3 +72,4 @@ O sistema SHALL identificar conteúdo visível apenas ao mestre por três sinais
 #### Scenario: Consistência entre superfícies
 - **WHEN** conteúdo restrito ao mestre aparece em qualquer parte do produto
 - **THEN** ele usa exatamente a mesma linguagem visual, sem variação por tela
+

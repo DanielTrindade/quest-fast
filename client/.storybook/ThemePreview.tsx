@@ -1,5 +1,6 @@
 import { useSyncExternalStore, type ReactNode } from 'react';
 import { Moon, Sun } from '@phosphor-icons/react';
+import { PortalScope } from '../src/components/PortalScope';
 
 function subscribe(onChange: () => void) {
   const query = window.matchMedia('(prefers-color-scheme: light)');
@@ -18,7 +19,7 @@ export function ThemePreview({ mode, children }: { mode: string; children: React
   return (
     <main className="theme-grid" data-comparison={themes.length === 2}>
       {themes.map((theme) => (
-        <section key={theme} className="theme-frame" data-theme={theme}
+        <section key={theme} className="theme-frame" data-preview-theme={theme}
           aria-label={`Tema ${theme === 'dark' ? 'escuro' : 'claro'}`}>
           <div className="theme-frame__header">
             {theme === 'dark' ? <Moon size={16} weight="regular" aria-hidden="true" />
@@ -26,7 +27,7 @@ export function ThemePreview({ mode, children }: { mode: string; children: React
             <span>{theme === 'dark' ? 'Escuro' : 'Claro'}</span>
             <span className="theme-frame__hint">{mode === 'system' ? 'Preferência do sistema' : 'quest-fast'}</span>
           </div>
-          <div className="theme-frame__panel">{children}</div>
+          <div className="theme-frame__panel"><PortalScope>{children}</PortalScope></div>
         </section>
       ))}
     </main>

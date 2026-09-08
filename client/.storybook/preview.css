@@ -8,6 +8,7 @@
   min-height: 100dvh;
 }
 .theme-frame {
+  position: relative;
   min-width: 0;
   color: var(--color-text-primary);
   background: var(--color-surface);
@@ -32,6 +33,7 @@
   font-size: var(--text-micro);
 }
 .theme-frame__panel { padding: var(--spacing-6); }
+.theme-frame .qf-toast-viewport { position: sticky; margin-top: var(--spacing-4); margin-left: auto; max-width: 100%; }
 @media (min-width: 1100px) {
   .theme-grid[data-comparison="true"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }

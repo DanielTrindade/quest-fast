@@ -24,6 +24,14 @@ Duas perguntas precisam ser respondidas em menos de um segundo, em qualquer tela
 
 ## Decisions
 
+### Atualização de implementação — 2026-09-08
+
+- **Fontes:** Space Grotesk substitui Cabinet Grotesk nos títulos. A seção 02 da [licença ITF FFL](https://www.fontshare.com/licenses/itf-ffl) restringe redistribuição, incompatível com distribuir os binários no repositório self-hosted. Space Grotesk, Geist e Geist Mono usam OFL-1.1; arquivos latinos originais, incluindo os caracteres de pt-BR, ficam em `client/public/fonts`, com licenças em `client/public/licenses` e `font-display: swap`. As referências a Cabinet abaixo registram a proposta original; a escolha vigente é Space Grotesk.
+- **Laboratório:** manter Storybook 10.6, já instalado e validado neste repositório, em vez de rebaixá-lo para a versão 9 citada originalmente. Builder Vite, CSS compartilhado, addon-a11y e comparação de temas continuam obrigatórios.
+- **shadcn/Radix:** instalação manual, com `components.json`, alias `@`, utilitário `cn` e composição de Dialog baseada em shadcn/Radix. Preservar os controles HTML existentes. Cores, raio, tipografia e elevação vêm exclusivamente dos tokens do projeto; ícones continuam Phosphor.
+- **Portais:** Dialog herda o tema do destino via `PortalScope`; no aplicativo o destino padrão é o body, que herda o tema da raiz. O laboratório fornece um destino dentro de cada painel, sem adicionar tema próprio ao componente.
+- **Execução:** concluir fontes e antideriva, validar Foundations, entregar componentes com stories interativas, montar Campanha e verificar todos os cenários do spec. Atualizar `tasks.md` conforme cada entrega for comprovada.
+
 ### 1. Direção de identidade: ferramenta silenciosa
 
 Disciplina de ferramenta de trabalho, não de material promocional. Base neutra fria, um acento só, semântica de cor preservada para significado. A interface recua e a campanha aparece.
@@ -38,7 +46,7 @@ O default do gênero (pergaminho, Cinzel ou Uncial, couro, filigrana, d20 como l
 
 | Papel | Fonte | Razão |
 |---|---|---|
-| Display | Cabinet Grotesk | Geométrica, levemente condensada, terminais afiados. É onde mora a personalidade. |
+| Display | Space Grotesk | Geométrica, com detalhes derivados de uma família monoespaçada. Dá caráter aos títulos e permite redistribuir os arquivos sob OFL. |
 | UI e corpo | Geist | x-height alto, legível a 14px sob densidade 6. |
 | Numerais | Geist Mono, `tabular-nums` | HP, CA, iniciativa e dados. Funcional e temático ao mesmo tempo, porque o jogo é números. |
 
@@ -82,8 +90,8 @@ Superfície recuada (`--surface-secret`), borda tracejada, ícone de olho cortad
 
 ```
 TIPO                        ESPACO      RAIO (regra unica documentada)
-display  32/36  Cabinet     4 8 12      6px   input, botao, chip
-h1       24/28  Cabinet     16 24 32    10px  card, painel, dialog
+display  32/36  Space       4 8 12      6px   input, botao, chip
+h1       24/28  Space       16 24 32    10px  card, painel, dialog
 h2       18/24  Geist       48 64       full  avatar, badge-pill
 body     14/20  Geist
 small    13/18  Geist
@@ -159,13 +167,13 @@ O passo 4 é o que dá o retorno maior: uma story que só exibe cor, tipo, espa�
 
 ## Risks / Trade-offs
 
-- **A direção neutra pode terminar genérica.** É o risco central desta escolha. → Mitigação: Cabinet Grotesk carregando os títulos, numerais tabulares em toda parte e o `DiceResult` entregue neste change justamente para provar a identidade antes de o sistema crescer.
+- **A direção neutra pode terminar genérica.** É o risco central desta escolha. → Mitigação: Space Grotesk carregando os títulos, numerais tabulares em toda parte e o `DiceResult` entregue neste change justamente para provar a identidade antes de o sistema crescer.
 - **Sistema construído em isolamento deriva.** → Mitigação: a story de tela composta (decisão 9), obrigatória antes de declarar o change pronto.
 - **Segundo build a manter.** O Storybook tem sua própria configuração e pode divergir do app. → Mitigação: entrada CSS única compartilhada (decisão 8).
-- **Licença das fontes.** Cabinet Grotesk vem do Fontshare e Geist é OFL. → Verificar os termos de cada uma antes de versionar os arquivos no repositório, e trocar por alternativa livre equivalente se algum termo não servir para self-host.
+- **Licença das fontes.** Cabinet Grotesk foi substituída por Space Grotesk após a verificação de redistribuição. → As três famílias entregues usam OFL-1.1; suas licenças acompanham os binários.
 - **Componentes prontos antes das telas correm risco de sobrar ou faltar.** → Mitigação: a lista de 12 saiu das tasks da fase 0 do MVP, não de um catálogo genérico; o que as fases 1 a 3 pedirem será feito quando as telas existirem.
 - **`addon-a11y` verifica contraste, não julgamento.** Ele não pega hierarquia quebrada nem alvo de toque pequeno demais. → Revisão manual nos dois temas antes de fechar o change.
 
 ## Open Questions
 
-- Marca e logo ficam fora deste change. Decidir depois se o produto precisa de um símbolo próprio ou se o wordmark em Cabinet Grotesk basta.
+- Marca e logo ficam fora deste change. Decidir depois se o produto precisa de um símbolo próprio ou se o wordmark em Space Grotesk basta.

@@ -63,7 +63,7 @@ if (process.argv[3] === '--matrix') {
       const output = {
         story: ${JSON.stringify(story.id)}, widths,
         duplicateIds: ids.filter((id, i) => ids.indexOf(id) !== i),
-        themes: [...root.querySelectorAll('.theme-frame')].map(el => el.dataset.theme),
+        themes: [...root.querySelectorAll('.theme-frame')].map(el => el.dataset.previewTheme),
         violations: result.violations.map(v => ({ id: v.id, count: v.nodes.length })),
         incomplete: result.incomplete.map(v => v.id), contrastFailures,
       };
@@ -107,7 +107,7 @@ if (process.argv[3] === '--matrix') {
       duplicateIds: ids.filter((id, i) => ids.indexOf(id) !== i),
       language: document.documentElement.lang,
       fonts: [...document.fonts].filter(f => f.status === 'loaded').map(f => f.family),
-      themes: [...root.querySelectorAll('.theme-frame')].map(el => ({ theme: el.dataset.theme, width: el.clientWidth })),
+      themes: [...root.querySelectorAll('.theme-frame')].map(el => ({ theme: el.dataset.previewTheme, width: el.clientWidth })),
       contrast: [...root.querySelectorAll('.contrast-specimen')].map(el => el.innerText),
       violations: result.violations.map(v => ({ id: v.id, impact: v.impact, nodes: v.nodes.map(n => ({ target: n.target, summary: n.failureSummary })) })),
       incomplete: result.incomplete.map(v => ({ id: v.id, nodes: v.nodes.map(n => ({ target: n.target, summary: n.failureSummary })) })),

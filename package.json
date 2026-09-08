@@ -11,10 +11,15 @@
     "preview": "npm --workspace client run preview",
     "lint": "npm --workspace client run lint",
     "storybook": "npm --workspace client run storybook",
-    "build-storybook": "npm --workspace client run build-storybook"
+    "build-storybook": "npm --workspace client run build-storybook",
+    "test:tokens": "npm --workspace client run test:tokens",
+    "test:design": "npm run build-storybook && node scripts/verify-design-system.mjs"
   },
   "allowScripts": {
     "esbuild@0.28.2": true,
     "esbuild@0.25.12": true
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0"
   }
 }

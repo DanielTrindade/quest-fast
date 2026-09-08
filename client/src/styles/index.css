@@ -1,6 +1,6 @@
 /* ==========================================================================
    quest-fast - design tokens e base
-   Fonte da verdade: openspec/changes/design-system-foundation/design.md
+   Fonte da verdade: OpenSpec, capacidade design-foundation.
 
    Regras globais:
    - Cor nunca crua em componente: use os tokens --color-* declarados abaixo.
@@ -10,8 +10,29 @@
    ========================================================================== */
 
 @import "tailwindcss";
-@import "@fontsource-variable/geist/wght.css";
-@import "@fontsource-variable/geist-mono/wght.css";
+@import "./components.css";
+
+@font-face {
+  font-family: "Space Grotesk";
+  src: url("/fonts/space-grotesk-latin-wght-normal.woff2") format("woff2");
+  font-weight: 300 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Geist Variable";
+  src: url("/fonts/geist-latin-wght-normal.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Geist Mono Variable";
+  src: url("/fonts/geist-mono-latin-wght-normal.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
 
 /* --------------------------------------------------------------------------
    @theme static - tokens semanticos (Tailwind v4, plugin do Vite)
@@ -22,6 +43,7 @@
    sem isso o Tailwind poda token sem uso e o var() quebra em runtime.
    -------------------------------------------------------------------------- */
 @theme static {
+  --color-*: initial;
   /* ---- Cor: semantica, nunca crua no componente ---- */
   --color-surface: #16181d;
   --color-surface-raised: #1d2026;
@@ -54,12 +76,12 @@
   --color-success-text: #4fd18a;
 
   --color-focus-ring: #7aa5f5;
+  --color-scrim: #131519b8;
 
   /* ---- Tipografia ----
-     TODO (task 1.3): verificar a licenca de Cabinet Grotesk (Fontshare) e
-     Geist e Geist Mono são servidas localmente pelo Fontsource (OFL-1.1),
-     com font-display: swap. Cabinet permanece pendente; Geist é o fallback. */
-  --font-display: "Cabinet Grotesk", "Geist Variable", ui-sans-serif, system-ui, sans-serif;
+     Fontes OFL-1.1 versionadas em public/fonts; licenças em public/licenses.
+     Space Grotesk substitui Cabinet para permitir redistribuição no projeto. */
+  --font-display: "Space Grotesk", "Geist Variable", ui-sans-serif, system-ui, sans-serif;
   --font-sans: "Geist Variable", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "Geist Mono Variable", ui-monospace, "Cascadia Code", Consolas, monospace;
 
@@ -133,7 +155,8 @@
   }
 }
 
-[data-theme="light"] {
+:root[data-theme="light"],
+[data-preview-theme="light"] {
   --color-surface: #f7f8fa;
   --color-surface-raised: #ffffff;
   --color-surface-overlay: #ffffff;
@@ -153,7 +176,8 @@
 
 /* Forca o escuro num subtree, mesmo com o sistema em claro. Usado pelo lab
    do Storybook para exibir os dois temas lado a lado. */
-[data-theme="dark"] {
+:root[data-theme="dark"],
+[data-preview-theme="dark"] {
   --color-surface: #16181d;
   --color-surface-raised: #1d2026;
   --color-surface-overlay: #22252d;

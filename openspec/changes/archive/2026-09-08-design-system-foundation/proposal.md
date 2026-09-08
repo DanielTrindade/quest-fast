@@ -39,6 +39,6 @@ Nenhuma.
 
 - Cria `client/` e a configuração de Storybook. Nada do que o MVP já planejou muda.
 - A fase 0 do `mvp-campaign-management` passa a depender deste change: as telas de login, campanha e membros consomem estes componentes em vez de inventá-los.
-- Novas dependências: Tailwind v4, shadcn/ui sobre Radix, Storybook 9 com `addon-a11y`, Phosphor Icons, Motion.
-- Fontes auto-hospedadas no repositório (Cabinet Grotesk, Geist, Geist Mono). Sem requisição a CDN de fontes em produção.
+- Novas dependências: Tailwind v4, shadcn/ui sobre Radix, Storybook 10.6 com `addon-a11y`, Phosphor Icons, Motion. A decisão de manter a versão instalada está registrada no `design.md`.
+- Fontes auto-hospedadas no repositório (Space Grotesk, Geist, Geist Mono), todas sob OFL-1.1. Space Grotesk substitui Cabinet Grotesk para permitir redistribuição. Sem requisição a CDN de fontes em produção.
 - Um segundo build a manter (o do Storybook). Custo aceito porque aqui o sistema é o entregável, não um acessório.
