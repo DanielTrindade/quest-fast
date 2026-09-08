@@ -1,7 +1,11 @@
 import { useId, type InputHTMLAttributes } from 'react';
 import { Input } from './Input';
 
-type FieldProps = InputHTMLAttributes<HTMLInputElement> & {
+// `children` is omitted on purpose: Field renders its own <input>, and a
+// void element cannot take children. Without this the compiler accepts
+// <Field><Input /></Field>, which only fails at runtime, taking the whole
+// subtree down with React error #137.
+type FieldProps = Omit<InputHTMLAttributes<HTMLInputElement>, 'children'> & {
   label: string;
   hint?: string;
   error?: string;

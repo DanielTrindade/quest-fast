@@ -23,7 +23,8 @@
     "test": "npm --workspace shared run test && npm --workspace server run test",
     "test:tokens": "npm --workspace client run test:tokens",
     "test:design": "npm run build-storybook && node scripts/verify-design-system.mjs",
-    "db:seed": "node --env-file-if-exists=.env db/src/seed.ts"
+    "db:seed": "node --env-file-if-exists=.env db/src/seed.ts",
+    "verify:app": "node scripts/verify-app.mjs"
   },
   "allowScripts": {
     "esbuild@0.28.2": true,

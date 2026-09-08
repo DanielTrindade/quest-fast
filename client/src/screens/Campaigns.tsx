@@ -8,7 +8,6 @@ import { Button } from '../components/Button';
 import { Dialog } from '../components/Dialog';
 import { EmptyState } from '../components/EmptyState';
 import { Field } from '../components/Field';
-import { Input } from '../components/Input';
 import { Skeleton } from '../components/Skeleton';
 import { Surface } from '../components/Surface';
 import { ApiError, api } from '../lib/api';
@@ -57,12 +56,22 @@ function CreateCampaign({ onCreated }: { onCreated: () => void }) {
           create.mutate();
         }}
       >
-        <Field label="Nome da campanha" error={create.isError ? errorMessage(create.error) : undefined}>
-          <Input value={name} onChange={(e) => setName(e.target.value)} maxLength={80} required autoFocus />
-        </Field>
-        <Field label="Descrição" hint="Opcional. Uma linha para lembrar do que é esta mesa.">
-          <Input value={description} onChange={(e) => setDescription(e.target.value)} maxLength={500} />
-        </Field>
+        <Field
+          label="Nome da campanha"
+          error={create.isError ? errorMessage(create.error) : undefined}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          maxLength={80}
+          required
+          autoFocus
+        />
+        <Field
+          label="Descrição"
+          hint="Opcional. Uma linha para lembrar do que é esta mesa."
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          maxLength={500}
+        />
         <div className="qf-dialog__actions">
           <Button variant="secondary" onClick={() => setOpen(false)}>
             Cancelar
@@ -126,17 +135,14 @@ function JoinByCode({ onJoined }: { onJoined: () => void }) {
                 ? errorMessage(join.error)
                 : undefined
           }
-        >
-          <Input
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-            autoComplete="off"
-            autoCapitalize="characters"
-            spellCheck={false}
-            required
-            autoFocus
-          />
-        </Field>
+          value={code}
+          onChange={(e) => setCode(e.target.value)}
+          autoComplete="off"
+          autoCapitalize="characters"
+          spellCheck={false}
+          required
+          autoFocus
+        />
         <div className="qf-dialog__actions">
           <Button variant="secondary" onClick={() => setOpen(false)}>
             Cancelar
