@@ -10,10 +10,10 @@
   },
   "scripts": {
     "generate": "drizzle-kit generate",
-    "migrate": "node src/migrate.ts",
+    "migrate": "node --env-file-if-exists=../.env src/migrate.ts",
     "studio": "drizzle-kit studio",
     "typecheck": "tsc -b",
-    "seed": "node src/seed.ts"
+    "seed": "node --env-file-if-exists=../.env src/seed.ts"
   },
   "dependencies": {
     "@quest-fast/shared": "*",

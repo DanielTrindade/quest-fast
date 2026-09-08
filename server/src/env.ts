@@ -34,7 +34,7 @@ export function readEnv(source: NodeJS.ProcessEnv = process.env): Env {
   return {
     port,
     dbFile: source.DB_FILE?.trim() || undefined,
-    clientDir: source.CLIENT_DIR?.trim() || '../client/dist',
+    clientDir: source.CLIENT_DIR?.trim() || 'client/dist',
     discordClientId: required(source, 'DISCORD_CLIENT_ID'),
     discordClientSecret: required(source, 'DISCORD_CLIENT_SECRET'),
     discordRedirectUri: required(source, 'DISCORD_REDIRECT_URI'),

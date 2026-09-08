@@ -39,15 +39,34 @@ cp .env.example .env      # preencha as três variáveis do Discord
 npm run db:migrate
 ```
 
+Os comandos rodam com o diretório de trabalho na raiz do repositório, e o
+`.env` é carregado por `--env-file-if-exists`. Por isso `DB_FILE` e `CLIENT_DIR`
+são relativos à raiz, e migração, seed e servidor usam o mesmo arquivo.
+
+### Modo A — uma porta só (o mais próximo de produção)
+
+```sh
+npm run build
+npm run dev               # SPA buildado + API em http://localhost:3000
+```
+
+A Redirect URI é `http://localhost:3000/api/auth/discord/callback`. É o modo
+para testar o login do Discord de ponta a ponta.
+
+### Modo B — recarga a quente da interface
+
 Em dois terminais:
 
 ```sh
-npm run dev               # API + WebSocket na porta 3000
+npm run dev               # API na porta 3000
 npm run dev:client        # SPA na porta 5173, com proxy de /api para a 3000
 ```
 
-Abra <http://localhost:5173>. Em produção não há proxy: o mesmo processo serve
-o SPA buildado e a API.
+Abra <http://localhost:5173>. Para o login funcionar neste modo, troque
+`DISCORD_REDIRECT_URI` para a porta 5173 e cadastre essa URI no Discord também.
+
+A porta 5173 é fixa (`strictPort`): se estiver ocupada, o Vite falha em vez de
+mudar de porta em silêncio, o que quebraria a Redirect URI cadastrada.
 
 Para ver as telas sem passar pelo Discord, o seed cria uma campanha de exemplo
 e imprime um cookie de sessão válido:
@@ -55,6 +74,9 @@ e imprime um cookie de sessão válido:
 ```sh
 npm run db:seed
 ```
+
+Copie o valor impresso para um cookie `qf_session` no navegador, em
+`localhost`, e abra a aplicação já autenticado como mestre.
 
 ## Variáveis de ambiente
 
@@ -64,8 +86,8 @@ npm run db:seed
 | `DISCORD_CLIENT_SECRET` | sim | Client Secret da aplicação |
 | `DISCORD_REDIRECT_URI` | sim | Precisa ser idêntica à cadastrada no Discord |
 | `PORT` | não | Porta do processo (padrão `3000`) |
-| `DB_FILE` | não | Arquivo SQLite (padrão `quest-fast.db`) |
-| `CLIENT_DIR` | não | Build do SPA servido em produção |
+| `DB_FILE` | não | Arquivo SQLite, relativo à raiz (padrão `quest-fast.db`) |
+| `CLIENT_DIR` | não | Build do SPA, relativo à raiz (padrão `client/dist`) |
 | `COOKIE_SECURE` | não | `true` atrás de HTTPS; cookies `Secure` não valem em HTTP |
 
 ## Self-host com Docker

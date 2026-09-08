@@ -54,7 +54,9 @@ export function createDiscordClient({
       url.searchParams.set('response_type', 'code');
       url.searchParams.set('scope', SCOPE);
       url.searchParams.set('state', state);
-      url.searchParams.set('prompt', 'none');
+      // No `prompt`: Discord's default already skips the consent screen for
+      // whoever has authorized before, and still shows it on first access.
+      // `prompt=none` would try to skip an authorization that does not exist yet.
       return url.toString();
     },
 

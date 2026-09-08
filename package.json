@@ -9,21 +9,21 @@
     "client"
   ],
   "scripts": {
-    "dev": "npm --workspace server run dev",
+    "dev": "node --env-file-if-exists=.env --watch server/src/index.ts",
     "dev:client": "npm --workspace client run dev",
     "build": "npm --workspace client run build",
-    "start": "npm --workspace server run start",
+    "start": "node --env-file-if-exists=.env server/src/index.ts",
     "preview": "npm --workspace client run preview",
     "lint": "npm --workspace client run lint",
     "storybook": "npm --workspace client run storybook",
     "build-storybook": "npm --workspace client run build-storybook",
     "db:generate": "npm --workspace db run generate",
-    "db:migrate": "npm --workspace db run migrate",
+    "db:migrate": "node --env-file-if-exists=.env db/src/migrate.ts",
     "typecheck": "npm --workspace shared run typecheck && npm --workspace db run typecheck && npm --workspace server run typecheck",
     "test": "npm --workspace shared run test && npm --workspace server run test",
     "test:tokens": "npm --workspace client run test:tokens",
     "test:design": "npm run build-storybook && node scripts/verify-design-system.mjs",
-    "db:seed": "npm --workspace db run seed"
+    "db:seed": "node --env-file-if-exists=.env db/src/seed.ts"
   },
   "allowScripts": {
     "esbuild@0.28.2": true,
