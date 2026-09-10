@@ -1,13 +1,13 @@
 import type { ReactElement, ReactNode } from 'react';
 import * as UI from './ui/dialog';
 
-export function Dialog({ trigger, title, description, children, open, onOpenChange }: {
-  trigger: ReactElement; title: string; description: string; children: ReactNode;
-  open?: boolean; onOpenChange?: (open: boolean) => void;
+export function Dialog({ trigger, title, description, children, open, onOpenChange, className = '' }: {
+  trigger?: ReactElement; title: string; description: string; children: ReactNode;
+  open?: boolean; onOpenChange?: (open: boolean) => void; className?: string;
 }) {
   return <UI.Dialog open={open} onOpenChange={onOpenChange}>
-    <UI.DialogTrigger asChild>{trigger}</UI.DialogTrigger>
-    <UI.DialogContent>
+    {trigger && <UI.DialogTrigger asChild>{trigger}</UI.DialogTrigger>}
+    <UI.DialogContent className={className}>
       <header className="qf-dialog__header">
         <UI.DialogTitle>{title}</UI.DialogTitle>
         <UI.DialogDescription>{description}</UI.DialogDescription>

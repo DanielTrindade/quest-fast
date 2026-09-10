@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { DiceResult } from '../components/DiceResult';
 const meta = { title: 'Componentes/DiceResult', component: DiceResult,
+  decorators: [(Story) => <div style={{ maxWidth: 420 }}><Story /></div>],
   args: { total: 23, decomposition: '16 + 7', dice: [{ value: 16, sides: 20 }], label: 'Ataque com espada longa' },
 } satisfies Meta<typeof DiceResult>;
 export default meta;

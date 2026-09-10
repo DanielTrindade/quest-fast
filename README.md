@@ -8,9 +8,10 @@ Feita para uma mesa própria, **self-hosted**. Não é SaaS.
 ## Estado atual
 
 A fase 0 do MVP está implementada: login pelo Discord, criação de campanha,
-código de convite, entrada, lista de membros, saída e remoção. Personagens,
-dados, combate e mundo pertencem às fases seguintes; o campo de batalha (VTT)
-é uma mudança à parte.
+código de convite, entrada, lista de membros, saída e remoção. A fase 1
+(personagens, dados e feed ao vivo) está em andamento — o servidor está
+completo; a interface emite as fichas, as rolagens e o feed. Combate e mundo
+pertencem às fases seguintes; o campo de batalha (VTT) é uma mudança à parte.
 
 ## Pré-requisito: aplicação no Discord
 
@@ -89,6 +90,7 @@ Copie o valor impresso para um cookie `qf_session` no navegador, em
 | `PORT` | não | Porta do processo (padrão `3000`) |
 | `DB_FILE` | não | Arquivo SQLite, relativo à raiz (padrão `quest-fast.db`) |
 | `CLIENT_DIR` | não | Build do SPA, relativo à raiz (padrão `client/dist`) |
+| `UPLOADS_DIR` | não | Avatares e uploads em disco, relativo à raiz (padrão `uploads`) |
 | `COOKIE_SECURE` | não | `true` atrás de HTTPS; cookies `Secure` não valem em HTTP |
 
 ## Self-host com Docker

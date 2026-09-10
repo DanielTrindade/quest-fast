@@ -5,7 +5,7 @@
    Regras globais:
    - Cor nunca crua em componente: use os tokens --color-* declarados abaixo.
    - Tema escuro e o padrao e respeita prefers-color-scheme. Tema claro completo.
-   - Regra unica de raio: 6px (control), 10px (panel), full (avatar/badge-pill).
+   - Regra unica de raio: 6px (control), 10px (panel), full (avatar/token).
    - Todo movimento dentro de prefers-reduced-motion.
    ========================================================================== */
 
@@ -111,8 +111,8 @@
   --spacing-16: 64px;
 
   /* ---- Regra unica de raio ----
-     6px em input, botao e chip; 10px em card, painel e dialog;
-     full em avatar e badge-pill. Nenhum outro raio entra no sistema. */
+     6px em input, botao e insignia; 10px em card, painel e dialog;
+     full em avatar e token de personagem. Nenhum outro raio entra no sistema. */
   --radius-control: 6px;
   --radius-panel: 10px;
   --radius-full: 9999px;
@@ -126,6 +126,12 @@
   --ease-settle: cubic-bezier(0.16, 1, 0.3, 1);
   --default-transition-duration: 140ms;
   --default-transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* Acabamento: luz e sombra derivam do tema, sem texturas sobre o conteúdo. */
+  --color-edge-light: color-mix(in srgb, var(--color-text-primary) 12%, transparent);
+  --color-edge-shadow: color-mix(in srgb, var(--color-text-primary) 8%, transparent);
+  --color-action-light: color-mix(in srgb, var(--color-accent-fg) 24%, transparent);
+  --color-action-shadow: color-mix(in srgb, var(--color-surface-secret) 30%, transparent);
 }
 
 /* --------------------------------------------------------------------------
@@ -256,29 +262,36 @@
   font: 500 var(--text-body)/var(--text-body--line-height) var(--font-sans);
   white-space: nowrap;
   cursor: pointer;
-  transition: transform var(--duration-instant) var(--ease-settle);
+  box-shadow: inset 0 1px 0 var(--color-edge-light), 0 2px 0 var(--color-edge-shadow);
+  transition: transform var(--duration-instant) var(--ease-settle), background-color var(--duration-quick) var(--ease-settle), border-color var(--duration-quick) var(--ease-settle);
 }
-.qf-button--primary { background: var(--color-accent); color: var(--color-accent-fg); }
-.qf-button--danger { background: var(--color-danger); color: var(--color-accent-fg); }
+.qf-button--primary { background: var(--color-accent); color: var(--color-accent-fg); box-shadow: inset 0 1px 0 var(--color-action-light), 0 2px 0 var(--color-action-shadow); }
+.qf-button--danger { background: var(--color-danger); color: var(--color-accent-fg); box-shadow: inset 0 1px 0 var(--color-action-light), 0 2px 0 var(--color-action-shadow); }
 .qf-button--secondary {
   background: var(--color-surface-raised);
   color: var(--color-text-primary);
   border-color: var(--color-border-control);
 }
-.qf-button--ghost { background: transparent; color: var(--color-accent-text); }
-.qf-button:hover:not(:disabled) { text-decoration: underline; text-underline-offset: 3px; }
-.qf-button:active:not(:disabled) { transform: scale(0.98); }
+.qf-button--ghost { background: transparent; color: var(--color-accent-text); box-shadow: none; }
+.qf-button:hover:not(:disabled) { text-decoration: none; }
+.qf-button--primary:hover:not(:disabled) { background: color-mix(in srgb, var(--color-accent) 90%, var(--color-surface-secret)); }
+.qf-button--danger:hover:not(:disabled) { background: color-mix(in srgb, var(--color-danger) 90%, var(--color-surface-secret)); }
+.qf-button--secondary:hover:not(:disabled), .qf-button--ghost:hover:not(:disabled) { background: var(--color-surface-overlay); border-color: var(--color-border-control); }
+.qf-button:active:not(:disabled) { transform: translateY(1px); box-shadow: inset 0 1px 2px var(--color-edge-shadow); }
 .qf-button:disabled {
   cursor: not-allowed;
   background: var(--color-surface-overlay);
   border-color: var(--color-border-subtle);
   color: var(--color-text-muted);
+  box-shadow: none;
 }
 .qf-button[aria-busy="true"] { cursor: progress; }
 .qf-button__loading {
-  width: 16px;
-  height: 12px;
-  border-radius: var(--radius-control);
+  width: 10px;
+  height: 10px;
+  flex-shrink: 0;
+  border-radius: 2px;
+  transform: rotate(45deg);
   background: currentColor;
   opacity: 0.6;
 }
@@ -294,6 +307,8 @@
   border: 1px solid var(--color-border-control);
   border-radius: var(--radius-control);
   font: inherit;
+  box-shadow: inset 0 2px 3px var(--color-edge-shadow);
+  transition: border-color var(--duration-quick) var(--ease-settle);
 }
 .qf-field input::placeholder { color: var(--color-text-muted); opacity: 1; }
 .qf-field input[aria-invalid="true"] { border-color: var(--color-danger-text); }
@@ -315,6 +330,14 @@
   border-style: dashed;
   border-color: var(--color-border-control);
 }
+.qf-surface--raised, .qf-surface--overlay { box-shadow: inset 0 1px 0 var(--color-edge-light); }
+.qf-surface--sheet {
+  background: var(--color-surface-raised);
+  border-color: var(--color-border-strong);
+  padding: var(--spacing-6);
+  box-shadow: inset 0 0 0 3px var(--color-surface), inset 0 0 0 4px var(--color-border-subtle);
+}
+.qf-surface--secret { box-shadow: inset 3px 0 0 var(--color-border-strong); }
 .qf-surface__restriction {
   display: flex;
   align-items: center;

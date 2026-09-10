@@ -30,6 +30,7 @@ ENV NODE_ENV=production
 
 # O banco e os uploads vivem em volume: o container é descartável, os dados não.
 ENV DB_FILE=/dados/quest-fast.db
+ENV UPLOADS_DIR=/dados/uploads
 # Relativo ao WORKDIR: serveStatic resolve a partir do cwd do processo.
 ENV CLIENT_DIR=./client/dist
 ENV PORT=3000
@@ -41,7 +42,7 @@ COPY --from=build /app/db ./db
 COPY --from=build /app/server ./server
 COPY --from=build /app/client/dist ./client/dist
 
-RUN mkdir -p /dados && chown -R node:node /dados
+RUN mkdir -p /dados/uploads && chown -R node:node /dados
 VOLUME ["/dados"]
 USER node
 EXPOSE 3000

@@ -1,0 +1,23 @@
+.tabletop { display: grid; gap: var(--spacing-6); min-width: 0; }
+.tabletop__intro h1 { font: 600 var(--text-h1)/var(--text-h1--line-height) var(--font-display); letter-spacing: -0.03em; }
+.tabletop__intro p { margin-top: var(--spacing-2); max-width: 60ch; color: var(--color-text-secondary); }
+.tabletop__layout { display: grid; gap: var(--spacing-6); min-width: 0; }
+.tabletop__sheet { display: grid; gap: var(--spacing-6); min-width: 0; }
+.tabletop__identity { display: flex; flex-wrap: wrap; align-items: center; gap: var(--spacing-4); }
+.tabletop__identity > div { flex: 1 1 160px; min-width: 0; }
+.tabletop__identity h2 { font: 600 var(--text-h1)/var(--text-h1--line-height) var(--font-display); letter-spacing: -0.03em; overflow-wrap: anywhere; }
+.tabletop__identity p { color: var(--color-text-secondary); margin-block: var(--spacing-1); }
+.tabletop__owner, .tabletop__caption { font-size: var(--text-small); color: var(--color-text-muted); }
+.tabletop__caption { margin-top: var(--spacing-2); }
+.tabletop__stats { display: flex; flex-wrap: wrap; gap: var(--spacing-6); padding-block: var(--spacing-4); border-block: 1px solid var(--color-border-subtle); }
+.tabletop__stats dt { display: flex; gap: var(--spacing-1); align-items: center; font-size: var(--text-small); color: var(--color-text-secondary); }
+.tabletop__stats dd { margin-top: var(--spacing-1); font: 500 var(--text-h1)/var(--text-h1--line-height) var(--font-mono); }
+.tabletop__abilities { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr)); gap: var(--spacing-3); }
+.tabletop__attack { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: var(--spacing-3); }
+.tabletop__attack h3 { display: flex; align-items: center; gap: var(--spacing-2); font-weight: 600; }
+.tabletop__attack p { display: flex; flex-wrap: wrap; gap: var(--spacing-3); font: var(--text-small)/var(--text-small--line-height) var(--font-mono); color: var(--color-text-secondary); margin-top: var(--spacing-1); }
+.tabletop__aside { display: grid; align-content: start; gap: var(--spacing-4); min-width: 0; }
+.tabletop__controls { display: grid; gap: var(--spacing-4); padding-top: var(--spacing-4); border-top: 1px solid var(--color-border-subtle); }
+.tabletop__roles, .tabletop__actions { display: flex; flex-wrap: wrap; gap: var(--spacing-3); }
+@container (min-width: 880px) { .tabletop__layout { grid-template-columns: minmax(0, 1fr) 300px; } }
+@container (max-width: 360px) { .tabletop__sheet { padding: var(--spacing-4); } .tabletop__aside .qf-empty { padding: var(--spacing-2); } }

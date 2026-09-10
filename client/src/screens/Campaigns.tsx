@@ -209,22 +209,23 @@ export function Campaigns() {
         <ul className="qf-stack list-none p-0">
           {campaigns.data.campaigns.map((campaign) => (
             <li key={campaign.id}>
-              <Surface>
-                <Link
-                  to="/campaigns/$campaignId"
-                  params={{ campaignId: campaign.id }}
-                  className="flex flex-wrap items-center justify-between gap-3 no-underline"
-                >
-                  <span className="min-w-0">
-                    <span className="block font-medium text-text-primary">{campaign.name}</span>
-                    <span className="block text-small text-text-muted">
-                      Entrou em {formatDate(campaign.joinedAt)}
-                    </span>
-                  </span>
+              {/* The whole card is the target: a link inside a surface makes
+                  the surface look clickable while only the text is. */}
+              <Link
+                to="/campaigns/$campaignId"
+                params={{ campaignId: campaign.id }}
+                className="campaign-card"
+              >
+                <span className="campaign-card__head">
+                  <span className="campaign-card__name">{campaign.name}</span>
                   {/* Role and Badge share the same vocabulary, so no mapping. */}
                   <Badge role={campaign.role} />
-                </Link>
-              </Surface>
+                </span>
+                {campaign.description && (
+                  <span className="campaign-card__description">{campaign.description}</span>
+                )}
+                <span className="campaign-card__date">Entrou em {formatDate(campaign.joinedAt)}</span>
+              </Link>
             </li>
           ))}
         </ul>

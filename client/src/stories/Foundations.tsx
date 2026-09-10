@@ -159,7 +159,7 @@ export function Foundations({ section = 'all' }: FoundationsProps) {
           ))}
         </div>
         <div className="radius-specimens">
-          {[['control', '6px', 'Botões, campos e chips'], ['panel', '10px', 'Cards, painéis e diálogos'], ['full', 'Circular', 'Avatares e badges']].map(([token, value, role]) => (
+          {[['control', '6px', 'Botões, campos e insígnias'], ['panel', '10px', 'Cards, painéis e diálogos'], ['full', 'Circular', 'Avatares e tokens']].map(([token, value, role]) => (
             <div key={token} className="radius-specimen">
               <span aria-hidden="true" style={{ borderRadius: 'var(--radius-' + token + ')' }} />
               <div><code>{'--radius-' + token}</code><p>{value}</p><p className="foundations__description">{role}</p></div>

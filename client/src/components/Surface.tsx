@@ -2,7 +2,7 @@ import type { HTMLAttributes } from 'react';
 import { EyeSlash } from '@phosphor-icons/react';
 
 type SurfaceProps = HTMLAttributes<HTMLDivElement> & {
-  variant?: 'base' | 'raised' | 'overlay' | 'secret';
+  variant?: 'base' | 'raised' | 'overlay' | 'secret' | 'sheet';
 };
 
 export function Surface({ variant = 'raised', className = '', children, ...props }: SurfaceProps) {

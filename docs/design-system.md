@@ -61,3 +61,43 @@ As stories interativas cobrem também falha de cópia, fechamento de notificaç�
 ## Referências de implementação
 
 Context7 MCP não estava disponível na sessão. Foram consultados os tipos instalados e as fontes oficiais: [instalação manual do shadcn/ui](https://ui.shadcn.com/docs/installation/manual), [Dialog do Radix](https://www.radix-ui.com/primitives/docs/components/dialog), [acessibilidade no Motion](https://motion.dev/docs/react-accessibility) e [API do Playwright](https://playwright.dev/docs/api/class-page).
+
+
+## Acabamento de RPG no catálogo (9 de setembro de 2026)
+
+Direção: peças de mesa foscas e precisas. Preservamos as fontes, os neutros frios e o azul de ação. Botões têm luz superior e uma base curta; campos são levemente rebaixados. A moldura interna une ficha, token e resultado. Não há texturas sobre texto, fontes medievais nem movimento decorativo contínuo.
+
+- Avatar mantém o padrão de usuário e acrescenta variant=character, com moldura de token. Tamanhos sm (40 px), md (56 px) e lg (80 px). Carregamento e fallback preservam as dimensões.
+- AbilityCard recebe rótulo, abreviação, valor, modificador e bônus de resistência. Apresenta consulta ou ações por callbacks; não calcula regras nem envia pedidos. Usa-se o mesmo componente na ficha do produto e nas stories.
+- Surface acrescenta a variante sheet, com moldura dupla discreta. A variante secreta mantém texto, ícone e borda tracejada; aparência não substitui autorização.
+- DiceResult distingue lados, valor individual, descarte, total e conta completa. O rótulo de 1/20 natural não afirma automaticamente sucesso ou falha. Movimento reduzido é preservado.
+- Insígnias de papel usam raio de controle (6 px); avatares/tokens continuam circulares. Painéis, diálogos e atributos usam 10 px. O pequeno losango de carregamento é um símbolo, não um novo formato de controle.
+- EmptyState aceita ícone contextual da família Phosphor; o padrão continua sendo Notebook.
+
+A composição **Composições / Peças da mesa** permite comparar os componentes juntos. As rolagens são exemplos locais com dado fixo em 14, explicitamente identificado. Inclui nome longo e interação que verifica ataque e modificador negativo. O retrato foi gerado para a demonstração; a origem está em client/public/portraits/README.md. Não é aplicado aos personagens reais.
+
+Os tokens edge-light, edge-shadow, action-light e action-shadow controlam o acabamento. Estados de hover escurecem ações primárias e alteram a superfície das secundárias; foco por teclado permanece independente do hover. Os campos e seletores especiais da ficha receberam tratamento compatível.
+
+Referências: [Avatar do Radix](https://www.radix-ui.com/primitives/docs/components/avatar) e [stories do Storybook](https://storybook.js.org/docs/writing-stories). Context7 MCP indisponível nesta sessão; tipos dos pacotes instalados e documentação oficial conferidos.
+
+Validação: lint e build do aplicativo aprovados; suíte completa do Storybook com 67/67 verificações aprovadas (66 stories e cenários adicionais). Verificação automatizada nos temas claro/escuro e larguras 320, 390, 768 e 1280 px; cenários de foco modal, teclado, clipboard e movimento reduzido preservados. Capturas de ficha composta, resultado, diálogo e campos revisadas visualmente em `test-results/rpg-components/`. Resultados completos preservados em `test-results/design-system/rpg-full-results.json`. Após o ajuste final de alinhamento e largura das stories, os exemplos de atributos, composição e dados foram conferidos novamente no servidor do Storybook: 13/13 verificações aprovadas.
+
+O build mantém o aviso de chunk JavaScript acima de 500 kB. Esta alteração não certifica Core Web Vitals nem modifica o carregamento das rotas.
+
+## Confiabilidade e fluxo de jogo (9 de setembro de 2026)
+
+Execução do backlog de `ui-ux-etapas-0-1.md`, itens 1 a 3 da ordem sugerida. As extensões de produto (item 4) continuam fora: perícias roláveis, vantagem/desvantagem em rolagem vinculada, histórico paginado, capa de campanha e HP/CA no resumo dependem de mudança de contrato ou de decisão de produto.
+
+- **A interface só oferece o que a API aceita.** `PATCH /characters/:id` é do dono, então a ficha mostra "Editar" apenas para ele e identifica-se como consulta para os demais. Excluir continua com dono ou mestre, como no `DELETE`.
+- **Ações destrutivas e saídas são de dois passos.** Excluir personagem confirma nomeando a ficha e dizendo a consequência; a confirmação fica dentro da própria ficha, sem empilhar outra camada. Fechar um editor alterado — por Cancelar, Escape ou clique fora — oferece continuar editando ou descartar.
+- **Consulta e edição ocupam uma camada só.** `CharactersSection` alterna entre `CharacterSheetDialog` e `CharacterFormDialog`; fechar o editor volta para a consulta. Nunca há dois `role="dialog"` no DOM.
+- **A resposta chega onde a ação aconteceu.** O resultado da rolagem fica preso ao rodapé da ficha (`.sheet-roll`, sticky, `aria-live`), venha de um atributo ou de um ataque. As ações de ataque recebem o mesmo estado de envio dos atributos. O rodapé do editor (`.sheet-form__footer`) usa a mesma técnica para manter Salvar alcançável.
+- **A ordem serve o jogo antes da administração.** `.campaign-layout` usa `grid-template-areas`: no celular vem personagens, mesa (dados e histórico) e por fim a administração; no desktop a administração volta para a coluna da esquerda. A ordem do DOM acompanha a ordem visual, então o foco por teclado segue junto.
+- **Membros e convite ficam recolhíveis** em um `<details>` que abre sozinho enquanto a mesa está vazia, porque até alguém entrar o convite é o assunto.
+- **Acabamento.** Ataques ganharam colunas nomeadas (Acerto, Dano); HP e CA viraram blocos legíveis; a lista de personagens marca "Seu personagem"; a lista de campanhas virou cartão inteiro clicável com descrição curta; o cabeçalho tem retorno nomeado às campanhas; erros recuperáveis oferecem "Tentar novamente"; a descrição do editor se chama "Descrição pública"; grupos de perícia sem itens (Constituição) não aparecem mais.
+
+`CharacterSheetView` separa a apresentação da ficha das consultas e mutações, então cada estado — consulta, confirmação de exclusão, rolando, resultado, erro — é alcançável de uma story em vez de reproduzido à mão no laboratório.
+
+Validação: lint, typecheck, 80 testes de unidade e build aprovados. Storybook com **75/75** verificações (8 stories novas de ficha, nos dois temas e em 320/390/768/1280 px). Contra o aplicativo em execução: `verify:app` 9/9 e `verify:group` **15/15**, incluindo seis critérios de aceite novos — permissão alinhada, confirmação de exclusão, camada única de diálogo, descarte confirmado, ausência de corte nas quatro larguras com a ficha aberta, e dados antes da administração em 390 px.
+
+O aviso de chunk acima de 500 kB permanece. Nada aqui certifica OAuth real, Core Web Vitals ou todos os fluxos de erro.

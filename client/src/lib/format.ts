@@ -13,3 +13,12 @@ export function formatDate(iso: string): string {
   const parts = Object.fromEntries(DATE_PARTS.formatToParts(date).map((part) => [part.type, part.value]));
   return `${parts.day} ${parts.month} ${parts.year}`;
 }
+
+const TIME_PARTS = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+/** "21:47" — enough to follow the order of a session. */
+export function formatTime(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '—';
+  return TIME_PARTS.format(date);
+}
