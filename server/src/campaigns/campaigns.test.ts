@@ -63,10 +63,52 @@ test('creating a campaign makes the creator master and returns the code', async 
 test('a campaign requires a name', async () => {
   const a = createTestApp(PROFILES);
   const master = asUser(a, await signIn(a, 'lia'));
-  for (const invalid of [{}, { name: '   ' }, { name: 'x'.repeat(81) }]) {
+  for (const invalid of [{}, { name: '   ' }, { name: 'x'.repeat(81) }, { name: 42 }, { name: null }]) {
     const response = await master('/api/campaigns', { method: 'POST', body: JSON.stringify(invalid) });
     assert.equal(response.status, 422, JSON.stringify(invalid));
   }
+});
+
+test('a name of exactly the limit is accepted; one character over is not', async () => {
+  const a = createTestApp(PROFILES);
+  const master = asUser(a, await signIn(a, 'lia'));
+
+  const atLimit = await master('/api/campaigns', {
+    method: 'POST',
+    body: JSON.stringify({ name: 'x'.repeat(80) }),
+  });
+  assert.equal(atLimit.status, 201);
+  assert.equal((await body<CreatedCampaign>(atLimit)).name.length, 80);
+
+  const overLimit = await master('/api/campaigns', {
+    method: 'POST',
+    body: JSON.stringify({ name: 'x'.repeat(81) }),
+  });
+  assert.equal(overLimit.status, 422);
+});
+
+test('the description respects its own limit while staying optional', async () => {
+  const a = createTestApp(PROFILES);
+  const master = asUser(a, await signIn(a, 'lia'));
+
+  const withoutDescription = await master('/api/campaigns', {
+    method: 'POST',
+    body: JSON.stringify({ name: 'Sem descrição' }),
+  });
+  assert.equal(withoutDescription.status, 201);
+  assert.equal((await body<CreatedCampaign>(withoutDescription)).description, '');
+
+  const atLimit = await master('/api/campaigns', {
+    method: 'POST',
+    body: JSON.stringify({ name: 'No limite', description: 'd'.repeat(500) }),
+  });
+  assert.equal(atLimit.status, 201);
+
+  const overLimit = await master('/api/campaigns', {
+    method: 'POST',
+    body: JSON.stringify({ name: 'Além do limite', description: 'd'.repeat(501) }),
+  });
+  assert.equal(overLimit.status, 422);
 });
 
 test('the listing brings only the campaigns the user belongs to', async () => {
@@ -102,6 +144,45 @@ test('a malformed code is refused before the query', async () => {
     });
     assert.equal(response.status, 422, code);
   }
+});
+
+test('a non-string code is refused', async () => {
+  const { outsider } = await appWithCampaign();
+  for (const code of [42, null, true, ['ABC234']]) {
+    const response = await outsider('/api/campaigns/join', {
+      method: 'POST',
+      body: JSON.stringify({ code }),
+    });
+    assert.equal(response.status, 422, JSON.stringify(code));
+  }
+});
+
+test('the code is normalized before the lookup, not matched literally', async () => {
+  const { outsider, campaign } = await appWithCampaign();
+  // Exactly what someone copies by hand: lowercase, with a separator.
+  const typed = `${campaign.inviteCode.slice(0, 3).toLowerCase()}-${campaign.inviteCode.slice(3).toLowerCase()}`;
+  const response = await outsider('/api/campaigns/join', {
+    method: 'POST',
+    body: JSON.stringify({ code: typed }),
+  });
+  assert.equal(response.status, 201);
+  assert.equal((await body<CampaignDetail>(await outsider(`/api/campaigns/${campaign.id}`))).role, 'player');
+});
+
+test('every campaign created gets a distinct invite code', async () => {
+  const a = createTestApp(PROFILES);
+  const master = asUser(a, await signIn(a, 'lia'));
+  const codes = new Set<string>();
+
+  for (let i = 0; i < 25; i++) {
+    const response = await master('/api/campaigns', {
+      method: 'POST',
+      body: JSON.stringify({ name: `Mesa ${i}` }),
+    });
+    assert.equal(response.status, 201);
+    codes.add((await body<CreatedCampaign>(response)).inviteCode);
+  }
+  assert.equal(codes.size, 25);
 });
 
 test('joining again with the same code does not duplicate membership', async () => {

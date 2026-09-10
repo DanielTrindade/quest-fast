@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { generateInviteCode } from '@quest-fast/shared';
-import { campaignMembers, campaigns, createDb, sessions, users } from './index.ts';
+import { campaignMembers, campaigns, characters, createDb, sessionEvents, sessions, users } from './index.ts';
 
 /**
  * Sample campaign for development and visual review. It also creates a fixed
@@ -52,6 +52,113 @@ for (const player of players) {
     .values({ id: randomUUID(), campaignId: campaign.id, userId: player.id, role: 'player' })
     .run();
 }
+
+// A couple of sheets and a feed warm enough to review the phase-1 interface.
+// The campaign is fresh on every run, so there is nothing to deduplicate.
+const baseSheet: Omit<import('@quest-fast/shared').CharacterInput, 'name' | 'race' | 'class' | 'ownerId'> = {
+  level: 3,
+  abilityScores: { strength: 10, dexterity: 18, constitution: 14, intelligence: 12, wisdom: 8, charisma: 13 },
+  hp: 24,
+  ac: 15,
+  skills: ['acrobatics', 'stealth', 'perception'],
+  saves: ['dexterity', 'intelligence'],
+  attacks: [{ name: 'Adaga', bonus: 7, damage: '1d4+4' }],
+  features: ['Ataque furtivo 2d6'],
+  description: '',
+  avatarAssetId: null,
+};
+const charactersSeed: Array<
+  Omit<import('@quest-fast/shared').CharacterInput, 'name' | 'race' | 'class'> & {
+    name: string;
+    race: string;
+    class: string;
+    ownerId: string;
+  }
+> = [
+  {
+    ...baseSheet,
+    name: 'Elara Sombravil',
+    race: 'Meio-elfa',
+    class: 'Ladina',
+    ownerId: players[1].id,
+  },
+  {
+    ...baseSheet,
+    name: 'Bram Linha Longa',
+    race: 'Anão',
+    class: 'Guerreiro',
+    ownerId: master.id,
+    level: 4,
+    hp: 38,
+    ac: 18,
+    abilityScores: { strength: 17, dexterity: 12, constitution: 16, intelligence: 10, wisdom: 12, charisma: 9 },
+    skills: ['athletics', 'perception'],
+    saves: ['strength', 'constitution'],
+    attacks: [{ name: 'Machado de batalha', bonus: 6, damage: '1d10+3' }],
+  },
+];
+for (const sheet of charactersSeed) {
+  db.insert(characters)
+    .values({
+      id: randomUUID(),
+      campaignId: campaign.id,
+      ownerId: sheet.ownerId,
+      name: sheet.name,
+      race: sheet.race,
+      class: sheet.class,
+      level: sheet.level,
+      abilityScores: sheet.abilityScores,
+      hp: sheet.hp,
+      ac: sheet.ac,
+      skills: sheet.skills,
+      saves: sheet.saves,
+      attacks: sheet.attacks,
+      features: sheet.features,
+      description: sheet.description,
+      avatarAssetId: sheet.avatarAssetId,
+    })
+    .run();
+}
+
+// The feed with a visible history: a public roll and a secret one (the seed
+// opens the interface as master, who may see it).
+db.insert(sessionEvents)
+  .values({
+    id: randomUUID(),
+    campaignId: campaign.id,
+    userId: master.id,
+    type: 'roll',
+    secret: false,
+    payload: {
+      kind: 'roll',
+      expression: '1d20+5',
+      dice: [{ value: 14, sides: 20 }],
+      modifier: 5,
+      total: 19,
+      mode: 'normal',
+    },
+  })
+  .run();
+db.insert(sessionEvents)
+  .values({
+    id: randomUUID(),
+    campaignId: campaign.id,
+    userId: players[1].id,
+    type: 'roll',
+    secret: false,
+    payload: {
+      kind: 'roll',
+      expression: '2d6+3',
+      dice: [
+        { value: 5, sides: 6 },
+        { value: 2, sides: 6 },
+      ],
+      modifier: 3,
+      total: 10,
+      mode: 'normal',
+    },
+  })
+  .run();
 
 const session = randomUUID();
 db.insert(sessions)

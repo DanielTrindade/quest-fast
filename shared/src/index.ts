@@ -5,6 +5,50 @@ export {
   generateInviteCode,
   normalizeInviteCode,
 } from './invite.ts';
+export {
+  DICE_COUNT_LIMIT,
+  DICE_MODIFIER_LIMIT,
+  DICE_SIDES_LIMIT,
+  parseDiceExpression,
+  rollDice,
+  type DieResult,
+  type ParsedDice,
+  type RollMode,
+  type RollResult,
+} from './dice.ts';
+export {
+  ABILITIES,
+  ABILITY_SCORE_MAX,
+  ABILITY_SCORE_MIN,
+  SKILLS,
+  SKILL_ABILITIES,
+  abilityModifier,
+  isAbility,
+  isSkill,
+  proficiencyBonus,
+  skillAbility,
+  type Ability,
+  type Skill,
+} from './modifiers.ts';
+export type {
+  AbilityScores,
+  Asset,
+  AssetUploadResponse,
+  Attack,
+  CharacterInput,
+  CharacterListResponse,
+  CharacterResponse,
+  CharacterSheet,
+  CharacterSummary,
+  FeedResponse,
+  FreeRollRequest,
+  LinkedRollRequest,
+  MeResponse,
+  RollPayload,
+  RollResponse,
+  SessionEvent,
+  SocketMessage,
+} from './api.ts';
 export type {
   ErrorResponse,
   PublicUser,
@@ -13,7 +57,6 @@ export type {
   CreatedCampaign,
   CampaignJoin,
   CampaignMember,
-  MeResponse,
   CampaignsResponse,
   MembersResponse,
 } from './api.ts';

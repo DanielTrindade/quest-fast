@@ -7,6 +7,8 @@ export type Env = {
   dbFile: string | undefined;
   /** Directory of the client build served in production. */
   clientDir: string;
+  /** Directory where uploaded assets are stored; relative to the repo root. */
+  uploadsDir: string;
   discordClientId: string;
   discordClientSecret: string;
   discordRedirectUri: string;
@@ -35,6 +37,7 @@ export function readEnv(source: NodeJS.ProcessEnv = process.env): Env {
     port,
     dbFile: source.DB_FILE?.trim() || undefined,
     clientDir: source.CLIENT_DIR?.trim() || 'client/dist',
+    uploadsDir: source.UPLOADS_DIR?.trim() || 'uploads',
     discordClientId: required(source, 'DISCORD_CLIENT_ID'),
     discordClientSecret: required(source, 'DISCORD_CLIENT_SECRET'),
     discordRedirectUri: required(source, 'DISCORD_REDIRECT_URI'),

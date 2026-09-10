@@ -12,20 +12,24 @@ const DESCRIPTION_LIMIT = 500;
 /**
  * The code is unique by index in the database. A collision is unlikely, but
  * the retry keeps creation deterministic instead of erroring at the master.
+ * The campaign and its master membership are one write: a failure while adding
+ * the member must not leave a masterless campaign behind.
  */
 function createCampaignWithCode(db: Db, name: string, description: string, creatorId: string) {
   for (let attempt = 0; attempt < 5; attempt++) {
     const code = generateInviteCode();
     try {
-      const campaign = db
-        .insert(campaigns)
-        .values({ id: randomUUID(), name, description, inviteCode: code })
-        .returning()
-        .get();
-      db.insert(campaignMembers)
-        .values({ id: randomUUID(), campaignId: campaign.id, userId: creatorId, role: 'master' })
-        .run();
-      return campaign;
+      return db.transaction((tx) => {
+        const campaign = tx
+          .insert(campaigns)
+          .values({ id: randomUUID(), name, description, inviteCode: code })
+          .returning()
+          .get();
+        tx.insert(campaignMembers)
+          .values({ id: randomUUID(), campaignId: campaign.id, userId: creatorId, role: 'master' })
+          .run();
+        return campaign;
+      });
     } catch (error) {
       const message = error instanceof Error ? error.message : '';
       if (!message.includes('UNIQUE') || attempt === 4) throw error;

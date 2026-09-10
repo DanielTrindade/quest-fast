@@ -1,10 +1,11 @@
 import { sql } from 'drizzle-orm';
 import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
-import { ROLES } from '@quest-fast/shared';
+import { ROLES, type Ability, type AbilityScores, type Attack, type Skill } from '@quest-fast/shared';
 
 /**
- * MVP phase 0. Character, combat and world tables come in the next phases;
- * the schema grows by migration, never by retroactive edit.
+ * MVP phase 0. The schema grows by migration, never by retroactive edit —
+ * the character, asset and feed tables below are phase 1; combat and world
+ * tables come in the next phases.
  */
 
 const now = sql`(unixepoch())`;
@@ -83,3 +84,90 @@ export type NewUserRow = typeof users.$inferInsert;
 export type SessionRow = typeof sessions.$inferSelect;
 export type CampaignRow = typeof campaigns.$inferSelect;
 export type CampaignMemberRow = typeof campaignMembers.$inferSelect;
+
+// --- Phase 1 -----------------------------------------------------------------
+
+/**
+ * Uploads live on local disk behind this table (campaign, relative path, mime,
+ * size). The same abstraction will hold the VTT's map images in a later change.
+ */
+export const assets = sqliteTable(
+  'assets',
+  {
+    id: text('id').primaryKey(),
+    campaignId: text('campaign_id')
+      .notNull()
+      .references(() => campaigns.id, { onDelete: 'cascade' }),
+    uploadedById: text('uploaded_by_id')
+      .notNull()
+      .references(() => users.id),
+    /** Relative path under the uploads directory; the served URL derives from it. */
+    path: text('path').notNull(),
+    mimeType: text('mime_type').notNull(),
+    size: integer('size').notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(now),
+  },
+  (table) => [index('assets_campaign_id_idx').on(table.campaignId)],
+);
+
+/**
+ * A D&D 5e sheet, born inside the campaign (decision 9). The owner edits it;
+ * every campaign member can read it. Scores, skills and attacks are JSON.
+ */
+export const characters = sqliteTable(
+  'characters',
+  {
+    id: text('id').primaryKey(),
+    campaignId: text('campaign_id')
+      .notNull()
+      .references(() => campaigns.id, { onDelete: 'cascade' }),
+    ownerId: text('owner_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    race: text('race').notNull(),
+    class: text('class').notNull(),
+    level: integer('level').notNull(),
+    abilityScores: text('ability_scores', { mode: 'json' }).$type<AbilityScores>().notNull(),
+    hp: integer('hp').notNull(),
+    ac: integer('ac').notNull(),
+    skills: text('skills', { mode: 'json' }).$type<Skill[]>().notNull(),
+    saves: text('saves', { mode: 'json' }).$type<Ability[]>().notNull(),
+    attacks: text('attacks', { mode: 'json' }).$type<Attack[]>().notNull(),
+    features: text('features', { mode: 'json' }).$type<string[]>().notNull(),
+    description: text('description').notNull().default(''),
+    avatarAssetId: text('avatar_asset_id').references(() => assets.id, { onDelete: 'set null' }),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(now),
+    updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(now),
+  },
+  (table) => [
+    index('characters_campaign_id_idx').on(table.campaignId),
+    index('characters_owner_id_idx').on(table.ownerId),
+  ],
+);
+
+/**
+ * The session feed: the realtime channel of the campaign. `secret` events are
+ * written here for the master but never leave the server towards a player.
+ */
+export const sessionEvents = sqliteTable(
+  'session_events',
+  {
+    id: text('id').primaryKey(),
+    campaignId: text('campaign_id')
+      .notNull()
+      .references(() => campaigns.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id),
+    type: text('type').notNull().default('roll'),
+    secret: integer('secret', { mode: 'boolean' }).notNull().default(false),
+    payload: text('payload', { mode: 'json' }).notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(now),
+  },
+  (table) => [index('session_events_campaign_created_idx').on(table.campaignId, table.createdAt)],
+);
+
+export type AssetRow = typeof assets.$inferSelect;
+export type CharacterRow = typeof characters.$inferSelect;
+export type SessionEventRow = typeof sessionEvents.$inferSelect;
