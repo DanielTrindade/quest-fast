@@ -1,6 +1,20 @@
 import { sql } from 'drizzle-orm';
-import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
-import { ROLES, type Ability, type AbilityScores, type Attack, type Skill } from '@quest-fast/shared';
+import { index, integer, real, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import {
+  ABILITIES,
+  ROLES,
+  SIZES,
+  type Ability,
+  type AbilityScores,
+  type ArmorTraining,
+  type Attack,
+  type Coins,
+  type DeathSaves,
+  type HitDie,
+  type Skill,
+  type Spell,
+  type SpellSlot,
+} from '@quest-fast/shared';
 
 /**
  * MVP phase 0. The schema grows by migration, never by retroactive edit —
@@ -137,6 +151,41 @@ export const characters = sqliteTable(
     features: text('features', { mode: 'json' }).$type<string[]>().notNull(),
     description: text('description').notNull().default(''),
     avatarAssetId: text('avatar_asset_id').references(() => assets.id, { onDelete: 'set null' }),
+    // Official D&D 2024 sheet. Every column has a constant default, which
+    // SQLite requires to add it to a table that already has rows.
+    subclass: text('subclass').notNull().default(''),
+    background: text('background').notNull().default(''),
+    alignment: text('alignment').notNull().default(''),
+    experience: integer('experience').notNull().default(0),
+    size: text('size', { enum: SIZES }).notNull().default('medium'),
+    shield: integer('shield', { mode: 'boolean' }).notNull().default(false),
+    /** Meters, as the Portuguese sheet writes it. */
+    speed: real('speed').notNull().default(9),
+    hitDie: integer('hit_die').$type<HitDie>().notNull().default(8),
+    initiativeBonus: integer('initiative_bonus').notNull().default(0),
+    passivePerceptionBonus: integer('passive_perception_bonus').notNull().default(0),
+    expertise: text('expertise', { mode: 'json' }).$type<Skill[]>().notNull().default([]),
+    armorTraining: text('armor_training', { mode: 'json' }).$type<ArmorTraining[]>().notNull().default([]),
+    weaponProficiencies: text('weapon_proficiencies').notNull().default(''),
+    toolProficiencies: text('tool_proficiencies').notNull().default(''),
+    speciesTraits: text('species_traits', { mode: 'json' }).$type<string[]>().notNull().default([]),
+    feats: text('feats', { mode: 'json' }).$type<string[]>().notNull().default([]),
+    spellcastingAbility: text('spellcasting_ability', { enum: ABILITIES }),
+    spellBonus: integer('spell_bonus').notNull().default(0),
+    spellSlots: text('spell_slots', { mode: 'json' }).$type<SpellSlot[]>().notNull().default([]),
+    spells: text('spells', { mode: 'json' }).$type<Spell[]>().notNull().default([]),
+    appearance: text('appearance').notNull().default(''),
+    languages: text('languages').notNull().default(''),
+    equipment: text('equipment').notNull().default(''),
+    attunedItems: text('attuned_items', { mode: 'json' }).$type<string[]>().notNull().default([]),
+    coins: text('coins', { mode: 'json' }).$type<Coins>().notNull().default({ cp: 0, sp: 0, ep: 0, gp: 0, pp: 0 }),
+    // Session state, changed by the owner while playing. The migration that
+    // adds `hp_current` fills it from `hp`, so existing sheets start full.
+    hpCurrent: integer('hp_current').notNull().default(0),
+    hpTemp: integer('hp_temp').notNull().default(0),
+    hitDiceSpent: integer('hit_dice_spent').notNull().default(0),
+    deathSaves: text('death_saves', { mode: 'json' }).$type<DeathSaves>().notNull().default({ successes: 0, failures: 0 }),
+    heroicInspiration: integer('heroic_inspiration', { mode: 'boolean' }).notNull().default(false),
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(now),
     updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(now),
   },
