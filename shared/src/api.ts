@@ -1,6 +1,7 @@
 import type { Role } from './role.ts';
 import type { DieResult, RollMode } from './dice.ts';
 import type { Ability, Skill } from './modifiers.ts';
+import type { ArmorTraining, Coins, DeathSaves, HitDie, Size, Spell, SpellSlot } from './sheet.ts';
 
 /**
  * Contract between server and client. Dates travel as ISO 8601; formatting
@@ -64,8 +65,19 @@ export type Attack = {
   bonus: number;
   /** Damage as a dice expression, e.g. "1d8+3". */
   damage: string;
+  /** e.g. "Cortante"; empty when not informed. */
+  damageType: string;
+  notes: string;
 };
 
+/** Attacks sent by older clients may omit the type and notes. */
+export type AttackInput = Omit<Attack, 'damageType' | 'notes'> & Partial<Pick<Attack, 'damageType' | 'notes'>>;
+
+/**
+ * The official D&D 2024 sheet. `race` is labelled "Espécie", `hp` is the
+ * maximum, `features` are the class features and `description` is the history
+ * and personality text.
+ */
 export type CharacterSheet = {
   id: string;
   campaignId: string;
@@ -74,23 +86,60 @@ export type CharacterSheet = {
   name: string;
   race: string;
   class: string;
+  subclass: string;
+  background: string;
+  alignment: string;
   level: number;
+  experience: number;
+  size: Size;
   abilityScores: AbilityScores;
   hp: number;
   ac: number;
+  shield: boolean;
+  speed: number;
+  hitDie: HitDie;
+  initiativeBonus: number;
+  passivePerceptionBonus: number;
   /** Skills the character is proficient in, from the fixed 5e list. */
   skills: Skill[];
+  /** Proficient skills that add the proficiency bonus twice. */
+  expertise: Skill[];
   /** Abilities whose saving throw the character is proficient in. */
   saves: Ability[];
+  armorTraining: ArmorTraining[];
+  weaponProficiencies: string;
+  toolProficiencies: string;
   attacks: Attack[];
   features: string[];
+  speciesTraits: string[];
+  feats: string[];
+  spellcastingAbility: Ability | null;
+  spellBonus: number;
+  /** Nine circles, 1st to 9th. */
+  spellSlots: SpellSlot[];
+  spells: Spell[];
+  appearance: string;
   description: string;
+  languages: string;
+  equipment: string;
+  attunedItems: string[];
+  coins: Coins;
+  // Session state: changed by the owner through `/state` while playing.
+  hpCurrent: number;
+  hpTemp: number;
+  hitDiceSpent: number;
+  deathSaves: DeathSaves;
+  heroicInspiration: boolean;
   avatarUrl: string | null;
   /** Kept so the editor can keep or replace the uploaded image. */
   avatarAssetId: string | null;
 };
 
-/** What the editor sends to create or update a sheet. */
+/**
+ * What the editor sends to create or update a sheet. Everything added by the
+ * official sheet is optional and defaults on the server, so older clients stay
+ * valid. Session state is not part of it, except coins (starting gold).
+ */
 export type CharacterInput = {
   name: string;
   race: string;
@@ -101,10 +150,48 @@ export type CharacterInput = {
   ac: number;
   skills: Skill[];
   saves: Ability[];
-  attacks: Attack[];
+  attacks: AttackInput[];
   features: string[];
   description: string;
   avatarAssetId?: string | null;
+  subclass?: string;
+  background?: string;
+  alignment?: string;
+  experience?: number;
+  size?: Size;
+  shield?: boolean;
+  speed?: number;
+  hitDie?: HitDie;
+  initiativeBonus?: number;
+  passivePerceptionBonus?: number;
+  expertise?: Skill[];
+  armorTraining?: ArmorTraining[];
+  weaponProficiencies?: string;
+  toolProficiencies?: string;
+  speciesTraits?: string[];
+  feats?: string[];
+  spellcastingAbility?: Ability | null;
+  spellBonus?: number;
+  /** Nine totals, 1st to 9th circle. */
+  spellSlotTotals?: number[];
+  spells?: Spell[];
+  appearance?: string;
+  languages?: string;
+  equipment?: string;
+  attunedItems?: string[];
+  coins?: Coins;
+};
+
+/** A partial update of what changes during play; absent keys stay as they are. */
+export type CharacterStateInput = {
+  hpCurrent?: number;
+  hpTemp?: number;
+  hitDiceSpent?: number;
+  deathSaves?: DeathSaves;
+  heroicInspiration?: boolean;
+  /** Nine spent counts, 1st to 9th circle. */
+  spellSlotsSpent?: number[];
+  coins?: Coins;
 };
 
 export type CharacterSummary = {
@@ -116,8 +203,10 @@ export type CharacterSummary = {
   ownerId: string;
   ownerName: string;
   avatarUrl: string | null;
-  /** Current hit points and armor class: public to the table, no sheet needed. */
+  /** Hit points and armor class: public to the table, no sheet needed. */
   hp: number;
+  hpCurrent: number;
+  hpTemp: number;
   ac: number;
 };
 
@@ -138,7 +227,7 @@ export type FreeRollRequest = {
 };
 
 export type LinkedRollRequest = {
-  kind: 'attack' | 'check' | 'save' | 'skill';
+  kind: 'attack' | 'check' | 'save' | 'skill' | 'initiative' | 'spellAttack';
   /** Index into the sheet's attacks; only for `kind: 'attack'`. */
   attackIndex?: number;
   /** Only for `kind: 'check'` and `kind: 'save'`. */
@@ -158,7 +247,7 @@ export type RollPayload = {
   mode: RollMode;
   natural?: 1 | 20;
   /** Absent for a free roll; present for rolls linked to a sheet. */
-  rollKind?: 'attack' | 'check' | 'save' | 'skill';
+  rollKind?: 'attack' | 'check' | 'save' | 'skill' | 'initiative' | 'spellAttack';
   characterId?: string;
   characterName?: string;
   attackName?: string;
