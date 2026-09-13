@@ -295,7 +295,9 @@
   background: currentColor;
   opacity: 0.6;
 }
-.qf-field { display: grid; gap: var(--spacing-2); min-width: 0; }
+/* align-content: when a grid row grows (a neighbour has a hint or an error),
+   the field keeps label and control together instead of stretching them. */
+.qf-field { display: grid; align-content: start; gap: var(--spacing-2); min-width: 0; }
 .qf-field label { font-weight: 500; color: var(--color-text-primary); }
 .qf-field input {
   width: 100%;
