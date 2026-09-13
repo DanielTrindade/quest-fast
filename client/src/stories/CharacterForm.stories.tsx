@@ -2,34 +2,13 @@ import type { CSSProperties, ComponentProps } from 'react';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fn, expect, userEvent, within } from 'storybook/test';
-import type { CharacterSheet } from '@quest-fast/shared';
 import { CharacterForm } from '../components/CharacterForm';
+import { hazinDan, lyraVentoclaro } from './fixtures/characters';
 import '../styles/campaign.css';
 
-const base: CharacterSheet = {
-  id: 'elara',
-  campaignId: 'phandalin',
-  ownerId: 'ana',
-  ownerName: 'Ana Beatriz',
-  name: 'Elara Sombravil',
-  race: 'Meio-elfa',
-  class: 'Ladina',
-  level: 3,
-  abilityScores: { strength: 10, dexterity: 18, constitution: 13, intelligence: 12, wisdom: 8, charisma: 14 },
-  hp: 24,
-  ac: 15,
-  skills: ['stealth', 'perception', 'acrobatics', 'sleightOfHand'],
-  saves: ['dexterity', 'intelligence'],
-  attacks: [{ name: 'Adaga', bonus: 7, damage: '1d4+4' }],
-  features: ['Ataque Furtivo 2d6', 'Ação Ladina'],
-  description: 'Cresceu entre as caravanas do norte e aprendeu a ler fechaduras antes de ler mapas.',
-  avatarUrl: '/portraits/elara-example.png',
-  avatarAssetId: 'portrait',
-};
-
 const frameStyle: CSSProperties = {
-  maxWidth: 720,
-  maxHeight: 620,
+  maxWidth: 760,
+  maxHeight: 640,
   overflow: 'auto',
   padding: 24,
   background: 'var(--color-surface-overlay)',
@@ -66,22 +45,30 @@ type Story = StoryObj<typeof meta>;
 
 export const NovoPersonagem: Story = { name: 'Novo personagem' };
 
-export const Edicao: Story = { name: 'Edição', args: { character: base } };
+export const Edicao: Story = { name: 'Edição (Hazin Dan)', args: { character: hazinDan } };
+
+export const Magias: Story = {
+  name: 'Magias da conjuradora',
+  args: { character: lyraVentoclaro },
+  play: async ({ canvasElement }) => {
+    for (const region of within(canvasElement).getAllByRole('region', { name: /^Tema / })) {
+      await userEvent.click(within(region).getByRole('tab', { name: 'Magias' }));
+      await expect(within(region).getByRole('group', { name: 'Magia 7' })).toBeVisible();
+    }
+  },
+};
 
 export const FichaLonga: Story = {
   name: 'Ficha longa',
   args: {
     character: {
-      ...base,
-      name: 'Elara Sombravil, guardiã dos caminhos esquecidos',
+      ...hazinDan,
+      name: 'Hazin Dan, o machado que atravessou as Planícies de Cinza',
       attacks: [
-        { name: 'Adaga', bonus: 7, damage: '1d4+4' },
-        { name: 'Besta de mão', bonus: 7, damage: '1d6+4' },
-        { name: 'Espada curta élfica', bonus: 6, damage: '1d6+4 perfurante' },
-        { name: 'Adaga envenenada', bonus: 7, damage: '1d4+4 mais 2d6 de veneno' },
+        ...hazinDan.attacks,
+        { name: 'Arremesso de machadinha em fúria', bonus: 7, damage: '1d6+7', damageType: 'Cortante', notes: 'Com Fúria ativa' },
+        { name: 'Soco', bonus: 7, damage: '1+5', damageType: 'Contundente', notes: '' },
       ],
-      features: ['Ataque Furtivo 2d6', 'Ação Ladina', 'Especialização em Furtividade', 'Visão no Escuro 18 m'],
-      description: 'Cresceu entre as caravanas do norte e aprendeu a ler fechaduras antes de ler mapas. Carrega uma chave de cobre que não abre nada que ela conheça.',
     },
   },
 };
@@ -93,21 +80,42 @@ export const ValidacaoNoCampo: Story = {
       // Submitting an empty new sheet shows every required-field error inline.
       await userEvent.click(within(region).getByRole('button', { name: 'Criar personagem' }));
       await expect(within(region).getByText('Informe o nome do personagem.')).toBeVisible();
-      await expect(within(region).getByText('Informe a raça.')).toBeVisible();
+      await expect(within(region).getByText('Informe a espécie.')).toBeVisible();
 
       // Fixing one field clears only its error.
-      const name = within(region).getByLabelText('Nome');
-      await userEvent.type(name, 'Kaelen');
-      await expect(within(region).getByText('Informe o nome do personagem.')).not.toBeVisible();
-      await expect(within(region).getByText('Informe a raça.')).toBeVisible();
+      const name = within(region).getByLabelText(/Nome do personagem/);
+      await userEvent.type(name, 'Hazin Dan');
+      await expect(within(region).queryByText('Informe o nome do personagem.')).toBeNull();
+      await expect(within(region).getByText('Informe a espécie.')).toBeVisible();
+    }
+  },
+};
+
+export const ErroEmOutraAba: Story = {
+  name: 'Erro em outra aba',
+  args: { character: hazinDan },
+  play: async ({ canvasElement }) => {
+    for (const region of within(canvasElement).getAllByRole('region', { name: /^Tema / })) {
+      await userEvent.click(within(region).getByRole('tab', { name: /Inventário e história/ }));
+      const gold = within(region).getByLabelText('Ouro (PO)');
+      await userEvent.clear(gold);
+      await userEvent.click(within(region).getByRole('tab', { name: /Identidade e combate/ }));
+      await userEvent.click(within(region).getByRole('button', { name: 'Salvar alterações' }));
+      // The section with the error opens and says so.
+      await expect(within(region).getByRole('tab', { name: /Inventário e história \(contém erro\)/ })).toHaveAttribute('aria-selected', 'true');
+      await expect(gold).toHaveAttribute('aria-invalid', 'true');
+
+      // Focus scrolled the frame to the coins; content left under the sticky
+      // footer makes the contrast audit inconclusive, so end at the top.
+      region.querySelector('.qf-page')?.scrollTo(0, 0);
     }
   },
 };
 
 export const Ataques: Story = {
-  name: 'Ataques',
   play: async ({ canvasElement }) => {
     for (const region of within(canvasElement).getAllByRole('region', { name: /^Tema / })) {
+      await userEvent.click(within(region).getByRole('tab', { name: /Ataques e características/ }));
       await userEvent.click(within(region).getByRole('button', { name: /Adicionar ataque/ }));
       const attack = within(within(region).getByRole('group', { name: 'Ataque 1' }));
 
@@ -119,8 +127,8 @@ export const Ataques: Story = {
       await userEvent.type(bonus, '-2');
       await expect(bonus).toHaveValue(-2);
 
-      await userEvent.type(attack.getByLabelText('Dano'), '1d4+4');
-      await expect(attack.getByLabelText('Dano')).toHaveValue('1d4+4');
+      await userEvent.type(attack.getByLabelText(/^Dano/), '1d4+4');
+      await expect(attack.getByLabelText(/^Dano/)).toHaveValue('1d4+4');
 
       await userEvent.click(attack.getByRole('button', { name: 'Remover ataque 1' }));
       await expect(within(region).queryByRole('group', { name: 'Ataque 1' })).toBeNull();

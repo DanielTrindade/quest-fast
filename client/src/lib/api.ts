@@ -6,6 +6,7 @@ import type {
   CharacterInput,
   CharacterListResponse,
   CharacterResponse,
+  CharacterStateInput,
   CreatedCampaign,
   FeedResponse,
   FreeRollRequest,
@@ -100,6 +101,11 @@ export const api = {
     request<CharacterResponse>(`/api/campaigns/${campaignId}/characters/${characterId}`, {
       method: 'PATCH',
       body: JSON.stringify(input),
+    }),
+  updateCharacterState: (campaignId: string, characterId: string, state: CharacterStateInput) =>
+    request<CharacterResponse>(`/api/campaigns/${campaignId}/characters/${characterId}/state`, {
+      method: 'PATCH',
+      body: JSON.stringify(state),
     }),
   deleteCharacter: (campaignId: string, characterId: string) =>
     request<void>(`/api/campaigns/${campaignId}/characters/${characterId}`, { method: 'DELETE' }),

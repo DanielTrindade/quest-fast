@@ -18,6 +18,8 @@ function rollAction(payload: RollPayload): string {
   if (payload.rollKind === 'skill') {
     return `teste de ${payload.skill ? SKILL_LABELS[payload.skill] : ''}`;
   }
+  if (payload.rollKind === 'initiative') return 'rolou iniciativa';
+  if (payload.rollKind === 'spellAttack') return 'fez um ataque mágico';
   if (payload.rollKind === 'check') return `teste de ${payload.ability ? ABILITY_LABELS[payload.ability] : ''}`;
   if (payload.rollKind === 'save') return `teste de resistência de ${payload.ability ? ABILITY_LABELS[payload.ability] : ''}`;
   return `rolou ${payload.expression}`;

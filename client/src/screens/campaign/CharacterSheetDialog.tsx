@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
-import type { CharacterSheet, LinkedRollRequest, RollPayload } from '@quest-fast/shared';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { CharacterSheet, CharacterStateInput, LinkedRollRequest, RollPayload } from '@quest-fast/shared';
 import { Button } from '../../components/Button';
 import { Dialog } from '../../components/Dialog';
 import { Skeleton } from '../../components/Skeleton';
@@ -46,6 +46,16 @@ export function CharacterSheetDialog({
     mutationFn: (request: LinkedRollRequest) => api.characterRoll(campaignId, characterId, request),
     onSuccess: (response) => setLastRoll(response.event.payload),
   });
+  // Play state saves on its own route; the answer is the whole sheet, and the
+  // roster shows current hit points, so it refreshes too.
+  const queryClient = useQueryClient();
+  const changeState = useMutation({
+    mutationFn: (state: CharacterStateInput) => api.updateCharacterState(campaignId, characterId, state),
+    onSuccess: (response) => {
+      queryClient.setQueryData(['character', campaignId, characterId], response);
+      queryClient.invalidateQueries({ queryKey: ['characters', campaignId] });
+    },
+  });
   const remove = useMutation({
     mutationFn: () => api.deleteCharacter(campaignId, characterId),
     onSuccess: () => {
@@ -66,6 +76,7 @@ export function CharacterSheetDialog({
           setLastRoll(null);
           setConfirmingDelete(false);
           roll.reset();
+          changeState.reset();
           remove.reset();
         }
       }}
@@ -103,6 +114,9 @@ export function CharacterSheetDialog({
           rolling={roll.isPending}
           rollError={roll.isError ? errorMessage(roll.error) : null}
           lastRoll={lastRoll}
+          stateSaving={changeState.isPending}
+          stateError={changeState.isError ? errorMessage(changeState.error) : null}
+          onStateChange={isOwner ? (state) => changeState.mutate(state) : undefined}
           confirmingDelete={confirmingDelete}
           deleting={remove.isPending}
           deleteError={remove.isError ? errorMessage(remove.error) : null}

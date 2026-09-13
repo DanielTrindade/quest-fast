@@ -130,7 +130,7 @@ try {
   const dialog = rafael.page.getByRole('dialog');
   await dialog.waitFor({ timeout: 10000 });
   await dialog.getByLabel('Nome').fill('Kaelen');
-  await dialog.getByLabel('Raça').fill('Elfo');
+  await dialog.getByLabel('Espécie').fill('Elfo');
   await dialog.getByLabel('Classe').fill('Ladino');
   await dialog.getByRole('button', { name: 'Criar personagem' }).click();
   await rafael.page.getByText('Kaelen', { exact: true }).first().waitFor({ timeout: 15000 });

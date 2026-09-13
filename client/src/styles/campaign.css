@@ -97,13 +97,18 @@
 }
 
 /* ---- Ficha (leitura) ---- */
-.sheet { display: grid; gap: var(--spacing-4); }
+.sheet { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--spacing-4); }
 .sheet-head { display: flex; align-items: center; gap: var(--spacing-3); }
 .sheet-head__meta { display: grid; gap: var(--spacing-1); color: var(--color-text-secondary); }
 .sheet-subheading { font: 600 var(--text-h2)/var(--text-h2--line-height) var(--font-display); margin-top: var(--spacing-2); }
 .sheet-mode { display: flex; flex-wrap: wrap; align-items: center; gap: var(--spacing-3); padding: var(--spacing-3); background: var(--color-surface-raised); border: 1px solid var(--color-border-subtle); border-radius: var(--radius-control); }
 .sheet-mode__label { color: var(--color-text-secondary); font-size: var(--text-small); }
-.sheet-abilities { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr)); gap: var(--spacing-3); }
+/* At most three columns (3 + 3 like the sheet's pairs), never narrower than
+   240px, one column on a phone: six abilities never leave one alone in a row. */
+.sheet-abilities {
+  display: grid; gap: var(--spacing-3);
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, max(240px, calc((100% - 2 * var(--spacing-3)) / 3))), 1fr));
+}
 .sheet-chips { list-style: none; display: flex; flex-wrap: wrap; gap: var(--spacing-2); margin: 0; padding: 0; }
 /* The chip draws its own pill; the list item only lays it out. */
 .sheet-chips li { display: flex; min-width: 0; }
@@ -116,8 +121,51 @@
 .sheet-features li { padding: var(--spacing-2); background: var(--color-surface-raised); border: 1px solid var(--color-border-subtle); border-radius: var(--radius-control); }
 .sheet-description { color: var(--color-text-secondary); white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
 
+/* ---- Ficha oficial: composição da consulta ---- */
+.sheet-head__meta { flex: 1 1 280px; min-width: 0; }
+.sheet-combat { display: flex; flex-wrap: wrap; gap: var(--spacing-2); }
+.sheet-combat > * { flex: 1 1 160px; }
+.sheet-combat > .qf-hp { flex: 2 1 300px; }
+.sheet-ac {
+  flex: 0 1 112px; display: grid; justify-items: center; align-content: center; gap: 2px; padding: var(--spacing-3); text-align: center;
+  background: var(--color-surface); border: 1px solid var(--color-border-strong); border-radius: var(--radius-panel);
+}
+.sheet-ac__label { font-size: var(--text-small); color: var(--color-text-secondary); }
+.sheet-ac strong { font: 600 var(--text-display)/var(--text-display--line-height) var(--font-mono); font-variant-numeric: tabular-nums; }
+.sheet-ac__shield { font-size: var(--text-micro); color: var(--color-text-muted); }
+.sheet-ac__shield[data-active] { color: var(--color-accent-text); font-weight: 600; }
+.sheet-traits { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: var(--spacing-4); }
+.sheet-block { display: grid; gap: var(--spacing-2); min-width: 0; }
+.sheet-text { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.sheet-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); gap: var(--spacing-3); margin: 0; }
+.sheet-facts dt { font-size: var(--text-small); color: var(--color-text-secondary); }
+.sheet-facts dd { margin: var(--spacing-1) 0 0; overflow-wrap: anywhere; }
+.sheet .qf-tabs { margin-top: var(--spacing-2); }
+
+/* ---- Ficha oficial: editor por abas ---- */
+/* The tabs stay reachable while the long form scrolls inside the dialog. */
+.sheet-form__tabs {
+  position: sticky; top: calc(var(--qf-dialog-pad) * -1); z-index: 2;
+  margin-inline: calc(var(--qf-dialog-pad) * -1); padding-inline: var(--qf-dialog-pad); background: var(--color-surface-overlay);
+}
+.sheet-form .qf-tabpanel { gap: var(--spacing-6); }
+.sheet-form__grid--three { grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr)); }
+.sheet-form__skill-groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: var(--spacing-4); }
+.sheet-form__skill-group-title { margin: 0 0 var(--spacing-1); font-size: var(--text-small); color: var(--color-text-muted); }
+.sheet-form__checks { display: flex; flex-wrap: wrap; gap: 0 var(--spacing-4); }
+.sheet-form__slots { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 112px), 1fr)); gap: var(--spacing-3); }
+.sheet-form__spell-fields { display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--spacing-3); }
+.sheet-form__spell-fields > .qf-field { flex: 1 1 8rem; }
+.sheet-form__spell-fields > .sheet-form__spell-name { flex: 3 1 14rem; }
+.sheet-form__spell-fields > .sheet-form__spell-level { flex: 0 0 8.5rem; }
+.sheet-form__spell-fields > .sheet-form__spell-notes { flex: 1 1 100%; }
+.sheet-form__spell-flags { display: flex; flex-wrap: wrap; gap: 0 var(--spacing-4); flex: 1 1 100%; }
+.sheet-form__legend-note { margin: 0; font-size: var(--text-small); color: var(--color-text-muted); }
+
 /* ---- Ficha (edição) ---- */
-.sheet-form { display: grid; gap: var(--spacing-6); }
+/* A fixed column lets the non-wrapping tab strip scroll inside the form
+   instead of widening it past the dialog. */
+.sheet-form { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--spacing-6); }
 .sheet-form__identity { display: flex; flex-wrap: wrap; align-items: center; gap: var(--spacing-3); }
 .sheet-form__avatar-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--spacing-2); }
 .qf-file-button {
@@ -214,6 +262,8 @@
   color: var(--color-text-secondary); font-size: var(--text-small);
 }
 .character-row__stat svg { color: var(--color-text-muted); }
+.character-row__stat[data-down] { color: var(--color-danger-text); border-color: var(--color-danger-text); }
+.character-row__temp { color: var(--color-accent-text); }
 
 /* ---- Ficha: cabeçalho, consulta e confirmação ---- */
 .qf-dialog--sheet { width: min(880px, calc(100vw - 32px)); }

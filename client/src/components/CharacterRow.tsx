@@ -23,10 +23,20 @@ export function CharacterRow({ character, isMine, onOpen }: {
           <span className="character-row__owner">{character.ownerName}</span>
         </span>
         <span className="character-row__stats">
-          <span className="character-row__stat" title={`${character.hp} de HP`}>
+          <span className="character-row__stat" data-down={character.hpCurrent === 0 || undefined}
+            title={`${character.hpCurrent} de ${character.hp} PV${character.hpTemp > 0 ? `, ${character.hpTemp} temporários` : ''}`}>
             <Heart size={14} aria-hidden="true" />
-            <span className="sr-only">HP </span>
+            <span className="sr-only">PV </span>
+            {character.hpCurrent}
+            <span aria-hidden="true">/</span>
+            <span className="sr-only"> de </span>
             {character.hp}
+            {character.hpTemp > 0 && (
+              <span className="character-row__temp">
+                <span aria-hidden="true">+{character.hpTemp}</span>
+                <span className="sr-only">, {character.hpTemp} temporários</span>
+              </span>
+            )}
           </span>
           <span className="character-row__stat" title={`${character.ac} de CA`}>
             <Shield size={14} aria-hidden="true" />

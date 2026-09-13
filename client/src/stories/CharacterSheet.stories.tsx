@@ -1,28 +1,10 @@
+import { useState } from 'react';
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import type { CharacterSheet } from '@quest-fast/shared';
+import { expect, userEvent, within } from 'storybook/test';
+import type { CharacterSheet, CharacterStateInput } from '@quest-fast/shared';
 import { CharacterSheetView } from '../screens/campaign/CharacterSheetView';
+import { hazinDan, lyraVentoclaro } from './fixtures/characters';
 import '../styles/campaign.css';
-
-const base: CharacterSheet = {
-  id: 'elara',
-  campaignId: 'phandalin',
-  ownerId: 'ana',
-  ownerName: 'Ana Beatriz',
-  name: 'Elara Sombravil',
-  race: 'Meio-elfa',
-  class: 'Ladina',
-  level: 3,
-  abilityScores: { strength: 10, dexterity: 18, constitution: 13, intelligence: 12, wisdom: 8, charisma: 14 },
-  hp: 24,
-  ac: 15,
-  skills: ['stealth', 'perception', 'acrobatics', 'sleightOfHand'],
-  saves: ['dexterity', 'intelligence'],
-  attacks: [{ name: 'Adaga', bonus: 7, damage: '1d4+4' }],
-  features: ['Ataque Furtivo 2d6', 'Ação Ladina'],
-  description: 'Cresceu entre as caravanas do norte e aprendeu a ler fechaduras antes de ler mapas.',
-  avatarUrl: '/portraits/elara-example.png',
-  avatarAssetId: 'portrait',
-};
 
 const noop = () => {};
 const handlers = {
@@ -33,19 +15,37 @@ const handlers = {
   onConfirmDelete: noop,
 };
 
-function Sheet(props: Parameters<typeof CharacterSheetView>[0]) {
-  return <CharacterSheetView {...props} />;
+/** What the server does with a state change, so the controls work in the lab. */
+function applyState(character: CharacterSheet, state: CharacterStateInput): CharacterSheet {
+  const { spellSlotsSpent, ...rest } = state;
+  return {
+    ...character,
+    ...rest,
+    spellSlots: spellSlotsSpent
+      ? character.spellSlots.map((slot, circle) => ({ ...slot, spent: spellSlotsSpent[circle] ?? slot.spent }))
+      : character.spellSlots,
+  };
+}
+
+type SheetProps = Parameters<typeof CharacterSheetView>[0] & { interactive?: boolean };
+
+function Sheet({ interactive = true, ...props }: SheetProps) {
+  const [character, setCharacter] = useState(props.character);
+  return (
+    <CharacterSheetView {...props} character={character}
+      onStateChange={interactive && props.isOwner ? (state) => setCharacter((current) => applyState(current, state)) : undefined} />
+  );
 }
 
 const meta = {
   title: 'Composições/Ficha de personagem',
   component: Sheet,
-  args: { character: base, isOwner: true, canDelete: true, ...handlers },
+  args: { character: hazinDan, isOwner: true, canDelete: true, ...handlers },
 } satisfies Meta<typeof Sheet>;
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Dono: Story = { name: 'Dono da ficha' };
+export const Dono: Story = { name: 'Dono da ficha (Hazin Dan)' };
 
 export const Consulta: Story = {
   name: 'Consulta (mestre)',
@@ -57,25 +57,61 @@ export const Convidado: Story = {
   args: { isOwner: false, canDelete: false },
 };
 
+export const Conjuradora: Story = {
+  name: 'Magias (conjuradora)',
+  args: { character: lyraVentoclaro },
+  play: async ({ canvasElement }) => {
+    for (const region of within(canvasElement).getAllByRole('region', { name: /^Tema / })) {
+      await userEvent.click(within(region).getByRole('tab', { name: 'Magias' }));
+      await expect(within(region).getByRole('tab', { name: 'Magias' })).toHaveAttribute('aria-selected', 'true');
+      await expect(within(region).getByText('Espíritos Guardiões')).toBeVisible();
+    }
+  },
+};
+
+export const Inventario: Story = {
+  name: 'Inventário e história',
+  args: { character: lyraVentoclaro },
+  play: async ({ canvasElement }) => {
+    for (const region of within(canvasElement).getAllByRole('region', { name: /^Tema / })) {
+      await userEvent.click(within(region).getByRole('tab', { name: 'Inventário e história' }));
+      await expect(within(region).getByText('Amuleto da Saúde')).toBeVisible();
+    }
+  },
+};
+
+export const DanoNaSessao: Story = {
+  name: 'Dano registrado na consulta',
+  args: { character: lyraVentoclaro },
+  play: async ({ canvasElement }) => {
+    for (const region of within(canvasElement).getAllByRole('region', { name: /^Tema / })) {
+      const hitPoints = within(within(region).getByRole('region', { name: 'Pontos de vida' }));
+      // 5 temporary points soak the first 5 of 7 damage: 22 becomes 20.
+      await userEvent.type(hitPoints.getByLabelText('Quantidade'), '7');
+      await userEvent.click(hitPoints.getByRole('button', { name: 'Dano' }));
+      await expect(hitPoints.getByText('20')).toBeVisible();
+    }
+  },
+};
+
+export const Caido: Story = {
+  name: 'Caído, com salvaguardas contra a morte',
+  args: { character: { ...hazinDan, hpCurrent: 0, deathSaves: { successes: 1, failures: 2 } } },
+};
+
 export const FichaLonga: Story = {
   name: 'Nome extenso e muitos ataques',
   args: {
     character: {
-      ...base,
-      name: 'Elara Sombravil, guardiã dos caminhos esquecidos',
-      ownerName: 'Ana Beatriz de Alencar Figueiredo',
-      hp: 148,
-      ac: 21,
+      ...hazinDan,
+      name: 'Hazin Dan, o machado que atravessou as Planícies de Cinza',
+      ownerName: 'Daniel de Alencar Figueiredo',
+      subclass: 'Caminho do Berserker das Montanhas do Norte',
       attacks: [
-        { name: 'Adaga', bonus: 7, damage: '1d4+4' },
-        { name: 'Besta de mão', bonus: 7, damage: '1d6+4' },
-        { name: 'Espada curta élfica de Sombravil', bonus: 6, damage: '1d6+4 perfurante' },
-        { name: 'Adaga envenenada', bonus: 7, damage: '1d4+4 mais 2d6 de veneno' },
-        { name: 'Soco', bonus: -1, damage: '1' },
+        ...hazinDan.attacks,
+        { name: 'Arremesso de machadinha em fúria', bonus: 7, damage: '1d6+7', damageType: 'Cortante', notes: 'Com Fúria ativa' },
+        { name: 'Soco', bonus: 7, damage: '1+5', damageType: 'Contundente', notes: '' },
       ],
-      features: ['Ataque Furtivo 2d6', 'Ação Ladina', 'Especialização em Furtividade', 'Visão no Escuro 18 m'],
-      description:
-        'Cresceu entre as caravanas do norte e aprendeu a ler fechaduras antes de ler mapas. Carrega uma chave de cobre que não abre nada que ela conheça, e por isso não a larga.',
     },
   },
 };
@@ -95,17 +131,17 @@ export const ResultadoDaRolagem: Story = {
   args: {
     lastRoll: {
       kind: 'roll',
-      expression: '1d20+4',
+      expression: '1d20+2',
       mode: 'advantage',
-      total: 22,
-      modifier: 4,
+      total: 20,
+      modifier: 2,
       dice: [
         { sides: 20, value: 18 },
         { sides: 20, value: 11, discarded: true },
       ],
-      rollKind: 'check',
+      rollKind: 'initiative',
       ability: 'dexterity',
-      characterName: 'Elara Sombravil',
+      characterName: 'Hazin Dan',
     },
   },
 };
