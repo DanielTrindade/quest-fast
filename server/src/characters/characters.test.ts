@@ -268,6 +268,8 @@ test('every campaign member can list and read the sheets', async () => {
     assert.equal(list.characters.length, 1);
     assert.equal(list.characters[0]?.name, 'Kaelen');
     assert.equal(list.characters[0]?.ownerName, 'Rafael Costa');
+    assert.equal(list.characters[0]?.hp, SHEET.hp);
+    assert.equal(list.characters[0]?.ac, SHEET.ac);
 
     const detail = await body<CharacterResponse>(
       await request(`/api/campaigns/${campaign.id}/characters/${character.id}`),

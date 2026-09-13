@@ -37,6 +37,12 @@ export function parseDiceExpression(input: string): ParsedDice | undefined {
 
 export type RollMode = 'normal' | 'advantage' | 'disadvantage';
 
+const ROLL_MODES: readonly RollMode[] = ['normal', 'advantage', 'disadvantage'];
+
+export function isRollMode(value: unknown): value is RollMode {
+  return typeof value === 'string' && (ROLL_MODES as readonly string[]).includes(value);
+}
+
 export type DieResult = {
   value: number;
   sides: number;

@@ -110,7 +110,10 @@ export const api = {
     return request<AssetUploadResponse>(`/api/campaigns/${campaignId}/assets`, { method: 'POST', body: form });
   },
 
-  feed: (campaignId: string) => request<FeedResponse>(`/api/campaigns/${campaignId}/feed`),
+  feed: (campaignId: string, cursor?: string) => {
+    const query = cursor ? `?before=${encodeURIComponent(cursor)}` : '';
+    return request<FeedResponse>(`/api/campaigns/${campaignId}/feed${query}`);
+  },
 
   roll: (campaignId: string, body: FreeRollRequest) =>
     request<RollResponse>(`/api/campaigns/${campaignId}/rolls`, { method: 'POST', body: JSON.stringify(body) }),

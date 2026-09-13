@@ -1,5 +1,6 @@
 import { useId, type ReactNode } from 'react';
 import { List } from '@phosphor-icons/react';
+import { SectionNav } from './SectionNav';
 
 export type CampaignOption = { id: string; name: string };
 export type NavItem = { id: string; label: string; href: string };
@@ -9,8 +10,6 @@ export function AppShell({ campaigns, campaignId, onCampaignChange, navigation, 
   navigation: NavItem[]; activeItem: string; user: ReactNode; children: ReactNode;
 }) {
   const id = useId();
-  const links = navigation.map(item => <a key={item.id} href={item.href}
-    aria-current={activeItem === item.id ? 'page' : undefined}>{item.label}</a>);
   return <div className="qf-shell">
     <a className="qf-skip-link" href={`#${id}-content`}>Ir para o conteúdo</a>
     <header className="qf-shell__header">
@@ -26,10 +25,11 @@ export function AppShell({ campaigns, campaignId, onCampaignChange, navigation, 
       <div className="qf-shell__user">{user}</div>
     </header>
     <div className="qf-shell__body">
-      <nav className="qf-shell__desktop-nav" aria-label="Navegação da campanha">{links}</nav>
+      <SectionNav items={navigation} activeItem={activeItem} ariaLabel="Navegação da campanha"
+        className="qf-shell__desktop-nav" />
       <details className="qf-shell__mobile-nav">
         <summary><List size={20} aria-hidden="true" /> Navegação da campanha</summary>
-        <nav aria-label="Navegação da campanha">{links}</nav>
+        <SectionNav items={navigation} activeItem={activeItem} ariaLabel="Navegação da campanha" />
       </details>
       <div id={`${id}-content`} tabIndex={-1} className="qf-shell__content">{children}</div>
     </div>

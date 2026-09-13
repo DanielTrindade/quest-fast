@@ -5,14 +5,10 @@ import { parseDiceExpression, type RollMode } from '@quest-fast/shared';
 import { Button } from '../../components/Button';
 import { DiceResult } from '../../components/DiceResult';
 import { Field } from '../../components/Field';
+import { QuickDice } from '../../components/QuickDice';
+import { RollModeControl } from '../../components/RollModeControl';
 import { Surface } from '../../components/Surface';
 import { ApiError, api } from '../../lib/api';
-
-const MODES: Array<{ value: RollMode; label: string }> = [
-  { value: 'normal', label: 'Normal' },
-  { value: 'advantage', label: 'Vantagem' },
-  { value: 'disadvantage', label: 'Desvantagem' },
-];
 
 function errorMessage(error: unknown) {
   return error instanceof ApiError ? error.message : 'Algo deu errado. Tente novamente.';
@@ -22,13 +18,17 @@ export function DiceRoller({ campaignId, isMaster }: { campaignId: string; isMas
   const [expression, setExpression] = useState('');
   const [mode, setMode] = useState<RollMode>('normal');
   const [secret, setSecret] = useState(false);
+  const [lastExpression, setLastExpression] = useState<string | null>(null);
 
   const parsed = parseDiceExpression(expression);
   const modeMismatch = mode !== 'normal' && parsed && (parsed.count !== 1 || parsed.sides !== 20);
 
   const roll = useMutation({
     mutationFn: () => api.roll(campaignId, { expression, mode, secret }),
-    onSuccess: () => setExpression(''),
+    onSuccess: ({ event }) => {
+      setExpression('');
+      setLastExpression(event.payload.expression);
+    },
   });
 
   return (
@@ -47,6 +47,8 @@ export function DiceRoller({ campaignId, isMaster }: { campaignId: string; isMas
             if (parsed) roll.mutate();
           }}
         >
+          <QuickDice onPick={setExpression} lastExpression={lastExpression} disabled={roll.isPending} />
+
           <Field
             label="Expressão"
             hint="Ex.: 1d20+5, 2d6+3"
@@ -66,20 +68,7 @@ export function DiceRoller({ campaignId, isMaster }: { campaignId: string; isMas
             aria-label="Expressão de dados"
           />
 
-          <fieldset className="qf-segmented" aria-label="Tipo de rolagem">
-            {MODES.map((option) => (
-              <label key={option.value} className={mode === option.value ? 'is-active' : ''}>
-                <input
-                  type="radio"
-                  name="mode"
-                  value={option.value}
-                  checked={mode === option.value}
-                  onChange={() => setMode(option.value)}
-                />
-                <span>{option.label}</span>
-              </label>
-            ))}
-          </fieldset>
+          <RollModeControl value={mode} onChange={setMode} disabled={roll.isPending} />
 
           {isMaster && (
             <label className="qf-check">

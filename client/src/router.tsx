@@ -9,7 +9,7 @@ import type { QueryClient } from '@tanstack/react-query';
 import { ToastProvider } from './components/Toast';
 import { ApiError, api } from './lib/api';
 import { AccountBar } from './screens/AccountBar';
-import { Campaign } from './screens/Campaign';
+import { CampaignWorkspace } from './screens/CampaignWorkspace';
 import { Campaigns } from './screens/Campaigns';
 import { Login } from './screens/Login';
 
@@ -54,10 +54,8 @@ const authenticatedRoute = createRoute({
     }
   },
   component: function Authenticated() {
-    const { user } = authenticatedRoute.useRouteContext();
     return (
       <div className="min-h-dvh bg-surface text-text-primary">
-        <AccountBar name={user.name} avatarUrl={user.avatarUrl} />
         <Outlet />
       </div>
     );
@@ -75,14 +73,19 @@ const indexRoute = createRoute({
 const campaignsRoute = createRoute({
   getParentRoute: () => authenticatedRoute,
   path: '/campaigns',
-  component: Campaigns,
+  component: function CampaignListScreen() {
+    const { user } = authenticatedRoute.useRouteContext();
+    return <><AccountBar name={user.name} avatarUrl={user.avatarUrl} /><Campaigns /></>;
+  },
 });
 
 const campaignRoute = createRoute({
   getParentRoute: () => authenticatedRoute,
   path: '/campaigns/$campaignId',
   component: function CampaignScreen() {
-    return <Campaign campaignId={campaignRoute.useParams().campaignId} />;
+    const { user } = authenticatedRoute.useRouteContext();
+    const { campaignId } = campaignRoute.useParams();
+    return <CampaignWorkspace key={campaignId} campaignId={campaignId} user={user} />;
   },
 });
 

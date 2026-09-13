@@ -44,13 +44,17 @@ export function useCampaignSocket(campaignId: string): SocketStatus {
         if (message.type !== 'session.event') return;
         const pushed = message.event;
         queryClient.setQueryData<FeedResponse>(['feed', campaignId], (current) => {
-          if (!current) return { events: [pushed] };
+          if (!current) return { events: [pushed], nextCursor: null };
           if (current.events.some((existing) => existing.id === pushed.id)) return current;
-          return { events: [...current.events, pushed] };
+          return { ...current, events: [...current.events, pushed] };
         });
         // The table should notice a new sheet without reloading; the roll
         // that follows creation carries the event that refreshes everyone.
-        queryClient.invalidateQueries({ queryKey: ['characters', campaignId] });
+        // Only a roll event points back at a sheet: a Phase 2 event such as a
+        // token move must not trigger a characters refetch.
+        if (pushed.type === 'roll') {
+          queryClient.invalidateQueries({ queryKey: ['characters', campaignId] });
+        }
       };
 
       socket.onclose = () => {

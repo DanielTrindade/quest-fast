@@ -1,6 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import type { CharacterSheet } from '@quest-fast/shared';
-import { Surface } from '../components/Surface';
 import { CharacterSheetView } from '../screens/campaign/CharacterSheetView';
 import '../styles/campaign.css';
 
@@ -34,13 +33,8 @@ const handlers = {
   onConfirmDelete: noop,
 };
 
-/** The dialog supplies the surface in the product; the lab does the same. */
 function Sheet(props: Parameters<typeof CharacterSheetView>[0]) {
-  return (
-    <Surface variant="sheet">
-      <CharacterSheetView {...props} />
-    </Surface>
-  );
+  return <CharacterSheetView {...props} />;
 }
 
 const meta = {

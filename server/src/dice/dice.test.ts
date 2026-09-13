@@ -5,7 +5,7 @@ import type {
   CreatedCampaign,
   FeedResponse,
   RollResponse,
-  SessionEvent,
+  RollSessionEvent,
 } from '@quest-fast/shared';
 import { asUser, body, createTestApp, signIn } from '../testing.ts';
 
@@ -54,8 +54,10 @@ async function sheetOf(request: ReturnType<typeof asUser>, campaignId: string) {
   return character;
 }
 
-async function lastFeed(request: ReturnType<typeof asUser>, campaignId: string): Promise<SessionEvent[]> {
-  return (await body<FeedResponse>(await request(`/api/campaigns/${campaignId}/feed`))).events;
+async function lastFeed(request: ReturnType<typeof asUser>, campaignId: string): Promise<RollSessionEvent[]> {
+  const response = await request(`/api/campaigns/${campaignId}/feed`);
+  const feed = await body<FeedResponse>(response);
+  return feed.events as RollSessionEvent[];
 }
 
 // --- Free roll ---------------------------------------------------------------
@@ -288,11 +290,67 @@ test('a linked roll with advantage uses the higher of two d20', async () => {
   const { event } = await body<RollResponse>(
     await player(`/api/campaigns/${campaign.id}/characters/${character.id}/rolls`, {
       method: 'POST',
-      body: JSON.stringify({ kind: 'attack', attackIndex: 0, advantage: true }),
+      body: JSON.stringify({ kind: 'attack', attackIndex: 0, mode: 'advantage' }),
     }),
   );
   assert.equal(event.payload.mode, 'advantage');
   assert.equal(event.payload.dice.length, 2);
+});
+
+test('a linked roll with disadvantage keeps the lower of two d20', async () => {
+  const { player, campaign } = await appWithCampaign();
+  const character = await sheetOf(player, campaign.id);
+
+  const { event } = await body<RollResponse>(
+    await player(`/api/campaigns/${campaign.id}/characters/${character.id}/rolls`, {
+      method: 'POST',
+      body: JSON.stringify({ kind: 'check', ability: 'strength', mode: 'disadvantage' }),
+    }),
+  );
+  assert.equal(event.payload.mode, 'disadvantage');
+  assert.equal(event.payload.dice.length, 2);
+});
+
+test('a skill roll adds proficiency when trained, the modifier alone otherwise', async () => {
+  const { player, campaign } = await appWithCampaign();
+  const character = await sheetOf(player, campaign.id);
+
+  // acrobatics is trained: dexterity 18 (+4) plus proficiency (+2) = 1d20+6
+  const trained = await body<RollResponse>(
+    await player(`/api/campaigns/${campaign.id}/characters/${character.id}/rolls`, {
+      method: 'POST',
+      body: JSON.stringify({ kind: 'skill', skill: 'acrobatics' }),
+    }),
+  );
+  assert.equal(trained.event.payload.expression, '1d20+6');
+  assert.equal(trained.event.payload.rollKind, 'skill');
+  assert.equal(trained.event.payload.skill, 'acrobatics');
+
+  // athletics is untrained: strength 18 (+4) = 1d20+4
+  const untrained = await body<RollResponse>(
+    await player(`/api/campaigns/${campaign.id}/characters/${character.id}/rolls`, {
+      method: 'POST',
+      body: JSON.stringify({ kind: 'skill', skill: 'athletics' }),
+    }),
+  );
+  assert.equal(untrained.event.payload.expression, '1d20+4');
+});
+
+test('an invalid linked mode or skill is refused', async () => {
+  const { player, campaign } = await appWithCampaign();
+  const character = await sheetOf(player, campaign.id);
+
+  for (const bad of [
+    { kind: 'skill', skill: 'nope' },
+    { kind: 'skill' },
+    { kind: 'check', ability: 'strength', mode: 'vantagem' },
+  ]) {
+    const response = await player(`/api/campaigns/${campaign.id}/characters/${character.id}/rolls`, {
+      method: 'POST',
+      body: JSON.stringify(bad),
+    });
+    assert.equal(response.status, 422, JSON.stringify(bad));
+  }
 });
 
 test('only the owner rolls from a sheet', async () => {
@@ -304,6 +362,18 @@ test('only the owner rolls from a sheet', async () => {
     body: JSON.stringify({ kind: 'check', ability: 'strength' }),
   });
   assert.equal(response.status, 403);
+});
+
+test('only the owner rolls a skill from a sheet, not even the master', async () => {
+  const { master, player, campaign } = await appWithCampaign();
+  const character = await sheetOf(player, campaign.id);
+
+  const response = await master(`/api/campaigns/${campaign.id}/characters/${character.id}/rolls`, {
+    method: 'POST',
+    body: JSON.stringify({ kind: 'skill', skill: 'acrobatics', mode: 'advantage' }),
+  });
+  assert.equal(response.status, 403);
+  assert.equal((await lastFeed(master, campaign.id)).length, 0);
 });
 
 test('a non-member cannot roll in a campaign', async () => {
@@ -346,6 +416,62 @@ test('the feed returns events oldest first', async () => {
     feed.map((event) => event.payload.expression),
     ['1d20', '1d20+1', '1d20+2'],
   );
+});
+
+test('the feed paginates with an opaque cursor', async () => {
+  const { player, campaign } = await appWithCampaign();
+  for (const expression of ['1d20', '1d20+1', '1d20+2', '1d20+3', '1d20+4']) {
+    await player(`/api/campaigns/${campaign.id}/rolls`, { method: 'POST', body: JSON.stringify({ expression }) });
+  }
+
+  const first = await body<FeedResponse>(await player(`/api/campaigns/${campaign.id}/feed?limit=2`));
+  const firstEvents = first.events as RollSessionEvent[];
+  assert.equal(firstEvents.length, 2);
+  assert.equal(first.nextCursor, firstEvents[0]!.id);
+  assert.deepEqual(firstEvents.map((event) => event.payload.expression), ['1d20+3', '1d20+4']);
+
+  const second = await body<FeedResponse>(
+    await player(`/api/campaigns/${campaign.id}/feed?limit=2&before=${first.nextCursor}`),
+  );
+  const secondEvents = second.events as RollSessionEvent[];
+  assert.equal(secondEvents.length, 2);
+  assert.deepEqual(secondEvents.map((event) => event.payload.expression), ['1d20+1', '1d20+2']);
+
+  const last = await body<FeedResponse>(
+    await player(`/api/campaigns/${campaign.id}/feed?limit=2&before=${second.nextCursor}`),
+  );
+  const lastEvents = last.events as RollSessionEvent[];
+  assert.equal(lastEvents.length, 1);
+  assert.equal(last.nextCursor, null);
+  assert.deepEqual(lastEvents.map((event) => event.payload.expression), ['1d20']);
+});
+
+test('a history that ends on a page boundary offers no empty next page', async () => {
+  const { player, campaign } = await appWithCampaign();
+  for (const expression of ['1d20', '1d20+1', '1d20+2', '1d20+3']) {
+    await player(`/api/campaigns/${campaign.id}/rolls`, { method: 'POST', body: JSON.stringify({ expression }) });
+  }
+
+  const first = await body<FeedResponse>(await player(`/api/campaigns/${campaign.id}/feed?limit=2`));
+  assert.notEqual(first.nextCursor, null);
+  const second = await body<FeedResponse>(
+    await player(`/api/campaigns/${campaign.id}/feed?limit=2&before=${first.nextCursor}`),
+  );
+  assert.equal(second.events.length, 2);
+  assert.equal(second.nextCursor, null);
+});
+
+test('a cursor from another campaign yields nothing', async () => {
+  const { player, campaign } = await appWithCampaign();
+  const other = await appWithCampaign();
+  await other.player(`/api/campaigns/${other.campaign.id}/rolls`, { method: 'POST', body: JSON.stringify({ expression: '1d20' }) });
+  const [foreign] = await lastFeed(other.player, other.campaign.id);
+  await player(`/api/campaigns/${campaign.id}/rolls`, { method: 'POST', body: JSON.stringify({ expression: '1d20' }) });
+
+  const page = await body<FeedResponse>(
+    await player(`/api/campaigns/${campaign.id}/feed?before=${foreign!.id}`),
+  );
+  assert.deepEqual(page, { events: [], nextCursor: null });
 });
 
 test('a linked roll is published to the feed identifying the character', async () => {

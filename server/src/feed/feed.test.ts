@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import WebSocket, { type RawData } from 'ws';
-import type { CreatedCampaign, RollResponse, SessionEvent, SocketMessage } from '@quest-fast/shared';
+import type { CreatedCampaign, RollResponse, RollSessionEvent, SocketMessage } from '@quest-fast/shared';
 import { SESSION_COOKIE } from '../auth/session.ts';
 import { asUser, body, createTestServer, signIn } from '../testing.ts';
 
@@ -27,11 +27,11 @@ function waitForOpen(socket: WebSocket): Promise<void> {
 }
 
 /** Session events as they arrive, in order, for later negative assertions. */
-function collect(socket: WebSocket): SessionEvent[] {
-  const events: SessionEvent[] = [];
+function collect(socket: WebSocket): RollSessionEvent[] {
+  const events: RollSessionEvent[] = [];
   socket.on('message', (data) => {
     const message = JSON.parse(data.toString()) as SocketMessage;
-    if (message.type === 'session.event') events.push(message.event);
+    if (message.type === 'session.event') events.push(message.event as RollSessionEvent);
   });
   return events;
 }
@@ -42,17 +42,19 @@ function collect(socket: WebSocket): SessionEvent[] {
  */
 function waitForEvent(
   socket: WebSocket,
-  predicate: (event: SessionEvent) => boolean = () => true,
+  predicate: (event: RollSessionEvent) => boolean = () => true,
   timeoutMs = 2000,
-): Promise<SessionEvent> {
+): Promise<RollSessionEvent> {
   return new Promise((resolve, reject) => {
     let timer: ReturnType<typeof setTimeout>;
     const onMessage = (data: RawData) => {
       const message = JSON.parse(data.toString()) as SocketMessage;
-      if (message.type !== 'session.event' || !predicate(message.event)) return;
+      if (message.type !== 'session.event') return;
+      const event = message.event as RollSessionEvent;
+      if (!predicate(event)) return;
       clearTimeout(timer);
       socket.off('message', onMessage);
-      resolve(message.event);
+      resolve(event);
     };
     timer = setTimeout(() => {
       socket.off('message', onMessage);

@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { DiceFive, Shield, Sword, Heart, Users } from '@phosphor-icons/react';
+import { DiceFive, Users } from '@phosphor-icons/react';
+import { AttackCard } from '../components/AttackCard';
+import { CharacterStats } from '../components/CharacterStats';
 import { expect, userEvent, within } from 'storybook/test';
 import { AbilityCard } from '../components/AbilityCard';
 import { Avatar } from '../components/Avatar';
@@ -23,14 +25,14 @@ function Tabletop({ longName = false }: { longName?: boolean }) {
           <Avatar name="Elara Sombravil" src="/portraits/elara-example.png" variant="character" size="lg" />
           <div><h2>{longName ? 'Elara Sombravil, guardiã dos caminhos esquecidos' : 'Elara Sombravil'}</h2><p>Meio-elfa · Ladina de nível 3</p><span className="tabletop__owner">Personagem de Ana Beatriz</span></div>
         </div>
-        <dl className="tabletop__stats"><div><dt><Heart size={16} aria-hidden="true" />HP</dt><dd>24</dd></div><div><dt><Shield size={16} aria-hidden="true" />CA</dt><dd>15</dd></div><div><dt>Proficiência</dt><dd>+2</dd></div></dl>
+        <CharacterStats hp={24} ac={15} proficiency={2} />
         <div className="tabletop__abilities">
           <AbilityCard label="Destreza" abbreviation="DES" score={18} modifier={4} saveBonus={6} proficient
             onCheck={() => setResult({ label: 'Teste de Destreza', bonus: 4 })} onSave={() => setResult({ label: 'Resistência de Destreza', bonus: 6 })} />
           <AbilityCard label="Sabedoria" abbreviation="SAB" score={8} modifier={-1} saveBonus={-1}
             onCheck={() => setResult({ label: 'Teste de Sabedoria', bonus: -1 })} onSave={() => setResult({ label: 'Resistência de Sabedoria', bonus: -1 })} />
         </div>
-        <div className="tabletop__attack"><div><h3><Sword size={18} aria-hidden="true" />Adaga</h3><p>Acerto +7 <span> Dano 1d4+4</span></p></div><Button onClick={() => setResult({ label: 'Ataque com adaga', bonus: 7 })}><DiceFive size={18} aria-hidden="true" />Rolar ataque</Button></div>
+        <AttackCard name="Adaga" bonus={7} damage="1d4+4" onRoll={() => setResult({ label: 'Ataque com adaga', bonus: 7 })} />
       </Surface>
       <div className="tabletop__aside">
         {result ? <div role="status"><DiceResult label={result.label} total={14 + result.bonus} dice={[{ sides: 20, value: 14 }]} decomposition={`14 ${result.bonus >= 0 ? '+' : '−'} ${Math.abs(result.bonus)}`} /><p className="tabletop__caption">Dado fixo em 14 para comparar os componentes.</p></div> : <Surface><EmptyState title="Sua próxima rolagem" description="Use um atributo ou role o ataque para ver o resultado de exemplo." icon={DiceFive} action={null} /></Surface>}
@@ -51,7 +53,7 @@ export const NomeLongo: Story = { name: 'Nome longo', args: { longName: true } }
 export const Rolagem: Story = { play: async ({ canvasElement }) => {
   for (const region of within(canvasElement).getAllByRole('region', { name: /^Tema / })) {
     const canvas = within(region);
-    await userEvent.click(canvas.getByRole('button', { name: 'Rolar ataque' }));
+    await userEvent.click(canvas.getByRole('button', { name: 'Rolar ataque de Adaga' }));
     await expect(canvas.getByRole('status')).toHaveTextContent('14 + 7 = 21');
     await userEvent.click(canvas.getByRole('button', { name: 'Teste de Sabedoria' }));
     await expect(canvas.getByRole('status')).toHaveTextContent('14 − 1 = 13');

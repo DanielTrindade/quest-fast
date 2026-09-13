@@ -6,16 +6,19 @@ import {
   ABILITIES,
   abilityModifier,
   isAbility,
+  isRollMode,
   isSkill,
   parseDiceExpression,
   proficiencyBonus,
   rollDice,
+  skillAbility,
   type Ability,
   type Attack,
   type CharacterInput,
   type CharacterSheet,
   type CharacterSummary,
   type LinkedRollRequest,
+  type RollMode,
   type RollPayload,
 } from '@quest-fast/shared';
 import type { Context } from '../context.ts';
@@ -173,6 +176,8 @@ function toSummary(row: {
   race: string;
   class: string;
   level: number;
+  hp: number;
+  ac: number;
   ownerId: string;
   ownerName: string;
   avatarPath: string | null;
@@ -186,6 +191,8 @@ function toSummary(row: {
     ownerId: row.ownerId,
     ownerName: row.ownerName,
     avatarUrl: avatarUrl(row.avatarPath),
+    hp: row.hp,
+    ac: row.ac,
   };
 }
 
@@ -254,6 +261,8 @@ export function characterRoutes() {
         race: characters.race,
         class: characters.class,
         level: characters.level,
+        hp: characters.hp,
+        ac: characters.ac,
         ownerId: characters.ownerId,
         ownerName: users.name,
         avatarPath: assets.path,
@@ -368,8 +377,12 @@ type LinkedRollResult =
 
 function parseLinkedRoll(body: LinkedRollRequest, row: NonNullable<ReturnType<typeof characterSelect>>): LinkedRollResult {
   const kind = body?.kind;
-  const advantage = body?.advantage === true;
-  const mode = advantage ? 'advantage' : 'normal';
+
+  // An unknown mode is a malformed request, not "normal": silently rolling
+  // without the requested advantage would hide the client's bug.
+  const rawMode = body?.mode;
+  if (rawMode !== undefined && !isRollMode(rawMode)) return { error: 'Modo de rolagem inválido.' };
+  const mode: RollMode = rawMode ?? 'normal';
 
   if (kind === 'attack') {
     const index = body?.attackIndex;
@@ -408,6 +421,30 @@ function parseLinkedRoll(body: LinkedRollRequest, row: NonNullable<ReturnType<ty
         characterId: row.id,
         characterName: row.name,
         ability,
+      },
+    };
+  }
+
+  if (kind === 'skill') {
+    const skill = body?.skill;
+    if (!isSkill(skill)) return { error: 'Perícia inválida.' };
+    const ability = skillAbility(skill);
+    const modifier = abilityModifier(row.abilityScores[ability]) ?? 0;
+    const trained = row.skills.includes(skill);
+    const bonus = trained ? modifier + (proficiencyBonus(row.level) ?? 0) : modifier;
+    const expression = `1d20${bonus >= 0 ? '+' : ''}${bonus}`;
+    const result = rollDice(expression, mode);
+    if (!result) return { error: 'Rolagem inválida.' };
+    return {
+      roll: true,
+      payload: {
+        kind: 'roll',
+        ...result,
+        rollKind: 'skill',
+        characterId: row.id,
+        characterName: row.name,
+        ability,
+        skill,
       },
     };
   }

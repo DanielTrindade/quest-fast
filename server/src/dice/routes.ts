@@ -1,15 +1,9 @@
 import { Hono } from 'hono';
 import type { FreeRollRequest, RollMode, RollPayload } from '@quest-fast/shared';
-import { rollDice } from '@quest-fast/shared';
+import { isRollMode, rollDice } from '@quest-fast/shared';
 import type { Context } from '../context.ts';
 import { requireAuth, requireCampaignRole } from '../middleware.ts';
 import { recordRollEvent } from '../events/feed.ts';
-
-const ROLL_MODES: readonly RollMode[] = ['normal', 'advantage', 'disadvantage'];
-
-function isRollMode(value: unknown): value is RollMode {
-  return typeof value === 'string' && (ROLL_MODES as readonly string[]).includes(value);
-}
 
 /**
  * Free roll: the client sends an expression, the server rolls and publishes.

@@ -1,14 +1,32 @@
+import { useState } from 'react';
 import { PencilSimple, Trash, Warning } from '@phosphor-icons/react';
-import { abilityModifier, proficiencyBonus, type Ability, type CharacterSheet, type LinkedRollRequest, type RollPayload } from '@quest-fast/shared';
-import { Avatar } from '../../components/Avatar';
+import {
+  SKILL_ABILITIES,
+  abilityModifier,
+  proficiencyBonus,
+  skillAbility,
+  type Skill,
+  type Ability,
+  type CharacterSheet,
+  type LinkedRollRequest,
+  type RollMode,
+  type RollPayload,
+} from '@quest-fast/shared';
 import { AbilityCard } from '../../components/AbilityCard';
+import { AttackCard } from '../../components/AttackCard';
+import { Avatar } from '../../components/Avatar';
 import { Button } from '../../components/Button';
+import { CharacterStats } from '../../components/CharacterStats';
 import { DiceResult } from '../../components/DiceResult';
+import { RollModeControl } from '../../components/RollModeControl';
 import { Skeleton } from '../../components/Skeleton';
-import { ABILITY_ABBREVIATIONS, ABILITY_LABELS, SKILL_LABELS, signed } from '../../lib/5e';
+import { SkillChip } from '../../components/SkillChip';
+import { Surface } from '../../components/Surface';
+import { ABILITY_ABBREVIATIONS, ABILITY_LABELS, SKILL_LABELS } from '../../lib/5e';
 
 function rollActionLabel(payload: RollPayload): string {
   if (payload.rollKind === 'attack') return `Ataque (${payload.attackName})`;
+  if (payload.rollKind === 'skill') return `Teste de ${payload.skill ? SKILL_LABELS[payload.skill] : ''}`;
   if (payload.rollKind === 'check') return `Teste de ${payload.ability ? ABILITY_LABELS[payload.ability] : ''}`;
   if (payload.rollKind === 'save') return `Resistência de ${payload.ability ? ABILITY_LABELS[payload.ability] : ''}`;
   return 'Rolagem';
@@ -87,153 +105,170 @@ export function CharacterSheetView({
   const canRoll = isOwner;
   const canEdit = isOwner;
 
+  // One mode choice for every linked roll of the sheet; always a single d20,
+  // so advantage and disadvantage always apply.
+  const [mode, setMode] = useState<RollMode>('normal');
+  const withMode = <T extends Omit<LinkedRollRequest, 'mode'>>(request: T): LinkedRollRequest => ({ ...request, mode });
+
+  const skillBonus = (skill: Skill) => {
+    const modifier = abilityModifier(character.abilityScores[skillAbility(skill)]) ?? 0;
+    return character.skills.includes(skill) ? modifier + (proficiencyBonus(character.level) ?? 0) : modifier;
+  };
+  const untrainedSkills = (Object.keys(SKILL_ABILITIES) as Skill[])
+    .filter((skill) => !character.skills.includes(skill))
+    .sort((a, b) => SKILL_LABELS[a].localeCompare(SKILL_LABELS[b], 'pt-BR'));
+
   return (
     <div className="sheet">
-      <div className="sheet-head">
-        <Avatar name={character.name} src={character.avatarUrl ?? undefined} variant="character" size="lg" />
-        <div className="sheet-head__meta">
-          <p className="sheet-head__owner">
-            {isOwner ? 'Seu personagem' : `Ficha de ${character.ownerName}`}
-          </p>
-          <p className="sheet-head__stats">
-            <span className="sheet-stat">
-              <span>HP</span>
-              <b>{character.hp}</b>
-            </span>
-            <span className="sheet-stat">
-              <span>CA</span>
-              <b>{character.ac}</b>
-            </span>
-          </p>
+      <Surface variant="sheet" className="sheet">
+        <div className="sheet-head">
+          <Avatar name={character.name} src={character.avatarUrl ?? undefined} variant="character" size="lg" />
+          <div className="sheet-head__meta">
+            <p className="sheet-head__owner">
+              {isOwner ? 'Seu personagem' : `Ficha de ${character.ownerName}`}
+            </p>
+          </div>
         </div>
-      </div>
 
-      {!isOwner && (
-        <p className="sheet-readonly">
-          Consulta: só {character.ownerName} edita e rola por esta ficha.
-        </p>
-      )}
+        <CharacterStats hp={character.hp} ac={character.ac} proficiency={proficiencyBonus(character.level) ?? 0} />
 
-      <h3 className="sheet-subheading">Atributos</h3>
-      <div className="sheet-abilities">
-        {(Object.keys(character.abilityScores) as Ability[]).map((ability) => (
-          <AbilityRow
-            key={ability}
-            ability={ability}
-            score={character.abilityScores[ability]}
-            proficient={character.saves.includes(ability)}
-            level={character.level}
-            canRoll={canRoll}
-            disabled={rolling}
-            onRoll={onRoll}
-          />
-        ))}
-      </div>
+        {!isOwner && (
+          <p className="sheet-readonly">
+            Consulta: só {character.ownerName} edita e rola por esta ficha.
+          </p>
+        )}
 
-      {character.attacks.length > 0 && (
-        <>
-          <h3 className="sheet-subheading">Ataques</h3>
-          <ul className="sheet-attacks">
-            {character.attacks.map((attack, index) => (
-              <li key={`${attack.name}-${index}`}>
-                <span className="sheet-attacks__name">{attack.name}</span>
-                <span className="sheet-attacks__bonus">
-                  <span>Acerto</span>
-                  <b>{signed(attack.bonus)}</b>
-                </span>
-                <span className="sheet-attacks__damage">
-                  <span>Dano</span>
-                  <b>{attack.damage}</b>
-                </span>
-                {canRoll && (
-                  <Button
-                    variant="secondary"
+        {canRoll && (
+          <div className="sheet-mode">
+            <span className="sheet-mode__label">Modo da rolagem</span>
+            <RollModeControl value={mode} onChange={setMode} disabled={rolling} />
+          </div>
+        )}
+
+        <h3 className="sheet-subheading">Atributos</h3>
+        <div className="sheet-abilities">
+          {(Object.keys(character.abilityScores) as Ability[]).map((ability) => (
+            <AbilityRow
+              key={ability}
+              ability={ability}
+              score={character.abilityScores[ability]}
+              proficient={character.saves.includes(ability)}
+              level={character.level}
+              canRoll={canRoll}
+              disabled={rolling}
+              onRoll={(request) => onRoll(withMode(request))}
+            />
+          ))}
+        </div>
+
+        {character.attacks.length > 0 && (
+          <>
+            <h3 className="sheet-subheading">Ataques</h3>
+            <ul className="sheet-attacks">
+              {character.attacks.map((attack, index) => (
+                <li key={`${attack.name}-${index}`}>
+                  <AttackCard name={attack.name} bonus={attack.bonus} damage={attack.damage}
                     disabled={rolling}
-                    aria-label={`Rolar ataque de ${attack.name}`}
-                    onClick={() => onRoll({ kind: 'attack', attackIndex: index })}
-                  >
-                    Rolar
-                  </Button>
-                )}
+                    onRoll={canRoll ? () => onRoll(withMode({ kind: 'attack', attackIndex: index })) : undefined} />
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+
+        <h3 className="sheet-subheading">Perícias</h3>
+        {character.skills.length > 0 ? (
+          <ul className="sheet-chips" aria-label="Perícias treinadas">
+            {character.skills.map((skill) => (
+              <li key={skill}>
+                <SkillChip label={SKILL_LABELS[skill]} bonus={skillBonus(skill)} trained
+                  disabled={rolling}
+                  onRoll={canRoll ? () => onRoll(withMode({ kind: 'skill', skill })) : undefined} />
               </li>
             ))}
           </ul>
-        </>
-      )}
-
-      {character.skills.length > 0 && (
-        <>
-          <h3 className="sheet-subheading">Perícias</h3>
-          <ul className="sheet-chips" aria-label="Perícias treinadas">
-            {character.skills.map((skill) => (
-              <li key={skill}>{SKILL_LABELS[skill]}</li>
+        ) : (
+          <p className="sheet-head__owner">Nenhuma perícia treinada.</p>
+        )}
+        {/* Untrained skills roll too (modifier only), but stay folded so the
+            trained ones lead the sheet. */}
+        <details className="sheet-more">
+          <summary>Demais perícias ({untrainedSkills.length})</summary>
+          <ul className="sheet-chips" aria-label="Demais perícias">
+            {untrainedSkills.map((skill) => (
+              <li key={skill}>
+                <SkillChip label={SKILL_LABELS[skill]} bonus={skillBonus(skill)}
+                  disabled={rolling}
+                  onRoll={canRoll ? () => onRoll(withMode({ kind: 'skill', skill })) : undefined} />
+              </li>
             ))}
           </ul>
-        </>
-      )}
+        </details>
 
-      {character.features.length > 0 && (
-        <>
-          <h3 className="sheet-subheading">Características</h3>
-          <ul className="sheet-features">
-            {character.features.map((feature) => (
-              <li key={feature}>{feature}</li>
-            ))}
-          </ul>
-        </>
-      )}
+        {character.features.length > 0 && (
+          <>
+            <h3 className="sheet-subheading">Características</h3>
+            <ul className="sheet-features">
+              {character.features.map((feature) => (
+                <li key={feature}>{feature}</li>
+              ))}
+            </ul>
+          </>
+        )}
 
-      {character.description && (
-        <>
-          <h3 className="sheet-subheading">Descrição</h3>
-          <p className="sheet-description">{character.description}</p>
-        </>
-      )}
+        {character.description && (
+          <>
+            <h3 className="sheet-subheading">Descrição</h3>
+            <p className="sheet-description">{character.description}</p>
+          </>
+        )}
 
-      {deleteError && (
-        <p role="alert" className="text-small text-danger-text">
-          {deleteError}
-        </p>
-      )}
-
-      {(canEdit || canDelete) && !confirmingDelete && (
-        <div className="qf-dialog__actions">
-          {canEdit && (
-            <Button variant="secondary" onClick={onEdit}>
-              <PencilSimple size={18} aria-hidden="true" />
-              Editar
-            </Button>
-          )}
-          {canDelete && (
-            <Button variant="ghost" onClick={onAskDelete}>
-              <Trash size={18} aria-hidden="true" />
-              Excluir
-            </Button>
-          )}
-        </div>
-      )}
-
-      {confirmingDelete && (
-        <div className="sheet-confirm" role="group" aria-label={`Confirmar exclusão de ${character.name}`}>
-          <p className="sheet-confirm__question">
-            <Warning size={18} weight="fill" aria-hidden="true" />
-            Excluir {character.name}?
+        {deleteError && (
+          <p role="alert" className="text-small text-danger-text">
+            {deleteError}
           </p>
-          <p className="sheet-confirm__detail">
-            A ficha sai da mesa para todo mundo e não há como recuperá-la. As rolagens já
-            registradas permanecem no histórico da sessão.
-          </p>
+        )}
+
+        {(canEdit || canDelete) && !confirmingDelete && (
           <div className="qf-dialog__actions">
-            <Button variant="secondary" onClick={onCancelDelete}>
-              Manter ficha
-            </Button>
-            <Button variant="danger" loading={deleting} onClick={onConfirmDelete}>
-              <Trash size={18} aria-hidden="true" />
-              Excluir personagem
-            </Button>
+            {canEdit && (
+              <Button variant="secondary" onClick={onEdit}>
+                <PencilSimple size={18} aria-hidden="true" />
+                Editar
+              </Button>
+            )}
+            {canDelete && (
+              <Button variant="ghost" onClick={onAskDelete}>
+                <Trash size={18} aria-hidden="true" />
+                Excluir
+              </Button>
+            )}
           </div>
-        </div>
-      )}
+        )}
+
+        {confirmingDelete && (
+          <div className="sheet-confirm" role="group" aria-label={`Confirmar exclusão de ${character.name}`}>
+            <p className="sheet-confirm__question">
+              <Warning size={18} weight="fill" aria-hidden="true" />
+              Excluir {character.name}?
+            </p>
+            <p className="sheet-confirm__detail">
+              A ficha sai da mesa para todo mundo e não há como recuperá-la. As rolagens já
+              registradas permanecem no histórico da sessão.
+            </p>
+            <div className="qf-dialog__actions">
+              <Button variant="secondary" onClick={onCancelDelete}>
+                Manter ficha
+              </Button>
+              <Button variant="danger" loading={deleting} onClick={onConfirmDelete}>
+                <Trash size={18} aria-hidden="true" />
+                Excluir personagem
+              </Button>
+            </div>
+          </div>
+        )}
+
+      </Surface>
 
       {/* The result stays pinned to the bottom of the sheet: whichever control
           fired the roll, the answer lands in the same place. */}

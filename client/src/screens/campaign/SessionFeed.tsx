@@ -1,62 +1,39 @@
-import { EyeSlash } from '@phosphor-icons/react';
-import { useQuery } from '@tanstack/react-query';
-import type { RollPayload, SessionEvent } from '@quest-fast/shared';
-import { useCampaignSocket } from '../../hooks/useCampaignSocket';
-import { ABILITY_LABELS } from '../../lib/5e';
-import { api } from '../../lib/api';
-import { formatTime } from '../../lib/format';
+import { DiceFive } from '@phosphor-icons/react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { FeedResponse } from '@quest-fast/shared';
 import { EmptyState } from '../../components/EmptyState';
+import { FeedEventCard } from '../../components/FeedEventCard';
+import { FeedFollow } from '../../components/FeedFollow';
 import { Skeleton } from '../../components/Skeleton';
 import { Surface } from '../../components/Surface';
+import { useCampaignSocket } from '../../hooks/useCampaignSocket';
+import { ApiError, api } from '../../lib/api';
 
-function rollSummary(payload: RollPayload): string {
-  const kept = payload.dice.filter((die) => !die.discarded);
-  const discarded = payload.dice.filter((die) => die.discarded);
-  let text = kept.map((die) => `${die.value}`).join(' + ');
-  if (discarded.length > 0) {
-    text += ` (${discarded.map((die) => `${die.value}`).join(', ')} descartado${discarded.length > 1 ? 's' : ''})`;
-  }
-  if (payload.modifier !== 0) {
-    text += ` ${payload.modifier > 0 ? '+' : '−'} ${Math.abs(payload.modifier)}`;
-  }
-  return `${text} = ${payload.total}`;
-}
-
-function rollAction(payload: RollPayload): string {
-  if (payload.rollKind === 'attack') return `atacou com ${payload.attackName}`;
-  if (payload.rollKind === 'check') return `teste de ${payload.ability ? ABILITY_LABELS[payload.ability] : ''}`;
-  if (payload.rollKind === 'save') return `teste de resistência de ${payload.ability ? ABILITY_LABELS[payload.ability] : ''}`;
-  return `rolou ${payload.expression}`;
-}
-
-function FeedRow({ event }: { event: SessionEvent }) {
-  const payload = event.payload;
-  const headline =
-    payload.rollKind && payload.characterName
-      ? `${payload.characterName} ${rollAction(payload)}`
-      : `${event.userName} ${rollAction(payload)}`;
-  const content = (
-    <>
-      <p className="feed-meta">
-        <span>{event.userName}</span>
-        <span aria-hidden="true">·</span>
-        <time>{formatTime(event.createdAt)}</time>
-        {event.secret && (
-          <span className="feed-secret-tag">
-            <EyeSlash size={14} weight="regular" aria-hidden="true" /> Secreta
-          </span>
-        )}
-      </p>
-      <p className="feed-line">{headline}</p>
-      <p className="feed-breakdown">{rollSummary(payload)}</p>
-    </>
-  );
-  return event.secret ? <div className="qf-feed__secret">{content}</div> : <>{content}</>;
+function errorMessage(error: unknown) {
+  return error instanceof ApiError ? error.message : 'Não foi possível carregar eventos anteriores.';
 }
 
 export function SessionFeed({ campaignId }: { campaignId: string }) {
+  const queryClient = useQueryClient();
   const status = useCampaignSocket(campaignId);
   const feed = useQuery({ queryKey: ['feed', campaignId], queryFn: () => api.feed(campaignId) });
+
+  // Older pages are merged into the same cache the socket appends to, so the
+  // live tail and the loaded past stay one list.
+  const loadMore = useMutation({
+    mutationFn: (cursor: string) => api.feed(campaignId, cursor),
+    onSuccess: (page) => {
+      queryClient.setQueryData<FeedResponse>(['feed', campaignId], (prev) => {
+        if (!prev) return page;
+        const existing = new Set(prev.events.map((event) => event.id));
+        const older = page.events.filter((event) => !existing.has(event.id));
+        return { events: [...older, ...prev.events], nextCursor: page.nextCursor };
+      });
+    },
+  });
+
+  const events = feed.data?.events ?? [];
+  const nextCursor = feed.data?.nextCursor ?? null;
 
   return (
     <section className="feed-panel" aria-labelledby="feed-title">
@@ -82,22 +59,32 @@ export function SessionFeed({ campaignId }: { campaignId: string }) {
           </p>
         )}
 
-        {feed.isSuccess && feed.data.events.length === 0 && (
+        {feed.isSuccess && events.length === 0 && (
           <EmptyState
+            icon={DiceFive}
             title="A sessão ainda está em silêncio"
             description="Rolagens e eventos desta campanha aparecem aqui na hora, para toda a mesa."
             action={null}
           />
         )}
 
-        {feed.isSuccess && feed.data.events.length > 0 && (
-          <ol className="feed-list">
-            {feed.data.events.map((event) => (
-              <li key={event.id}>
-                <FeedRow event={event} />
-              </li>
-            ))}
-          </ol>
+        {feed.isSuccess && events.length > 0 && (
+          <FeedFollow
+            count={events.length}
+            newestId={events[events.length - 1]!.id}
+            hasMore={nextCursor !== null}
+            onLoadMore={() => nextCursor && !loadMore.isPending && loadMore.mutate(nextCursor)}
+            loadingMore={loadMore.isPending}
+            loadMoreError={loadMore.isError ? errorMessage(loadMore.error) : null}
+          >
+            <ol className="feed-list">
+              {events.map((event) => (
+                <li key={event.id}>
+                  <FeedEventCard event={event} />
+                </li>
+              ))}
+            </ol>
+          </FeedFollow>
         )}
       </Surface>
     </section>

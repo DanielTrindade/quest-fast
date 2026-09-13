@@ -101,3 +101,18 @@ Execução do backlog de `ui-ux-etapas-0-1.md`, itens 1 a 3 da ordem sugerida. A
 Validação: lint, typecheck, 80 testes de unidade e build aprovados. Storybook com **75/75** verificações (8 stories novas de ficha, nos dois temas e em 320/390/768/1280 px). Contra o aplicativo em execução: `verify:app` 9/9 e `verify:group` **15/15**, incluindo seis critérios de aceite novos — permissão alinhada, confirmação de exclusão, camada única de diálogo, descarte confirmado, ausência de corte nas quatro larguras com a ficha aberta, e dados antes da administração em 390 px.
 
 O aviso de chunk acima de 500 kB permanece. Nada aqui certifica OAuth real, Core Web Vitals ou todos os fluxos de erro.
+
+## Qualidade de vida da sessão (12 de setembro de 2026)
+
+Change OpenSpec `session-qol-foundations`. Componentes novos, todos com story em `client/src/stories/`:
+
+- **`QuickDice`** preenche a expressão do rolador (não rola): pills d4 a d100 e "Repetir" mostrando a última expressão. A restrição de vantagem/desvantagem a um d20 continua no `DiceRoller`.
+- **`RollModeControl`** é o segmentado Normal/Vantagem/Desvantagem, compartilhado pelo rolador e pela ficha.
+- **`SkillChip`** mostra perícia e bônus; vira botão de rolar só para o dono. Treino aparece na borda e na cor do bônus, e por extenso para leitores de tela. Na ficha, as perícias treinadas vêm primeiro e as demais ficam em um `<details>` "Demais perícias", roláveis só com o modificador.
+- **`CharacterRow`** traz HP e CA públicos no resumo; **`CharacterStats`** e **`AttackCard`** saíram do laboratório para a ficha real.
+- **`FeedEventCard`** despacha por `event.type`; tipos desconhecidos mostram autor, horário e o tipo, sem quebrar o feed. No histórico, o `DiceResult compact` omite "Rolagem normal" e o bloco de um dado só, que a decomposição já diz.
+- **`FeedFollow`** limita a altura do feed no desktop (container query) e mantém a lista na página no celular. "No fim" é medido por um marcador observado com `IntersectionObserver`, então vale nos dois casos; a pill "N novos resultados" é sticky. Eventos novos se distinguem de páginas antigas pelo id do mais recente: "Ver mais" nunca conta como novidade e preserva a posição de leitura. O fim do histórico é indicado por "Início do histórico".
+- **`SectionNav`** + `useActiveSection` marcam a seção visível com `aria-current="location"` (são seções de uma página, não páginas). O hook observa os cabeçalhos que aparecem depois das consultas, mantém o destaque entre dois cabeçalhos e responde a clique em âncora na hora.
+- **`CharacterForm`** é o editor extraído do diálogo; valida por campo com `validateCharacterInput` (em `shared/`) e, num envio recusado, leva o foco ao primeiro campo inválido.
+
+Validação: lint, typecheck e build aprovados; 36 testes de unidade (shared) e 113 de integração (server), incluindo perícia só do dono, paginação terminando exatamente no limite da página e cursor de outra campanha. Storybook com **114/114** verificações. `verify:app` e `verify:group` não foram executados nesta rodada (exigem o app rodando com seed).

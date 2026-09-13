@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { Plus, Sword } from '@phosphor-icons/react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import type { CharacterSheet, CharacterSummary } from '@quest-fast/shared';
-import { Avatar } from '../../components/Avatar';
+import type { CharacterSheet } from '@quest-fast/shared';
 import { Button } from '../../components/Button';
+import { CharacterRow } from '../../components/CharacterRow';
 import { EmptyState } from '../../components/EmptyState';
 import { Skeleton } from '../../components/Skeleton';
 import { Surface } from '../../components/Surface';
@@ -134,33 +134,5 @@ export function CharactersSection({
         />
       )}
     </section>
-  );
-}
-
-function CharacterRow({
-  character,
-  isMine,
-  onOpen,
-}: {
-  character: CharacterSummary;
-  isMine: boolean;
-  onOpen: () => void;
-}) {
-  return (
-    <li>
-      <button type="button" className="character-row" onClick={onOpen}>
-        <Avatar name={character.name} src={character.avatarUrl ?? undefined} variant="character" size="md" />
-        <span className="character-row__info">
-          <span className="character-row__name">
-            <b>{character.name}</b>
-            {isMine && <span className="character-row__mine">Seu personagem</span>}
-          </span>
-          <span className="character-row__class">
-            {character.race} · {character.class} · nível {character.level}
-          </span>
-          <span className="character-row__owner">{character.ownerName}</span>
-        </span>
-      </button>
-    </li>
   );
 }

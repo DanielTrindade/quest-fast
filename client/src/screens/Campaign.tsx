@@ -131,7 +131,10 @@ export function Campaign({ campaignId }: { campaignId: string }) {
 
   if (campaign.isError) {
     return (
-      <main className="qf-page mx-auto w-full max-w-3xl p-4 sm:p-8">
+      <main className="qf-page campaign-page">
+        <Link to="/campaigns" className="campaign-back">
+          <ArrowLeft size={16} aria-hidden="true" /> Suas campanhas
+        </Link>
         <Surface>
           <p role="alert" className="text-body text-danger-text">
             {errorMessage(campaign.error)}
@@ -145,7 +148,7 @@ export function Campaign({ campaignId }: { campaignId: string }) {
   const tableIsEmpty = members.isSuccess && members.data.members.length <= 1;
 
   return (
-    <main className="qf-page mx-auto w-full max-w-6xl p-4 sm:p-8">
+    <main className="qf-page campaign-page">
       <header className="campaign-heading">
         <div className="min-w-0">
           <Link to="/campaigns" className="campaign-back">
@@ -239,6 +242,7 @@ export function Campaign({ campaignId }: { campaignId: string }) {
               {members.isSuccess && members.data.members.length === 1 && isMaster && (
                 <EmptyState
                   title="Falta reunir a mesa"
+                  icon={Users}
                   description="Compartilhe o código de convite para os jogadores entrarem."
                   action={null}
                 />

@@ -9,6 +9,7 @@ export {
   DICE_COUNT_LIMIT,
   DICE_MODIFIER_LIMIT,
   DICE_SIDES_LIMIT,
+  isRollMode,
   parseDiceExpression,
   rollDice,
   type DieResult,
@@ -30,6 +31,7 @@ export {
   type Ability,
   type Skill,
 } from './modifiers.ts';
+export { validateCharacterInput, type CharacterFieldErrors } from './validation.ts';
 export type {
   AbilityScores,
   Asset,
@@ -46,8 +48,10 @@ export type {
   MeResponse,
   RollPayload,
   RollResponse,
+  RollSessionEvent,
   SessionEvent,
   SocketMessage,
+  UnknownSessionEvent,
 } from './api.ts';
 export type {
   ErrorResponse,

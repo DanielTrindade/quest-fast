@@ -14,7 +14,11 @@ export function feedRoutes() {
 
   routes.get('/', requireCampaignRole(), (c) => {
     const { db } = c.var.deps;
-    return c.json({ events: readFeed(db, c.var.campaignId, c.var.role) });
+    const before = c.req.query('before');
+    const rawLimit = Number(c.req.query('limit'));
+    const limit = Number.isInteger(rawLimit) && rawLimit > 0 && rawLimit <= 100 ? rawLimit : 50;
+    const { events, nextCursor } = readFeed(db, c.var.campaignId, c.var.role, { limit, before });
+    return c.json({ events, nextCursor });
   });
 
   return routes;

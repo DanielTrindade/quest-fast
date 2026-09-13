@@ -1,3 +1,4 @@
+.campaign-page { width: 100%; max-width: 1400px; margin-inline: auto; }
 .campaign-heading { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: var(--spacing-6); margin-bottom: var(--spacing-8); }
 .campaign-heading h1 { font: 600 var(--text-display)/var(--text-display--line-height) var(--font-display); letter-spacing: -0.04em; margin-top: var(--spacing-2); }
 .campaign-eyebrow { font-size: var(--text-small); color: var(--color-text-muted); }
@@ -31,7 +32,7 @@
 .qf-stack { display: grid; gap: var(--spacing-3); }
 @container (min-width: 1000px) {
   .campaign-layout { grid-template-columns: minmax(0, 1fr) 320px;
-    grid-template-areas: "characters table" "admin table"; align-items: start; }
+    grid-template-areas: "characters table" "admin table"; grid-template-rows: auto 1fr; align-items: start; }
 }
 @container (max-width: 480px) {
   .campaign-heading h1 { font-size: var(--text-h1); line-height: var(--text-h1--line-height); }
@@ -83,28 +84,34 @@
 .feed-list > li { padding-block: var(--spacing-3); }
 .feed-list > li + li { border-top: 1px solid var(--color-border-subtle); }
 .feed-meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--spacing-2); font-size: var(--text-small); color: var(--color-text-muted); }
-.feed-line { margin-top: var(--spacing-1); font-weight: 500; overflow-wrap: anywhere; }
-.feed-breakdown { margin-top: var(--spacing-1); font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: var(--text-small); color: var(--color-text-secondary); }
+.feed-meta + .qf-dice { margin-top: var(--spacing-2); }
 .feed-secret-tag { display: inline-flex; align-items: center; gap: var(--spacing-1); padding: 1px var(--spacing-2); border: 1px dashed var(--color-border-control); border-radius: var(--radius-control); color: var(--color-text-secondary); }
 .qf-feed__secret { margin: 0 calc(var(--spacing-3) * -1); padding: var(--spacing-2) var(--spacing-3); background: var(--color-surface-secret); border: 1px dashed var(--color-border-control); border-radius: var(--radius-control); }
+.qf-feed__unknown-body { display: flex; align-items: center; gap: var(--spacing-2); color: var(--color-text-secondary); font-size: var(--text-small); margin: 0; }
+.qf-feed__unknown-body svg { flex-shrink: 0; color: var(--color-text-muted); }
+
+/* O feed ganha altura própria e rolagem interna no desktop; no celular ele
+   continua na página, sem empilhar uma rolagem dentro da outra. */
+@container (min-width: 760px) {
+  .qf-feed-follow__viewport { max-height: 480px; overflow-y: auto; }
+}
 
 /* ---- Ficha (leitura) ---- */
 .sheet { display: grid; gap: var(--spacing-4); }
 .sheet-head { display: flex; align-items: center; gap: var(--spacing-3); }
 .sheet-head__meta { display: grid; gap: var(--spacing-1); color: var(--color-text-secondary); }
-.sheet-head__stats { display: flex; flex-wrap: wrap; gap: var(--spacing-3); font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 .sheet-subheading { font: 600 var(--text-h2)/var(--text-h2--line-height) var(--font-display); margin-top: var(--spacing-2); }
+.sheet-mode { display: flex; flex-wrap: wrap; align-items: center; gap: var(--spacing-3); padding: var(--spacing-3); background: var(--color-surface-raised); border: 1px solid var(--color-border-subtle); border-radius: var(--radius-control); }
+.sheet-mode__label { color: var(--color-text-secondary); font-size: var(--text-small); }
 .sheet-abilities { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr)); gap: var(--spacing-3); }
 .sheet-chips { list-style: none; display: flex; flex-wrap: wrap; gap: var(--spacing-2); margin: 0; padding: 0; }
-.sheet-chips li { padding: var(--spacing-1) var(--spacing-2); background: var(--color-surface-raised); border: 1px solid var(--color-border-subtle); border-radius: var(--radius-full); font-size: var(--text-small); }
+/* The chip draws its own pill; the list item only lays it out. */
+.sheet-chips li { display: flex; min-width: 0; }
+.sheet-more summary { display: inline-flex; align-items: center; min-height: 44px; color: var(--color-text-secondary); font-size: var(--text-small); cursor: pointer; }
+.sheet-more summary:hover { color: var(--color-text-primary); }
+.sheet-more[open] summary { margin-bottom: var(--spacing-2); }
 .sheet-attacks { list-style: none; display: grid; gap: var(--spacing-2); margin: 0; padding: 0; }
-.sheet-attacks li { display: flex; flex-wrap: wrap; align-items: center; gap: var(--spacing-2) var(--spacing-3); padding: var(--spacing-3); background: var(--color-surface-raised); border: 1px solid var(--color-border-subtle); border-radius: var(--radius-control); }
-.sheet-attacks__name { font-weight: 600; flex: 1 1 140px; min-width: 0; overflow-wrap: anywhere; }
-/* Hit bonus and damage are different numbers; naming each stops the table
-   from reading one as the other. */
-.sheet-attacks__bonus, .sheet-attacks__damage { display: grid; gap: 1px; min-width: 56px; }
-.sheet-attacks__bonus > span, .sheet-attacks__damage > span { color: var(--color-text-muted); font-size: var(--text-micro); }
-.sheet-attacks__bonus > b, .sheet-attacks__damage > b { font-family: var(--font-mono); font-weight: 500; font-variant-numeric: tabular-nums; }
+.sheet-attacks li { min-width: 0; }
 .sheet-features { list-style: none; display: grid; gap: var(--spacing-1); margin: 0; padding: 0; }
 .sheet-features li { padding: var(--spacing-2); background: var(--color-surface-raised); border: 1px solid var(--color-border-subtle); border-radius: var(--radius-control); }
 .sheet-description { color: var(--color-text-secondary); white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
@@ -141,7 +148,23 @@
 .sheet-form__skills label.is-active, .sheet-form__saves label.is-active { color: var(--color-text-primary); border-color: var(--color-border-control); background: var(--color-surface-raised); }
 .sheet-form__skills input, .sheet-form__saves input { width: 16px; height: 16px; accent-color: var(--color-accent); }
 .sheet-form__saves { display: flex; flex-wrap: wrap; gap: var(--spacing-2); }
-.sheet-form__attack { display: grid; grid-template-columns: minmax(0, 1fr) 90px 110px auto; align-items: end; gap: var(--spacing-3); }
+/* Each attack is its own small card: the fields read as one attack, and the
+   remove action sits in the header instead of floating beside an input. */
+.sheet-form__attack {
+  display: grid; gap: var(--spacing-2); min-width: 0;
+  padding: var(--spacing-2) var(--spacing-3) var(--spacing-3);
+  background: var(--color-surface-raised); border: 1px solid var(--color-border-subtle); border-radius: var(--radius-control);
+}
+.sheet-form__attack-head { display: flex; align-items: center; justify-content: space-between; gap: var(--spacing-2); color: var(--color-text-secondary); font-size: var(--text-small); font-weight: 600; }
+/* Wraps by the card's own width, not the viewport: one line on a wide dialog,
+   name above bonus + damage when narrower, and damage on its own line before
+   it gets too tight for an expression. Top alignment keeps the inputs level
+   even though only Dano has a hint. */
+.sheet-form__attack-fields { display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--spacing-3); }
+.sheet-form__attack-fields > .qf-field { flex: 2 1 7rem; }
+.sheet-form__attack-fields > .sheet-form__attack-name { flex: 3 1 12rem; }
+.sheet-form__attack-fields > .qf-field:has(input[type="number"]) { flex: 0 0 6rem; }
+.sheet-form__attack .qf-field input { background: var(--color-surface); }
 
 .qf-segmented label { box-shadow: inset 0 1px 0 var(--color-edge-light); }
 .qf-segmented label:has(input:focus-visible), .qf-file-button:has(input:focus-visible) { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
@@ -182,17 +205,19 @@
 }
 .character-row__class { color: var(--color-text-secondary); font-size: var(--text-small); overflow-wrap: anywhere; }
 .character-row__owner { color: var(--color-text-muted); font-size: var(--text-micro); }
+.character-row__stats { display: flex; align-items: center; gap: var(--spacing-2); margin-left: auto; }
+.character-row__stat {
+  display: inline-flex; align-items: center; gap: var(--spacing-1);
+  padding: var(--spacing-1) var(--spacing-2);
+  background: var(--color-surface-raised); border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-control); font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+  color: var(--color-text-secondary); font-size: var(--text-small);
+}
+.character-row__stat svg { color: var(--color-text-muted); }
 
 /* ---- Ficha: cabeçalho, consulta e confirmação ---- */
 .qf-dialog--sheet { width: min(880px, calc(100vw - 32px)); }
 .sheet-head__owner { color: var(--color-text-secondary); font-size: var(--text-small); }
-.sheet-stat {
-  display: inline-grid; justify-items: center; min-width: 56px;
-  padding: var(--spacing-1) var(--spacing-3); background: var(--color-surface-raised);
-  border: 1px solid var(--color-border-strong); border-radius: var(--radius-control);
-}
-.sheet-stat > span { color: var(--color-text-muted); font-size: var(--text-micro); }
-.sheet-stat > b { font: 500 var(--text-h2)/var(--text-h2--line-height) var(--font-mono); font-variant-numeric: tabular-nums; }
 .sheet-readonly {
   padding: var(--spacing-2) var(--spacing-3); background: var(--color-surface-raised);
   border: 1px dashed var(--color-border-control); border-radius: var(--radius-control);
@@ -223,13 +248,11 @@
 @media (max-width: 479px) {
   .qf-dialog { --qf-dialog-pad: var(--spacing-4); }
   .sheet-form__grid, .sheet-form__skills { grid-template-columns: minmax(0, 1fr); }
-  .sheet-form__attack { grid-template-columns: minmax(0, 1fr); }
-  .sheet-form__attack > button { justify-self: start; }
   .sheet-form__abilities { grid-template-columns: minmax(0, 1fr); }
   .sheet-abilities { grid-template-columns: minmax(0, 1fr); }
   .campaign-section-heading { flex-wrap: wrap; }
   .campaign-heading { gap: var(--spacing-4); }
   /* Nothing here may force a column wider than the phone. */
   .sheet-head { flex-wrap: wrap; }
-  .sheet-attacks li { align-items: start; }
+  .sheet.qf-surface { padding: var(--spacing-3); }
 }

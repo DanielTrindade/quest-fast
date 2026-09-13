@@ -4,7 +4,7 @@ Data: 9 de setembro de 2026. Escopo: implementação local, incluindo alteraçõ
 
 ## Situação (9 de setembro de 2026)
 
-Os problemas prioritários 1 a 7 e as linhas de acabamento que não dependem de contrato foram implementados; o registro está em `docs/design-system.md` e o plano em `docs/superpowers/plans/2026-09-09-melhorias-ui-ux.md`. Permanece em aberto o item 4 da ordem sugerida — perícias roláveis, vantagem/desvantagem em rolagem vinculada, histórico paginado, capa de campanha persistida e HP/CA no resumo da lista — porque cada um exige ampliar o contrato ou uma decisão de produto. O texto abaixo é a auditoria original e não foi reescrito.
+Os problemas prioritários 1 a 7 e as linhas de acabamento que não dependem de contrato foram implementados; o registro está em `docs/design-system.md`. Permanece em aberto o item 4 da ordem sugerida — perícias roláveis, vantagem/desvantagem em rolagem vinculada, histórico paginado, capa de campanha persistida e HP/CA no resumo da lista — porque cada um exige ampliar o contrato ou uma decisão de produto. O texto abaixo é a auditoria original e não foi reescrito.
 
 ## Diagnóstico
 
