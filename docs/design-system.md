@@ -116,3 +116,20 @@ Change OpenSpec `session-qol-foundations`. Componentes novos, todos com story em
 - **`CharacterForm`** é o editor extraído do diálogo; valida por campo com `validateCharacterInput` (em `shared/`) e, num envio recusado, leva o foco ao primeiro campo inválido.
 
 Validação: lint, typecheck e build aprovados; 36 testes de unidade (shared) e 113 de integração (server), incluindo perícia só do dono, paginação terminando exatamente no limite da página e cursor de outra campanha. Storybook com **114/114** verificações. `verify:app` e `verify:group` não foram executados nesta rodada (exigem o app rodando com seed).
+
+## Ficha oficial de D&D 2024 (13 de setembro de 2026)
+
+Change OpenSpec `official-character-sheet`. A ficha segue a organização da ficha oficial (exemplo real em `rpg_docs/Ficha_Hazin_Dan(Daniel).pdf`, reproduzido na fixture `stories/fixtures/characters.ts`).
+
+- **Consulta em três abas** (`SheetTabs`, padrão WAI-ARIA: setas, Home e End; só a aba ativa entra no Tab): Personagem, Magias, Inventário e história. Identidade e combate ficam fora das abas, sempre visíveis.
+- **Abas quebram linha, não rolam de lado.** Uma aba cortada pela rolagem fica meio escondida para quem lê e deixa o contraste impossível de medir (o axe marcava "inconclusivo").
+- **`SheetIdentity`** mostra antecedente, classe, espécie, subclasse, nível e XP com o valor acima do rótulo, como no cabeçalho oficial. "Raça" passou a "Espécie".
+- **Estado de sessão na consulta, só para o dono:** `HitPointsTracker` (dano consome PV temporários primeiro; cura para no máximo; regras em `shared/`), `HitDiceTracker`, `DeathSaves` (losangos de sucesso e falha), `HeroicInspiration` e `CoinPurse` (rascunho salvo de uma vez). Tudo salva pela rota `PATCH .../state`; os demais membros veem só leitura.
+- **`DerivedStats`**: bônus de proficiência, iniciativa (rolável), deslocamento em metros, tamanho e percepção passiva, todos derivados em `shared/`.
+- **`AbilityBlock`** substitui o `AbilityCard` na ficha: valor, modificador (rolável), salvaguarda e as perícias do atributo, cada uma com `ProficiencyMarker` (círculo vazio, círculo cheio ou losango de especialista, com o texto para leitores de tela). A grade usa no máximo três colunas e nunca menos de 240 px, para os seis atributos não deixarem um sozinho na linha.
+- **`ProficiencyToggle`** no editor escolhe nenhuma, proficiente ou especialista, mostrando o bônus resultante enquanto se digita.
+- **`EquipmentTraining`, `TraitList`, `AttunedItems`** e o `AttackCard` com tipo de dano e notas cobrem as seções de texto; espaços de sintonização livres continuam visíveis.
+- **Magias:** `SpellcastingHeader` (atributo, modificador, CD e ataque mágico rolável), `SpellSlots` (pip cheio é espaço livre, vazio é gasto) e `SpellList` agrupada por círculo, com C, R e M como abreviações nomeadas.
+- **Editor em cinco abas** na ordem da ficha. A barra de abas fica presa ao topo do diálogo; num envio recusado, a primeira aba com erro abre, é marcada "(contém erro)" e o foco vai ao primeiro campo inválido. O grid do editor e da ficha tem coluna `minmax(0, 1fr)`, para a barra de abas nunca alargar o diálogo.
+
+Validação: typecheck, lint e build aprovados; 53 testes de unidade (shared) e 126 de integração (server), incluindo ficha oficial, estado só do dono (RBAC), limites do estado, migração que preserva fichas antigas, iniciativa, ataque mágico e especialização. Storybook com **154** verificações: na rodada completa, 146 passaram e as oito falhas foram corrigidas (sete stories do editor com contraste inconclusivo por abas cortadas, resolvidas com a quebra de linha das abas) ou eram timeouts de carga; todas foram reauditadas e passam. `verify:app` e `verify:group` não foram executados (exigem o app rodando com seed); o `verify-group` já usa o rótulo "Espécie".
