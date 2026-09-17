@@ -1,7 +1,8 @@
 # AGENTS.md — memória do projeto
 
 Guia para qualquer LLM/agente que trabalhar neste repositório. Leia antes de
-qualquer mudança.
+qualquer mudança. O guia equivalente para pessoas é o
+[`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ## Desenvolvimento: OpenSpec como framework único
 
@@ -40,6 +41,7 @@ qualquer mudança.
 npm test             # testes unitários (shared) e de integração (server)
 npm run typecheck    # shared, db, server
 npm run lint         # client (inclui regra que proíbe cor crua)
+npm run test:tokens  # regra que proíbe cor crua
 npm run build        # build do SPA
 npm run test:design  # auditoria do design system no Storybook
 npm run verify:app   # fluxo real contra o app rodando

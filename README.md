@@ -3,7 +3,7 @@
 Plataforma para mestrar e jogar D&D 5e. A plataforma **é a mesa**: ficha, dados,
 combate e mundo acontecem dentro dela. O Discord fica apenas com voz e roleplay.
 
-Feita para uma mesa própria, **self-hosted**. Não é SaaS.
+Feita para uma mesa própria, **self-hosted**.
 
 ## Estado atual
 
@@ -32,12 +32,20 @@ O servidor **não sobe** sem credenciais do Discord. Antes de qualquer coisa:
 Pedimos apenas o escopo `identify`: nome e avatar. Nada de e-mail, servidores
 ou mensagens.
 
+## Pré-requisitos
+
+- Node.js **22.18 ou superior** — o projeto executa TypeScript direto com
+  `node` e usa `--env-file-if-exists`; o Docker usa `node:22`. O `.nvmrc` fixa
+  a linha 22: rode `nvm use` antes de instalar as dependências.
+- Git.
+
 ## Executar localmente
 
 ```sh
 npm ci
 cp .env.example .env      # preencha as três variáveis do Discord
 npm run db:migrate
+npm run db:seed           # opcional: campanha de exemplo para ver as telas
 ```
 
 Os comandos rodam com o diretório de trabalho na raiz do repositório, e o
@@ -130,13 +138,29 @@ calculados e autorizados no servidor.
 ## Verificação
 
 ```sh
-npm test          # testes unitários de shared/ e de integração do servidor
-npm run typecheck # shared, db e server
-npm run lint      # client, incluindo a regra que proíbe cor crua
-npm run build     # build do SPA
-npm run test:design  # auditoria do design system no Storybook
+npm test              # unitários (shared) e integração (server)
+npm run typecheck     # shared, db e server
+npm run lint          # client, incluindo a regra que proíbe cor crua
+npm run build         # build do SPA
+npm run test:tokens   # regra que proíbe cor crua
+npm run test:design   # constrói o Storybook e audita com Playwright + axe
+npm run verify:app <cookie>  # fluxo real contra o app rodando
+npm run verify:group         # fluxos de grupo e WebSocket contra o app rodando
 ```
+
+Os `verify:` exigem `npm run build && npm run dev` em outro terminal e
+`npm run db:seed` antes; `verify:app` recebe como argumento o cookie de sessão
+impresso pelo seed. Fora do Windows, `test:design` e os `verify:` usam Chromium
+(`npx playwright install chromium`); no Windows, o Chrome instalado é usado
+quando existe.
 
 O catálogo de componentes abre com `npm run storybook`. As decisões de design
 estão em [`docs/design-system.md`](docs/design-system.md); as de produto e
 arquitetura, em `openspec/`.
+
+## Contribuindo
+
+O guia para pessoas é o [`CONTRIBUTING.md`](CONTRIBUTING.md): fluxo de branch
+e PR, uso do OpenSpec para mudanças de produto, Storybook primeiro no
+frontend e convenções de código. Agentes de IA seguem o
+[`AGENTS.md`](AGENTS.md).

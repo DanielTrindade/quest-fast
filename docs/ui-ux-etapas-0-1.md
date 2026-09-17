@@ -109,4 +109,4 @@ Código de telas, componentes, tokens, API e checklist inspecionado. Capturas lo
 
 `npm run build` aprovado. Capturas e medições repetidas com o build atualizado, com os mesmos resultados e sem erros de página capturados. O Vite sinalizou um chunk JavaScript de 609,85 kB (192,95 kB gzip); considerar carregamento sob demanda da edição de ficha se medições de uso justificarem. Isso não comprova problema de Core Web Vitals.
 
-Não foram certificados OAuth real, Core Web Vitals, contraste de todos os estados nem todos os fluxos de erro. Context7 MCP não está disponível nesta sessão; a captura segue os scripts locais e a [documentação oficial do Playwright](https://playwright.dev/docs/screenshots).
+Não foram certificados OAuth real, Core Web Vitals, contraste de todos os estados nem todos os fluxos de erro. A captura segue os scripts locais e a [documentação oficial do Playwright](https://playwright.dev/docs/screenshots).

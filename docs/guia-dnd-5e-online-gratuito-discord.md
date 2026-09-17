@@ -3,6 +3,10 @@
 > Estudo inicial para montar uma campanha de D&D 5e totalmente online, usando **Discord como central da mesa** e ferramentas gratuitas para voz, fichas, mapas, dados, combate, organização e diário da campanha.
 >
 > Revisado em: **setembro de 2026**
+>
+> **Nota histórica:** este estudo foi escrito antes do quest-fast. A direção
+> atual do produto vive em `openspec/`: a plataforma **é a mesa** e o Discord
+> fica apenas com voz e roleplay, sem integração além do login.
 
 ---
 

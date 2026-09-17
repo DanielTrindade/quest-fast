@@ -43,7 +43,7 @@ Pontuação Unicode existente é preservada conforme as instruções do projeto.
 
 ## Referências
 
-Context7 MCP indisponível nesta sessão. Consultados os tipos locais e a
+Consultados os tipos locais e a
 [documentação de toolbars do Storybook](https://storybook.js.org/docs/essentials/toolbars-and-globals),
 além da [instalação oficial do Fontsource](https://fontsource.org/fonts/geist/install).
 

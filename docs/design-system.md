@@ -60,7 +60,7 @@ As stories interativas cobrem também falha de cópia, fechamento de notificaç�
 
 ## Referências de implementação
 
-Context7 MCP não estava disponível na sessão. Foram consultados os tipos instalados e as fontes oficiais: [instalação manual do shadcn/ui](https://ui.shadcn.com/docs/installation/manual), [Dialog do Radix](https://www.radix-ui.com/primitives/docs/components/dialog), [acessibilidade no Motion](https://motion.dev/docs/react-accessibility) e [API do Playwright](https://playwright.dev/docs/api/class-page).
+Foram consultados os tipos instalados e as fontes oficiais: [instalação manual do shadcn/ui](https://ui.shadcn.com/docs/installation/manual), [Dialog do Radix](https://www.radix-ui.com/primitives/docs/components/dialog), [acessibilidade no Motion](https://motion.dev/docs/react-accessibility) e [API do Playwright](https://playwright.dev/docs/api/class-page).
 
 
 ## Acabamento de RPG no catálogo (9 de setembro de 2026)
@@ -78,7 +78,7 @@ A composição **Composições / Peças da mesa** permite comparar os componente
 
 Os tokens edge-light, edge-shadow, action-light e action-shadow controlam o acabamento. Estados de hover escurecem ações primárias e alteram a superfície das secundárias; foco por teclado permanece independente do hover. Os campos e seletores especiais da ficha receberam tratamento compatível.
 
-Referências: [Avatar do Radix](https://www.radix-ui.com/primitives/docs/components/avatar) e [stories do Storybook](https://storybook.js.org/docs/writing-stories). Context7 MCP indisponível nesta sessão; tipos dos pacotes instalados e documentação oficial conferidos.
+Referências: [Avatar do Radix](https://www.radix-ui.com/primitives/docs/components/avatar) e [stories do Storybook](https://storybook.js.org/docs/writing-stories).
 
 Validação: lint e build do aplicativo aprovados; suíte completa do Storybook com 67/67 verificações aprovadas (66 stories e cenários adicionais). Verificação automatizada nos temas claro/escuro e larguras 320, 390, 768 e 1280 px; cenários de foco modal, teclado, clipboard e movimento reduzido preservados. Capturas de ficha composta, resultado, diálogo e campos revisadas visualmente em `test-results/rpg-components/`. Resultados completos preservados em `test-results/design-system/rpg-full-results.json`. Após o ajuste final de alinhamento e largura das stories, os exemplos de atributos, composição e dados foram conferidos novamente no servidor do Storybook: 13/13 verificações aprovadas.
 
