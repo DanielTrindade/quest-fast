@@ -98,8 +98,9 @@ const ERROR_TAB: Record<keyof CharacterFieldErrors, FormTab> = {
  * Numbers stay text while they are typed: a number state turns the "-" of
  * "-2" into NaN and a cleared field into an undeletable 0.
  */
-type FormAttack = { name: string; bonus: string; damage: string; damageType: string; notes: string };
+type FormAttack = { rowId: string; name: string; bonus: string; damage: string; damageType: string; notes: string };
 type FormSpell = {
+  rowId: string;
   level: string;
   name: string;
   castingTime: string;
@@ -109,6 +110,17 @@ type FormSpell = {
   material: boolean;
   notes: string;
 };
+
+/**
+ * Identity for the editable lists: rows are added and removed, so the array
+ * position is not a stable key. The counter is module-wide because the key
+ * only has to be unique among the siblings of one list.
+ */
+let rowSeq = 0;
+function newRowId(): string {
+  rowSeq += 1;
+  return `row-${rowSeq}`;
+}
 
 /** An empty field is invalid, not a silent zero. */
 function numberValue(text: string) {
@@ -123,6 +135,9 @@ function isScore(value: string) {
 function lines(text: string) {
   return text.split('\n').map((line) => line.trim()).filter(Boolean);
 }
+
+/** The three fixed attunement slots of the official sheet. */
+const ATTUNED_SLOTS = ['attuned-1', 'attuned-2', 'attuned-3'] as const;
 
 function freshState(character: CharacterSheet | null) {
   return {
@@ -151,6 +166,7 @@ function freshState(character: CharacterSheet | null) {
     weaponProficiencies: character?.weaponProficiencies ?? '',
     toolProficiencies: character?.toolProficiencies ?? '',
     attacks: (character?.attacks ?? []).map((attack): FormAttack => ({
+      rowId: newRowId(),
       name: attack.name,
       bonus: String(attack.bonus),
       damage: attack.damage,
@@ -163,7 +179,7 @@ function freshState(character: CharacterSheet | null) {
     spellcastingAbility: (character?.spellcastingAbility ?? '') as Ability | '',
     spellBonus: String(character?.spellBonus ?? 0),
     spellSlotTotals: SPELL_SLOT_CAPS.map((_, circle) => String(character?.spellSlots[circle]?.total ?? 0)),
-    spells: (character?.spells ?? []).map((spell): FormSpell => ({ ...spell, level: String(spell.level) })),
+    spells: (character?.spells ?? []).map((spell): FormSpell => ({ rowId: newRowId(), ...spell, level: String(spell.level) })),
     appearance: character?.appearance ?? '',
     description: character?.description ?? '',
     languages: character?.languages ?? '',
@@ -175,6 +191,18 @@ function freshState(character: CharacterSheet | null) {
 }
 
 type FormState = ReturnType<typeof freshState>;
+type FormSet = <K extends keyof FormState>(key: K, value: FormState[K]) => void;
+type ClearFieldError = (key: keyof CharacterFieldErrors) => void;
+
+type PanelProps = {
+  /** The id of the selected tab, as `SheetTabPanel` expects. */
+  idPrefix: string;
+  active: string;
+  state: FormState;
+  set: FormSet;
+  errors: CharacterFieldErrors;
+  clearError: ClearFieldError;
+};
 
 function SelectField({ label, value, onChange, className = '', children }: {
   label: string;
@@ -230,6 +258,404 @@ function AbilityInput({ ability, value, invalid, onChange }: {
   );
 }
 
+function IdentityPanel({
+  idPrefix,
+  active,
+  state,
+  set,
+  errors,
+  clearError,
+  avatarUrl,
+  uploadError,
+  onAvatarPick,
+  onAvatarRemove,
+}: PanelProps & {
+  avatarUrl: string | null;
+  uploadError: string | null;
+  onAvatarPick: (file: File) => void;
+  onAvatarRemove: () => void;
+}) {
+  return (
+    <SheetTabPanel idPrefix={idPrefix} id="identity" active={active}>
+      <div className="sheet-form__identity">
+        <Avatar name={state.name || '?'} src={avatarUrl ?? undefined} variant="character" size="lg" />
+        <div className="sheet-form__avatar-actions">
+          <label className="qf-file-button">
+            <ImageSquare size={18} aria-hidden="true" />
+            {state.avatarAssetId ? 'Trocar avatar' : 'Enviar avatar'}
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/gif"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) onAvatarPick(file);
+              }}
+            />
+          </label>
+          {state.avatarAssetId && (
+            <Button variant="ghost" type="button" onClick={onAvatarRemove}>
+              Remover
+            </Button>
+          )}
+          {uploadError && (
+            <p role="alert" className="text-small text-danger-text">
+              {uploadError}
+            </p>
+          )}
+        </div>
+      </div>
+
+      <fieldset className="sheet-form__fieldset">
+        <legend>Identidade</legend>
+        <div className="sheet-form__grid">
+          <Field label="Nome do personagem" required maxLength={80} value={state.name} error={errors.name}
+            onChange={(e) => { set('name', e.target.value); clearError('name'); }} />
+          <Field label="Espécie" required maxLength={60} value={state.race} error={errors.race}
+            onChange={(e) => { set('race', e.target.value); clearError('race'); }} />
+          <Field label="Classe" required maxLength={60} value={state.className} error={errors.class}
+            onChange={(e) => { set('className', e.target.value); clearError('class'); }} />
+          <Field label="Subclasse" maxLength={60} value={state.subclass} error={errors.subclass}
+            onChange={(e) => { set('subclass', e.target.value); clearError('subclass'); }} />
+          <Field label="Antecedente" maxLength={60} value={state.background} error={errors.background}
+            onChange={(e) => { set('background', e.target.value); clearError('background'); }} />
+          <Field label="Alinhamento" maxLength={60} value={state.alignment} error={errors.alignment}
+            hint="Ex.: Caótico e Neutro"
+            onChange={(e) => { set('alignment', e.target.value); clearError('alignment'); }} />
+          <Field label="Nível" required type="number" min={1} max={20} value={state.level} error={errors.level}
+            onChange={(e) => { set('level', e.target.value); clearError('level'); }} />
+          <Field label="XP" type="number" min={0} max={355000} value={state.experience} error={errors.experience}
+            onChange={(e) => { set('experience', e.target.value); clearError('experience'); }} />
+        </div>
+      </fieldset>
+
+      <fieldset className="sheet-form__fieldset">
+        <legend>Combate</legend>
+        <div className="sheet-form__grid sheet-form__grid--three">
+          <Field label="PV máximo" required type="number" min={1} max={999} value={state.hp} error={errors.hp}
+            onChange={(e) => { set('hp', e.target.value); clearError('hp'); }} />
+          <Field label="Classe de armadura" required type="number" min={0} max={40} value={state.ac} error={errors.ac}
+            onChange={(e) => { set('ac', e.target.value); clearError('ac'); }} />
+          <SelectField label="Dado de vida" value={state.hitDie} onChange={(value) => set('hitDie', value)}>
+            {HIT_DICE.map((die) => <option key={die} value={die}>d{die}</option>)}
+          </SelectField>
+          <Field label="Deslocamento (m)" type="number" min={0} max={60} step={1.5} value={state.speed} error={errors.speed}
+            onChange={(e) => { set('speed', e.target.value); clearError('speed'); }} />
+          <SelectField label="Tamanho" value={state.size} onChange={(value) => set('size', value as Size)}>
+            {SIZES.map((size) => <option key={size} value={size}>{SIZE_LABELS[size]}</option>)}
+          </SelectField>
+          <Field label="Ajuste de iniciativa" type="number" min={-10} max={10} value={state.initiativeBonus}
+            error={errors.initiativeBonus} hint="Somado à Destreza (talentos, itens)"
+            onChange={(e) => { set('initiativeBonus', e.target.value); clearError('initiativeBonus'); }} />
+          <Field label="Ajuste de percepção passiva" type="number" min={-10} max={10} value={state.passivePerceptionBonus}
+            error={errors.passivePerceptionBonus} hint="Somado a 10 + Percepção"
+            onChange={(e) => { set('passivePerceptionBonus', e.target.value); clearError('passivePerceptionBonus'); }} />
+        </div>
+        <Check label="Usa escudo" checked={state.shield} onChange={(checked) => set('shield', checked)} />
+      </fieldset>
+    </SheetTabPanel>
+  );
+}
+
+function AbilitiesPanel({ idPrefix, active, state, set, errors, clearError, rules }: PanelProps & { rules: CharacterInput & { expertise: readonly Skill[] } }) {
+  const toggle = <T,>(list: readonly T[], item: T, on: boolean) => (on ? [...list, item] : list.filter((entry) => entry !== item));
+  return (
+    <SheetTabPanel idPrefix={idPrefix} id="abilities" active={active}>
+      <fieldset className="sheet-form__fieldset">
+        <legend>Atributos</legend>
+        {errors.abilityScores && <p role="alert" className="text-small text-danger-text">{errors.abilityScores}</p>}
+        <div className="sheet-form__abilities">
+          {ABILITIES.map((ability) => (
+            <AbilityInput
+              key={ability}
+              ability={ability}
+              value={state.abilityScores[ability]}
+              invalid={Boolean(errors.abilityScores) && !isScore(state.abilityScores[ability])}
+              onChange={(value) => {
+                set('abilityScores', { ...state.abilityScores, [ability]: value });
+                clearError('abilityScores');
+              }}
+            />
+          ))}
+        </div>
+      </fieldset>
+
+      <fieldset className="sheet-form__fieldset">
+        <legend>Salvaguardas proficientes</legend>
+        <div className="sheet-form__saves">
+          {ABILITIES.map((ability) => (
+            <label key={ability} className={state.saves.includes(ability) ? 'is-active' : ''}>
+              <input type="checkbox" checked={state.saves.includes(ability)}
+                onChange={(event) => set('saves', toggle(state.saves, ability, event.target.checked))} />
+              <span>{ABILITY_LABELS[ability]}</span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
+
+      <fieldset className="sheet-form__fieldset">
+        <legend>Perícias</legend>
+        <p className="sheet-form__legend-note">Nenhuma, proficiente ou especialista (dobro do bônus de proficiência).</p>
+        {errors.expertise && <p role="alert" className="text-small text-danger-text">{errors.expertise}</p>}
+        <div className="sheet-form__skill-groups">
+          {ABILITIES.filter((ability) => SKILLS_GROUPED[ability].length > 0).map((ability) => (
+            <div key={ability}>
+              <p className="sheet-form__skill-group-title">{ABILITY_LABELS[ability]}</p>
+              {SKILLS_GROUPED[ability].map((skill) => (
+                <ProficiencyToggle
+                  key={skill}
+                  label={SKILL_LABELS[skill]}
+                  detail={isScore(state.abilityScores[SKILL_ABILITIES[skill]]) ? signedBonus(skillBonus(rules, skill)) : undefined}
+                  value={state.proficiency[skill]}
+                  onChange={(level) => {
+                    set('proficiency', { ...state.proficiency, [skill]: level });
+                    clearError('expertise');
+                  }}
+                />
+              ))}
+            </div>
+          ))}
+        </div>
+      </fieldset>
+
+      <fieldset className="sheet-form__fieldset">
+        <legend>Treinamento em equipamentos</legend>
+        <div className="sheet-form__checks" role="group" aria-label="Treinamento em armaduras">
+          {ARMOR_TRAINING.map((kind) => (
+            <Check key={kind} label={ARMOR_TRAINING_LABELS[kind]} checked={state.armorTraining.includes(kind)}
+              onChange={(checked) => set('armorTraining', toggle<ArmorTraining>(state.armorTraining, kind, checked))} />
+          ))}
+        </div>
+        <div className="sheet-form__grid">
+          <Field label="Armas" maxLength={200} value={state.weaponProficiencies} error={errors.weaponProficiencies}
+            hint="Ex.: Armas Simples e Marciais"
+            onChange={(e) => { set('weaponProficiencies', e.target.value); clearError('weaponProficiencies'); }} />
+          <Field label="Ferramentas" maxLength={200} value={state.toolProficiencies} error={errors.toolProficiencies}
+            hint="Ex.: Ferramentas de carpinteiro"
+            onChange={(e) => { set('toolProficiencies', e.target.value); clearError('toolProficiencies'); }} />
+        </div>
+      </fieldset>
+    </SheetTabPanel>
+  );
+}
+
+function AttacksPanel({ idPrefix, active, state, set, errors, clearError }: PanelProps) {
+  const updateAttack = (index: number, patch: Partial<FormAttack>) => {
+    set('attacks', state.attacks.map((attack, i) => (i === index ? { ...attack, ...patch } : attack)));
+    clearError('attacks');
+  };
+  return (
+    <SheetTabPanel idPrefix={idPrefix} id="attacks" active={active}>
+      <fieldset className="sheet-form__fieldset">
+        <legend>Armas e truques de dano</legend>
+        {errors.attacks && <p role="alert" className="text-small text-danger-text">{errors.attacks}</p>}
+        <div className="qf-stack">
+          {state.attacks.map((attack, index) => {
+            const position = index + 1;
+            const bonus = numberValue(attack.bonus);
+            return (
+              <div key={attack.rowId} className="sheet-form__attack" role="group" aria-label={`Ataque ${position}`}>
+                <div className="sheet-form__attack-head">
+                  <span>Ataque {position}</span>
+                  <Button variant="ghost" type="button" aria-label={`Remover ataque ${attack.name.trim() || position}`}
+                    onClick={() => {
+                      set('attacks', state.attacks.filter((_, i) => i !== index));
+                      // The removed attack may be the one the message was about.
+                      clearError('attacks');
+                    }}>
+                    <Trash size={18} aria-hidden="true" />
+                  </Button>
+                </div>
+                <div className="sheet-form__attack-fields">
+                  <Field className="sheet-form__attack-name" label="Nome" value={attack.name}
+                    aria-invalid={Boolean(errors.attacks) && attack.name.trim().length === 0}
+                    onChange={(e) => updateAttack(index, { name: e.target.value })} />
+                  <Field label="Bônus" type="number" min={-20} max={20} value={attack.bonus}
+                    aria-invalid={Boolean(errors.attacks) && (!Number.isInteger(bonus) || Math.abs(bonus) > 20)}
+                    onChange={(e) => updateAttack(index, { bonus: e.target.value })} />
+                  <Field label="Dano" hint="Ex.: 1d8+3" autoComplete="off" spellCheck={false} value={attack.damage}
+                    aria-invalid={Boolean(errors.attacks) && !parseDiceExpression(attack.damage)}
+                    onChange={(e) => updateAttack(index, { damage: e.target.value })} />
+                  <Field label="Tipo de dano" maxLength={30} value={attack.damageType} hint="Ex.: Cortante"
+                    onChange={(e) => updateAttack(index, { damageType: e.target.value })} />
+                  <Field className="sheet-form__attack-name" label="Notas" maxLength={120} value={attack.notes}
+                    hint="Ex.: Pesada, duas mãos"
+                    onChange={(e) => updateAttack(index, { notes: e.target.value })} />
+                </div>
+              </div>
+            );
+          })}
+          <div>
+            <Button variant="secondary" type="button"
+              onClick={() => set('attacks', [...state.attacks, { rowId: newRowId(), name: '', bonus: '0', damage: '', damageType: '', notes: '' }])}>
+              <Plus size={18} aria-hidden="true" /> Adicionar ataque
+            </Button>
+          </div>
+        </div>
+      </fieldset>
+
+      <fieldset className="sheet-form__fieldset">
+        <legend>Características de classe</legend>
+        <Field label="Uma por linha" hint="Ex.: Fúria" value={state.featuresText} error={errors.features} asTextarea
+          onChange={(e) => { set('featuresText', e.target.value); clearError('features'); }} />
+      </fieldset>
+      <fieldset className="sheet-form__fieldset">
+        <legend>Traços de espécie</legend>
+        <Field label="Um por linha" hint="Ex.: Visão no Escuro" value={state.speciesTraitsText} error={errors.speciesTraits} asTextarea
+          onChange={(e) => { set('speciesTraitsText', e.target.value); clearError('speciesTraits'); }} />
+      </fieldset>
+      <fieldset className="sheet-form__fieldset">
+        <legend>Talentos</legend>
+        <Field label="Um por linha" hint="Ex.: Robusto" value={state.featsText} error={errors.feats} asTextarea
+          onChange={(e) => { set('featsText', e.target.value); clearError('feats'); }} />
+      </fieldset>
+    </SheetTabPanel>
+  );
+}
+
+function SpellsPanel({ idPrefix, active, state, set, errors, clearError }: PanelProps) {
+  const updateSpell = (index: number, patch: Partial<FormSpell>) => {
+    set('spells', state.spells.map((spell, i) => (i === index ? { ...spell, ...patch } : spell)));
+    clearError('spells');
+  };
+  return (
+    <SheetTabPanel idPrefix={idPrefix} id="spells" active={active}>
+      <fieldset className="sheet-form__fieldset">
+        <legend>Conjuração</legend>
+        <div className="sheet-form__grid">
+          <SelectField label="Atributo de conjuração" value={state.spellcastingAbility}
+            onChange={(value) => set('spellcastingAbility', value as Ability | '')}>
+            <option value="">Não conjura</option>
+            {ABILITIES.map((ability) => <option key={ability} value={ability}>{ABILITY_LABELS[ability]}</option>)}
+          </SelectField>
+          <Field label="Ajuste de conjuração" type="number" min={-10} max={10} value={state.spellBonus}
+            error={errors.spellBonus} hint="Somado à CD e ao ataque mágico (itens)"
+            onChange={(e) => { set('spellBonus', e.target.value); clearError('spellBonus'); }} />
+        </div>
+      </fieldset>
+
+      <fieldset className="sheet-form__fieldset">
+        <legend>Espaços de magia</legend>
+        {errors.spellSlotTotals && <p role="alert" className="text-small text-danger-text">{errors.spellSlotTotals}</p>}
+        <div className="sheet-form__slots">
+          {SPELL_SLOT_CAPS.map((cap, circle) => {
+            const total = numberValue(state.spellSlotTotals[circle] ?? '');
+            return (
+              <Field key={circle} label={circleLabel(circle + 1)} type="number" min={0} max={cap} hint={`até ${cap}`}
+                value={state.spellSlotTotals[circle] ?? ''}
+                aria-invalid={Boolean(errors.spellSlotTotals) && !(Number.isInteger(total) && total >= 0 && total <= cap)}
+                onChange={(e) => {
+                  set('spellSlotTotals', state.spellSlotTotals.map((value, i) => (i === circle ? e.target.value : value)));
+                  clearError('spellSlotTotals');
+                }} />
+            );
+          })}
+        </div>
+      </fieldset>
+
+      <fieldset className="sheet-form__fieldset">
+        <legend>Truques e magias preparadas</legend>
+        {errors.spells && <p role="alert" className="text-small text-danger-text">{errors.spells}</p>}
+        <div className="qf-stack">
+          {state.spells.map((spell, index) => {
+            const position = index + 1;
+            return (
+              <div key={spell.rowId} className="sheet-form__attack" role="group" aria-label={`Magia ${position}`}>
+                <div className="sheet-form__attack-head">
+                  <span>Magia {position}</span>
+                  <Button variant="ghost" type="button" aria-label={`Remover magia ${spell.name.trim() || position}`}
+                    onClick={() => {
+                      set('spells', state.spells.filter((_, i) => i !== index));
+                      clearError('spells');
+                    }}>
+                    <Trash size={18} aria-hidden="true" />
+                  </Button>
+                </div>
+                <div className="sheet-form__spell-fields">
+                  <SelectField className="sheet-form__spell-level" label="Círculo" value={spell.level}
+                    onChange={(value) => updateSpell(index, { level: value })}>
+                    {Array.from({ length: 10 }, (_, level) => <option key={level} value={level}>{circleLabel(level)}</option>)}
+                  </SelectField>
+                  <Field className="sheet-form__spell-name" label="Nome" maxLength={80} value={spell.name}
+                    aria-invalid={Boolean(errors.spells) && spell.name.trim().length === 0}
+                    onChange={(e) => updateSpell(index, { name: e.target.value })} />
+                  <Field label="Tempo de conjuração" maxLength={30} value={spell.castingTime} hint="Ex.: 1 ação"
+                    onChange={(e) => updateSpell(index, { castingTime: e.target.value })} />
+                  <Field label="Alcance" maxLength={30} value={spell.range} hint="Ex.: 18 m"
+                    onChange={(e) => updateSpell(index, { range: e.target.value })} />
+                  <div className="sheet-form__spell-flags">
+                    <Check label="Concentração" checked={spell.concentration} onChange={(checked) => updateSpell(index, { concentration: checked })} />
+                    <Check label="Ritual" checked={spell.ritual} onChange={(checked) => updateSpell(index, { ritual: checked })} />
+                    <Check label="Material requerido" checked={spell.material} onChange={(checked) => updateSpell(index, { material: checked })} />
+                  </div>
+                  <Field className="sheet-form__spell-notes" label="Notas" maxLength={120} value={spell.notes}
+                    onChange={(e) => updateSpell(index, { notes: e.target.value })} />
+                </div>
+              </div>
+            );
+          })}
+          <div>
+            <Button variant="secondary" type="button"
+              onClick={() => set('spells', [...state.spells, { rowId: newRowId(), level: '0', name: '', castingTime: '', range: '', concentration: false, ritual: false, material: false, notes: '' }])}>
+              <Plus size={18} aria-hidden="true" /> Adicionar magia
+            </Button>
+          </div>
+        </div>
+      </fieldset>
+    </SheetTabPanel>
+  );
+}
+
+function InventoryPanel({ idPrefix, active, state, set, errors, clearError }: PanelProps) {
+  return (
+    <SheetTabPanel idPrefix={idPrefix} id="inventory" active={active}>
+      <fieldset className="sheet-form__fieldset">
+        <legend>Personalidade</legend>
+        <Field label="Aparência" maxLength={1000} value={state.appearance} error={errors.appearance} asTextarea
+          onChange={(e) => { set('appearance', e.target.value); clearError('appearance'); }} />
+        <Field label="História e personalidade" hint="A mesa toda lê na ficha." value={state.description}
+          error={errors.description} asTextarea
+          onChange={(e) => { set('description', e.target.value); clearError('description'); }} />
+        <Field label="Idiomas" maxLength={200} value={state.languages} error={errors.languages} hint="Ex.: Comum, Anão"
+          onChange={(e) => { set('languages', e.target.value); clearError('languages'); }} />
+      </fieldset>
+
+      <fieldset className="sheet-form__fieldset">
+        <legend>Equipamento</legend>
+        <Field label="Um item por linha" value={state.equipment} error={errors.equipment} asTextarea
+          onChange={(e) => { set('equipment', e.target.value); clearError('equipment'); }} />
+        {errors.attunedItems && <p role="alert" className="text-small text-danger-text">{errors.attunedItems}</p>}
+        <div className="sheet-form__grid sheet-form__grid--three">
+          {ATTUNED_SLOTS.map((slot, position) => (
+            <Field key={slot} label={`Item sintonizado ${position + 1}`} maxLength={80} value={state.attunedItems[position] ?? ''}
+              onChange={(e) => {
+                set('attunedItems', state.attunedItems.map((value, i) => (i === position ? e.target.value : value)));
+                clearError('attunedItems');
+              }} />
+          ))}
+        </div>
+      </fieldset>
+
+      <fieldset className="sheet-form__fieldset">
+        <legend>Moedas</legend>
+        {errors.coins && <p role="alert" className="text-small text-danger-text">{errors.coins}</p>}
+        <div className="sheet-form__slots">
+          {COINS.map((coin) => {
+            const amount = numberValue(state.coins[coin]);
+            return (
+              <Field key={coin} label={COIN_LABELS[coin].name} type="number" min={0} max={999999} value={state.coins[coin]}
+                aria-invalid={Boolean(errors.coins) && !(Number.isInteger(amount) && amount >= 0)}
+                onChange={(e) => {
+                  set('coins', { ...state.coins, [coin]: e.target.value });
+                  clearError('coins');
+                }} />
+            );
+          })}
+        </div>
+      </fieldset>
+    </SheetTabPanel>
+  );
+}
+
 export type CharacterFormHandle = { requestClose: () => void };
 
 /**
@@ -252,7 +678,7 @@ export function CharacterForm({ campaignId, character, onSaved, onRequestClose, 
 
   // A long form must not lose work to a stray Escape or click outside. The
   // snapshot is taken once, so reopening an untouched form still closes free.
-  const [initialSnapshot] = useState(() => JSON.stringify(freshState(character)));
+  const [initialSnapshot] = useState(() => JSON.stringify(state));
   const [confirmingDiscard, setConfirmingDiscard] = useState(false);
   const dirty = JSON.stringify(state) !== initialSnapshot;
 
@@ -324,11 +750,13 @@ export function CharacterForm({ campaignId, character, onSaved, onRequestClose, 
     spellBonus: numberValue(state.spellBonus),
     spellSlotTotals: state.spellSlotTotals.map(numberValue),
     spells: state.spells.map((spell) => ({
-      ...spell,
       level: numberValue(spell.level),
       name: spell.name.trim(),
       castingTime: spell.castingTime.trim(),
       range: spell.range.trim(),
+      concentration: spell.concentration,
+      ritual: spell.ritual,
+      material: spell.material,
       notes: spell.notes.trim(),
     })),
     appearance: state.appearance.trim(),
@@ -350,17 +778,6 @@ export function CharacterForm({ campaignId, character, onSaved, onRequestClose, 
       onRequestClose();
     },
   });
-
-  const toggle = <T,>(list: readonly T[], item: T, on: boolean) => (on ? [...list, item] : list.filter((entry) => entry !== item));
-
-  const updateAttack = (index: number, patch: Partial<FormAttack>) => {
-    set('attacks', state.attacks.map((attack, i) => (i === index ? { ...attack, ...patch } : attack)));
-    clearError('attacks');
-  };
-  const updateSpell = (index: number, patch: Partial<FormSpell>) => {
-    set('spells', state.spells.map((spell, i) => (i === index ? { ...spell, ...patch } : spell)));
-    clearError('spells');
-  };
 
   const submit = () => {
     const fieldErrors = validateCharacterInput(buildInput());
@@ -388,6 +805,8 @@ export function CharacterForm({ campaignId, character, onSaved, onRequestClose, 
   const preview = buildInput();
   const previewRules = { ...preview, expertise: preview.expertise ?? [] };
 
+  const panelProps = { idPrefix: tabsId, state, set, errors, clearError };
+
   return (
     // noValidate: `required`/`min`/`max` stay for semantics, but the browser's
     // own bubble would block the submit before the per-field errors render.
@@ -410,358 +829,25 @@ export function CharacterForm({ campaignId, character, onSaved, onRequestClose, 
         />
       </div>
 
-      <SheetTabPanel idPrefix={tabsId} id="identity" active={tab}>
-        <div className="sheet-form__identity">
-          <Avatar name={state.name || '?'} src={avatarUrl ?? undefined} variant="character" size="lg" />
-          <div className="sheet-form__avatar-actions">
-            <label className="qf-file-button">
-              <ImageSquare size={18} aria-hidden="true" />
-              {state.avatarAssetId ? 'Trocar avatar' : 'Enviar avatar'}
-              <input
-                type="file"
-                accept="image/png,image/jpeg,image/webp,image/gif"
-                onChange={(event) => {
-                  const file = event.target.files?.[0];
-                  if (file) avatarUpload.mutate(file);
-                }}
-              />
-            </label>
-            {state.avatarAssetId && (
-              <Button variant="ghost" type="button" onClick={() => { set('avatarAssetId', null); setAvatarUrl(null); }}>
-                Remover
-              </Button>
-            )}
-            {avatarUpload.isError && (
-              <p role="alert" className="text-small text-danger-text">
-                {errorMessage(avatarUpload.error)}
-              </p>
-            )}
-          </div>
-        </div>
+      <IdentityPanel
+        {...panelProps}
+        active={tab}
+        avatarUrl={avatarUrl}
+        uploadError={avatarUpload.isError ? errorMessage(avatarUpload.error) : null}
+        onAvatarPick={(file) => avatarUpload.mutate(file)}
+        onAvatarRemove={() => {
+          set('avatarAssetId', null);
+          setAvatarUrl(null);
+        }}
+      />
 
-        <fieldset className="sheet-form__fieldset">
-          <legend>Identidade</legend>
-          <div className="sheet-form__grid">
-            <Field label="Nome do personagem" required maxLength={80} value={state.name} error={errors.name}
-              onChange={(e) => { set('name', e.target.value); clearError('name'); }} />
-            <Field label="Espécie" required maxLength={60} value={state.race} error={errors.race}
-              onChange={(e) => { set('race', e.target.value); clearError('race'); }} />
-            <Field label="Classe" required maxLength={60} value={state.className} error={errors.class}
-              onChange={(e) => { set('className', e.target.value); clearError('class'); }} />
-            <Field label="Subclasse" maxLength={60} value={state.subclass} error={errors.subclass}
-              onChange={(e) => { set('subclass', e.target.value); clearError('subclass'); }} />
-            <Field label="Antecedente" maxLength={60} value={state.background} error={errors.background}
-              onChange={(e) => { set('background', e.target.value); clearError('background'); }} />
-            <Field label="Alinhamento" maxLength={60} value={state.alignment} error={errors.alignment}
-              hint="Ex.: Caótico e Neutro"
-              onChange={(e) => { set('alignment', e.target.value); clearError('alignment'); }} />
-            <Field label="Nível" required type="number" min={1} max={20} value={state.level} error={errors.level}
-              onChange={(e) => { set('level', e.target.value); clearError('level'); }} />
-            <Field label="XP" type="number" min={0} max={355000} value={state.experience} error={errors.experience}
-              onChange={(e) => { set('experience', e.target.value); clearError('experience'); }} />
-          </div>
-        </fieldset>
+      <AbilitiesPanel {...panelProps} active={tab} rules={previewRules} />
 
-        <fieldset className="sheet-form__fieldset">
-          <legend>Combate</legend>
-          <div className="sheet-form__grid sheet-form__grid--three">
-            <Field label="PV máximo" required type="number" min={1} max={999} value={state.hp} error={errors.hp}
-              onChange={(e) => { set('hp', e.target.value); clearError('hp'); }} />
-            <Field label="Classe de armadura" required type="number" min={0} max={40} value={state.ac} error={errors.ac}
-              onChange={(e) => { set('ac', e.target.value); clearError('ac'); }} />
-            <SelectField label="Dado de vida" value={state.hitDie} onChange={(value) => set('hitDie', value)}>
-              {HIT_DICE.map((die) => <option key={die} value={die}>d{die}</option>)}
-            </SelectField>
-            <Field label="Deslocamento (m)" type="number" min={0} max={60} step={1.5} value={state.speed} error={errors.speed}
-              onChange={(e) => { set('speed', e.target.value); clearError('speed'); }} />
-            <SelectField label="Tamanho" value={state.size} onChange={(value) => set('size', value as Size)}>
-              {SIZES.map((size) => <option key={size} value={size}>{SIZE_LABELS[size]}</option>)}
-            </SelectField>
-            <Field label="Ajuste de iniciativa" type="number" min={-10} max={10} value={state.initiativeBonus}
-              error={errors.initiativeBonus} hint="Somado à Destreza (talentos, itens)"
-              onChange={(e) => { set('initiativeBonus', e.target.value); clearError('initiativeBonus'); }} />
-            <Field label="Ajuste de percepção passiva" type="number" min={-10} max={10} value={state.passivePerceptionBonus}
-              error={errors.passivePerceptionBonus} hint="Somado a 10 + Percepção"
-              onChange={(e) => { set('passivePerceptionBonus', e.target.value); clearError('passivePerceptionBonus'); }} />
-          </div>
-          <Check label="Usa escudo" checked={state.shield} onChange={(checked) => set('shield', checked)} />
-        </fieldset>
-      </SheetTabPanel>
+      <AttacksPanel {...panelProps} active={tab} />
 
-      <SheetTabPanel idPrefix={tabsId} id="abilities" active={tab}>
-        <fieldset className="sheet-form__fieldset">
-          <legend>Atributos</legend>
-          {errors.abilityScores && <p role="alert" className="text-small text-danger-text">{errors.abilityScores}</p>}
-          <div className="sheet-form__abilities">
-            {ABILITIES.map((ability) => (
-              <AbilityInput
-                key={ability}
-                ability={ability}
-                value={state.abilityScores[ability]}
-                invalid={Boolean(errors.abilityScores) && !isScore(state.abilityScores[ability])}
-                onChange={(value) => {
-                  set('abilityScores', { ...state.abilityScores, [ability]: value });
-                  clearError('abilityScores');
-                }}
-              />
-            ))}
-          </div>
-        </fieldset>
+      <SpellsPanel {...panelProps} active={tab} />
 
-        <fieldset className="sheet-form__fieldset">
-          <legend>Salvaguardas proficientes</legend>
-          <div className="sheet-form__saves">
-            {ABILITIES.map((ability) => (
-              <label key={ability} className={state.saves.includes(ability) ? 'is-active' : ''}>
-                <input type="checkbox" checked={state.saves.includes(ability)}
-                  onChange={(event) => set('saves', toggle(state.saves, ability, event.target.checked))} />
-                <span>{ABILITY_LABELS[ability]}</span>
-              </label>
-            ))}
-          </div>
-        </fieldset>
-
-        <fieldset className="sheet-form__fieldset">
-          <legend>Perícias</legend>
-          <p className="sheet-form__legend-note">Nenhuma, proficiente ou especialista (dobro do bônus de proficiência).</p>
-          {errors.expertise && <p role="alert" className="text-small text-danger-text">{errors.expertise}</p>}
-          <div className="sheet-form__skill-groups">
-            {ABILITIES.filter((ability) => SKILLS_GROUPED[ability].length > 0).map((ability) => (
-              <div key={ability}>
-                <p className="sheet-form__skill-group-title">{ABILITY_LABELS[ability]}</p>
-                {SKILLS_GROUPED[ability].map((skill) => (
-                  <ProficiencyToggle
-                    key={skill}
-                    label={SKILL_LABELS[skill]}
-                    detail={isScore(state.abilityScores[SKILL_ABILITIES[skill]]) ? signedBonus(skillBonus(previewRules, skill)) : undefined}
-                    value={state.proficiency[skill]}
-                    onChange={(level) => {
-                      set('proficiency', { ...state.proficiency, [skill]: level });
-                      clearError('expertise');
-                    }}
-                  />
-                ))}
-              </div>
-            ))}
-          </div>
-        </fieldset>
-
-        <fieldset className="sheet-form__fieldset">
-          <legend>Treinamento em equipamentos</legend>
-          <div className="sheet-form__checks" role="group" aria-label="Treinamento em armaduras">
-            {ARMOR_TRAINING.map((kind) => (
-              <Check key={kind} label={ARMOR_TRAINING_LABELS[kind]} checked={state.armorTraining.includes(kind)}
-                onChange={(checked) => set('armorTraining', toggle<ArmorTraining>(state.armorTraining, kind, checked))} />
-            ))}
-          </div>
-          <div className="sheet-form__grid">
-            <Field label="Armas" maxLength={200} value={state.weaponProficiencies} error={errors.weaponProficiencies}
-              hint="Ex.: Armas Simples e Marciais"
-              onChange={(e) => { set('weaponProficiencies', e.target.value); clearError('weaponProficiencies'); }} />
-            <Field label="Ferramentas" maxLength={200} value={state.toolProficiencies} error={errors.toolProficiencies}
-              hint="Ex.: Ferramentas de carpinteiro"
-              onChange={(e) => { set('toolProficiencies', e.target.value); clearError('toolProficiencies'); }} />
-          </div>
-        </fieldset>
-      </SheetTabPanel>
-
-      <SheetTabPanel idPrefix={tabsId} id="attacks" active={tab}>
-        <fieldset className="sheet-form__fieldset">
-          <legend>Armas e truques de dano</legend>
-          {errors.attacks && <p role="alert" className="text-small text-danger-text">{errors.attacks}</p>}
-          <div className="qf-stack">
-            {state.attacks.map((attack, index) => {
-              const position = index + 1;
-              const bonus = numberValue(attack.bonus);
-              return (
-                <div key={index} className="sheet-form__attack" role="group" aria-label={`Ataque ${position}`}>
-                  <div className="sheet-form__attack-head">
-                    <span>Ataque {position}</span>
-                    <Button variant="ghost" type="button" aria-label={`Remover ataque ${attack.name.trim() || position}`}
-                      onClick={() => {
-                        set('attacks', state.attacks.filter((_, i) => i !== index));
-                        // The removed attack may be the one the message was about.
-                        clearError('attacks');
-                      }}>
-                      <Trash size={18} aria-hidden="true" />
-                    </Button>
-                  </div>
-                  <div className="sheet-form__attack-fields">
-                    <Field className="sheet-form__attack-name" label="Nome" value={attack.name}
-                      aria-invalid={Boolean(errors.attacks) && attack.name.trim().length === 0}
-                      onChange={(e) => updateAttack(index, { name: e.target.value })} />
-                    <Field label="Bônus" type="number" min={-20} max={20} value={attack.bonus}
-                      aria-invalid={Boolean(errors.attacks) && (!Number.isInteger(bonus) || Math.abs(bonus) > 20)}
-                      onChange={(e) => updateAttack(index, { bonus: e.target.value })} />
-                    <Field label="Dano" hint="Ex.: 1d8+3" autoComplete="off" spellCheck={false} value={attack.damage}
-                      aria-invalid={Boolean(errors.attacks) && !parseDiceExpression(attack.damage)}
-                      onChange={(e) => updateAttack(index, { damage: e.target.value })} />
-                    <Field label="Tipo de dano" maxLength={30} value={attack.damageType} hint="Ex.: Cortante"
-                      onChange={(e) => updateAttack(index, { damageType: e.target.value })} />
-                    <Field className="sheet-form__attack-name" label="Notas" maxLength={120} value={attack.notes}
-                      hint="Ex.: Pesada, duas mãos"
-                      onChange={(e) => updateAttack(index, { notes: e.target.value })} />
-                  </div>
-                </div>
-              );
-            })}
-            <div>
-              <Button variant="secondary" type="button"
-                onClick={() => set('attacks', [...state.attacks, { name: '', bonus: '0', damage: '', damageType: '', notes: '' }])}>
-                <Plus size={18} aria-hidden="true" /> Adicionar ataque
-              </Button>
-            </div>
-          </div>
-        </fieldset>
-
-        <fieldset className="sheet-form__fieldset">
-          <legend>Características de classe</legend>
-          <Field label="Uma por linha" hint="Ex.: Fúria" value={state.featuresText} error={errors.features} asTextarea
-            onChange={(e) => { set('featuresText', e.target.value); clearError('features'); }} />
-        </fieldset>
-        <fieldset className="sheet-form__fieldset">
-          <legend>Traços de espécie</legend>
-          <Field label="Um por linha" hint="Ex.: Visão no Escuro" value={state.speciesTraitsText} error={errors.speciesTraits} asTextarea
-            onChange={(e) => { set('speciesTraitsText', e.target.value); clearError('speciesTraits'); }} />
-        </fieldset>
-        <fieldset className="sheet-form__fieldset">
-          <legend>Talentos</legend>
-          <Field label="Um por linha" hint="Ex.: Robusto" value={state.featsText} error={errors.feats} asTextarea
-            onChange={(e) => { set('featsText', e.target.value); clearError('feats'); }} />
-        </fieldset>
-      </SheetTabPanel>
-
-      <SheetTabPanel idPrefix={tabsId} id="spells" active={tab}>
-        <fieldset className="sheet-form__fieldset">
-          <legend>Conjuração</legend>
-          <div className="sheet-form__grid">
-            <SelectField label="Atributo de conjuração" value={state.spellcastingAbility}
-              onChange={(value) => set('spellcastingAbility', value as Ability | '')}>
-              <option value="">Não conjura</option>
-              {ABILITIES.map((ability) => <option key={ability} value={ability}>{ABILITY_LABELS[ability]}</option>)}
-            </SelectField>
-            <Field label="Ajuste de conjuração" type="number" min={-10} max={10} value={state.spellBonus}
-              error={errors.spellBonus} hint="Somado à CD e ao ataque mágico (itens)"
-              onChange={(e) => { set('spellBonus', e.target.value); clearError('spellBonus'); }} />
-          </div>
-        </fieldset>
-
-        <fieldset className="sheet-form__fieldset">
-          <legend>Espaços de magia</legend>
-          {errors.spellSlotTotals && <p role="alert" className="text-small text-danger-text">{errors.spellSlotTotals}</p>}
-          <div className="sheet-form__slots">
-            {SPELL_SLOT_CAPS.map((cap, circle) => {
-              const total = numberValue(state.spellSlotTotals[circle] ?? '');
-              return (
-                <Field key={circle} label={circleLabel(circle + 1)} type="number" min={0} max={cap} hint={`até ${cap}`}
-                  value={state.spellSlotTotals[circle] ?? ''}
-                  aria-invalid={Boolean(errors.spellSlotTotals) && !(Number.isInteger(total) && total >= 0 && total <= cap)}
-                  onChange={(e) => {
-                    set('spellSlotTotals', state.spellSlotTotals.map((value, i) => (i === circle ? e.target.value : value)));
-                    clearError('spellSlotTotals');
-                  }} />
-              );
-            })}
-          </div>
-        </fieldset>
-
-        <fieldset className="sheet-form__fieldset">
-          <legend>Truques e magias preparadas</legend>
-          {errors.spells && <p role="alert" className="text-small text-danger-text">{errors.spells}</p>}
-          <div className="qf-stack">
-            {state.spells.map((spell, index) => {
-              const position = index + 1;
-              return (
-                <div key={index} className="sheet-form__attack" role="group" aria-label={`Magia ${position}`}>
-                  <div className="sheet-form__attack-head">
-                    <span>Magia {position}</span>
-                    <Button variant="ghost" type="button" aria-label={`Remover magia ${spell.name.trim() || position}`}
-                      onClick={() => {
-                        set('spells', state.spells.filter((_, i) => i !== index));
-                        clearError('spells');
-                      }}>
-                      <Trash size={18} aria-hidden="true" />
-                    </Button>
-                  </div>
-                  <div className="sheet-form__spell-fields">
-                    <SelectField className="sheet-form__spell-level" label="Círculo" value={spell.level}
-                      onChange={(value) => updateSpell(index, { level: value })}>
-                      {Array.from({ length: 10 }, (_, level) => <option key={level} value={level}>{circleLabel(level)}</option>)}
-                    </SelectField>
-                    <Field className="sheet-form__spell-name" label="Nome" maxLength={80} value={spell.name}
-                      aria-invalid={Boolean(errors.spells) && spell.name.trim().length === 0}
-                      onChange={(e) => updateSpell(index, { name: e.target.value })} />
-                    <Field label="Tempo de conjuração" maxLength={30} value={spell.castingTime} hint="Ex.: 1 ação"
-                      onChange={(e) => updateSpell(index, { castingTime: e.target.value })} />
-                    <Field label="Alcance" maxLength={30} value={spell.range} hint="Ex.: 18 m"
-                      onChange={(e) => updateSpell(index, { range: e.target.value })} />
-                    <div className="sheet-form__spell-flags">
-                      <Check label="Concentração" checked={spell.concentration} onChange={(checked) => updateSpell(index, { concentration: checked })} />
-                      <Check label="Ritual" checked={spell.ritual} onChange={(checked) => updateSpell(index, { ritual: checked })} />
-                      <Check label="Material requerido" checked={spell.material} onChange={(checked) => updateSpell(index, { material: checked })} />
-                    </div>
-                    <Field className="sheet-form__spell-notes" label="Notas" maxLength={120} value={spell.notes}
-                      onChange={(e) => updateSpell(index, { notes: e.target.value })} />
-                  </div>
-                </div>
-              );
-            })}
-            <div>
-              <Button variant="secondary" type="button"
-                onClick={() => set('spells', [...state.spells, { level: '0', name: '', castingTime: '', range: '', concentration: false, ritual: false, material: false, notes: '' }])}>
-                <Plus size={18} aria-hidden="true" /> Adicionar magia
-              </Button>
-            </div>
-          </div>
-        </fieldset>
-      </SheetTabPanel>
-
-      <SheetTabPanel idPrefix={tabsId} id="inventory" active={tab}>
-        <fieldset className="sheet-form__fieldset">
-          <legend>Personalidade</legend>
-          <Field label="Aparência" maxLength={1000} value={state.appearance} error={errors.appearance} asTextarea
-            onChange={(e) => { set('appearance', e.target.value); clearError('appearance'); }} />
-          <Field label="História e personalidade" hint="A mesa toda lê na ficha." value={state.description}
-            error={errors.description} asTextarea
-            onChange={(e) => { set('description', e.target.value); clearError('description'); }} />
-          <Field label="Idiomas" maxLength={200} value={state.languages} error={errors.languages} hint="Ex.: Comum, Anão"
-            onChange={(e) => { set('languages', e.target.value); clearError('languages'); }} />
-        </fieldset>
-
-        <fieldset className="sheet-form__fieldset">
-          <legend>Equipamento</legend>
-          <Field label="Um item por linha" value={state.equipment} error={errors.equipment} asTextarea
-            onChange={(e) => { set('equipment', e.target.value); clearError('equipment'); }} />
-          {errors.attunedItems && <p role="alert" className="text-small text-danger-text">{errors.attunedItems}</p>}
-          <div className="sheet-form__grid sheet-form__grid--three">
-            {state.attunedItems.map((item, index) => (
-              <Field key={index} label={`Item sintonizado ${index + 1}`} maxLength={80} value={item}
-                onChange={(e) => {
-                  set('attunedItems', state.attunedItems.map((value, i) => (i === index ? e.target.value : value)));
-                  clearError('attunedItems');
-                }} />
-            ))}
-          </div>
-        </fieldset>
-
-        <fieldset className="sheet-form__fieldset">
-          <legend>Moedas</legend>
-          {errors.coins && <p role="alert" className="text-small text-danger-text">{errors.coins}</p>}
-          <div className="sheet-form__slots">
-            {COINS.map((coin) => {
-              const amount = numberValue(state.coins[coin]);
-              return (
-                <Field key={coin} label={COIN_LABELS[coin].name} type="number" min={0} max={999999} value={state.coins[coin]}
-                  aria-invalid={Boolean(errors.coins) && !(Number.isInteger(amount) && amount >= 0)}
-                  onChange={(e) => {
-                    set('coins', { ...state.coins, [coin]: e.target.value });
-                    clearError('coins');
-                  }} />
-              );
-            })}
-          </div>
-        </fieldset>
-      </SheetTabPanel>
+      <InventoryPanel {...panelProps} active={tab} />
 
       {/* Pinned to the bottom of the dialog: on a phone the save action has
           to stay reachable while the form scrolls under the keyboard. */}

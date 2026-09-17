@@ -1,4 +1,5 @@
 import type { Spell } from '@quest-fast/shared';
+import { contentKeys } from '../lib/content-keys';
 import { circleLabel } from '../lib/sheet-labels';
 
 const TAGS = [
@@ -18,8 +19,8 @@ export function SpellList({ spells }: { spells: readonly Spell[] }) {
         <section key={level} className="qf-spells__group">
           <h4>{level === 0 ? 'Truques' : circleLabel(level)}</h4>
           <ul className="qf-spells__list">
-            {spells.filter((spell) => spell.level === level).map((spell, index) => (
-              <li key={`${spell.name}-${index}`} className="qf-spell">
+            {contentKeys(spells.filter((spell) => spell.level === level)).map(({ item: spell, key }) => (
+              <li key={key} className="qf-spell">
                 <span className="qf-spell__head">
                   <span className="qf-spell__name">{spell.name}</span>
                   <span className="qf-spell__tags">

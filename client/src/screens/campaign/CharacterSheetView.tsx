@@ -43,6 +43,7 @@ import { SpellSlots } from '../../components/SpellSlots';
 import { SpellcastingHeader } from '../../components/SpellcastingHeader';
 import { Surface } from '../../components/Surface';
 import { TraitList } from '../../components/TraitList';
+import { contentKeys } from '../../lib/content-keys';
 import { ABILITY_ABBREVIATIONS, ABILITY_LABELS, SKILL_LABELS } from '../../lib/5e';
 
 /** The skills printed under each ability, alphabetical as on the sheet. */
@@ -75,6 +76,301 @@ function decompose(payload: RollPayload) {
   const kept = payload.dice.filter((die) => !die.discarded).map((die) => `${die.value}`).join(' + ');
   if (payload.modifier === 0) return kept;
   return `${kept} ${payload.modifier > 0 ? '+' : '−'} ${Math.abs(payload.modifier)}`;
+}
+
+/** A linked roll without its mode: the sheet owns one mode for all of them. */
+type SheetRoll = (request: Omit<LinkedRollRequest, 'mode'>) => void;
+
+function SheetHead({ character, isOwner }: { character: CharacterSheet; isOwner: boolean }) {
+  return (
+    <div className="sheet-head">
+      <Avatar name={character.name} src={character.avatarUrl ?? undefined} variant="character" size="lg" />
+      <div className="sheet-head__meta">
+        <p className="sheet-head__owner">{isOwner ? 'Seu personagem' : `Ficha de ${character.ownerName}`}</p>
+        <SheetIdentity backgroundName={character.background} species={character.race} className={character.class}
+          subclass={character.subclass} level={character.level} experience={character.experience} />
+      </div>
+    </div>
+  );
+}
+
+/** Armor class, hit points, hit dice, death saves and inspiration. */
+function CombatTrackers({
+  character,
+  editable,
+  pending,
+  onChange,
+}: {
+  character: CharacterSheet;
+  editable: boolean;
+  pending: boolean;
+  onChange: (state: CharacterStateInput) => void;
+}) {
+  return (
+    <div className="sheet-combat">
+      <p className="sheet-ac">
+        <span className="sheet-ac__label">Classe de armadura</span>
+        <strong>{character.ac}</strong>
+        <span className="sheet-ac__shield" data-active={character.shield || undefined}>
+          {character.shield ? 'Com escudo' : 'Sem escudo'}
+        </span>
+      </p>
+      <HitPointsTracker hpCurrent={character.hpCurrent} hpTemp={character.hpTemp} hpMax={character.hp}
+        editable={editable} pending={pending} onChange={(hitPoints) => onChange(hitPoints)} />
+      <HitDiceTracker hitDie={character.hitDie} level={character.level} spent={character.hitDiceSpent}
+        editable={editable} pending={pending} onChange={(hitDiceSpent) => onChange({ hitDiceSpent })} />
+      <DeathSaves value={character.deathSaves} editable={editable} pending={pending}
+        onChange={(deathSaves) => onChange({ deathSaves })} />
+      <HeroicInspiration active={character.heroicInspiration} editable={editable} pending={pending}
+        onChange={(heroicInspiration) => onChange({ heroicInspiration })} />
+    </div>
+  );
+}
+
+function CharacterTab({
+  character,
+  idPrefix,
+  active,
+  canRoll,
+  rolling,
+  roll,
+}: {
+  character: CharacterSheet;
+  idPrefix: string;
+  active: string;
+  canRoll: boolean;
+  rolling: boolean;
+  roll: SheetRoll;
+}) {
+  const proficiency = proficiencyBonus(character.level) ?? 0;
+  return (
+    <SheetTabPanel idPrefix={idPrefix} id="character" active={active}>
+      <DerivedStats proficiency={proficiency} initiative={initiative(character)} speed={character.speed}
+        size={character.size} passivePerception={passivePerception(character)} disabled={rolling}
+        onRollInitiative={canRoll ? () => roll({ kind: 'initiative' }) : undefined} />
+
+      <h3 className="sheet-subheading">Atributos, salvaguardas e perícias</h3>
+      <div className="sheet-abilities">
+        {ABILITIES.map((ability) => (
+          <AbilityBlock
+            key={ability}
+            label={ABILITY_LABELS[ability]}
+            abbreviation={ABILITY_ABBREVIATIONS[ability]}
+            score={character.abilityScores[ability]}
+            modifier={abilityModifier(character.abilityScores[ability]) ?? 0}
+            saveBonus={saveBonus(character, ability)}
+            saveProficient={character.saves.includes(ability)}
+            skills={SKILLS_BY_ABILITY[ability].map((skill) => ({
+              skill,
+              label: SKILL_LABELS[skill],
+              bonus: skillBonus(character, skill),
+              proficiency: skillProficiency(character, skill),
+            }))}
+            disabled={rolling}
+            onCheck={canRoll ? () => roll({ kind: 'check', ability }) : undefined}
+            onSave={canRoll ? () => roll({ kind: 'save', ability }) : undefined}
+            onSkill={canRoll ? (skill) => roll({ kind: 'skill', skill }) : undefined}
+          />
+        ))}
+      </div>
+
+      <h3 className="sheet-subheading">Armas e truques de dano</h3>
+      {character.attacks.length > 0 ? (
+        <ul className="sheet-attacks">
+          {contentKeys(character.attacks).map(({ item: attack, key }, index) => (
+            <li key={key}>
+              <AttackCard name={attack.name} bonus={attack.bonus} damage={attack.damage}
+                damageType={attack.damageType} notes={attack.notes} disabled={rolling}
+                onRoll={canRoll ? () => roll({ kind: 'attack', attackIndex: index }) : undefined} />
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="qf-sheet-empty">Nenhum ataque registrado.</p>
+      )}
+
+      <div className="sheet-traits">
+        <TraitList title="Características de classe" items={character.features} emptyText="Nenhuma característica registrada." />
+        <TraitList title="Traços de espécie" items={character.speciesTraits} emptyText="Nenhum traço registrado." />
+        <TraitList title="Talentos" items={character.feats} emptyText="Nenhum talento registrado." />
+      </div>
+
+      <h3 className="sheet-subheading">Treinamento em equipamentos e proficiências</h3>
+      <EquipmentTraining armorTraining={character.armorTraining} weapons={character.weaponProficiencies}
+        tools={character.toolProficiencies} />
+    </SheetTabPanel>
+  );
+}
+
+function SpellsTab({
+  character,
+  idPrefix,
+  active,
+  canRoll,
+  rolling,
+  editable,
+  pending,
+  onChange,
+  roll,
+}: {
+  character: CharacterSheet;
+  idPrefix: string;
+  active: string;
+  canRoll: boolean;
+  rolling: boolean;
+  editable: boolean;
+  pending: boolean;
+  onChange: (state: CharacterStateInput) => void;
+  roll: SheetRoll;
+}) {
+  const saveDc = spellSaveDc(character);
+  const spellAttack = spellAttackBonus(character);
+  return (
+    <SheetTabPanel idPrefix={idPrefix} id="spells" active={active}>
+      {character.spellcastingAbility && saveDc !== null && spellAttack !== null ? (
+        <SpellcastingHeader abilityLabel={ABILITY_LABELS[character.spellcastingAbility]}
+          modifier={abilityModifier(character.abilityScores[character.spellcastingAbility]) ?? 0}
+          saveDc={saveDc} attackBonus={spellAttack} disabled={rolling}
+          onRollAttack={canRoll ? () => roll({ kind: 'spellAttack' }) : undefined} />
+      ) : (
+        <p className="qf-sheet-empty">Sem atributo de conjuração: este personagem não conjura magias.</p>
+      )}
+      <h3 className="sheet-subheading">Espaços de magia</h3>
+      <SpellSlots slots={character.spellSlots} editable={editable} pending={pending}
+        onChange={(spellSlotsSpent) => onChange({ spellSlotsSpent })} />
+      <h3 className="sheet-subheading">Truques e magias preparadas</h3>
+      <SpellList spells={character.spells} />
+    </SheetTabPanel>
+  );
+}
+
+function InventoryTab({
+  character,
+  idPrefix,
+  active,
+  editable,
+  pending,
+  onChange,
+}: {
+  character: CharacterSheet;
+  idPrefix: string;
+  active: string;
+  editable: boolean;
+  pending: boolean;
+  onChange: (state: CharacterStateInput) => void;
+}) {
+  return (
+    <SheetTabPanel idPrefix={idPrefix} id="inventory" active={active}>
+      <dl className="sheet-facts">
+        <div>
+          <dt>Alinhamento</dt>
+          <dd>{character.alignment || <span className="qf-sheet-empty">Não informado</span>}</dd>
+        </div>
+        <div>
+          <dt>Idiomas</dt>
+          <dd>{character.languages || <span className="qf-sheet-empty">Não informados</span>}</dd>
+        </div>
+      </dl>
+      <section className="sheet-block">
+        <h3 className="sheet-subheading">Aparência</h3>
+        {character.appearance
+          ? <p className="sheet-text">{character.appearance}</p>
+          : <p className="qf-sheet-empty">Sem descrição de aparência.</p>}
+      </section>
+      <section className="sheet-block">
+        <h3 className="sheet-subheading">História e personalidade</h3>
+        {character.description
+          ? <p className="sheet-text">{character.description}</p>
+          : <p className="qf-sheet-empty">Sem história registrada.</p>}
+      </section>
+      <section className="sheet-block">
+        <h3 className="sheet-subheading">Equipamento</h3>
+        {character.equipment
+          ? <p className="sheet-text">{character.equipment}</p>
+          : <p className="qf-sheet-empty">Nenhum equipamento registrado.</p>}
+      </section>
+      <section className="sheet-block">
+        <h3 className="sheet-subheading">Itens mágicos sintonizados</h3>
+        <AttunedItems items={character.attunedItems} />
+      </section>
+      <section className="sheet-block">
+        <h3 className="sheet-subheading">Moedas</h3>
+        {/* Remounted when the saved coins change, which resets the draft. */}
+        <CoinPurse key={JSON.stringify(character.coins)} coins={character.coins} editable={editable}
+          pending={pending} onSave={(coins) => onChange({ coins })} />
+      </section>
+    </SheetTabPanel>
+  );
+}
+
+/** The last roll of any control of the sheet, pinned under it. */
+function RollResult({
+  character,
+  rolling,
+  rollError,
+  lastRoll,
+}: {
+  character: CharacterSheet;
+  rolling: boolean;
+  rollError: string | null;
+  lastRoll: RollPayload | null;
+}) {
+  return (
+    <div className="sheet-roll" aria-live="polite">
+      {rolling && <Skeleton shape="panel" aria-label="Rolando…" />}
+
+      {rollError && !rolling && (
+        <p role="alert" className="text-small text-danger-text">
+          {rollError}
+        </p>
+      )}
+
+      {lastRoll && !rolling && !rollError && (
+        <DiceResult
+          label={`${rollActionLabel(lastRoll)} de ${character.name}`}
+          total={lastRoll.total}
+          decomposition={decompose(lastRoll)}
+          dice={lastRoll.dice}
+          mode={lastRoll.mode}
+          natural={lastRoll.natural}
+        />
+      )}
+    </div>
+  );
+}
+
+function DeleteConfirmation({
+  character,
+  deleting,
+  onCancel,
+  onConfirm,
+}: {
+  character: CharacterSheet;
+  deleting: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div className="sheet-confirm" role="group" aria-label={`Confirmar exclusão de ${character.name}`}>
+      <p className="sheet-confirm__question">
+        <Warning size={18} weight="fill" aria-hidden="true" />
+        Excluir {character.name}?
+      </p>
+      <p className="sheet-confirm__detail">
+        A ficha sai da mesa para todo mundo e não há como recuperá-la. As rolagens já
+        registradas permanecem no histórico da sessão.
+      </p>
+      <div className="qf-dialog__actions">
+        <Button variant="secondary" onClick={onCancel}>
+          Manter ficha
+        </Button>
+        <Button variant="danger" loading={deleting} onClick={onConfirm}>
+          <Trash size={18} aria-hidden="true" />
+          Excluir personagem
+        </Button>
+      </div>
+    </div>
+  );
 }
 
 /**
@@ -133,41 +429,17 @@ export function CharacterSheetView({
   // One mode choice for every linked roll of the sheet; always a single d20,
   // so advantage and disadvantage always apply.
   const [mode, setMode] = useState<RollMode>('normal');
-  const roll = (request: Omit<LinkedRollRequest, 'mode'>) => onRoll({ ...request, mode });
+  const roll: SheetRoll = (request) => onRoll({ ...request, mode });
 
-  const proficiency = proficiencyBonus(character.level) ?? 0;
-  const saveDc = spellSaveDc(character);
-  const spellAttack = spellAttackBonus(character);
+  const tabProps = { character, idPrefix: tabsId, canRoll, rolling, roll };
+  const liveTabProps = { ...tabProps, editable: canChangeState, pending: stateSaving, onChange: change };
 
   return (
     <div className="sheet">
       <Surface variant="sheet" className="sheet">
-        <div className="sheet-head">
-          <Avatar name={character.name} src={character.avatarUrl ?? undefined} variant="character" size="lg" />
-          <div className="sheet-head__meta">
-            <p className="sheet-head__owner">{isOwner ? 'Seu personagem' : `Ficha de ${character.ownerName}`}</p>
-            <SheetIdentity backgroundName={character.background} species={character.race} className={character.class}
-              subclass={character.subclass} level={character.level} experience={character.experience} />
-          </div>
-        </div>
+        <SheetHead character={character} isOwner={isOwner} />
 
-        <div className="sheet-combat">
-          <p className="sheet-ac">
-            <span className="sheet-ac__label">Classe de armadura</span>
-            <strong>{character.ac}</strong>
-            <span className="sheet-ac__shield" data-active={character.shield || undefined}>
-              {character.shield ? 'Com escudo' : 'Sem escudo'}
-            </span>
-          </p>
-          <HitPointsTracker hpCurrent={character.hpCurrent} hpTemp={character.hpTemp} hpMax={character.hp}
-            editable={canChangeState} pending={stateSaving} onChange={(hitPoints) => change(hitPoints)} />
-          <HitDiceTracker hitDie={character.hitDie} level={character.level} spent={character.hitDiceSpent}
-            editable={canChangeState} pending={stateSaving} onChange={(hitDiceSpent) => change({ hitDiceSpent })} />
-          <DeathSaves value={character.deathSaves} editable={canChangeState} pending={stateSaving}
-            onChange={(deathSaves) => change({ deathSaves })} />
-          <HeroicInspiration active={character.heroicInspiration} editable={canChangeState} pending={stateSaving}
-            onChange={(heroicInspiration) => change({ heroicInspiration })} />
-        </div>
+        <CombatTrackers character={character} editable={canChangeState} pending={stateSaving} onChange={change} />
 
         {stateError && (
           <p role="alert" className="text-small text-danger-text">
@@ -190,118 +462,10 @@ export function CharacterSheetView({
 
         <SheetTabs tabs={TABS} active={tab} onChange={setTab} idPrefix={tabsId} label={`Seções da ficha de ${character.name}`} />
 
-        <SheetTabPanel idPrefix={tabsId} id="character" active={tab}>
-          <DerivedStats proficiency={proficiency} initiative={initiative(character)} speed={character.speed}
-            size={character.size} passivePerception={passivePerception(character)} disabled={rolling}
-            onRollInitiative={canRoll ? () => roll({ kind: 'initiative' }) : undefined} />
-
-          <h3 className="sheet-subheading">Atributos, salvaguardas e perícias</h3>
-          <div className="sheet-abilities">
-            {ABILITIES.map((ability) => (
-              <AbilityBlock
-                key={ability}
-                label={ABILITY_LABELS[ability]}
-                abbreviation={ABILITY_ABBREVIATIONS[ability]}
-                score={character.abilityScores[ability]}
-                modifier={abilityModifier(character.abilityScores[ability]) ?? 0}
-                saveBonus={saveBonus(character, ability)}
-                saveProficient={character.saves.includes(ability)}
-                skills={SKILLS_BY_ABILITY[ability].map((skill) => ({
-                  skill,
-                  label: SKILL_LABELS[skill],
-                  bonus: skillBonus(character, skill),
-                  proficiency: skillProficiency(character, skill),
-                }))}
-                disabled={rolling}
-                onCheck={canRoll ? () => roll({ kind: 'check', ability }) : undefined}
-                onSave={canRoll ? () => roll({ kind: 'save', ability }) : undefined}
-                onSkill={canRoll ? (skill) => roll({ kind: 'skill', skill }) : undefined}
-              />
-            ))}
-          </div>
-
-          <h3 className="sheet-subheading">Armas e truques de dano</h3>
-          {character.attacks.length > 0 ? (
-            <ul className="sheet-attacks">
-              {character.attacks.map((attack, index) => (
-                <li key={`${attack.name}-${index}`}>
-                  <AttackCard name={attack.name} bonus={attack.bonus} damage={attack.damage}
-                    damageType={attack.damageType} notes={attack.notes} disabled={rolling}
-                    onRoll={canRoll ? () => roll({ kind: 'attack', attackIndex: index }) : undefined} />
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="qf-sheet-empty">Nenhum ataque registrado.</p>
-          )}
-
-          <div className="sheet-traits">
-            <TraitList title="Características de classe" items={character.features} emptyText="Nenhuma característica registrada." />
-            <TraitList title="Traços de espécie" items={character.speciesTraits} emptyText="Nenhum traço registrado." />
-            <TraitList title="Talentos" items={character.feats} emptyText="Nenhum talento registrado." />
-          </div>
-
-          <h3 className="sheet-subheading">Treinamento em equipamentos e proficiências</h3>
-          <EquipmentTraining armorTraining={character.armorTraining} weapons={character.weaponProficiencies}
-            tools={character.toolProficiencies} />
-        </SheetTabPanel>
-
-        <SheetTabPanel idPrefix={tabsId} id="spells" active={tab}>
-          {character.spellcastingAbility && saveDc !== null && spellAttack !== null ? (
-            <SpellcastingHeader abilityLabel={ABILITY_LABELS[character.spellcastingAbility]}
-              modifier={abilityModifier(character.abilityScores[character.spellcastingAbility]) ?? 0}
-              saveDc={saveDc} attackBonus={spellAttack} disabled={rolling}
-              onRollAttack={canRoll ? () => roll({ kind: 'spellAttack' }) : undefined} />
-          ) : (
-            <p className="qf-sheet-empty">Sem atributo de conjuração: este personagem não conjura magias.</p>
-          )}
-          <h3 className="sheet-subheading">Espaços de magia</h3>
-          <SpellSlots slots={character.spellSlots} editable={canChangeState} pending={stateSaving}
-            onChange={(spellSlotsSpent) => change({ spellSlotsSpent })} />
-          <h3 className="sheet-subheading">Truques e magias preparadas</h3>
-          <SpellList spells={character.spells} />
-        </SheetTabPanel>
-
-        <SheetTabPanel idPrefix={tabsId} id="inventory" active={tab}>
-          <dl className="sheet-facts">
-            <div>
-              <dt>Alinhamento</dt>
-              <dd>{character.alignment || <span className="qf-sheet-empty">Não informado</span>}</dd>
-            </div>
-            <div>
-              <dt>Idiomas</dt>
-              <dd>{character.languages || <span className="qf-sheet-empty">Não informados</span>}</dd>
-            </div>
-          </dl>
-          <section className="sheet-block">
-            <h3 className="sheet-subheading">Aparência</h3>
-            {character.appearance
-              ? <p className="sheet-text">{character.appearance}</p>
-              : <p className="qf-sheet-empty">Sem descrição de aparência.</p>}
-          </section>
-          <section className="sheet-block">
-            <h3 className="sheet-subheading">História e personalidade</h3>
-            {character.description
-              ? <p className="sheet-text">{character.description}</p>
-              : <p className="qf-sheet-empty">Sem história registrada.</p>}
-          </section>
-          <section className="sheet-block">
-            <h3 className="sheet-subheading">Equipamento</h3>
-            {character.equipment
-              ? <p className="sheet-text">{character.equipment}</p>
-              : <p className="qf-sheet-empty">Nenhum equipamento registrado.</p>}
-          </section>
-          <section className="sheet-block">
-            <h3 className="sheet-subheading">Itens mágicos sintonizados</h3>
-            <AttunedItems items={character.attunedItems} />
-          </section>
-          <section className="sheet-block">
-            <h3 className="sheet-subheading">Moedas</h3>
-            {/* Remounted when the saved coins change, which resets the draft. */}
-            <CoinPurse key={JSON.stringify(character.coins)} coins={character.coins} editable={canChangeState}
-              pending={stateSaving} onSave={(coins) => change({ coins })} />
-          </section>
-        </SheetTabPanel>
+        <CharacterTab {...tabProps} active={tab} />
+        <SpellsTab {...liveTabProps} active={tab} />
+        <InventoryTab character={character} idPrefix={tabsId} active={tab}
+          editable={canChangeState} pending={stateSaving} onChange={change} />
 
         {deleteError && (
           <p role="alert" className="text-small text-danger-text">
@@ -327,51 +491,15 @@ export function CharacterSheetView({
         )}
 
         {confirmingDelete && (
-          <div className="sheet-confirm" role="group" aria-label={`Confirmar exclusão de ${character.name}`}>
-            <p className="sheet-confirm__question">
-              <Warning size={18} weight="fill" aria-hidden="true" />
-              Excluir {character.name}?
-            </p>
-            <p className="sheet-confirm__detail">
-              A ficha sai da mesa para todo mundo e não há como recuperá-la. As rolagens já
-              registradas permanecem no histórico da sessão.
-            </p>
-            <div className="qf-dialog__actions">
-              <Button variant="secondary" onClick={onCancelDelete}>
-                Manter ficha
-              </Button>
-              <Button variant="danger" loading={deleting} onClick={onConfirmDelete}>
-                <Trash size={18} aria-hidden="true" />
-                Excluir personagem
-              </Button>
-            </div>
-          </div>
+          <DeleteConfirmation character={character} deleting={deleting}
+            onCancel={onCancelDelete} onConfirm={onConfirmDelete} />
         )}
       </Surface>
 
       {/* The result stays pinned to the bottom of the sheet: whichever control
           fired the roll, the answer lands in the same place. */}
       {(rolling || rollError || lastRoll) && (
-        <div className="sheet-roll" aria-live="polite">
-          {rolling && <Skeleton shape="panel" aria-label="Rolando…" />}
-
-          {rollError && !rolling && (
-            <p role="alert" className="text-small text-danger-text">
-              {rollError}
-            </p>
-          )}
-
-          {lastRoll && !rolling && !rollError && (
-            <DiceResult
-              label={`${rollActionLabel(lastRoll)} de ${character.name}`}
-              total={lastRoll.total}
-              decomposition={decompose(lastRoll)}
-              dice={lastRoll.dice}
-              mode={lastRoll.mode}
-              natural={lastRoll.natural}
-            />
-          )}
-        </div>
+        <RollResult character={character} rolling={rolling} rollError={rollError} lastRoll={lastRoll} />
       )}
     </div>
   );

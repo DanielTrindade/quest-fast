@@ -5,6 +5,7 @@ import { Button } from '../../components/Button';
 import { Dialog } from '../../components/Dialog';
 import { Skeleton } from '../../components/Skeleton';
 import { ApiError, api } from '../../lib/api';
+import { mergeFeedEvent } from '../../lib/feed-cache';
 import { CharacterSheetView } from './CharacterSheetView';
 
 function errorMessage(error: unknown) {
@@ -42,13 +43,18 @@ export function CharacterSheetDialog({
   });
   const character = sheet.data?.character;
 
+  const queryClient = useQueryClient();
   const roll = useMutation({
     mutationFn: (request: LinkedRollRequest) => api.characterRoll(campaignId, characterId, request),
-    onSuccess: (response) => setLastRoll(response.event.payload),
+    onSuccess: (response) => {
+      setLastRoll(response.event.payload);
+      // The roll belongs to the session feed for the whole table; merging it
+      // here shows the roller's own event even before the socket push lands.
+      mergeFeedEvent(queryClient, campaignId, response.event);
+    },
   });
   // Play state saves on its own route; the answer is the whole sheet, and the
   // roster shows current hit points, so it refreshes too.
-  const queryClient = useQueryClient();
   const changeState = useMutation({
     mutationFn: (state: CharacterStateInput) => api.updateCharacterState(campaignId, characterId, state),
     onSuccess: (response) => {

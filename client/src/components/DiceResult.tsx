@@ -1,6 +1,8 @@
-import { motion } from 'motion/react';
+import { LazyMotion, domAnimation } from 'motion/react';
+import * as m from 'motion/react-m';
 import { useSyncExternalStore } from 'react';
 import { DiceFive, Hexagon } from '@phosphor-icons/react';
+import { contentKeys } from '../lib/content-keys';
 
 const query = '(prefers-reduced-motion: reduce)';
 function subscribe(listener: () => void) {
@@ -23,7 +25,7 @@ export function DiceResult({ total, decomposition, dice, mode = 'normal', natura
     <p className="qf-dice__label">{label}</p>
     {showMode && <p className="qf-dice__mode">{{ normal: 'Rolagem normal', advantage: 'Vantagem', disadvantage: 'Desvantagem' }[mode]}</p>}
     {showRolls && <ol className="qf-dice__rolls" aria-label="Dados individuais">
-      {dice.map((die, index) => <li key={index} data-discarded={die.discarded || undefined}
+      {contentKeys(dice).map(({ item: die, key }) => <li key={key} data-discarded={die.discarded || undefined}
         aria-label={`d${die.sides}: ${die.value}${die.discarded ? ', descartado' : ''}`}>
         <span className="qf-dice__die-type" aria-hidden="true">
           {die.sides === 20 ? <Hexagon size={16} weight="duotone" /> : <DiceFive size={16} weight="duotone" />}d{die.sides}
@@ -33,11 +35,13 @@ export function DiceResult({ total, decomposition, dice, mode = 'normal', natura
       </li>)}
     </ol>}
     <p className="qf-dice__total-label">Total</p>
-    <motion.p key={`${total}-${decomposition}-${natural ?? ''}-${mode}`} className="qf-dice__total" data-natural={natural} data-reduced-motion={reduced}
-      initial={reduced || compact ? false : { y: natural === 1 ? -10 : 12, scale: natural === 20 ? 1.15 : 0.94 }}
-      animate={{ y: 0, scale: 1 }} transition={reduced ? { duration: 0 } : { type: 'spring', duration: 0.7, bounce: 0.24 }}>
-      <span className="sr-only">Total: </span>{total}
-    </motion.p>
+    <LazyMotion features={domAnimation}>
+      <m.p key={`${total}-${decomposition}-${natural ?? ''}-${mode}`} className="qf-dice__total" data-natural={natural} data-reduced-motion={reduced}
+        initial={reduced || compact ? false : { y: natural === 1 ? -10 : 12, scale: natural === 20 ? 1.15 : 0.94 }}
+        animate={{ y: 0, scale: 1 }} transition={reduced ? { duration: 0 } : { type: 'spring', duration: 0.7, bounce: 0.24 }}>
+        <span className="sr-only">Total: </span>{total}
+      </m.p>
+    </LazyMotion>
     <p className="qf-dice__decomposition">{decomposition} = {total}</p>
     {natural && <p className="qf-dice__natural" data-natural={natural}>{natural} natural</p>}
   </div>;
