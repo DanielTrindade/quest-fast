@@ -1,4 +1,4 @@
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { Avatar } from '../components/Avatar';
 import { Button } from '../components/Button';
@@ -6,10 +6,16 @@ import { api } from '../lib/api';
 
 export function AccountControls({ name, avatarUrl }: { name: string; avatarUrl: string | null }) {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const signOut = useMutation({
     mutationFn: api.signOut,
     // Signing out always lands on login, even if the session was already gone.
-    onSettled: () => navigate({ to: '/login' }),
+    onSettled: () => {
+      // No cache belongs to the next session: drop the previous user's data
+      // before the redirect so the login screen cannot read it back.
+      queryClient.clear();
+      navigate({ to: '/login' });
+    },
   });
 
   return (

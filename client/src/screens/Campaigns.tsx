@@ -18,7 +18,8 @@ function errorMessage(error: unknown) {
   return error instanceof ApiError ? error.message : 'Algo deu errado. Tente novamente.';
 }
 
-function CreateCampaign({ onCreated }: { onCreated: () => void }) {
+function CreateCampaign() {
+  const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -29,7 +30,8 @@ function CreateCampaign({ onCreated }: { onCreated: () => void }) {
       setOpen(false);
       setName('');
       setDescription('');
-      onCreated();
+      // The list is the only cache this mutation makes stale.
+      queryClient.invalidateQueries({ queryKey: ['campaigns'] });
     },
   });
 
@@ -85,7 +87,8 @@ function CreateCampaign({ onCreated }: { onCreated: () => void }) {
   );
 }
 
-function JoinByCode({ onJoined }: { onJoined: () => void }) {
+function JoinByCode() {
+  const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [code, setCode] = useState('');
 
@@ -98,7 +101,8 @@ function JoinByCode({ onJoined }: { onJoined: () => void }) {
     onSuccess: () => {
       setOpen(false);
       setCode('');
-      onJoined();
+      // The joined campaign has to appear in the list.
+      queryClient.invalidateQueries({ queryKey: ['campaigns'] });
     },
   });
 
@@ -157,9 +161,7 @@ function JoinByCode({ onJoined }: { onJoined: () => void }) {
 }
 
 export function Campaigns() {
-  const queryClient = useQueryClient();
   const campaigns = useQuery({ queryKey: ['campaigns'], queryFn: api.campaigns });
-  const reload = () => queryClient.invalidateQueries({ queryKey: ['campaigns'] });
 
   return (
     <main className="qf-page mx-auto w-full max-w-3xl p-4 sm:p-8">
@@ -169,8 +171,8 @@ export function Campaigns() {
           <h1>Campanhas</h1>
         </div>
         <div className="flex flex-wrap gap-3">
-          <JoinByCode onJoined={reload} />
-          <CreateCampaign onCreated={reload} />
+          <JoinByCode />
+          <CreateCampaign />
         </div>
       </header>
 
@@ -197,8 +199,8 @@ export function Campaigns() {
             description="Crie a sua mesa ou entre em uma com o código que o mestre enviou."
             action={
               <div className="flex flex-wrap gap-3">
-                <CreateCampaign onCreated={reload} />
-                <JoinByCode onJoined={reload} />
+                <CreateCampaign />
+                <JoinByCode />
               </div>
             }
           />

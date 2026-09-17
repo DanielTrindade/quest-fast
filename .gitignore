@@ -24,3 +24,6 @@ uploads/
 # SO e editor
 .DS_Store
 Thumbs.db
+
+# material pessoal de referencia
+rpg_docs/

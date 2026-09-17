@@ -25,6 +25,22 @@ function rollAction(payload: RollPayload): string {
   return `rolou ${payload.expression}`;
 }
 
+/** Who wrote the event, when, and whether the table may see it. */
+function FeedMeta({ event }: { event: SessionEvent }) {
+  return (
+    <p className="feed-meta">
+      <span>{event.userName}</span>
+      <span aria-hidden="true">·</span>
+      <time>{formatTime(event.createdAt)}</time>
+      {event.secret && (
+        <span className="feed-secret-tag">
+          <EyeSlash size={14} weight="regular" aria-hidden="true" /> Secreta
+        </span>
+      )}
+    </p>
+  );
+}
+
 function RollEventCard({ event }: { event: RollSessionEvent }) {
   const payload = event.payload;
   const headline =
@@ -33,16 +49,7 @@ function RollEventCard({ event }: { event: RollSessionEvent }) {
       : `${event.userName} ${rollAction(payload)}`;
   return (
     <>
-      <p className="feed-meta">
-        <span>{event.userName}</span>
-        <span aria-hidden="true">·</span>
-        <time>{formatTime(event.createdAt)}</time>
-        {event.secret && (
-          <span className="feed-secret-tag">
-            <EyeSlash size={14} weight="regular" aria-hidden="true" /> Secreta
-          </span>
-        )}
-      </p>
+      <FeedMeta event={event} />
       <DiceResult compact label={headline} total={payload.total} decomposition={rollSummary(payload)}
         dice={payload.dice} mode={payload.mode} natural={payload.natural} />
     </>
@@ -57,16 +64,7 @@ function RollEventCard({ event }: { event: RollSessionEvent }) {
 function UnknownEventCard({ event }: { event: UnknownSessionEvent }) {
   return (
     <>
-      <p className="feed-meta">
-        <span>{event.userName}</span>
-        <span aria-hidden="true">·</span>
-        <time>{formatTime(event.createdAt)}</time>
-        {event.secret && (
-          <span className="feed-secret-tag">
-            <EyeSlash size={14} weight="regular" aria-hidden="true" /> Secreta
-          </span>
-        )}
-      </p>
+      <FeedMeta event={event} />
       <p className="qf-feed__unknown-body">
         <Info size={14} aria-hidden="true" />
         <span>Novo tipo de evento: {event.type}</span>

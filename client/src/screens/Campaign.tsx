@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { ArrowLeft, Users } from '@phosphor-icons/react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
 import { Link, useNavigate } from '@tanstack/react-router';
-import type { CampaignMember } from '@quest-fast/shared';
+import type { CampaignDetail, CampaignMember, MembersResponse } from '@quest-fast/shared';
 import { Avatar } from '../components/Avatar';
 import { Badge } from '../components/Badge';
 import { Button } from '../components/Button';
@@ -74,9 +74,14 @@ function RemoveMember({
 function LeaveCampaign({ campaignId }: { campaignId: string }) {
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const leave = useMutation({
     mutationFn: () => api.leaveCampaign(campaignId),
-    onSuccess: () => navigate({ to: '/campaigns' }),
+    onSuccess: () => {
+      // The campaign left by the user must disappear from the list cache.
+      queryClient.invalidateQueries({ queryKey: ['campaigns'] });
+      navigate({ to: '/campaigns' });
+    },
   });
 
   return (
@@ -101,6 +106,119 @@ function LeaveCampaign({ campaignId }: { campaignId: string }) {
         </Button>
       </div>
     </Dialog>
+  );
+}
+
+/** The roster, the invite and the footnote, inside the admin disclosure. */
+function MembersPanel({
+  campaignId,
+  isMaster,
+  campaign,
+  members,
+  open,
+  onToggle,
+  onRemoved,
+}: {
+  campaignId: string;
+  isMaster: boolean;
+  campaign: CampaignDetail | undefined;
+  members: UseQueryResult<MembersResponse>;
+  open: boolean;
+  onToggle: (open: boolean) => void;
+  onRemoved: () => void;
+}) {
+  return (
+    <div className="campaign-admin">
+      <details
+        className="campaign-admin__panel"
+        open={open}
+        onToggle={(event) => onToggle(event.currentTarget.open)}
+      >
+        <summary className="campaign-section-heading">
+          <h2 id="members-title">
+            <Users size={20} aria-hidden="true" />
+            Membros e convite
+          </h2>
+          <span>{members.isSuccess ? `${members.data.members.length} na mesa` : 'Carregando…'}</span>
+        </summary>
+
+        <section className="campaign-members" aria-labelledby="members-title">
+          <Surface className="campaign-roster">
+            {members.isPending && (
+              <div className="qf-stack" role="region" aria-label="Carregando membros" aria-busy="true">
+                {[0, 1, 2].map((row) => (
+                  <div key={row} className="qf-member">
+                    <Skeleton shape="avatar" />
+                    <div className="qf-stack">
+                      <Skeleton width="60%" />
+                      <Skeleton width="80%" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {members.isError && (
+              <div className="qf-stack">
+                <p role="alert" className="text-body text-danger-text">
+                  {errorMessage(members.error)}
+                </p>
+                <div>
+                  <Button variant="secondary" onClick={() => members.refetch()}>
+                    Tentar novamente
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {members.isSuccess && (
+              <ul>
+                {members.data.members.map((member) => (
+                  <li key={member.id} className="qf-member">
+                    <Avatar name={member.name} src={member.avatarUrl ?? undefined} />
+                    <div className="campaign-member-info">
+                      <span className="campaign-member-name">{member.name}</span>
+                      <span className="campaign-member-date">Entrou em {formatDate(member.joinedAt)}</span>
+                    </div>
+                    {/* Role and Badge share the same vocabulary, so no mapping. */}
+                    <Badge role={member.role} />
+                    {isMaster && member.role === 'player' && (
+                      <RemoveMember campaignId={campaignId} member={member} onRemoved={onRemoved} />
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {members.isSuccess && members.data.members.length === 1 && isMaster && (
+              <EmptyState
+                title="Falta reunir a mesa"
+                icon={Users}
+                description="Compartilhe o código de convite para os jogadores entrarem."
+                action={null}
+              />
+            )}
+          </Surface>
+
+          {/* The code only reaches the master; the API omits it for a player. */}
+          {campaign?.inviteCode && (
+            <Surface className="campaign-invite">
+              <p className="campaign-eyebrow">Convite</p>
+              <p className="mt-1 mb-3 text-small text-text-secondary">
+                Quem tiver este código entra na campanha como jogador.
+              </p>
+              <CopyField value={campaign.inviteCode} />
+            </Surface>
+          )}
+
+          <p className="campaign-footnote">
+            {isMaster
+              ? 'Você é o mestre desta campanha e gerencia quem participa.'
+              : 'O mestre gerencia os convites e os membros desta campanha.'}
+          </p>
+        </section>
+      </details>
+    </div>
   );
 }
 
@@ -177,97 +295,15 @@ export function Campaign({ campaignId }: { campaignId: string }) {
           <SessionFeed campaignId={campaignId} />
         </aside>
 
-        <div className="campaign-admin">
-          <details
-            className="campaign-admin__panel"
-            open={adminOpen ?? tableIsEmpty}
-            onToggle={(event) => setAdminOpen(event.currentTarget.open)}
-          >
-            <summary className="campaign-section-heading">
-              <h2 id="members-title">
-                <Users size={20} aria-hidden="true" />
-                Membros e convite
-              </h2>
-              <span>{members.isSuccess ? `${members.data.members.length} na mesa` : 'Carregando…'}</span>
-            </summary>
-
-            <section className="campaign-members" aria-labelledby="members-title">
-              <Surface className="campaign-roster">
-              {members.isPending && (
-                <div className="qf-stack" role="region" aria-label="Carregando membros" aria-busy="true">
-                  {[0, 1, 2].map((row) => (
-                    <div key={row} className="qf-member">
-                      <Skeleton shape="avatar" />
-                      <div className="qf-stack">
-                        <Skeleton width="60%" />
-                        <Skeleton width="80%" />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {members.isError && (
-                <div className="qf-stack">
-                  <p role="alert" className="text-body text-danger-text">
-                    {errorMessage(members.error)}
-                  </p>
-                  <div>
-                    <Button variant="secondary" onClick={() => members.refetch()}>
-                      Tentar novamente
-                    </Button>
-                  </div>
-                </div>
-              )}
-
-              {members.isSuccess && (
-                <ul>
-                  {members.data.members.map((member) => (
-                    <li key={member.id} className="qf-member">
-                      <Avatar name={member.name} src={member.avatarUrl ?? undefined} />
-                      <div className="campaign-member-info">
-                        <span className="campaign-member-name">{member.name}</span>
-                        <span className="campaign-member-date">Entrou em {formatDate(member.joinedAt)}</span>
-                      </div>
-                      {/* Role and Badge share the same vocabulary, so no mapping. */}
-                      <Badge role={member.role} />
-                      {isMaster && member.role === 'player' && (
-                        <RemoveMember campaignId={campaignId} member={member} onRemoved={onRemoved} />
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              )}
-
-              {members.isSuccess && members.data.members.length === 1 && isMaster && (
-                <EmptyState
-                  title="Falta reunir a mesa"
-                  icon={Users}
-                  description="Compartilhe o código de convite para os jogadores entrarem."
-                  action={null}
-                />
-              )}
-            </Surface>
-
-              {/* The code only reaches the master; the API omits it for a player. */}
-              {campaign.data?.inviteCode && (
-                <Surface className="campaign-invite">
-                  <p className="campaign-eyebrow">Convite</p>
-                  <p className="mt-1 mb-3 text-small text-text-secondary">
-                    Quem tiver este código entra na campanha como jogador.
-                  </p>
-                  <CopyField value={campaign.data.inviteCode} />
-                </Surface>
-              )}
-
-              <p className="campaign-footnote">
-                {isMaster
-                  ? 'Você é o mestre desta campanha e gerencia quem participa.'
-                  : 'O mestre gerencia os convites e os membros desta campanha.'}
-              </p>
-            </section>
-          </details>
-        </div>
+        <MembersPanel
+          campaignId={campaignId}
+          isMaster={isMaster}
+          campaign={campaign.data}
+          members={members}
+          open={adminOpen ?? tableIsEmpty}
+          onToggle={setAdminOpen}
+          onRemoved={onRemoved}
+        />
       </div>
 
       <Toast

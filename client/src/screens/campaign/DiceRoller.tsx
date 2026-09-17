@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { EyeSlash, DiceFive } from '@phosphor-icons/react';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { parseDiceExpression, type RollMode } from '@quest-fast/shared';
 import { Button } from '../../components/Button';
 import { DiceResult } from '../../components/DiceResult';
@@ -9,6 +9,7 @@ import { QuickDice } from '../../components/QuickDice';
 import { RollModeControl } from '../../components/RollModeControl';
 import { Surface } from '../../components/Surface';
 import { ApiError, api } from '../../lib/api';
+import { mergeFeedEvent } from '../../lib/feed-cache';
 
 function errorMessage(error: unknown) {
   return error instanceof ApiError ? error.message : 'Algo deu errado. Tente novamente.';
@@ -23,11 +24,14 @@ export function DiceRoller({ campaignId, isMaster }: { campaignId: string; isMas
   const parsed = parseDiceExpression(expression);
   const modeMismatch = mode !== 'normal' && parsed && (parsed.count !== 1 || parsed.sides !== 20);
 
+  const queryClient = useQueryClient();
   const roll = useMutation({
     mutationFn: () => api.roll(campaignId, { expression, mode, secret }),
     onSuccess: ({ event }) => {
       setExpression('');
       setLastExpression(event.payload.expression);
+      // The just-created event belongs to the session feed for the table.
+      mergeFeedEvent(queryClient, campaignId, event);
     },
   });
 
