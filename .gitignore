@@ -27,3 +27,6 @@ Thumbs.db
 
 # material pessoal de referencia
 rpg_docs/
+
+# configuracao local de agentes
+.claude/settings.local.json
