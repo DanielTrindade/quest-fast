@@ -1,21 +1,75 @@
 # quest-fast
 
-Plataforma para mestrar e jogar D&D 5e. A plataforma **é a mesa**: ficha, dados,
-combate e mundo acontecem dentro dela. O Discord fica apenas com voz e roleplay.
+Plataforma self-hosted para mestrar e jogar D&D 5e. A plataforma **é a mesa**:
+ficha, dados, combate e mundo acontecem dentro dela. O Discord fica só com voz
+e roleplay; a única integração é o login.
 
-Feita para uma mesa própria, **self-hosted**.
+Feita para uma mesa própria: um processo, um arquivo SQLite, sem serviço
+externo além do OAuth do Discord.
 
-## Estado atual
+## O que já funciona
 
-A fase 0 do MVP está implementada: login pelo Discord, criação de campanha,
-código de convite, entrada, lista de membros, saída e remoção. A fase 1
-(personagens, dados e feed ao vivo) está em andamento — o servidor está
-completo; a interface emite as fichas, as rolagens e o feed. Combate e mundo
-pertencem às fases seguintes; o campo de batalha (VTT) é uma mudança à parte.
+- **Mesa:** login pelo Discord, campanhas, convite por código, membros com
+  papel de mestre ou jogador.
+- **Ficha oficial de D&D 2024:** identidade, atributos, perícias com
+  especialização, combate, conjuração, inventário e personalidade. PV, dados
+  de vida, salvaguardas contra morte e moedas são atualizados durante a sessão
+  sem abrir o editor.
+- **Dados:** rolagem livre e pela ficha (atributo, perícia, salvaguarda,
+  ataque, iniciativa, ataque mágico), vantagem e desvantagem, rolagem secreta
+  do mestre. Toda rolagem é feita no servidor.
+- **Feed ao vivo:** a mesa vê cada rolagem na hora, por WebSocket, com
+  histórico paginado.
 
-## Pré-requisito: aplicação no Discord
+Combate com bestiário, mundo (NPCs, locais, quests, diários) e o campo de
+batalha (VTT) são as próximas etapas: veja o [roadmap](docs/roadmap.md).
 
-O servidor **não sobe** sem credenciais do Discord. Antes de qualquer coisa:
+## Stack
+
+| Parte | Tecnologia |
+| --- | --- |
+| Interface | Vite, React 19, TanStack Router e Query, Tailwind 4, Radix, Storybook |
+| Servidor | Node 22 executando TypeScript direto, Hono, WebSocket (`ws`) |
+| Dados | SQLite com Drizzle ORM (`better-sqlite3`) |
+| Regras 5e | Pacote `shared/` com funções puras, usado pelos dois lados |
+| Login | Discord OAuth (escopo `identify`), sessão em cookie HttpOnly |
+
+```
+client/   SPA React, design system e Storybook
+server/   Hono: API REST, auth, WebSocket e arquivos estáticos
+shared/   tipos da API e regras 5e puras
+db/       schema Drizzle, migrações e seed
+docs/     arquitetura, roadmap, design system e histórico
+scripts/  verificações (tokens de cor, Storybook, fluxos contra o app)
+```
+
+Como as peças se encaixam e por quê:
+[`docs/architecture.md`](docs/architecture.md).
+
+## Início rápido
+
+Pré-requisitos: Node.js **22.18 ou superior** (o `.nvmrc` fixa a linha 22;
+rode `nvm use`) e Git.
+
+```sh
+npm ci
+cp .env.example .env      # preencha as três variáveis do Discord
+npm run db:migrate
+npm run db:seed           # campanha de exemplo + cookie de sessão
+npm run build
+npm run dev               # http://localhost:3000
+```
+
+Sem uma aplicação no Discord, o servidor não sobe. Para ver as telas sem
+fazer login de verdade, copie o valor impresso pelo `db:seed` para um cookie
+`qf_session` em `localhost`: você entra como mestre da campanha de exemplo.
+
+Os comandos rodam com o diretório de trabalho na raiz do repositório. O `.env`
+é carregado por `--env-file-if-exists`, e `DB_FILE`, `CLIENT_DIR` e
+`UPLOADS_DIR` são relativos à raiz, então migração, seed e servidor usam o
+mesmo banco.
+
+## Aplicação no Discord
 
 1. Acesse <https://discord.com/developers/applications> e crie uma aplicação.
 2. Em **OAuth2**, copie o **Client ID** e gere o **Client Secret**.
@@ -32,61 +86,30 @@ O servidor **não sobe** sem credenciais do Discord. Antes de qualquer coisa:
 Pedimos apenas o escopo `identify`: nome e avatar. Nada de e-mail, servidores
 ou mensagens.
 
-## Pré-requisitos
+## Modos de desenvolvimento
 
-- Node.js **22.18 ou superior** — o projeto executa TypeScript direto com
-  `node` e usa `--env-file-if-exists`; o Docker usa `node:22`. O `.nvmrc` fixa
-  a linha 22: rode `nvm use` antes de instalar as dependências.
-- Git.
-
-## Executar localmente
-
-```sh
-npm ci
-cp .env.example .env      # preencha as três variáveis do Discord
-npm run db:migrate
-npm run db:seed           # opcional: campanha de exemplo para ver as telas
-```
-
-Os comandos rodam com o diretório de trabalho na raiz do repositório, e o
-`.env` é carregado por `--env-file-if-exists`. Por isso `DB_FILE` e `CLIENT_DIR`
-são relativos à raiz, e migração, seed e servidor usam o mesmo arquivo.
-
-### Modo A — uma porta só (o mais próximo de produção)
+**Uma porta só**, o mais próximo de produção e o modo para testar o login de
+ponta a ponta:
 
 ```sh
 npm run build
 npm run dev               # SPA buildado + API em http://localhost:3000
 ```
 
-A Redirect URI é `http://localhost:3000/api/auth/discord/callback`. É o modo
-para testar o login do Discord de ponta a ponta.
-
-### Modo B — recarga a quente da interface
-
-Em dois terminais:
+**Recarga a quente da interface**, em dois terminais:
 
 ```sh
 npm run dev               # API na porta 3000
-npm run dev:client        # SPA na porta 5273, com proxy de /api para a 3000
+npm run dev:client        # SPA em http://localhost:5273, com proxy de /api
 ```
 
-Abra <http://localhost:5273>. Para o login funcionar neste modo, troque
-`DISCORD_REDIRECT_URI` para a porta 5273 e cadastre essa URI no Discord também.
+Para o login funcionar nesse modo, aponte `DISCORD_REDIRECT_URI` para a porta
+5273 e cadastre essa URI no Discord também. A porta é fixa (`strictPort`): se
+estiver ocupada, o Vite falha em vez de trocar de porta em silêncio e quebrar
+a Redirect URI.
 
-A porta 5273 é fixa (`strictPort`), e não a 5173 padrão do Vite: se estiver
-ocupada, ele falha em vez de mudar de porta em silêncio, o que quebraria a
-Redirect URI cadastrada.
-
-Para ver as telas sem passar pelo Discord, o seed cria uma campanha de exemplo
-e imprime um cookie de sessão válido:
-
-```sh
-npm run db:seed
-```
-
-Copie o valor impresso para um cookie `qf_session` no navegador, em
-`localhost`, e abra a aplicação já autenticado como mestre.
+**Storybook**, o catálogo de componentes: `npm run storybook`
+(<http://localhost:6006>).
 
 ## Variáveis de ambiente
 
@@ -117,23 +140,11 @@ docker run -d --name quest-fast \
   quest-fast
 ```
 
-As migrações são aplicadas na subida do container. O banco fica em `/dados`,
-num volume: **backup é copiar esse arquivo**.
+As migrações são aplicadas na subida do container. O banco e os uploads ficam
+em `/dados`, num volume: **backup é copiar esse diretório**.
 
-Coloque um proxy reverso com HTTPS à frente. Sem HTTPS, `COOKIE_SECURE=true`
-impede o login, e sem `Secure` o cookie de sessão trafega em claro.
-
-## Estrutura
-
-```
-client/   Vite + React + TS + TanStack Router + TanStack Query
-server/   Hono: rotas REST, auth, WebSocket, estáticos
-shared/   tipos e regras 5e puras, usadas pelos dois lados
-db/       Drizzle + SQLite, schema e migrações
-```
-
-O cliente **nunca** é fonte de verdade: rolagens, papéis e visibilidade são
-calculados e autorizados no servidor.
+Coloque um proxy reverso com HTTPS na frente. Sem HTTPS, `COOKIE_SECURE=true`
+impede o login; sem `Secure`, o cookie de sessão trafega em claro.
 
 ## Verificação
 
@@ -142,25 +153,34 @@ npm test              # unitários (shared) e integração (server)
 npm run typecheck     # shared, db e server
 npm run lint          # client, incluindo a regra que proíbe cor crua
 npm run build         # build do SPA
-npm run test:tokens   # regra que proíbe cor crua
+npm run test:tokens   # testes da regra que proíbe cor crua
 npm run test:design   # constrói o Storybook e audita com Playwright + axe
+npm run doctor        # React Doctor; o merge exige saúde 100
 npm run verify:app <cookie>  # fluxo real contra o app rodando
 npm run verify:group         # fluxos de grupo e WebSocket contra o app rodando
 ```
 
 Os `verify:` exigem `npm run build && npm run dev` em outro terminal e
-`npm run db:seed` antes; `verify:app` recebe como argumento o cookie de sessão
-impresso pelo seed. Fora do Windows, `test:design` e os `verify:` usam Chromium
-(`npx playwright install chromium`); no Windows, o Chrome instalado é usado
+`npm run db:seed` antes; `verify:app` recebe o cookie impresso pelo seed. Fora
+do Windows, `test:design` e os `verify:` usam Chromium
+(`npx playwright install chromium`); no Windows, usam o Chrome instalado
 quando existe.
 
-O catálogo de componentes abre com `npm run storybook`. As decisões de design
-estão em [`docs/design-system.md`](docs/design-system.md); as de produto e
-arquitetura, em `openspec/`.
+O CI roda testes, tipos, lint, tokens, build e React Doctor em todo PR; os
+dois checks são obrigatórios para o merge na `master`.
+
+## Documentação
+
+- [`docs/architecture.md`](docs/architecture.md): arquitetura, fluxos,
+  princípios e decisões.
+- [`docs/roadmap.md`](docs/roadmap.md): entregue, próximo e em aberto.
+- [`docs/design-system.md`](docs/design-system.md): tokens, temas e
+  componentes.
+- [`docs/README.md`](docs/README.md): índice completo, incluindo o histórico.
 
 ## Contribuindo
 
-O guia para pessoas é o [`CONTRIBUTING.md`](CONTRIBUTING.md): fluxo de branch
-e PR, uso do OpenSpec para mudanças de produto, Storybook primeiro no
-frontend e convenções de código. Agentes de IA seguem o
+Contribuições são bem-vindas. O [`CONTRIBUTING.md`](CONTRIBUTING.md) cobre
+setup, fluxo de branch e PR, Storybook primeiro no frontend, convenções de
+código e o uso (opcional) de agentes de IA, que leem o
 [`AGENTS.md`](AGENTS.md).

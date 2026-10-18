@@ -29,7 +29,7 @@
     "db:seed": "node --env-file-if-exists=.env db/src/seed.ts",
     "verify:app": "node scripts/verify-app.mjs",
     "verify:group": "node scripts/verify-group.mjs",
-    "doctor": "react-doctor --blocking none"
+    "doctor": "react-doctor --blocking warning"
   },
   "allowScripts": {
     "esbuild@0.28.2": true,

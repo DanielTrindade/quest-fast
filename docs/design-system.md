@@ -104,7 +104,7 @@ O aviso de chunk acima de 500 kB permanece. Nada aqui certifica OAuth real, Core
 
 ## Qualidade de vida da sessão (12 de setembro de 2026)
 
-Change OpenSpec `session-qol-foundations`. Componentes novos, todos com story em `client/src/stories/`:
+Registro: [`history/2026-09-10-session-qol-foundations.md`](history/2026-09-10-session-qol-foundations.md). Componentes novos, todos com story em `client/src/stories/`:
 
 - **`QuickDice`** preenche a expressão do rolador (não rola): pills d4 a d100 e "Repetir" mostrando a última expressão. A restrição de vantagem/desvantagem a um d20 continua no `DiceRoller`.
 - **`RollModeControl`** é o segmentado Normal/Vantagem/Desvantagem, compartilhado pelo rolador e pela ficha.
@@ -119,7 +119,7 @@ Validação: lint, typecheck e build aprovados; 36 testes de unidade (shared) e 
 
 ## Ficha oficial de D&D 2024 (13 de setembro de 2026)
 
-Change OpenSpec `official-character-sheet`. A ficha segue a organização da ficha oficial (exemplo real em `rpg_docs/Ficha_Hazin_Dan(Daniel).pdf`, reproduzido na fixture `stories/fixtures/characters.ts`).
+Registro: [`history/2026-09-13-official-character-sheet.md`](history/2026-09-13-official-character-sheet.md). A ficha segue a organização da ficha oficial (exemplo real em `rpg_docs/Ficha_Hazin_Dan(Daniel).pdf`, reproduzido na fixture `stories/fixtures/characters.ts`).
 
 - **Consulta em três abas** (`SheetTabs`, padrão WAI-ARIA: setas, Home e End; só a aba ativa entra no Tab): Personagem, Magias, Inventário e história. Identidade e combate ficam fora das abas, sempre visíveis.
 - **Abas quebram linha, não rolam de lado.** Uma aba cortada pela rolagem fica meio escondida para quem lê e deixa o contraste impossível de medir (o axe marcava "inconclusivo").

@@ -1,5 +1,5 @@
-# Processo único: o mesmo container serve SPA, API e (nas próximas fases) o
-# WebSocket. Sem orquestração, conforme a decisão 2 do design.
+# Processo único: o mesmo container serve SPA, API e WebSocket. Sem
+# orquestração (ver docs/architecture.md).
 
 FROM node:22-bookworm-slim AS build
 WORKDIR /app

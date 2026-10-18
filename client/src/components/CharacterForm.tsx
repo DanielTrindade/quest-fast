@@ -702,6 +702,9 @@ export function CharacterForm({ campaignId, character, onSaved, onRequestClose, 
   }, [rejectedSubmits]);
 
   const [avatarUrl, setAvatarUrl] = useState<string | null>(character?.avatarUrl ?? null);
+  // The upload only fills form state; no query lists assets, and the character
+  // cache is refreshed by `save` through `onSaved`.
+  // react-doctor-disable-next-line react-doctor/query-mutation-missing-invalidation
   const avatarUpload = useMutation({
     mutationFn: (file: File) => api.uploadAsset(campaignId, file),
     onSuccess: ({ asset }) => {

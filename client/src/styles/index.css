@@ -1,6 +1,6 @@
 /* ==========================================================================
    quest-fast - design tokens e base
-   Fonte da verdade: OpenSpec, capacidade design-foundation.
+   Decisões e garantias: docs/design-system.md.
 
    Regras globais:
    - Cor nunca crua em componente: use os tokens --color-* declarados abaixo.
