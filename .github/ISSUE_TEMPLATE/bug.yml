@@ -24,11 +24,6 @@ body:
     id: reproduzir
     attributes:
       label: Como reproduzir
-      placeholder: |
-        1. Entre como mestre na campanha de exemplo
-        2. Abra a ficha do personagem
-        3. Role um teste de perícia com desvantagem
-        4. ...
       value: |
         1.
         2.
