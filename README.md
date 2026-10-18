@@ -180,7 +180,32 @@ dois checks são obrigatórios para o merge na `master`.
 
 ## Contribuindo
 
-Contribuições são bem-vindas. O [`CONTRIBUTING.md`](CONTRIBUTING.md) cobre
-setup, fluxo de branch e PR, Storybook primeiro no frontend, convenções de
-código e o uso (opcional) de agentes de IA, que leem o
-[`AGENTS.md`](AGENTS.md).
+Issue é bem-vinda de qualquer pessoa: os
+[formulários](https://github.com/DanielTrindade/quest-fast/issues/new/choose)
+já aplicam a label certa e pedem o commit afetado e os passos de reprodução.
+
+Código entra só por colaborador convidado — um PR de quem não foi convidado é
+fechado automaticamente e a conversa continua na issue. O convite sai quando a
+issue mostra que vale a pena. Fork para manter a própria versão é livre.
+
+O [`CONTRIBUTING.md`](CONTRIBUTING.md) cobre setup, fluxo de branch e PR,
+Storybook primeiro no frontend, convenções de código e o uso (opcional) de
+agentes de IA, que leem o [`AGENTS.md`](AGENTS.md).
+
+## Segurança
+
+Falha de segurança não vai em issue pública: reporte pelo
+[canal privado](https://github.com/DanielTrindade/quest-fast/security/advisories/new).
+O escopo, as áreas sensíveis e os prazos estão no
+[`SECURITY.md`](SECURITY.md).
+
+## Licença
+
+[MIT](LICENSE): use, modifique e rode a sua própria mesa como quiser, mantendo
+o aviso de copyright.
+
+A licença cobre o código deste repositório. D&D e os nomes de produto da
+Wizards of the Coast são marcas dela; o projeto implementa as regras e não
+redistribui material de regra. Quando o compêndio SRD do
+[`docs/roadmap.md`](docs/roadmap.md) entrar, ele vem com a atribuição que a
+licença do SRD exigir.

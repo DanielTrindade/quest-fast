@@ -15,6 +15,10 @@ Guia para agentes de IA neste repositório. As regras são as mesmas do
   mesmo PR. Mudança que entrega ou muda o escopo de uma etapa atualiza
   [`docs/roadmap.md`](docs/roadmap.md).
 - `docs/history/` é registro histórico: consulte, não edite.
+- Só colaborador convidado abre PR: o repositório é público e aceita issue de
+  qualquer pessoa, mas um PR de fora é fechado automaticamente por
+  `.github/workflows/collaborator-prs.yml`. Sem convite, o caminho é a issue —
+  veja `CONTRIBUTING.md`.
 
 ## Regras do projeto
 

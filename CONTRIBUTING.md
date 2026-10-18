@@ -8,6 +8,32 @@ explica como as peças se encaixam e tem uma tabela de "onde mexer" para os
 tipos de mudança mais comuns. O que está em andamento e o que vem a seguir
 estão no [roadmap](docs/roadmap.md).
 
+## Quem pode contribuir
+
+O repositório é público e [MIT](LICENSE): qualquer pessoa pode ler o código,
+fazer fork e rodar a própria instância.
+
+| Caminho | Quem pode |
+| --- | --- |
+| Abrir issue | qualquer pessoa, pelos [formulários de issue](https://github.com/DanielTrindade/quest-fast/issues/new/choose) |
+| Reportar falha de segurança | qualquer pessoa, pelo [canal privado](SECURITY.md) |
+| Abrir PR | só colaborador convidado |
+| Fazer fork e manter a própria versão | qualquer pessoa |
+
+**Código entra só por colaborador convidado.** Um PR de quem não foi convidado
+é fechado automaticamente por
+[`.github/workflows/collaborator-prs.yml`](.github/workflows/collaborator-prs.yml),
+com uma mensagem explicando — não é recusa da ideia. O convite sai quando uma
+issue mostra que vale a pena, e a partir daí o fluxo é o normal deste guia.
+
+O motivo da regra é o tamanho do projeto: um mantenedor só, um banco, uma
+mesa. Revisar código de fora com o cuidado que este guia pede não escala, e
+issue bem descrita rende mais do que PR sem contexto — inclusive porque a
+implementação pode ser feita por quem já tem o ambiente montado.
+
+Falha de segurança não passa por issue pública: use o
+[`SECURITY.md`](SECURITY.md).
+
 ## Pré-requisitos
 
 - Node.js **22.18 ou superior** — o projeto executa TypeScript direto com
@@ -46,12 +72,17 @@ Detalhes que costumam quebrar o ambiente:
 
 ## Fluxo de trabalho
 
-1. Combine o que vai ser feito antes de escrever código (issue ou conversa).
+1. Combine o que vai ser feito antes de escrever código. Colaborador
+   convidado pode usar issue ou conversa; quem ainda não é colaborador
+   precisa da issue aceita antes, porque um PR sem convite é fechado.
 2. Crie um branch a partir da `master`, com nome curto: `feat/nome-curto`,
    `fix/nome-curto`, `docs/nome-curto` ou `chore/nome-curto`.
 3. Commits pequenos, cada um com uma mudança coerente.
 4. Rode a verificação mínima antes de abrir o PR.
-5. Abra o PR contra a `master` descrevendo o que muda e por quê.
+5. Abra o PR contra a `master`. O
+   [template do PR](.github/PULL_REQUEST_TEMPLATE.md) já pede o que muda, por
+   quê, o que ficou de fora e o checklist de verificação — preenchido, ele
+   evita que o revisor tenha de deduzir a intenção do diff.
 
 `master` é protegida: não aceita push direto nem force-push, e o merge só
 acontece por PR com os checks obrigatórios verdes (veja
@@ -63,9 +94,9 @@ Não há framework de planejamento obrigatório: escreva um plano, uma spec, fa�
 TDD ou vá direto ao código, como preferir. O que o projeto pede é que a
 decisão fique registrada onde as próximas pessoas vão procurar:
 
-- **Descrição do PR:** o que muda, por quê e o que ficou de fora. Para
-  mudanças grandes, abra uma issue ou um PR de rascunho antes para alinhar o
-  escopo.
+- **Descrição do PR:** o template pede o que muda, por quê e o que ficou de
+  fora. Para mudanças grandes, abra uma issue ou um PR de rascunho antes para
+  alinhar o escopo.
 - **[`docs/architecture.md`](docs/architecture.md):** atualize no mesmo PR
   se a mudança altera um princípio, uma decisão registrada ou a forma de uma
   peça (novo workspace, novo canal, nova dependência estrutural).

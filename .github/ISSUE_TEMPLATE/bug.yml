@@ -1,0 +1,87 @@
+name: Bug
+description: Algo não funciona ou se comporta diferente do esperado
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Obrigado pelo relato. Sem os passos de reprodução e o commit afetado,
+        o problema costuma ser irrecuperável — capriche nesses dois campos.
+
+        Falha de segurança **não** vai aqui: veja o
+        [SECURITY.md](https://github.com/DanielTrindade/quest-fast/blob/master/SECURITY.md).
+
+  - type: textarea
+    id: aconteceu
+    attributes:
+      label: O que aconteceu
+      description: O comportamento observado e o que você esperava no lugar.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduzir
+    attributes:
+      label: Como reproduzir
+      placeholder: |
+        1. Entre como mestre na campanha de exemplo
+        2. Abra a ficha do personagem
+        3. Role um teste de perícia com desvantagem
+        4. ...
+      value: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+
+  - type: input
+    id: commit
+    attributes:
+      label: Commit afetado
+      description: Saída de `git rev-parse --short HEAD`.
+      placeholder: e6fc360
+    validations:
+      required: true
+
+  - type: dropdown
+    id: execucao
+    attributes:
+      label: Como você está rodando
+      options:
+        - Docker
+        - "`npm run build && npm run dev` (uma porta)"
+        - "`npm run dev` + `npm run dev:client` (recarga a quente)"
+        - Outro (descrevo em contexto)
+    validations:
+      required: true
+
+  - type: input
+    id: ambiente
+    attributes:
+      label: Sistema e navegador
+      description: Onde o servidor roda e onde a interface abre.
+      placeholder: Windows 11, Chrome 141 / Debian 13, Firefox 146
+    validations:
+      required: false
+
+  - type: textarea
+    id: contexto
+    attributes:
+      label: Contexto adicional
+      description: |
+        Mensagens de erro, trecho do log do servidor, o que você já tentou.
+        Recorte o trecho em vez de colar o log inteiro.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: confirmacoes
+    attributes:
+      label: Confirmações
+      options:
+        - label: Removi segredo (`DISCORD_CLIENT_SECRET`), cookie de sessão e dado real da minha mesa dos trechos colados.
+          required: true
+        - label: Procurei nas issues abertas e fechadas e no `docs/roadmap.md`, e isto não é algo já registrado ou planejado.
+          required: true
