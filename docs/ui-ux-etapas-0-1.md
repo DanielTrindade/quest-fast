@@ -23,7 +23,7 @@ Leitura dos parâmetros atuais: DESIGN_VARIANCE 3, MOTION_INTENSITY 3, VISUAL_DE
 | 0 | Login Discord, listagem, criação e entrada por código; campanha, membros, convite copiável, saída e remoção; estados de espera, erro e vazio | OAuth real não exercitado nesta auditoria |
 | 1 | Listagem de personagens, criação/edição com avatar, leitura da ficha, atributos/perícias/resistências/ataques/características; rolagem livre, vantagem/desvantagem, segredo do mestre, rolagens pela ficha e feed via WebSocket | A existência do código não certifica conclusão da fase; há problemas de uso e integração abaixo |
 
-O checklist em `openspec/changes/mvp-campaign-management/tasks.md` ainda deixa 2.9 pendente e diz que a tela falta. Os componentes e `useCampaignSocket` já existem. Atualizar esse registro depois da validação de aceite. Combate, mundo e VTT pertencem a outras fases.
+O checklist do MVP (hoje em `history/2026-09-04-mvp-campaign-management.md`) ainda deixava 2.9 pendente e dizia que a tela faltava. Os componentes e `useCampaignSocket` já existem. Atualizar esse registro depois da validação de aceite. Combate, mundo e VTT pertencem a outras fases.
 
 O produto usa `AccountBar` no roteador. O `AppShell` e a campanha do Storybook não são a composição efetivamente usada nas rotas. Aprovação do laboratório não equivale à aprovação desses fluxos.
 

@@ -1,6 +1,6 @@
 /**
  * Server environment variables. The app does not start without the Discord
- * credentials: that is the operational prerequisite stated in the proposal.
+ * credentials: that is the documented self-host prerequisite.
  */
 export type Env = {
   port: number;

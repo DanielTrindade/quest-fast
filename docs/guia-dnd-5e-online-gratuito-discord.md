@@ -5,7 +5,7 @@
 > Revisado em: **setembro de 2026**
 >
 > **Nota histórica:** este estudo foi escrito antes do quest-fast. A direção
-> atual do produto vive em `openspec/`: a plataforma **é a mesa** e o Discord
+> atual do produto está em [`roadmap.md`](roadmap.md): a plataforma **é a mesa** e o Discord
 > fica apenas com voz e roleplay, sem integração além do login.
 
 ---
