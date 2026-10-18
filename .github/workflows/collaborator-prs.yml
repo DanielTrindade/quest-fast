@@ -1,0 +1,48 @@
+name: PRs de colaboradores
+
+# O repositório é público e aceita issues de qualquer pessoa, mas código só
+# entra por colaborador convidado — ver CONTRIBUTING.md. O GitHub não tem
+# configuração nativa para isso em repositório de usuário, então um PR de fora
+# é fechado automaticamente.
+
+on:
+  pull_request_target:
+    types: [opened, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  fechar:
+    name: Fecha PR de quem não é colaborador
+    runs-on: ubuntu-latest
+    # `pull_request_target` dá token de escrita também em PR de fork. O código
+    # do PR não é baixado nem executado em nenhum passo deste workflow.
+    if: ${{ !contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.pull_request.author_association) }}
+    steps:
+      - uses: actions/github-script@v9
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const number = context.payload.pull_request.number;
+            const autor = context.payload.pull_request.user.login;
+
+            await github.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number: number,
+              body: [
+                `Oi, @${autor}. Obrigado pelo interesse, mas o quest-fast só aceita código de colaborador convidado, então este PR está sendo fechado automaticamente.`,
+                '',
+                'O caminho para participar:',
+                '',
+                '1. Abra uma **issue** descrevendo o problema ou a melhoria — os formulários já aplicam a label certa.',
+                '2. Se a proposta for aceita, o convite de colaborador sai na própria issue.',
+                '',
+                'Fazer fork e manter a sua própria versão é livre e bem-vindo: o projeto é MIT.',
+                'A regra está em https://github.com/DanielTrindade/quest-fast/blob/master/CONTRIBUTING.md',
+              ].join('\n'),
+            });
+
+            await github.rest.pulls.update({ owner, repo, pull_number: number, state: 'closed' });

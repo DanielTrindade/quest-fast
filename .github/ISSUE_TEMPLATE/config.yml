@@ -1,0 +1,12 @@
+# Sem issues em branco: toda issue entra por um formulário, que já aplica a
+# label da área (bug, enhancement, question, documentation).
+blank_issues_enabled: false
+
+contact_links:
+  - name: Reportar uma falha de segurança
+    url: https://github.com/DanielTrindade/quest-fast/security/advisories/new
+    about: Falha de segurança vai pelo canal privado do GitHub, nunca em issue pública. Veja o SECURITY.md.
+
+  - name: Enviar código
+    url: https://github.com/DanielTrindade/quest-fast/blob/master/CONTRIBUTING.md
+    about: Este repositório só aceita PR de colaboradores convidados. Veja como funciona antes de escrever código.

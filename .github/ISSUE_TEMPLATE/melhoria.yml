@@ -1,0 +1,62 @@
+name: Melhoria ou funcionalidade
+description: Proposta de algo novo ou de mudança no que já existe
+title: "[melhoria] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Antes de escrever: o [`docs/roadmap.md`](https://github.com/DanielTrindade/quest-fast/blob/master/docs/roadmap.md)
+        lista o que está entregue, o que vem a seguir e o que está em aberto.
+        Se a sua ideia já está lá, comente na etapa em vez de abrir uma issue nova.
+
+  - type: textarea
+    id: problema
+    attributes:
+      label: Que problema isso resolve
+      description: Descreva a situação na mesa que incomoda hoje. Evite começar pela solução.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposta
+    attributes:
+      label: Proposta
+      description: O que você imagina, e como isso apareceria na interface ou na API.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Área
+      options:
+        - Ficha de personagem
+        - Dados e feed de rolagens
+        - Campanhas, convites e papéis
+        - Combate ou bestiário
+        - Mundo (NPCs, locais, quests, diários)
+        - Campo de batalha (VTT)
+        - Interface e design system
+        - Instalação, self-host ou Docker
+        - Outra
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternativas
+    attributes:
+      label: Alternativas consideradas
+      description: O que você já tentou ou descartou, e por quê.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: confirmacoes
+    attributes:
+      label: Confirmações
+      options:
+        - label: Li o `docs/roadmap.md` e isto não é uma etapa já planejada.
+          required: true
+        - label: Entendo que este repositório aceita código apenas de colaboradores convidados — a ideia pode ser implementada por outra pessoa.
+          required: true

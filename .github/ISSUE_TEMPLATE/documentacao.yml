@@ -1,0 +1,39 @@
+name: Documentação
+description: Algo no README, nos guias ou no Storybook está errado, faltando ou confuso
+title: "[docs] "
+labels: ["documentation"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Os documentos do projeto: [README](https://github.com/DanielTrindade/quest-fast/blob/master/README.md),
+        [CONTRIBUTING](https://github.com/DanielTrindade/quest-fast/blob/master/CONTRIBUTING.md),
+        [`docs/architecture.md`](https://github.com/DanielTrindade/quest-fast/blob/master/docs/architecture.md),
+        [`docs/roadmap.md`](https://github.com/DanielTrindade/quest-fast/blob/master/docs/roadmap.md),
+        [`docs/design-system.md`](https://github.com/DanielTrindade/quest-fast/blob/master/docs/design-system.md)
+        e o índice em [`docs/README.md`](https://github.com/DanielTrindade/quest-fast/blob/master/docs/README.md).
+
+  - type: input
+    id: onde
+    attributes:
+      label: Onde
+      description: Arquivo e, se der, a seção ou o título.
+      placeholder: README.md, seção "Como o login funciona"
+    validations:
+      required: true
+
+  - type: textarea
+    id: problema
+    attributes:
+      label: O que está errado ou faltando
+      description: Se for informação errada, diga qual é a correta e como você confirmou.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: confirmacoes
+    attributes:
+      label: Confirmações
+      options:
+        - label: Verifiquei na `master` que o texto ainda está assim.
+          required: true

@@ -1,0 +1,61 @@
+name: Dúvida de instalação ou uso
+description: Erro ao subir a própria instância, configurar o Discord ou operar a mesa
+title: "[dúvida] "
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        O [README](https://github.com/DanielTrindade/quest-fast/blob/master/README.md)
+        cobre pré-requisitos, aplicação no Discord, variáveis de ambiente e
+        Docker. Vale reler a seção correspondente antes de abrir a issue.
+
+  - type: dropdown
+    id: etapa
+    attributes:
+      label: Em que etapa você travou
+      options:
+        - Instalação de dependências (`npm ci`)
+        - Criação da aplicação no Discord ou Redirect URI
+        - Variáveis de ambiente (`.env`)
+        - Banco (`db:migrate` ou `db:seed`)
+        - Subir o servidor (`npm run dev` ou Docker)
+        - Login pelo Discord
+        - Uso da mesa durante a sessão
+        - Outra
+    validations:
+      required: true
+
+  - type: textarea
+    id: duvida
+    attributes:
+      label: A dúvida
+      description: O que você tentou, o que aconteceu e o que você esperava.
+    validations:
+      required: true
+
+  - type: input
+    id: commit
+    attributes:
+      label: Commit afetado
+      description: Saída de `git rev-parse --short HEAD`.
+      placeholder: e6fc360
+    validations:
+      required: true
+
+  - type: textarea
+    id: ambiente
+    attributes:
+      label: Ambiente
+      description: Sistema operacional, versão do Node (`node --version`) e se é Docker ou Node direto.
+      placeholder: Windows 11, Node 22.20.0, Docker
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: confirmacoes
+    attributes:
+      label: Confirmações
+      options:
+        - label: Removi `DISCORD_CLIENT_SECRET`, cookies de sessão e dados da minha mesa dos trechos colados.
+          required: true
