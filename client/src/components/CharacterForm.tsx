@@ -737,10 +737,12 @@ export type CharacterFormHandle = { requestClose: () => void };
  * stays with the consumer, which calls `requestClose` whenever Radix funnels a
  * close attempt (Escape, click outside, close button).
  */
-export function CharacterForm({ campaignId, character, onSaved, onRequestClose, ref, readSheet = readSheetPdf }: {
+export function CharacterForm({ campaignId, character, onSaved, onSaveError, onRequestClose, ref, readSheet = readSheetPdf }: {
   campaignId: string;
   character: CharacterSheet | null;
   onSaved: () => void;
+  /** Called with the user-facing message when the save request fails. */
+  onSaveError?: (message: string) => void;
   onRequestClose: () => void;
   ref?: Ref<CharacterFormHandle>;
   /** Reads an imported PDF; replaceable so stories can hold the read open. */
@@ -880,6 +882,7 @@ export function CharacterForm({ campaignId, character, onSaved, onRequestClose, 
       onSaved();
       onRequestClose();
     },
+    onError: (error) => onSaveError?.(errorMessage(error)),
   });
 
   const submit = () => {
