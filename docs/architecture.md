@@ -64,8 +64,12 @@ parameter properties. Os imports levam a extensão `.ts`.
 - `modifiers.ts`, `sheet.ts`: modificadores, proficiência, perícias com
   especialização, iniciativa, percepção passiva, CD e ataque mágico, dano e
   cura.
-- `validation.ts`: validação da ficha, usada pelo formulário (feedback por
-  campo) e pelo servidor (o que vale).
+- `combat.ts`: regras do combate — as 15 condições (com exaustão e duração),
+  ordem de iniciativa, avanço e recuo de turno, faixa de saúde, CD de
+  concentração, teste contra a morte, numeração de cópias e limites do
+  statblock.
+- `validation.ts`: validação da ficha e do statblock, usada pelo formulário
+  (feedback por campo) e pelo servidor (o que vale).
 - `invite.ts`, `role.ts`: código de convite e papéis (`master`, `player`).
 
 Tudo aqui é função pura, com teste unitário ao lado (`*.test.ts`, rodando no
@@ -74,7 +78,8 @@ Tudo aqui é função pura, com teste unitário ao lado (`*.test.ts`, rodando no
 ### `db/` — persistência
 
 - `src/schema.ts`: tabelas `users`, `sessions`, `campaigns`,
-  `campaign_members`, `assets`, `characters` e `session_events`. Partes
+  `campaign_members`, `assets`, `characters`, `session_events` e, do
+  combate, `statblocks`, `encounters` e `combatants`. Partes
   extensas da ficha (perícias, ataques, magias, inventário) e o `payload` dos
   eventos são colunas JSON.
 - `migrations/`: SQL gerado pelo `drizzle-kit`. Mudou o schema: rode
@@ -100,10 +105,12 @@ src/
   auth/           OAuth do Discord e sessão em cookie
   campaigns/      campanhas, convite e membros
   characters/     ficha, estado de sessão e rolagens pela ficha
+  statblocks/     bestiário da campanha (só o mestre)
   dice/           rolagem livre
   feed/           leitura paginada do feed
   assets/         upload de imagens (store em disco ou em memória)
   events/         EventHub, persistência do feed e WebSocket
+  validation.ts   parsers de entrada compartilhados (InputError, ataques)
   testing.ts      helpers dos testes de integração
 ```
 
@@ -118,6 +125,7 @@ montado em `app.ts`:
 | `/api/campaigns/:campaignId/assets` | `assets/` |
 | `/api/campaigns/:campaignId/rolls` | `dice/` |
 | `/api/campaigns/:campaignId/feed` | `feed/` |
+| `/api/campaigns/:campaignId/statblocks` | `statblocks/` |
 | `/api/campaigns/:campaignId/ws` | `events/ws.ts` (upgrade) |
 
 As dependências chegam por injeção (`createApp(deps)`), não por import de
@@ -230,6 +238,9 @@ O raciocínio completo, com alternativas descartadas, está em
 | Tabela `Asset` desde o MVP | Avatares hoje, mapas grandes no VTT | [MVP, decisão 11](history/2026-09-04-mvp-campaign-management.md) |
 | `SessionEvent` como união discriminada, com fallback | Combate e VTT adicionam tipos sem quebrar o cliente | [session-qol](history/2026-09-10-session-qol-foundations.md) |
 | Ficha oficial 2024, sem motor de regras | Valores derivados com ajuste manual; sem calcular CA por armadura | [ficha oficial](history/2026-09-13-official-character-sheet.md) |
+| PV, condições e concentração do personagem só na ficha | O combatente que vem de um personagem lê e grava a ficha; nunca há dois PV divergentes | [combate](history/2026-10-22-combat-and-bestiary.md) |
+| Combate projetado por papel no servidor | O jogador nunca recebe PV de monstro, combatente escondido nem encontro em preparação, nem no REST nem no socket | [combate](history/2026-10-22-combat-and-bestiary.md) |
+| Combatente com id estável, turno por identidade | O token do VTT vai se ancorar no combatente; adicionar ou remover alguém não move o turno | [combate](history/2026-10-22-combat-and-bestiary.md) |
 | Tokens próprios + Storybook como fonte da interface | Consistência e auditoria automática de a11y/overflow | [design system](history/2026-09-04-design-system-foundation.md) |
 
 Decisão nova que mude um desses pontos, ou um dos princípios acima, deve ser

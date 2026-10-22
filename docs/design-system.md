@@ -133,3 +133,15 @@ Registro: [`history/2026-09-13-official-character-sheet.md`](history/2026-09-13-
 - **Editor em cinco abas** na ordem da ficha. A barra de abas fica presa ao topo do diálogo; num envio recusado, a primeira aba com erro abre, é marcada "(contém erro)" e o foco vai ao primeiro campo inválido. O grid do editor e da ficha tem coluna `minmax(0, 1fr)`, para a barra de abas nunca alargar o diálogo.
 
 Validação: typecheck, lint e build aprovados; 53 testes de unidade (shared) e 126 de integração (server), incluindo ficha oficial, estado só do dono (RBAC), limites do estado, migração que preserva fichas antigas, iniciativa, ataque mágico e especialização. Storybook com **154** verificações: na rodada completa, 146 passaram e as oito falhas foram corrigidas (sete stories do editor com contraste inconclusivo por abas cortadas, resolvidas com a quebra de linha das abas) ou eram timeouts de carga; todas foram reauditadas e passam. `verify:app` e `verify:group` não foram executados (exigem o app rodando com seed); o `verify-group` já usa o rótulo "Espécie".
+
+## Bestiário (22 de outubro de 2026)
+
+Registro: [`history/2026-10-22-combat-and-bestiary.md`](history/2026-10-22-combat-and-bestiary.md). Sem token novo; tudo dentro do acabamento da ficha.
+
+- **`StatblockCard`** segue a ordem do bloco de estatísticas de 2024: nome, tamanho/tipo e ND; a **faixa de defesa** (CA, PV com fórmula, iniciativa com o valor passivo entre parênteses, deslocamento) em números mono grandes separados por réguas, que é a peça de destaque; os seis atributos com modificador; traços, ações (ataques em `AttackCard`) e reações. Seção vazia não aparece. Em contêiner estreito (container query, 360 px) os atributos passam a 3 colunas e os números da faixa diminuem.
+- **`StatblockForm`** é presentacional: valida com `validateStatblockInput`, leva o foco ao primeiro campo inválido e entrega um `StatblockInput` a `onSubmit`; salvar fica com a tela. Mesmo guarda de descarte da ficha.
+- **`BestiaryList`**: busca que ignora acento e maiúsculas, linha inteira clicável (alvo ≥ 44 px) com ND, CA e PV alinhados à direita, estado vazio que convida a cadastrar a primeira criatura.
+- **Compartilhados com a ficha:** `AttackListEditor` (com `lib/form-attacks.ts`), `FormFooter` (Cancelar/Salvar e o descarte em dois passos), `SelectField` e `AbilityInput`. A ficha não mudou de comportamento.
+- Texto para leitor de tela em números ("passiva", "modificador") usa `sr-only`, não `aria-label` em `<span>`, que o axe marca como inconclusivo.
+
+Validação: `test:design` 172/172 (17 stories novas); React Doctor 100/100. Nesta máquina, sem Chrome nem o Chromium do Playwright, a auditoria rodou com `PLAYWRIGHT_CHANNEL=msedge`.
