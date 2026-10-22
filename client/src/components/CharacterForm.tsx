@@ -25,6 +25,7 @@ import {
   type HitDie,
   type ImportedSheet,
   type ProficiencyLevel,
+  type SheetImportResult,
   type Size,
   type Skill,
 } from '@quest-fast/shared';
@@ -35,7 +36,7 @@ import { ProficiencyToggle } from './ProficiencyToggle';
 import { SheetImport, type SheetImportStatus } from './SheetImport';
 import { SheetTabPanel, SheetTabs } from './SheetTabs';
 import { ApiError, api } from '../lib/api';
-import { readSheetPdf } from '../lib/sheet-pdf';
+import { UnreadableSheetError, readSheetPdf } from '../lib/sheet-pdf';
 import { ABILITY_LABELS, SKILL_LABELS, signed } from '../lib/5e';
 import { ARMOR_TRAINING_LABELS, COIN_LABELS, SIZE_LABELS, circleLabel, signedBonus } from '../lib/sheet-labels';
 
@@ -288,6 +289,7 @@ function IdentityPanel({
   onAvatarPick,
   onAvatarRemove,
   importer,
+  locked,
 }: PanelProps & {
   avatarUrl: string | null;
   uploadError: string | null;
@@ -295,6 +297,8 @@ function IdentityPanel({
   onAvatarRemove: () => void;
   /** Only offered while creating: importing over a saved sheet would replace it. */
   importer?: ReactNode;
+  /** While a PDF is read, the fields it will replace stay closed; the avatar does not come from it. */
+  locked: boolean;
 }) {
   return (
     <SheetTabPanel idPrefix={idPrefix} id="identity" active={active}>
@@ -327,6 +331,7 @@ function IdentityPanel({
         </div>
       </div>
 
+      <fieldset className="sheet-form__lock" disabled={locked}>
       <fieldset className="sheet-form__fieldset">
         <legend>Identidade</legend>
         <div className="sheet-form__grid">
@@ -373,6 +378,7 @@ function IdentityPanel({
             onChange={(e) => { set('passivePerceptionBonus', e.target.value); clearError('passivePerceptionBonus'); }} />
         </div>
         <Check label="Usa escudo" checked={state.shield} onChange={(checked) => set('shield', checked)} />
+      </fieldset>
       </fieldset>
     </SheetTabPanel>
   );
@@ -687,12 +693,14 @@ export type CharacterFormHandle = { requestClose: () => void };
  * stays with the consumer, which calls `requestClose` whenever Radix funnels a
  * close attempt (Escape, click outside, close button).
  */
-export function CharacterForm({ campaignId, character, onSaved, onRequestClose, ref }: {
+export function CharacterForm({ campaignId, character, onSaved, onRequestClose, ref, readSheet = readSheetPdf }: {
   campaignId: string;
   character: CharacterSheet | null;
   onSaved: () => void;
   onRequestClose: () => void;
   ref?: Ref<CharacterFormHandle>;
+  /** Reads an imported PDF; replaceable so stories can hold the read open. */
+  readSheet?: (file: File) => Promise<SheetImportResult | null>;
 }) {
   const [state, setState] = useState(() => freshState(character));
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
@@ -735,21 +743,30 @@ export function CharacterForm({ campaignId, character, onSaved, onRequestClose, 
     },
   });
 
+  // While a PDF is read the fields it replaces and the submit stay closed: a
+  // save would send the old values and an edit would be overwritten.
   const [importStatus, setImportStatus] = useState<SheetImportStatus>({ kind: 'idle' });
+  const importing = importStatus.kind === 'reading';
   const importPdf = async (file: File) => {
     setImportStatus({ kind: 'reading' });
     try {
-      const result = await readSheetPdf(file);
+      const result = await readSheet(file);
       if (!result) {
         setImportStatus({ kind: 'error', message: 'Este PDF não é a ficha oficial de D&D 2024 em português.' });
         return;
       }
       // The avatar is not on the sheet, so one already sent stays.
       setState((current) => ({ ...freshState(draftFromImport(result.input)), avatarAssetId: current.avatarAssetId }));
-      setErrors({});
+      // What the platform would refuse is marked now, not only on submit.
+      setErrors(validateCharacterInput(result.input));
       setImportStatus({ kind: 'done', fileName: file.name, warnings: result.warnings });
-    } catch {
-      setImportStatus({ kind: 'error', message: 'Não foi possível ler este arquivo como PDF.' });
+    } catch (error) {
+      setImportStatus({
+        kind: 'error',
+        message: error instanceof UnreadableSheetError
+          ? 'Não foi possível ler nenhum campo desta ficha.'
+          : 'Não foi possível ler este arquivo como PDF.',
+      });
     }
   };
 
@@ -823,6 +840,8 @@ export function CharacterForm({ campaignId, character, onSaved, onRequestClose, 
   });
 
   const submit = () => {
+    // Guarded here and not only on the button: Enter in a field submits too.
+    if (importing) return;
     const fieldErrors = validateCharacterInput(buildInput());
     const keys = (Object.keys(fieldErrors) as Array<keyof CharacterFieldErrors>).filter((key) => fieldErrors[key]);
     if (keys.length > 0) {
@@ -883,15 +902,18 @@ export function CharacterForm({ campaignId, character, onSaved, onRequestClose, 
           setAvatarUrl(null);
         }}
         importer={character ? undefined : <SheetImport status={importStatus} onPick={(file) => void importPdf(file)} />}
+        locked={importing}
       />
 
-      <AbilitiesPanel {...panelProps} active={tab} rules={previewRules} />
+      <fieldset className="sheet-form__lock" disabled={importing}>
+        <AbilitiesPanel {...panelProps} active={tab} rules={previewRules} />
 
-      <AttacksPanel {...panelProps} active={tab} />
+        <AttacksPanel {...panelProps} active={tab} />
 
-      <SpellsPanel {...panelProps} active={tab} />
+        <SpellsPanel {...panelProps} active={tab} />
 
-      <InventoryPanel {...panelProps} active={tab} />
+        <InventoryPanel {...panelProps} active={tab} />
+      </fieldset>
 
       {/* Pinned to the bottom of the dialog: on a phone the save action has
           to stay reachable while the form scrolls under the keyboard. */}
@@ -919,10 +941,11 @@ export function CharacterForm({ campaignId, character, onSaved, onRequestClose, 
           </div>
         ) : (
           <div className="qf-dialog__actions">
+            {importing && <p className="sheet-form__importing">Importando ficha…</p>}
             <Button variant="secondary" type="button" onClick={requestClose}>
               Cancelar
             </Button>
-            <Button type="submit" loading={save.isPending || avatarUpload.isPending}>
+            <Button type="submit" disabled={importing} loading={save.isPending || avatarUpload.isPending}>
               {character ? 'Salvar alterações' : 'Criar personagem'}
             </Button>
           </div>

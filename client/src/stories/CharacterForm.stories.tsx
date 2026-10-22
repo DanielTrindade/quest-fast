@@ -2,9 +2,35 @@ import type { CSSProperties, ComponentProps } from 'react';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fn, expect, userEvent, within } from 'storybook/test';
+import { sheetFromOfficialPdf } from '@quest-fast/shared';
 import { CharacterForm } from '../components/CharacterForm';
 import { hazinDan, lyraVentoclaro } from './fixtures/characters';
 import '../styles/campaign.css';
+
+const pdf = new File(['%PDF-1.7'], 'Ficha_Hazin_Dan.pdf', { type: 'application/pdf' });
+
+// The official sheet's fields, through the real parser: the spell name could
+// not be read and the initiative needs an adjustment beyond the app's bounds.
+const NUMBER = 'Números Centralizados HV';
+const partialImport = sheetFromOfficialPdf(
+  {
+    'Esquerda Centro Single 12': 'Hazin Dan',
+    'Esquerda Centro Single 12_3': 'Bárbaro',
+    'Esquerda Centro Single 12_5': 'Humano',
+    [`${NUMBER} 8 Single_2`]: '4',
+    [`${NUMBER} 8 Single_4`]: '17',
+    [`${NUMBER} 8 Single_15`]: '20',
+    [`${NUMBER} 8 Single_13`]: '14',
+    [`${NUMBER} 8 Single_11`]: '19',
+    [`${NUMBER} 8 Single_5`]: '9',
+    [`${NUMBER} 8 Single_7`]: '12',
+    [`${NUMBER} 8 Single_9`]: '10',
+    [`${NUMBER} 12 Single_2`]: '+14',
+    'Esquerda baixo 12_5': '55',
+    ...Object.fromEntries(['Text1', 'Text10', 'Text11', 'Text12', 'Text13', 'Text14', 'Text15', 'Text16', 'Text17'].map((name) => [name, ''])),
+  },
+  ['Magias Esq'],
+);
 
 const frameStyle: CSSProperties = {
   maxWidth: 760,
@@ -135,6 +161,48 @@ export const Ataques: Story = {
 
       // Typing scrolled the frame; content left under the sticky footer makes
       // the contrast audit inconclusive, so the story ends where it started.
+      region.querySelector('.qf-page')?.scrollTo(0, 0);
+    }
+  },
+};
+
+export const ImportandoFicha: Story = {
+  name: 'Importando ficha',
+  // A read that never ends holds the form in the reading state.
+  args: { readSheet: () => new Promise(() => {}) },
+  play: async ({ canvasElement }) => {
+    for (const region of within(canvasElement).getAllByRole('region', { name: /^Tema / })) {
+      const canvas = within(region);
+      await userEvent.upload(canvas.getByLabelText('Importar PDF'), pdf);
+      await expect(canvas.getByLabelText(/Nome do personagem/)).toBeDisabled();
+      await expect(canvas.getByRole('button', { name: 'Criar personagem' })).toBeDisabled();
+      await expect(canvas.getAllByText('Importando ficha…')).toHaveLength(2);
+      // The avatar does not come from the PDF, and leaving stays possible.
+      await expect(canvas.getByLabelText('Enviar avatar')).toBeEnabled();
+      await expect(canvas.getByRole('button', { name: 'Cancelar' })).toBeEnabled();
+
+      // The submit handler is guarded too: an empty form submitted now would
+      // otherwise show the required-field errors.
+      region.querySelector('form')?.requestSubmit();
+      await expect(canvas.queryByText('Informe o nome do personagem.')).toBeNull();
+    }
+  },
+};
+
+export const ImportacaoParcial: Story = {
+  name: 'Importação com pontos para revisar',
+  args: { readSheet: async () => partialImport },
+  play: async ({ canvasElement }) => {
+    for (const region of within(canvasElement).getAllByRole('region', { name: /^Tema / })) {
+      const canvas = within(region);
+      await userEvent.upload(canvas.getByLabelText('Importar PDF'), pdf);
+      await expect(await canvas.findByText(/Ficha importada com pontos para revisar/)).toBeVisible();
+      await expect(canvas.getByLabelText(/Nome do personagem/)).toHaveValue('Hazin Dan');
+      await expect(canvas.getByRole('list', { name: 'Pontos para revisar' }).children).toHaveLength(2);
+      // The adjustment is kept as written and marked before any submit.
+      await expect(canvas.getByLabelText('Ajuste de iniciativa')).toHaveValue(12);
+      await expect(canvas.getByLabelText('Ajuste de iniciativa')).toHaveAttribute('aria-invalid', 'true');
+
       region.querySelector('.qf-page')?.scrollTo(0, 0);
     }
   },

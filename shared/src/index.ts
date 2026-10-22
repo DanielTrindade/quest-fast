@@ -69,10 +69,12 @@ export {
   type SpellSlot,
 } from './sheet.ts';
 export {
+  collectPdfFields,
   normalizePdfFieldName,
   sheetFromOfficialPdf,
   type ImportedSheet,
   type PdfFieldValues,
+  type PdfFormField,
   type SheetImportResult,
 } from './sheet-import.ts';
 export type {

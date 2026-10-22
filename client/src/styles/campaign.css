@@ -306,8 +306,13 @@
 .sheet-import .qf-file-button[aria-disabled] { opacity: 0.6; cursor: progress; }
 .sheet-import__status:empty { display: none; }
 .sheet-import__status { display: grid; gap: var(--spacing-2); }
-.sheet-import__done { display: flex; align-items: flex-start; gap: var(--spacing-2); margin: 0; color: var(--color-success-text); font-size: var(--text-small); line-height: var(--text-small--line-height); }
-.sheet-import__done svg, .sheet-import__warnings svg { flex: none; margin-top: 1px; }
+.sheet-import__done, .sheet-import__partial { display: flex; align-items: flex-start; gap: var(--spacing-2); margin: 0; font-size: var(--text-small); line-height: var(--text-small--line-height); }
+.sheet-import__done { color: var(--color-success-text); }
+.sheet-import__partial { color: var(--color-accent-text); font-weight: 600; }
+.sheet-import__done svg, .sheet-import__partial svg, .sheet-import__warnings svg { flex: none; margin-top: 1px; }
+/* Groups the fields an import replaces, to close them while the PDF is read; no box of its own. */
+.sheet-form__lock { display: contents; }
+.sheet-form__importing { margin: 0 auto 0 0; align-self: center; color: var(--color-text-secondary); font-size: var(--text-small); }
 .sheet-import__warnings { display: grid; gap: var(--spacing-1); margin: 0; padding: 0; list-style: none; color: var(--color-text-secondary); font-size: var(--text-small); line-height: var(--text-small--line-height); }
 .sheet-import__warnings li { display: flex; align-items: flex-start; gap: var(--spacing-2); overflow-wrap: anywhere; }
 .sheet-import__error { margin: 0; color: var(--color-danger-text); font-size: var(--text-small); }

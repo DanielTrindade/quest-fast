@@ -40,13 +40,23 @@ export function SheetImport({ status, onPick }: { status: SheetImportStatus; onP
       </label>
 
       <div className="sheet-import__status" aria-live="polite">
-        {status.kind === 'reading' && <p className="sheet-import__hint">Lendo a ficha…</p>}
+        {status.kind === 'reading' && <p className="sheet-import__hint">Importando ficha…</p>}
+        {/* Complete and partial imports read differently: a partial one must
+            not look done. Nothing is created yet in either case. */}
         {status.kind === 'done' && (
           <>
-            <p className="sheet-import__done">
-              <CheckCircle size={18} weight="fill" aria-hidden="true" />
-              Campos preenchidos com {status.fileName}. Confira cada seção antes de criar.
-            </p>
+            {status.warnings.length === 0 ? (
+              <p className="sheet-import__done">
+                <CheckCircle size={18} weight="fill" aria-hidden="true" />
+                Ficha importada. Revise os dados antes de criar.
+              </p>
+            ) : (
+              <p className="sheet-import__partial">
+                <Warning size={18} weight="fill" aria-hidden="true" />
+                Ficha importada com pontos para revisar. Confira os itens abaixo antes de criar.
+              </p>
+            )}
+            <p className="sheet-import__hint">Arquivo: {status.fileName}</p>
             {status.warnings.length > 0 && (
               <ul className="sheet-import__warnings" aria-label="Pontos para revisar">
                 {status.warnings.map((warning) => (

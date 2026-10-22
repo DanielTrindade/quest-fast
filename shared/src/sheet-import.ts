@@ -319,16 +319,71 @@ const DAMAGE = /^\s*(\d+\s*[dD]\s*\d+(?:\s*[+-]\s*\d+)?)\s*[,;:\-–]?\s*(.*)$/;
 // Players often write a cantrip as "Truque: Raio de Fogo" instead of circle 0.
 const CANTRIP_PREFIX = /^truque\b\s*:?\s*/i;
 
+/** A form field as the PDF reader exposes it; `read` is undefined for kinds the sheet does not use. */
+export type PdfFormField = { name: string; read: () => string | boolean | undefined };
+
+/**
+ * Reads every field, carrying on past the ones whose reading throws: those
+ * are listed in `unreadable` so the import can say what to review instead of
+ * looking complete.
+ */
+export function collectPdfFields(form: Iterable<PdfFormField>): { values: PdfFieldValues; unreadable: string[] } {
+  const values: PdfFieldValues = {};
+  const unreadable: string[] = [];
+  for (const field of form) {
+    try {
+      const value = field.read();
+      if (value !== undefined) values[field.name] = value;
+    } catch {
+      unreadable.push(field.name);
+    }
+  }
+  return { values, unreadable };
+}
+
+function signed(value: number): string {
+  return value >= 0 ? `+${value}` : `${value}`;
+}
+
+/** The editor tab each imported field lands in, to say where to review. */
+const FIELD_SECTIONS = new Map<string, string>();
+function assignSection(section: string, refs: Iterable<FieldRef>) {
+  for (const ref of refs) for (const name of typeof ref === 'string' ? [ref] : ref) FIELD_SECTIONS.set(name, section);
+}
+assignSection('Identidade e combate', [
+  FIELDS.name, FIELDS.background, FIELDS.class, FIELDS.subclass, FIELDS.species, FIELDS.alignment,
+  FIELDS.level, FIELDS.experience, FIELDS.ac, FIELDS.shield, FIELDS.hpCurrent, FIELDS.hpMax, FIELDS.hitDice,
+  FIELDS.initiative, FIELDS.speed, FIELDS.size, FIELDS.passivePerception,
+]);
+assignSection('Atributos e perícias', [
+  ...Object.values(SCORE_FIELDS),
+  ...[...Object.values(SAVE_FIELDS), ...Object.values(SKILL_FIELDS)].flatMap(({ check, bonus }) => [check, bonus]),
+  ...Object.values(ARMOR_FIELDS), FIELDS.weapons, FIELDS.tools,
+]);
+assignSection('Ataques e características', [
+  ...ATTACK_ROWS.flatMap((row) => Object.values(row)),
+  FIELDS.classFeatures, FIELDS.speciesTraits, FIELDS.feats,
+]);
+assignSection('Magias', [
+  FIELDS.spellcastingAbility, FIELDS.spellAttack, ...SLOT_TOTAL_FIELDS, ...SPELL_ROWS.flatMap((row) => Object.values(row)),
+]);
+assignSection('Inventário e história', [
+  FIELDS.appearance, FIELDS.description, FIELDS.languages, FIELDS.equipment, FIELDS.attuned, ...Object.values(COIN_FIELDS),
+]);
+
 /**
  * Returns `null` when the fields are not those of the official Portuguese
  * sheet, so the caller can say the file is not supported instead of filling
- * the editor with defaults.
+ * the editor with defaults. `unreadable` names fields the PDF has but the
+ * reader could not extract: they count as present, read as empty, and the
+ * sections they belong to are named in a warning.
  */
-export function sheetFromOfficialPdf(raw: PdfFieldValues): SheetImportResult | null {
+export function sheetFromOfficialPdf(raw: PdfFieldValues, unreadable: readonly string[] = []): SheetImportResult | null {
   const fields = new Map(Object.entries(raw).map(([name, value]) => [normalizePdfFieldName(name), value]));
+  const failed = new Set(unreadable.map(normalizePdfFieldName));
 
   const known = [FIELDS.name, FIELDS.level, FIELDS.ac, ...Object.values(SCORE_FIELDS), ...SLOT_TOTAL_FIELDS];
-  if (known.filter((name) => fields.has(name)).length < known.length - 2) return null;
+  if (known.filter((name) => fields.has(name) || failed.has(name)).length < known.length - 2) return null;
 
   const text = (ref: FieldRef): string => {
     for (const name of typeof ref === 'string' ? [ref] : ref) {
@@ -339,6 +394,10 @@ export function sheetFromOfficialPdf(raw: PdfFieldValues): SheetImportResult | n
   };
   const checked = (name: string) => fields.get(name) === true;
   const warnings: string[] = [];
+  const failedSections = new Set([...failed].flatMap((name) => FIELD_SECTIONS.get(name) ?? []));
+  if (failedSections.size > 0) {
+    warnings.push(`Alguns campos do PDF não puderam ser lidos e ficaram em branco. Revise: ${[...failedSections].join(', ')}.`);
+  }
   const cutItems: string[] = [];
   const list = (ref: FieldRef) => splitList(text(ref), (item) => cutItems.push(item));
 
@@ -366,11 +425,19 @@ export function sheetFromOfficialPdf(raw: PdfFieldValues): SheetImportResult | n
   const saves = ABILITIES.filter((ability) => checked(SAVE_FIELDS[ability].check));
 
   // The sheet writes the totals; the platform stores only the adjustment on
-  // top of what it derives, and drops one that does not fit its bounds.
-  const adjustment = (written: number | undefined, derived: number) => {
+  // top of what it derives. One outside the app's bounds is kept as written,
+  // so the editor flags it for review instead of silently dropping it.
+  const adjustment = (label: string, written: number | undefined, derived: number) => {
     if (written === undefined) return 0;
     const value = written - derived;
-    return value >= -10 && value <= 10 ? value : 0;
+    const { min, max } = CHARACTER_LIMITS.adjustment;
+    if (value < min || value > max) {
+      warnings.push(
+        `${label} ${signed(written)} na ficha dá um ajuste de ${signed(value)}, fora do limite do aplicativo ` +
+          `(${min} a ${signed(max)}). Revise antes de criar.`,
+      );
+    }
+    return value;
   };
 
   const sizeText = text(FIELDS.size);
@@ -438,6 +505,19 @@ export function sheetFromOfficialPdf(raw: PdfFieldValues): SheetImportResult | n
     warnings.push(`Sem círculo na ficha, ficaram no 1º: ${guessedCircle.join(', ')}.`);
   }
 
+  // Kept as written even above the boxes of the sheet: the right total
+  // depends on the class (Pact Magic, multiclassing), so the player decides.
+  const spellSlotTotals = SPELL_SLOT_CAPS.map((cap, circle) => {
+    const total = parseInteger(text(SLOT_TOTAL_FIELDS[circle]!)) ?? 0;
+    if (total < 0 || total > cap) {
+      warnings.push(
+        `Espaços do ${circle + 1}º círculo: ${total} na ficha, fora do limite do aplicativo (0 a ${cap}). ` +
+          'Revise antes de criar.',
+      );
+    }
+    return total;
+  });
+
   const coins = emptyCoins();
   for (const coin of COINS) coins[coin] = parseCount(text(COIN_FIELDS[coin])) ?? 0;
 
@@ -467,8 +547,9 @@ export function sheetFromOfficialPdf(raw: PdfFieldValues): SheetImportResult | n
       shield: checked(FIELDS.shield),
       speed: parseSpeed(text(FIELDS.speed)) ?? 9,
       hitDie,
-      initiativeBonus: adjustment(parseInteger(text(FIELDS.initiative)), modifier('dexterity')),
+      initiativeBonus: adjustment('Iniciativa', parseInteger(text(FIELDS.initiative)), modifier('dexterity')),
       passivePerceptionBonus: adjustment(
+        'Percepção passiva',
         parseInteger(text(FIELDS.passivePerception)),
         10 + skillBonus(sheet, 'perception'),
       ),
@@ -484,11 +565,9 @@ export function sheetFromOfficialPdf(raw: PdfFieldValues): SheetImportResult | n
       feats,
       spellcastingAbility,
       spellBonus: spellcastingAbility
-        ? adjustment(parseInteger(text(FIELDS.spellAttack)), proficiency + modifier(spellcastingAbility))
+        ? adjustment('Ataque mágico', parseInteger(text(FIELDS.spellAttack)), proficiency + modifier(spellcastingAbility))
         : 0,
-      spellSlotTotals: SPELL_SLOT_CAPS.map((cap, circle) =>
-        Math.min(cap, Math.max(0, parseInteger(text(SLOT_TOTAL_FIELDS[circle]!)) ?? 0)),
-      ),
+      spellSlotTotals,
       spells,
       appearance: text(FIELDS.appearance),
       description: text(FIELDS.description),

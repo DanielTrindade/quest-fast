@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { normalizePdfFieldName, sheetFromOfficialPdf, type PdfFieldValues } from './sheet-import.ts';
+import { collectPdfFields, normalizePdfFieldName, sheetFromOfficialPdf, type PdfFieldValues } from './sheet-import.ts';
 import { validateCharacterInput } from './validation.ts';
 
 // Field names as the PDF stores them, non-ASCII bytes escaped as `#xx`.
@@ -132,6 +132,60 @@ test('written totals become adjustments over the derived values', () => {
   assert.equal(input.spellBonus, 1);
 });
 
+test('an adjustment beyond the app bounds is kept and flagged, not zeroed', () => {
+  const { input, warnings } = sheetFromOfficialPdf(sheet({
+    [`${NUMBER} 8 Single_13`]: '14',
+    [`${NUMBER} 12 Single_2`]: '+14',
+  }))!;
+  assert.equal(input.initiativeBonus, 12);
+  assert.deepEqual(warnings, [
+    'Iniciativa +14 na ficha dá um ajuste de +12, fora do limite do aplicativo (-10 a +10). Revise antes de criar.',
+  ]);
+  assert.ok(validateCharacterInput(input).initiativeBonus);
+});
+
+test('spell slots above the sheet boxes are kept and flagged, not reduced', () => {
+  const { input, warnings } = sheetFromOfficialPdf(sheet({ Text1: '4', Text10: '5' }))!;
+  assert.deepEqual(input.spellSlotTotals, [4, 5, 0, 0, 0, 0, 0, 0, 0]);
+  assert.deepEqual(warnings, [
+    'Espaços do 2º círculo: 5 na ficha, fora do limite do aplicativo (0 a 3). Revise antes de criar.',
+  ]);
+  assert.ok(validateCharacterInput(input).spellSlotTotals);
+});
+
+test('fields the reader could not extract are named by editor section', () => {
+  const result = sheetFromOfficialPdf(sheet({ 'Magias Esq_4': 'Sono' }), [
+    `${NUMBER} 8 Single_15`,
+    'Magias Esq',
+    // A field the import does not use is not worth a warning.
+    `${CHECK} 2`,
+  ]);
+  assert.ok(result);
+  assert.equal(result.input.spells.length, 1);
+  assert.equal(
+    result.warnings[0],
+    'Alguns campos do PDF não puderam ser lidos e ficaram em branco. Revise: Atributos e perícias, Magias.',
+  );
+});
+
+test('a field that fails to read is listed and the others are kept', () => {
+  const { values, unreadable } = collectPdfFields([
+    { name: 'Esquerda Centro Single 12', read: () => 'Hazin Dan' },
+    { name: `${NUMBER} 8 Single_15`, read: () => { throw new Error('rich text'); } },
+    { name: `${CHECK} 4_24`, read: () => true },
+    { name: 'Botão', read: () => undefined },
+  ]);
+  assert.deepEqual(values, { 'Esquerda Centro Single 12': 'Hazin Dan', [`${CHECK} 4_24`]: true });
+  assert.deepEqual(unreadable, [`${NUMBER} 8 Single_15`]);
+});
+
+test('an unreadable field still counts toward recognizing the sheet', () => {
+  const rest = sheet();
+  for (const name of ['Esquerda Centro Single 12', 'Text1', 'Text10']) delete rest[name];
+  assert.equal(sheetFromOfficialPdf(rest), null);
+  assert.ok(sheetFromOfficialPdf(rest, ['Esquerda Centro Single 12', 'Text1', 'Text10']));
+});
+
 test('an empty ability score defaults to 10 with a warning', () => {
   const { input, warnings } = sheetFromOfficialPdf(sheet({ [`${NUMBER} 8 Single_15`]: '' }))!;
   assert.equal(input.abilityScores.strength, 10);
@@ -190,7 +244,7 @@ test('spells read the circle, and a "Truque:" prefix as circle 0', () => {
     [`${CHECK} 1_7`]: true,
     'Magias Esq_7': 'Sono',
     Text1: '4',
-    Text10: '9',
+    Text10: '3',
   }))!;
   assert.deepEqual(input.spells.map(({ level, name }) => [level, name]), [
     [0, 'Raio de Fogo'],

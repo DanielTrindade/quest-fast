@@ -19,7 +19,7 @@ export const Importada: Story = {
   args: { status: { kind: 'done', fileName: 'Ficha_Hazin_Dan.pdf', warnings: [] } },
   play: async ({ canvasElement }) => {
     for (const region of within(canvasElement).getAllByRole('region', { name: /^Tema / })) {
-      await expect(within(region).getByText(/Campos preenchidos com Ficha_Hazin_Dan\.pdf/)).toBeVisible();
+      await expect(within(region).getByText('Ficha importada. Revise os dados antes de criar.')).toBeVisible();
     }
   },
 };
@@ -38,6 +38,9 @@ export const ComAvisos: Story = {
   },
   play: async ({ canvasElement }) => {
     for (const region of within(canvasElement).getAllByRole('region', { name: /^Tema / })) {
+      // A partial import must not read as done.
+      await expect(within(region).getByText(/Ficha importada com pontos para revisar/)).toBeVisible();
+      await expect(within(region).queryByText('Ficha importada. Revise os dados antes de criar.')).toBeNull();
       await expect(within(region).getByRole('list', { name: 'Pontos para revisar' }).children).toHaveLength(2);
     }
   },
