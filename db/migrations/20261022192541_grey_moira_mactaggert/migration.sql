@@ -1,5 +1,5 @@
 CREATE TABLE `combatants` (
-	`id` text PRIMARY KEY NOT NULL,
+	`id` text PRIMARY KEY,
 	`encounter_id` text NOT NULL,
 	`source` text NOT NULL,
 	`character_id` text,
@@ -18,15 +18,13 @@ CREATE TABLE `combatants` (
 	`hidden` integer DEFAULT false NOT NULL,
 	`attacks` text DEFAULT '[]' NOT NULL,
 	`created_at` integer DEFAULT (unixepoch()) NOT NULL,
-	FOREIGN KEY (`encounter_id`) REFERENCES `encounters`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`character_id`) REFERENCES `characters`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`statblock_id`) REFERENCES `statblocks`(`id`) ON UPDATE no action ON DELETE set null
+	CONSTRAINT `fk_combatants_encounter_id_encounters_id_fk` FOREIGN KEY (`encounter_id`) REFERENCES `encounters`(`id`) ON DELETE CASCADE,
+	CONSTRAINT `fk_combatants_character_id_characters_id_fk` FOREIGN KEY (`character_id`) REFERENCES `characters`(`id`) ON DELETE CASCADE,
+	CONSTRAINT `fk_combatants_statblock_id_statblocks_id_fk` FOREIGN KEY (`statblock_id`) REFERENCES `statblocks`(`id`) ON DELETE SET NULL
 );
 --> statement-breakpoint
-CREATE INDEX `combatants_encounter_id_idx` ON `combatants` (`encounter_id`);--> statement-breakpoint
-CREATE INDEX `combatants_character_id_idx` ON `combatants` (`character_id`);--> statement-breakpoint
 CREATE TABLE `encounters` (
-	`id` text PRIMARY KEY NOT NULL,
+	`id` text PRIMARY KEY,
 	`campaign_id` text NOT NULL,
 	`name` text NOT NULL,
 	`status` text DEFAULT 'preparing' NOT NULL,
@@ -36,13 +34,11 @@ CREATE TABLE `encounters` (
 	`started_at` integer,
 	`ended_at` integer,
 	`created_at` integer DEFAULT (unixepoch()) NOT NULL,
-	FOREIGN KEY (`campaign_id`) REFERENCES `campaigns`(`id`) ON UPDATE no action ON DELETE cascade
+	CONSTRAINT `fk_encounters_campaign_id_campaigns_id_fk` FOREIGN KEY (`campaign_id`) REFERENCES `campaigns`(`id`) ON DELETE CASCADE
 );
 --> statement-breakpoint
-CREATE INDEX `encounters_campaign_id_idx` ON `encounters` (`campaign_id`);--> statement-breakpoint
-CREATE UNIQUE INDEX `encounters_one_active_idx` ON `encounters` (`campaign_id`) WHERE status = 'active';--> statement-breakpoint
 CREATE TABLE `statblocks` (
-	`id` text PRIMARY KEY NOT NULL,
+	`id` text PRIMARY KEY,
 	`campaign_id` text NOT NULL,
 	`name` text NOT NULL,
 	`size` text DEFAULT 'medium' NOT NULL,
@@ -60,9 +56,13 @@ CREATE TABLE `statblocks` (
 	`reactions` text DEFAULT '' NOT NULL,
 	`created_at` integer DEFAULT (unixepoch()) NOT NULL,
 	`updated_at` integer DEFAULT (unixepoch()) NOT NULL,
-	FOREIGN KEY (`campaign_id`) REFERENCES `campaigns`(`id`) ON UPDATE no action ON DELETE cascade
+	CONSTRAINT `fk_statblocks_campaign_id_campaigns_id_fk` FOREIGN KEY (`campaign_id`) REFERENCES `campaigns`(`id`) ON DELETE CASCADE
 );
 --> statement-breakpoint
-CREATE INDEX `statblocks_campaign_id_idx` ON `statblocks` (`campaign_id`);--> statement-breakpoint
 ALTER TABLE `characters` ADD `conditions` text DEFAULT '[]' NOT NULL;--> statement-breakpoint
-ALTER TABLE `characters` ADD `concentrating` integer DEFAULT false NOT NULL;
+ALTER TABLE `characters` ADD `concentrating` integer DEFAULT false NOT NULL;--> statement-breakpoint
+CREATE INDEX `combatants_encounter_id_idx` ON `combatants` (`encounter_id`);--> statement-breakpoint
+CREATE INDEX `combatants_character_id_idx` ON `combatants` (`character_id`);--> statement-breakpoint
+CREATE INDEX `encounters_campaign_id_idx` ON `encounters` (`campaign_id`);--> statement-breakpoint
+CREATE UNIQUE INDEX `encounters_one_active_idx` ON `encounters` (`campaign_id`) WHERE status = 'active';--> statement-breakpoint
+CREATE INDEX `statblocks_campaign_id_idx` ON `statblocks` (`campaign_id`);

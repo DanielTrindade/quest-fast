@@ -169,7 +169,8 @@ export function statblockRoutes() {
         .set({ ...parseStatblockInput(body), updatedAt: new Date() })
         .where(eq(statblocks.id, row.id))
         .returning()
-        .get(),
+        // The row was found above, inside the same request.
+        .get()!,
     );
     if (isInputError(result)) return c.json({ error: result.inputError }, 422);
     return c.json({ statblock: toStatblock(result) });

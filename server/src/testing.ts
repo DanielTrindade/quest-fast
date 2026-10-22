@@ -5,7 +5,7 @@ import { getRequestListener } from '@hono/node-server';
 import Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
-import { schema, type Db } from '@quest-fast/db';
+import type { Db } from '@quest-fast/db';
 import { createApp } from './app.ts';
 import { createMemoryAssetStore } from './assets/store.ts';
 import { DiscordFailure, type DiscordClient, type DiscordProfile } from './auth/discord.ts';
@@ -20,7 +20,7 @@ const MIGRATIONS = resolve(import.meta.dirname, '../../db/migrations');
 export function createTestDb(): Db {
   const sqlite = new Database(':memory:');
   sqlite.pragma('foreign_keys = ON');
-  const db = drizzle(sqlite, { schema });
+  const db = drizzle({ client: sqlite });
   migrate(db, { migrationsFolder: MIGRATIONS });
   return db;
 }
