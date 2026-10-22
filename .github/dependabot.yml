@@ -1,0 +1,37 @@
+version: 2
+updates:
+  # Os workspaces compartilham o package-lock.json da raiz.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      timezone: America/Sao_Paulo
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: chore(deps)
+      prefix-development: chore(deps-dev)
+    groups:
+      menores:
+        applies-to: version-updates
+        update-types:
+          - minor
+          - patch
+      seguranca:
+        applies-to: security-updates
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      timezone: America/Sao_Paulo
+    commit-message:
+      prefix: ci
+    groups:
+      actions:
+        patterns:
+          - "*"
