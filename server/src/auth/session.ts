@@ -23,7 +23,7 @@ export function upsertDiscordUser(db: Db, profile: DiscordProfile): UserRow {
       .set({ name: profile.name, avatarUrl: profile.avatarUrl, updatedAt: now })
       .where(eq(users.id, existing.id))
       .returning()
-      .get();
+      .get()!;
   }
 
   return db

@@ -5,13 +5,19 @@ import { resolve } from 'node:path';
 import Database from 'better-sqlite3';
 
 const MIGRATIONS = resolve(import.meta.dirname, '../../../db/migrations');
-const FILES = readdirSync(MIGRATIONS).filter((file) => file.endsWith('.sql')).sort();
-// 0000 to 0002 are the schema before combat (phase 1 and the official sheet).
+// One folder per migration (`<timestamp>_<name>/migration.sql`).
+const FILES = readdirSync(MIGRATIONS, { withFileTypes: true })
+  .filter((entry) => entry.isDirectory())
+  .map((entry) => entry.name)
+  .sort();
+// The first three are the schema before combat (phase 1 and the official sheet).
 const BEFORE_COMBAT = 3;
 
-function apply(sqlite: Database.Database, files: string[]) {
-  for (const file of files) {
-    const statements = readFileSync(resolve(MIGRATIONS, file), 'utf8').split('--> statement-breakpoint');
+function apply(sqlite: Database.Database, migrations: string[]) {
+  for (const migration of migrations) {
+    const statements = readFileSync(resolve(MIGRATIONS, migration, 'migration.sql'), 'utf8').split(
+      '--> statement-breakpoint',
+    );
     for (const statement of statements) {
       if (statement.trim()) sqlite.exec(statement);
     }

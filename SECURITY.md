@@ -62,37 +62,16 @@ O que é tratado como falha de segurança:
 - Dependência desatualizada **sem** caminho de exploração conhecido no uso que
   o projeto faz dela. Nesse caso, um issue normal ou um PR resolve.
 
-## Advisories aceitos
+## Dependências
 
-Um caso é conhecido, avaliado e mantido de propósito:
+O Dependabot (`.github/dependabot.yml`) acompanha o npm e as GitHub Actions:
+abre PR de correção quando sai um advisory e, toda semana, agrupa as
+atualizações menores. Major vem em PR próprio, para avaliar a quebra.
 
-**`esbuild@0.18.20`, via `drizzle-kit` → `@esbuild-kit/esm-loader` →
-`@esbuild-kit/core-utils`** — [GHSA-67mh-4wv8-2f99](https://github.com/advisories/GHSA-67mh-4wv8-2f99),
-moderado, alerta aberto no Dependabot.
-
-O advisory trata do **servidor de desenvolvimento** do esbuild (`esbuild
-serve`), que passa a aceitar requisições de qualquer origem. O `core-utils`
-não usa essa API: ele chama só `esbuild.transform()` para carregar o
-`db/drizzle.config.ts` — transformação de string, sem abrir porta. `serve`,
-`build` e `context` não aparecem no pacote.
-
-Não há correção a aplicar:
-
-- `@esbuild-kit` está **descontinuado** (o npm avisa "Merged into tsx"), e a
-  versão mais nova, 3.3.2, continua fixando `esbuild: ~0.18.20`. O
-  `drizzle-kit` 0.31.11, o mais novo, ainda depende dele.
-- `npm audit fix --force` propõe **rebaixar** o `drizzle-kit` para 0.18.1 —
-  trocaria um advisory inalcançável por um gerador de migração cinco versões
-  mais velho.
-- Um `overrides` forçando `esbuild@0.25` dentro do `core-utils` foi testado e
-  não se sustenta: neste arranjo de workspaces o npm não re-resolve a
-  subárvore e produz uma árvore inválida, com `ELSPROBLEMS` no `npm ls`.
-
-O risco é de desenvolvimento e não chega ao artefato publicado: `drizzle-kit`
-é dependência de desenvolvimento do workspace `db`, que o Docker descarta com
-`npm prune --omit=dev`. O alerta no Dependabot continua porque a correção
-depende do upstream — se o `drizzle-kit` largar o `@esbuild-kit`, este trecho
-sai junto.
+O `drizzle-orm` e o `drizzle-kit` estão na linha 1.0 (release candidate): a
+0.x do `drizzle-kit` dependia do `@esbuild-kit`, descontinuado e preso a um
+`esbuild` vulnerável ([GHSA-67mh-4wv8-2f99](https://github.com/advisories/GHSA-67mh-4wv8-2f99)),
+e a 1.0 não depende de nada. Ao sair a 1.0 estável, troque o RC por ela.
 
 ## O que esperar
 
