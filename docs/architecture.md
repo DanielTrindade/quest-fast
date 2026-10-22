@@ -82,7 +82,8 @@ Tudo aqui é função pura, com teste unitário ao lado (`*.test.ts`, rodando no
   combate, `statblocks`, `encounters` e `combatants`. Partes
   extensas da ficha (perícias, ataques, magias, inventário) e o `payload` dos
   eventos são colunas JSON.
-- `migrations/`: SQL gerado pelo `drizzle-kit`. Mudou o schema: rode
+- `migrations/`: SQL gerado pelo `drizzle-kit`, uma pasta por migração
+  (`<timestamp>_<nome>/migration.sql` e `snapshot.json`). Mudou o schema: rode
   `npm run db:generate` e versione a migração gerada. Migrações já publicadas
   não são editadas.
 - `src/migrate.ts`: aplica as migrações. No Docker, roda na subida do
