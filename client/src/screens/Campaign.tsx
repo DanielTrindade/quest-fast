@@ -16,6 +16,7 @@ import { ApiError, api } from '../lib/api';
 import { formatDate } from '../lib/format';
 import '../styles/campaign.css';
 import { CharactersSection } from './campaign/CharactersSection';
+import { CombatSection } from './campaign/CombatSection';
 import { DiceRoller } from './campaign/DiceRoller';
 import { SessionFeed } from './campaign/SessionFeed';
 
@@ -288,6 +289,8 @@ export function Campaign({ campaignId }: { campaignId: string }) {
             currentUserId={me.data?.user.id ?? ''}
             isMaster={isMaster}
           />
+          {/* The bestiary is the master's; a player would only get a 403. */}
+          {isMaster && <CombatSection campaignId={campaignId} />}
         </div>
 
         <aside className="campaign-aside" aria-label="Mesa">

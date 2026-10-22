@@ -8,6 +8,7 @@ import { Campaign } from './Campaign';
 
 const NAVIGATION: NavItem[] = [
   { id: 'characters', label: 'Personagens', href: '#characters-title' },
+  { id: 'combat', label: 'Combate', href: '#combat-title' },
   { id: 'dice', label: 'Dados', href: '#dice-title' },
   // Fragmento de navegação; "#feed" não é uma cor hexadecimal.
   // eslint-disable-next-line local/no-raw-color
@@ -15,7 +16,11 @@ const NAVIGATION: NavItem[] = [
   { id: 'members', label: 'Membros e convite', href: '#members-title' },
 ];
 
-// Each item's anchor names the heading the section observer watches.
+// Combat is the master's section today (the bestiary); players do not get it.
+const PLAYER_NAVIGATION = NAVIGATION.filter((item) => item.id !== 'combat');
+
+// Each item's anchor names the heading the section observer watches. The
+// combat heading is absent for a player, and the observer skips it.
 const SECTION_IDS = NAVIGATION.map((item) => item.href.slice(1));
 
 export function CampaignWorkspace({ campaignId, user }: {
@@ -38,7 +43,7 @@ export function CampaignWorkspace({ campaignId, user }: {
 
   return <AppShell campaigns={available} campaignId={campaignId}
     onCampaignChange={id => { void navigate({ to: '/campaigns/$campaignId', params: { campaignId: id } }); }}
-    navigation={NAVIGATION}
+    navigation={campaign.data?.role === 'master' ? NAVIGATION : PLAYER_NAVIGATION}
     activeItem={activeItem} user={<AccountControls {...user} />}>
     <Campaign campaignId={campaignId} />
   </AppShell>;
