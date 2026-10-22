@@ -68,6 +68,13 @@ export {
   type Spell,
   type SpellSlot,
 } from './sheet.ts';
+export {
+  normalizePdfFieldName,
+  sheetFromOfficialPdf,
+  type ImportedSheet,
+  type PdfFieldValues,
+  type SheetImportResult,
+} from './sheet-import.ts';
 export type {
   AbilityScores,
   Asset,

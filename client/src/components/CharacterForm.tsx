@@ -23,6 +23,7 @@ import {
   type Coin,
   type Coins,
   type HitDie,
+  type ImportedSheet,
   type ProficiencyLevel,
   type Size,
   type Skill,
@@ -31,8 +32,10 @@ import { Avatar } from './Avatar';
 import { Button } from './Button';
 import { Field } from './Field';
 import { ProficiencyToggle } from './ProficiencyToggle';
+import { SheetImport, type SheetImportStatus } from './SheetImport';
 import { SheetTabPanel, SheetTabs } from './SheetTabs';
 import { ApiError, api } from '../lib/api';
+import { readSheetPdf } from '../lib/sheet-pdf';
 import { ABILITY_LABELS, SKILL_LABELS, signed } from '../lib/5e';
 import { ARMOR_TRAINING_LABELS, COIN_LABELS, SIZE_LABELS, circleLabel, signedBonus } from '../lib/sheet-labels';
 
@@ -139,7 +142,22 @@ function lines(text: string) {
 /** The three fixed attunement slots of the official sheet. */
 const ATTUNED_SLOTS = ['attuned-1', 'attuned-2', 'attuned-3'] as const;
 
-function freshState(character: CharacterSheet | null) {
+/** What the editor reads from a sheet: the stored one, or one imported from a PDF. */
+type SheetDraft = Omit<
+  CharacterSheet,
+  'id' | 'campaignId' | 'ownerId' | 'ownerName' | 'hpCurrent' | 'hpTemp' | 'hitDiceSpent' | 'deathSaves' | 'heroicInspiration' | 'avatarUrl'
+>;
+
+function draftFromImport({ spellSlotTotals, attacks, ...imported }: ImportedSheet): SheetDraft {
+  return {
+    ...imported,
+    attacks: attacks.map((attack) => ({ damageType: '', notes: '', ...attack })),
+    spellSlots: spellSlotTotals.map((total) => ({ total, spent: 0 })),
+    avatarAssetId: null,
+  };
+}
+
+function freshState(character: SheetDraft | null) {
   return {
     name: character?.name ?? '',
     race: character?.race ?? '',
@@ -269,14 +287,18 @@ function IdentityPanel({
   uploadError,
   onAvatarPick,
   onAvatarRemove,
+  importer,
 }: PanelProps & {
   avatarUrl: string | null;
   uploadError: string | null;
   onAvatarPick: (file: File) => void;
   onAvatarRemove: () => void;
+  /** Only offered while creating: importing over a saved sheet would replace it. */
+  importer?: ReactNode;
 }) {
   return (
     <SheetTabPanel idPrefix={idPrefix} id="identity" active={active}>
+      {importer}
       <div className="sheet-form__identity">
         <Avatar name={state.name || '?'} src={avatarUrl ?? undefined} variant="character" size="lg" />
         <div className="sheet-form__avatar-actions">
@@ -713,6 +735,24 @@ export function CharacterForm({ campaignId, character, onSaved, onRequestClose, 
     },
   });
 
+  const [importStatus, setImportStatus] = useState<SheetImportStatus>({ kind: 'idle' });
+  const importPdf = async (file: File) => {
+    setImportStatus({ kind: 'reading' });
+    try {
+      const result = await readSheetPdf(file);
+      if (!result) {
+        setImportStatus({ kind: 'error', message: 'Este PDF não é a ficha oficial de D&D 2024 em português.' });
+        return;
+      }
+      // The avatar is not on the sheet, so one already sent stays.
+      setState((current) => ({ ...freshState(draftFromImport(result.input)), avatarAssetId: current.avatarAssetId }));
+      setErrors({});
+      setImportStatus({ kind: 'done', fileName: file.name, warnings: result.warnings });
+    } catch {
+      setImportStatus({ kind: 'error', message: 'Não foi possível ler este arquivo como PDF.' });
+    }
+  };
+
   const buildInput = (): CharacterInput => ({
     name: state.name.trim(),
     race: state.race.trim(),
@@ -842,6 +882,7 @@ export function CharacterForm({ campaignId, character, onSaved, onRequestClose, 
           set('avatarAssetId', null);
           setAvatarUrl(null);
         }}
+        importer={character ? undefined : <SheetImport status={importStatus} onPick={(file) => void importPdf(file)} />}
       />
 
       <AbilitiesPanel {...panelProps} active={tab} rules={previewRules} />
