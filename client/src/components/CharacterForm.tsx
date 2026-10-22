@@ -1,5 +1,5 @@
-import { useEffect, useId, useImperativeHandle, useRef, useState, type ReactNode, type Ref } from 'react';
-import { ImageSquare, Plus, Trash, Warning } from '@phosphor-icons/react';
+import { useEffect, useId, useImperativeHandle, useRef, useState, type Ref } from 'react';
+import { ImageSquare, Plus, Trash } from '@phosphor-icons/react';
 import { useMutation } from '@tanstack/react-query';
 import {
   ABILITIES,
@@ -10,8 +10,6 @@ import {
   SKILLS,
   SKILL_ABILITIES,
   SPELL_SLOT_CAPS,
-  abilityModifier,
-  parseDiceExpression,
   skillBonus,
   skillProficiency,
   validateCharacterInput,
@@ -27,14 +25,19 @@ import {
   type Size,
   type Skill,
 } from '@quest-fast/shared';
+import { AttackListEditor } from './AttackListEditor';
+import { AbilityInput } from './AbilityInput';
 import { Avatar } from './Avatar';
 import { Button } from './Button';
 import { Field } from './Field';
+import { FormFooter } from './FormFooter';
 import { ProficiencyToggle } from './ProficiencyToggle';
+import { SelectField } from './SelectField';
 import { SheetTabPanel, SheetTabs } from './SheetTabs';
 import { ApiError, api } from '../lib/api';
-import { ABILITY_LABELS, SKILL_LABELS, signed } from '../lib/5e';
+import { ABILITY_LABELS, SKILL_LABELS } from '../lib/5e';
 import { ARMOR_TRAINING_LABELS, COIN_LABELS, SIZE_LABELS, circleLabel, signedBonus } from '../lib/sheet-labels';
+import { newRowId, numberValue, toAttackInputs, toFormAttacks } from '../lib/form-attacks';
 
 function errorMessage(error: unknown) {
   return error instanceof ApiError ? error.message : 'Algo deu errado. Tente novamente.';
@@ -94,11 +97,7 @@ const ERROR_TAB: Record<keyof CharacterFieldErrors, FormTab> = {
   coins: 'inventory',
 };
 
-/**
- * Numbers stay text while they are typed: a number state turns the "-" of
- * "-2" into NaN and a cleared field into an undeletable 0.
- */
-type FormAttack = { rowId: string; name: string; bonus: string; damage: string; damageType: string; notes: string };
+/** Numbers stay text while typed, like the attack rows (see `FormAttack`). */
 type FormSpell = {
   rowId: string;
   level: string;
@@ -110,22 +109,6 @@ type FormSpell = {
   material: boolean;
   notes: string;
 };
-
-/**
- * Identity for the editable lists: rows are added and removed, so the array
- * position is not a stable key. The counter is module-wide because the key
- * only has to be unique among the siblings of one list.
- */
-let rowSeq = 0;
-function newRowId(): string {
-  rowSeq += 1;
-  return `row-${rowSeq}`;
-}
-
-/** An empty field is invalid, not a silent zero. */
-function numberValue(text: string) {
-  return text.trim() === '' ? Number.NaN : Number(text);
-}
 
 function isScore(value: string) {
   const score = Number(value);
@@ -165,14 +148,7 @@ function freshState(character: CharacterSheet | null) {
     armorTraining: character?.armorTraining ?? [],
     weaponProficiencies: character?.weaponProficiencies ?? '',
     toolProficiencies: character?.toolProficiencies ?? '',
-    attacks: (character?.attacks ?? []).map((attack): FormAttack => ({
-      rowId: newRowId(),
-      name: attack.name,
-      bonus: String(attack.bonus),
-      damage: attack.damage,
-      damageType: attack.damageType,
-      notes: attack.notes,
-    })),
+    attacks: toFormAttacks(character?.attacks ?? []),
     featuresText: character?.features.join('\n') ?? '',
     speciesTraitsText: character?.speciesTraits.join('\n') ?? '',
     featsText: character?.feats.join('\n') ?? '',
@@ -204,57 +180,12 @@ type PanelProps = {
   clearError: ClearFieldError;
 };
 
-function SelectField({ label, value, onChange, className = '', children }: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  className?: string;
-  children: ReactNode;
-}) {
-  const id = useId();
-  return (
-    <div className={`qf-field ${className}`}>
-      <label htmlFor={id}>{label}</label>
-      <select id={id} className="qf-input" value={value} onChange={(event) => onChange(event.target.value)}>
-        {children}
-      </select>
-    </div>
-  );
-}
-
 function Check({ label, checked, onChange }: { label: string; checked: boolean; onChange: (checked: boolean) => void }) {
   return (
     <label className="qf-check">
       <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} />
       <span>{label}</span>
     </label>
-  );
-}
-
-function AbilityInput({ ability, value, invalid, onChange }: {
-  ability: Ability;
-  value: string;
-  invalid: boolean;
-  onChange: (value: string) => void;
-}) {
-  const modifier = abilityModifier(Number(value));
-  return (
-    <div className="qf-ability-input">
-      <label>
-        <span>{ABILITY_LABELS[ability]}</span>
-        <input
-          type="number"
-          min={1}
-          max={30}
-          inputMode="numeric"
-          value={value}
-          aria-invalid={invalid || undefined}
-          aria-label={`${ABILITY_LABELS[ability]} (modificador ${modifier === undefined ? 'indefinido' : signed(modifier)})`}
-          onChange={(event) => onChange(event.target.value)}
-        />
-      </label>
-      <output aria-hidden="true">{modifier === undefined ? '?' : signed(modifier)}</output>
-    </div>
   );
 }
 
@@ -439,58 +370,16 @@ function AbilitiesPanel({ idPrefix, active, state, set, errors, clearError, rule
 }
 
 function AttacksPanel({ idPrefix, active, state, set, errors, clearError }: PanelProps) {
-  const updateAttack = (index: number, patch: Partial<FormAttack>) => {
-    set('attacks', state.attacks.map((attack, i) => (i === index ? { ...attack, ...patch } : attack)));
-    clearError('attacks');
-  };
   return (
     <SheetTabPanel idPrefix={idPrefix} id="attacks" active={active}>
       <fieldset className="sheet-form__fieldset">
         <legend>Armas e truques de dano</legend>
-        {errors.attacks && <p role="alert" className="text-small text-danger-text">{errors.attacks}</p>}
-        <div className="qf-stack">
-          {state.attacks.map((attack, index) => {
-            const position = index + 1;
-            const bonus = numberValue(attack.bonus);
-            return (
-              <div key={attack.rowId} className="sheet-form__attack" role="group" aria-label={`Ataque ${position}`}>
-                <div className="sheet-form__attack-head">
-                  <span>Ataque {position}</span>
-                  <Button variant="ghost" type="button" aria-label={`Remover ataque ${attack.name.trim() || position}`}
-                    onClick={() => {
-                      set('attacks', state.attacks.filter((_, i) => i !== index));
-                      // The removed attack may be the one the message was about.
-                      clearError('attacks');
-                    }}>
-                    <Trash size={18} aria-hidden="true" />
-                  </Button>
-                </div>
-                <div className="sheet-form__attack-fields">
-                  <Field className="sheet-form__attack-name" label="Nome" value={attack.name}
-                    aria-invalid={Boolean(errors.attacks) && attack.name.trim().length === 0}
-                    onChange={(e) => updateAttack(index, { name: e.target.value })} />
-                  <Field label="Bônus" type="number" min={-20} max={20} value={attack.bonus}
-                    aria-invalid={Boolean(errors.attacks) && (!Number.isInteger(bonus) || Math.abs(bonus) > 20)}
-                    onChange={(e) => updateAttack(index, { bonus: e.target.value })} />
-                  <Field label="Dano" hint="Ex.: 1d8+3" autoComplete="off" spellCheck={false} value={attack.damage}
-                    aria-invalid={Boolean(errors.attacks) && !parseDiceExpression(attack.damage)}
-                    onChange={(e) => updateAttack(index, { damage: e.target.value })} />
-                  <Field label="Tipo de dano" maxLength={30} value={attack.damageType} hint="Ex.: Cortante"
-                    onChange={(e) => updateAttack(index, { damageType: e.target.value })} />
-                  <Field className="sheet-form__attack-name" label="Notas" maxLength={120} value={attack.notes}
-                    hint="Ex.: Pesada, duas mãos"
-                    onChange={(e) => updateAttack(index, { notes: e.target.value })} />
-                </div>
-              </div>
-            );
-          })}
-          <div>
-            <Button variant="secondary" type="button"
-              onClick={() => set('attacks', [...state.attacks, { rowId: newRowId(), name: '', bonus: '0', damage: '', damageType: '', notes: '' }])}>
-              <Plus size={18} aria-hidden="true" /> Adicionar ataque
-            </Button>
-          </div>
-        </div>
+        <AttackListEditor attacks={state.attacks} error={errors.attacks}
+          onChange={(attacks) => {
+            set('attacks', attacks);
+            // The edited or removed attack may be the one the message was about.
+            clearError('attacks');
+          }} />
       </fieldset>
 
       <fieldset className="sheet-form__fieldset">
@@ -739,13 +628,7 @@ export function CharacterForm({ campaignId, character, onSaved, onRequestClose, 
     armorTraining: state.armorTraining,
     weaponProficiencies: state.weaponProficiencies.trim(),
     toolProficiencies: state.toolProficiencies.trim(),
-    attacks: state.attacks.map((attack) => ({
-      name: attack.name,
-      bonus: numberValue(attack.bonus),
-      damage: attack.damage,
-      damageType: attack.damageType.trim(),
-      notes: attack.notes.trim(),
-    })),
+    attacks: toAttackInputs(state.attacks),
     features: lines(state.featuresText),
     speciesTraits: lines(state.speciesTraitsText),
     feats: lines(state.featsText),
@@ -854,39 +737,15 @@ export function CharacterForm({ campaignId, character, onSaved, onRequestClose, 
 
       {/* Pinned to the bottom of the dialog: on a phone the save action has
           to stay reachable while the form scrolls under the keyboard. */}
-      <div className="sheet-form__footer">
-        {save.isError && (
-          <p role="alert" className="text-small text-danger-text">
-            {errorMessage(save.error)}
-          </p>
-        )}
-
-        {confirmingDiscard ? (
-          <div role="group" aria-label="Alterações não salvas">
-            <p className="sheet-form__discard">
-              <Warning size={18} weight="fill" aria-hidden="true" />
-              Há alterações que ainda não foram salvas.
-            </p>
-            <div className="qf-dialog__actions">
-              <Button variant="secondary" type="button" onClick={() => setConfirmingDiscard(false)}>
-                Continuar editando
-              </Button>
-              <Button variant="danger" type="button" onClick={onRequestClose}>
-                Descartar alterações
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <div className="qf-dialog__actions">
-            <Button variant="secondary" type="button" onClick={requestClose}>
-              Cancelar
-            </Button>
-            <Button type="submit" loading={save.isPending || avatarUpload.isPending}>
-              {character ? 'Salvar alterações' : 'Criar personagem'}
-            </Button>
-          </div>
-        )}
-      </div>
+      <FormFooter
+        error={save.isError ? errorMessage(save.error) : undefined}
+        confirmingDiscard={confirmingDiscard}
+        onKeepEditing={() => setConfirmingDiscard(false)}
+        onDiscard={onRequestClose}
+        onCancel={requestClose}
+        submitLabel={character ? 'Salvar alterações' : 'Criar personagem'}
+        pending={save.isPending || avatarUpload.isPending}
+      />
     </form>
   );
 }

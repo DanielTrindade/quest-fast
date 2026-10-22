@@ -463,3 +463,71 @@ span.qf-slots__pip { width: 24px; height: 24px; cursor: default; }
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
 .campaign-card__date { color: var(--color-text-muted); font-size: var(--text-micro); }
+
+/* Statblock (bestiário): a ordem do bloco de 2024 — quem é, defesa, atributos,
+   o que faz. A faixa de defesa é a peça de destaque: números grandes em mono,
+   separados por réguas, como a linha de CA/PV de um livro de monstros. */
+.qf-statblock { display: grid; gap: var(--spacing-4); min-width: 0; container-type: inline-size; }
+.qf-statblock__head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: var(--spacing-3); }
+.qf-statblock__identity { min-width: 0; flex: 1 1 12rem; }
+.qf-statblock__name { font: 600 var(--text-h1)/var(--text-h1--line-height) var(--font-display); overflow-wrap: anywhere; }
+.qf-statblock__kind { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--spacing-1) var(--spacing-3); margin-top: var(--spacing-1); color: var(--color-text-secondary); font-style: italic; overflow-wrap: anywhere; }
+.qf-statblock__cr { font-style: normal; font-family: var(--font-mono); font-size: var(--text-small); color: var(--color-text-primary); }
+.qf-statblock__actions { display: flex; flex-wrap: wrap; gap: var(--spacing-2); }
+.qf-statblock__defenses {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0;
+  border-block: 1px solid var(--color-border-strong);
+}
+.qf-statblock__defenses > div { min-width: 0; padding: var(--spacing-3) var(--spacing-3) var(--spacing-3) 0; }
+.qf-statblock__defenses > div + div { padding-left: var(--spacing-3); border-left: 1px solid var(--color-border-subtle); }
+.qf-statblock__defenses dt { font-size: var(--text-small); color: var(--color-text-secondary); }
+.qf-statblock__defenses dd { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--spacing-2); margin: var(--spacing-1) 0 0; font: 500 var(--text-h1)/var(--text-h1--line-height) var(--font-mono); font-variant-numeric: tabular-nums; }
+.qf-statblock__aside { font-size: var(--text-small); color: var(--color-text-muted); }
+/* Deslocamento é texto livre ("9 m, escalada 6 m"): ocupa a linha inteira. */
+.qf-statblock__defenses > .qf-statblock__speed { grid-column: 1 / -1; padding-left: 0; border-left: 0; border-top: 1px solid var(--color-border-subtle); }
+.qf-statblock__defenses .qf-statblock__speed dd { font: inherit; font-size: var(--text-body); }
+.qf-statblock__abilities { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: var(--spacing-2); margin: 0; text-align: center; }
+.qf-statblock__abilities > div { min-width: 0; padding: var(--spacing-2) var(--spacing-1); background: var(--color-surface); border: 1px solid var(--color-border-subtle); border-radius: var(--radius-control); }
+.qf-statblock__abilities dt { font-size: var(--text-micro); color: var(--color-text-secondary); }
+.qf-statblock__abilities abbr { text-decoration: none; }
+.qf-statblock__abilities dd { display: grid; margin: var(--spacing-1) 0 0; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.qf-statblock__score { font-weight: 600; }
+.qf-statblock__modifier { font-size: var(--text-small); color: var(--color-text-secondary); }
+@container (max-width: 360px) {
+  .qf-statblock__abilities { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .qf-statblock__defenses dd { font-size: var(--text-h2); }
+}
+.qf-statblock__section { display: grid; gap: var(--spacing-2); padding-top: var(--spacing-3); border-top: 1px solid var(--color-border-subtle); }
+.qf-statblock__section h4 { font: 600 var(--text-h2)/var(--text-h2--line-height) var(--font-display); }
+.qf-statblock__text { max-width: 72ch; white-space: pre-line; overflow-wrap: anywhere; color: var(--color-text-secondary); }
+.qf-statblock__attacks { list-style: none; display: grid; gap: var(--spacing-2); margin: 0; padding: 0; }
+.qf-statblock__attacks li { min-width: 0; }
+
+/* Bestiário: linha inteira clicável, como o cartão de campanha, com os três
+   números que o mestre compara ao montar um encontro alinhados à direita. */
+.qf-bestiary { display: grid; gap: var(--spacing-4); min-width: 0; }
+.qf-bestiary__toolbar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--spacing-3); }
+.qf-bestiary__search { flex: 1 1 14rem; }
+.qf-bestiary__none { color: var(--color-text-secondary); }
+.qf-bestiary__list { list-style: none; display: grid; gap: var(--spacing-2); margin: 0; padding: 0; }
+.qf-bestiary__list li { min-width: 0; }
+.qf-bestiary__row {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--spacing-2) var(--spacing-4);
+  width: 100%; min-height: 44px; padding: var(--spacing-3) var(--spacing-4); text-align: left;
+  color: var(--color-text-primary); background: var(--color-surface-raised); font: inherit; cursor: pointer;
+  border: 1px solid var(--color-border-subtle); border-radius: var(--radius-panel);
+  box-shadow: inset 0 1px 0 var(--color-edge-light);
+  transition: border-color var(--duration-quick) var(--ease-settle), background var(--duration-quick) var(--ease-settle);
+}
+.qf-bestiary__row:hover { background: var(--color-surface-overlay); border-color: var(--color-border-strong); }
+.qf-bestiary__row:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
+.qf-bestiary__identity { display: grid; gap: var(--spacing-1); flex: 1 1 12rem; min-width: 0; }
+.qf-bestiary__name { font: 600 var(--text-h2)/var(--text-h2--line-height) var(--font-display); overflow-wrap: anywhere; }
+.qf-bestiary__kind { font-size: var(--text-small); color: var(--color-text-secondary); font-style: italic; overflow-wrap: anywhere; }
+.qf-bestiary__stats { display: flex; gap: var(--spacing-4); margin: 0; }
+.qf-bestiary__stats > div { display: grid; justify-items: end; min-width: 2.5rem; }
+.qf-bestiary__stats dt { font-size: var(--text-micro); color: var(--color-text-secondary); }
+.qf-bestiary__stats dd { margin: 0; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+@media (prefers-reduced-motion: reduce) {
+  .qf-bestiary__row { transition: none; }
+}
