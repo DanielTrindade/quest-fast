@@ -31,7 +31,37 @@ export {
   type Ability,
   type Skill,
 } from './modifiers.ts';
-export { validateCharacterInput, type CharacterFieldErrors } from './validation.ts';
+export {
+  validateCharacterInput,
+  validateStatblockInput,
+  type CharacterFieldErrors,
+  type StatblockFieldErrors,
+} from './validation.ts';
+export {
+  CHALLENGE_RATINGS,
+  CONDITIONS,
+  EXHAUSTION_MAX,
+  HEALTH_BANDS,
+  STATBLOCK_LIMITS,
+  concentrationDc,
+  deathSaveOutcome,
+  healthBand,
+  isActiveCondition,
+  isChallengeRating,
+  isCondition,
+  nextTurn,
+  numberCopies,
+  previousTurn,
+  sortInitiative,
+  tickConditions,
+  type ActiveCondition,
+  type Condition,
+  type DeathSaveOutcome,
+  type HealthBand,
+  type InitiativeEntry,
+  type TurnEntry,
+  type TurnState,
+} from './combat.ts';
 export {
   ARMOR_TRAINING,
   CHARACTER_LIMITS,
@@ -89,6 +119,11 @@ export type {
   RollSessionEvent,
   SessionEvent,
   SocketMessage,
+  Statblock,
+  StatblockInput,
+  StatblockListResponse,
+  StatblockResponse,
+  StatblockSummary,
   UnknownSessionEvent,
 } from './api.ts';
 export type {
