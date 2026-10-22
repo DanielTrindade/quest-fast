@@ -391,7 +391,8 @@ Nenhuma bloqueante. A decidir na implementação, sem impacto no design:
 Implementada em PRs empilhados, um por parte do plano:
 
 1. Regras puras em `shared/src/combat.ts` e schema (`statblocks`, `encounters`,
-   `combatants`, condições e concentração em `characters`), migração `0003`.
+   `combatants`, condições e concentração em `characters`), migração
+   `20261022192541_grey_moira_mactaggert` (formato de pastas do Drizzle 1.0).
 2. Rotas do bestiário (`/api/campaigns/:campaignId/statblocks`), só para o mestre.
 3. `StatblockCard`, `StatblockForm` e `BestiaryList` no Storybook; o editor de
    ataques, o rodapé do editor, `SelectField` e `AbilityInput` saíram do
