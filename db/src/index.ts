@@ -1,9 +1,6 @@
 import Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
-import * as schema from './schema.ts';
-
 export * from './schema.ts';
-export { schema };
 
 export type Db = ReturnType<typeof createDb>;
 
@@ -16,5 +13,5 @@ export function createDb(path = process.env.DB_FILE ?? DEFAULT_DB_PATH) {
   // enforced by SQLite when turned on explicitly, per connection.
   sqlite.pragma('journal_mode = WAL');
   sqlite.pragma('foreign_keys = ON');
-  return drizzle(sqlite, { schema });
+  return drizzle({ client: sqlite });
 }
