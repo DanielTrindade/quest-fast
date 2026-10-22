@@ -6,6 +6,7 @@ import { assetRoutes } from './assets/routes.ts';
 import { characterRoutes } from './characters/routes.ts';
 import { diceRoutes } from './dice/routes.ts';
 import { feedRoutes } from './feed/routes.ts';
+import { statblockRoutes } from './statblocks/routes.ts';
 import type { Context, Deps } from './context.ts';
 import { requireAuth } from './middleware.ts';
 
@@ -36,6 +37,7 @@ export function createApp({ serveClient = true, ...deps }: AppOptions) {
   app.route('/api/campaigns/:campaignId/assets', assetRoutes());
   app.route('/api/campaigns/:campaignId/rolls', diceRoutes());
   app.route('/api/campaigns/:campaignId/feed', feedRoutes());
+  app.route('/api/campaigns/:campaignId/statblocks', statblockRoutes());
 
   // Any missing route under /api is an API error, never the SPA's HTML.
   app.all('/api/*', (c) => c.json({ error: 'Rota não encontrada.' }, 404));

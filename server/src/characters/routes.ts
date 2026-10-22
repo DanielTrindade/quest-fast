@@ -19,7 +19,6 @@ import {
   isSize,
   isSkill,
   isSpeed,
-  parseDiceExpression,
   rollDice,
   saveBonus,
   skillAbility,
@@ -43,25 +42,7 @@ import {
 import type { Context } from '../context.ts';
 import { requireAuth, requireCampaignRole } from '../middleware.ts';
 import { recordRollEvent } from '../events/feed.ts';
-
-// Error messages are player-facing, so they stay in Portuguese.
-class InputError extends Error {}
-
-function fail(message: string): never {
-  throw new InputError(message);
-}
-
-function boundedInteger(value: unknown, min: number, max: number): number | undefined {
-  return typeof value === 'number' && Number.isInteger(value) && value >= min && value <= max
-    ? value
-    : undefined;
-}
-
-function shortText(value: unknown, limit: number): string | undefined {
-  if (typeof value !== 'string') return undefined;
-  const clean = value.trim();
-  return clean.length > 0 && clean.length <= limit ? clean : undefined;
-}
+import { boundedInteger, fail, isInputError, parseAttack, shortText, withInput } from '../validation.ts';
 
 function uniqueStrings<T>(values: T[]): T[] {
   return [...new Set(values)];
@@ -99,22 +80,6 @@ function optionalTextList(value: unknown, label: string): string[] | undefined {
     if (item.length > 0) items.push(item);
   }
   return uniqueStrings(items);
-}
-
-function parseAttack(value: unknown): Attack | undefined {
-  if (typeof value !== 'object' || value === null) return undefined;
-  const attack = value as Record<string, unknown>;
-  const name = shortText(attack.name, L.name);
-  const bonus = boundedInteger(attack.bonus, -L.attackBonus, L.attackBonus);
-  const damage = shortText(attack.damage, L.damage);
-  if (!name || bonus === undefined || !damage) return undefined;
-  // Damage is a dice expression: catching a typo now beats a wrong roll later.
-  if (!parseDiceExpression(damage)) return undefined;
-  const damageType = attack.damageType === undefined ? '' : attack.damageType;
-  const notes = attack.notes === undefined ? '' : attack.notes;
-  if (typeof damageType !== 'string' || damageType.length > L.damageType) return undefined;
-  if (typeof notes !== 'string' || notes.length > L.attackNotes) return undefined;
-  return { name, bonus, damage, damageType: damageType.trim(), notes: notes.trim() };
 }
 
 function parseSpell(value: unknown): Spell {
@@ -533,19 +498,6 @@ function parseStateInput(body: unknown, sheet: CharacterSheet) {
 }
 
 /** Runs a handler whose parsing throws `InputError`, answering 422 with its message. */
-async function withInput<T>(run: () => T | Promise<T>): Promise<T | { inputError: string }> {
-  try {
-    return await run();
-  } catch (error) {
-    if (error instanceof InputError) return { inputError: error.message };
-    throw error;
-  }
-}
-
-function isInputError(value: unknown): value is { inputError: string } {
-  return typeof value === 'object' && value !== null && 'inputError' in value;
-}
-
 export function characterRoutes() {
   const routes = new Hono<Context>();
   routes.use('*', requireAuth);
