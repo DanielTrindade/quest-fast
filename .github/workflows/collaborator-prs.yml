@@ -19,7 +19,9 @@ jobs:
     runs-on: ubuntu-latest
     # `pull_request_target` dá token de escrita também em PR de fork. O código
     # do PR não é baixado nem executado em nenhum passo deste workflow.
-    if: ${{ !contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.pull_request.author_association) }}
+    # O Dependabot não é colaborador, mas os PRs dele são configurados pelo
+    # próprio repositório em `.github/dependabot.yml`.
+    if: ${{ github.event.pull_request.user.login != 'dependabot[bot]' && !contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.pull_request.author_association) }}
     steps:
       - uses: actions/github-script@v9
         with:
