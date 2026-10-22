@@ -79,7 +79,8 @@ Tudo aqui é função pura, com teste unitário ao lado (`*.test.ts`, rodando no
   eventos são colunas JSON. Um campo novo dentro delas não ganha migração: o
   servidor lê o JSON antigo com o padrão documentado (um ataque salvo sem
   `kind` é uma rolagem de ataque).
-- `migrations/`: SQL gerado pelo `drizzle-kit`. Mudou o schema: rode
+- `migrations/`: SQL gerado pelo `drizzle-kit`, uma pasta por migração
+  (`<timestamp>_<nome>/migration.sql` e `snapshot.json`). Mudou o schema: rode
   `npm run db:generate` e versione a migração gerada. Migrações já publicadas
   não são editadas.
 - `src/migrate.ts`: aplica as migrações. No Docker, roda na subida do
