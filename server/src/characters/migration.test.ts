@@ -6,17 +6,22 @@ import Database from 'better-sqlite3';
 
 const MIGRATIONS = resolve(import.meta.dirname, '../../../db/migrations');
 
-function apply(sqlite: Database.Database, file: string) {
-  const statements = readFileSync(resolve(MIGRATIONS, file), 'utf8').split('--> statement-breakpoint');
+function apply(sqlite: Database.Database, migration: string) {
+  const statements = readFileSync(resolve(MIGRATIONS, migration, 'migration.sql'), 'utf8').split(
+    '--> statement-breakpoint',
+  );
   for (const statement of statements) {
     if (statement.trim()) sqlite.exec(statement);
   }
 }
 
 test('a sheet stored before the official sheet opens rested and with the defaults', () => {
-  const files = readdirSync(MIGRATIONS).filter((file) => file.endsWith('.sql')).sort();
-  // 0000 and 0001 are the schema the pre-official sheets were written with.
-  const [before, after] = [files.slice(0, 2), files.slice(2)];
+  const migrations = readdirSync(MIGRATIONS, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .sort();
+  // The first two are the schema the pre-official sheets were written with.
+  const [before, after] = [migrations.slice(0, 2), migrations.slice(2)];
   assert.ok(after.length > 0, 'the official sheet migration exists');
 
   const sqlite = new Database(':memory:');
