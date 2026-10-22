@@ -215,23 +215,61 @@ test('an item too long for the platform is cut and reported', () => {
   assert.match(warnings[0]!, /"Força na Fúria"/);
 });
 
+/** One attack row: name, the "Bônus Atq/CD" column and the damage. */
+function attackRow(name: string, bonus: string, damage = '1d6') {
+  return { 'Caixa de texto 1_4': name, 'Caixa de texto 1_3': bonus, 'Caixa de texto 1': damage };
+}
+
 test('attacks split the damage dice from the damage type', () => {
   const { input } = sheetFromOfficialPdf(sheet({
-    'Caixa de texto 1_4': 'Machado Grande',
-    'Caixa de texto 1_3': '+7',
-    'Caixa de texto 1': '1d12 + 5 Cortante',
-    'Caixa de texto 1_8': 'Sopro',
-    'Caixa de texto 1_7': 'CD 13',
-    'Caixa de texto 1_5': '2d6',
+    ...attackRow('Machado Grande', '+7', '1d12 + 5 Cortante'),
     // The fourth row has three overlapping widgets; the filled one counts.
     'Caixa de texto 1_20': 'Adaga',
+    'Caixa de texto 1_19': '+5',
     'Caixa de texto 1_17': '1d4',
   }))!;
   assert.deepEqual(input.attacks, [
-    { name: 'Machado Grande', bonus: 7, damage: '1d12+5', damageType: 'Cortante', notes: '' },
-    { name: 'Sopro', bonus: 0, damage: '2d6', damageType: '', notes: '' },
-    { name: 'Adaga', bonus: 0, damage: '1d4', damageType: '', notes: '' },
+    { kind: 'attack', name: 'Machado Grande', bonus: 7, damage: '1d12+5', damageType: 'Cortante', notes: '' },
+    { kind: 'attack', name: 'Adaga', bonus: 5, damage: '1d4', damageType: '', notes: '' },
   ]);
+});
+
+test('an attack bonus of +5 or +0 is an attack roll', () => {
+  assert.deepEqual(sheetFromOfficialPdf(sheet(attackRow('Adaga', '+5')))!.input.attacks[0], {
+    kind: 'attack', name: 'Adaga', bonus: 5, damage: '1d6', damageType: '', notes: '',
+  });
+  const { input, warnings } = sheetFromOfficialPdf(sheet(attackRow('Soco', '+0')))!;
+  assert.equal(input.attacks[0]!.kind === 'attack' && input.attacks[0]!.bonus, 0);
+  assert.deepEqual(warnings, []);
+});
+
+test('a DC keeps its value as a save, with the ability when the sheet names it', () => {
+  const { input, warnings } = sheetFromOfficialPdf(sheet(attackRow('Sopro', 'CD 13 Des', '2d6')))!;
+  assert.deepEqual(input.attacks[0], {
+    kind: 'save', name: 'Sopro', dc: 13, saveAbility: 'dexterity', damage: '2d6', damageType: '', notes: '',
+  });
+  assert.deepEqual(warnings, []);
+  assert.deepEqual(sheetFromOfficialPdf(sheet(attackRow('Sopro', 'Destreza CD 13')))!.input.attacks[0], {
+    kind: 'save', name: 'Sopro', dc: 13, saveAbility: 'dexterity', damage: '1d6', damageType: '', notes: '',
+  });
+});
+
+test('a DC without the ability is kept and flagged for review', () => {
+  const { input, warnings } = sheetFromOfficialPdf(sheet(attackRow('Sopro', 'CD 13')))!;
+  assert.deepEqual(input.attacks[0], {
+    kind: 'save', name: 'Sopro', dc: 13, saveAbility: null, damage: '1d6', damageType: '', notes: '',
+  });
+  assert.deepEqual(warnings, ['Sopro: CD 13 sem o atributo da resistência. Escolha o atributo antes de criar.']);
+});
+
+test('an empty or unclear bonus is left blank and flagged, never +0', () => {
+  const empty = sheetFromOfficialPdf(sheet(attackRow('Raio de Fogo', '', '1d10')))!;
+  assert.equal(empty.input.attacks[0]!.kind === 'attack' && empty.input.attacks[0]!.bonus, null);
+  assert.deepEqual(empty.warnings, ['Raio de Fogo: bônus de ataque vazio. Preencha o bônus ou a CD antes de criar.']);
+
+  const unclear = sheetFromOfficialPdf(sheet(attackRow('Adaga', 'For ou Des')))!;
+  assert.equal(unclear.input.attacks[0]!.kind === 'attack' && unclear.input.attacks[0]!.bonus, null);
+  assert.deepEqual(unclear.warnings, ['Adaga: "For ou Des" não é um bônus de ataque nem uma CD. Preencha antes de criar.']);
 });
 
 test('spells read the circle, and a "Truque:" prefix as circle 0', () => {

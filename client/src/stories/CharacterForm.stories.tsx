@@ -92,8 +92,8 @@ export const FichaLonga: Story = {
       name: 'Hazin Dan, o machado que atravessou as Planícies de Cinza',
       attacks: [
         ...hazinDan.attacks,
-        { name: 'Arremesso de machadinha em fúria', bonus: 7, damage: '1d6+7', damageType: 'Cortante', notes: 'Com Fúria ativa' },
-        { name: 'Soco', bonus: 7, damage: '1+5', damageType: 'Contundente', notes: '' },
+        { kind: 'attack', name: 'Arremesso de machadinha em fúria', bonus: 7, damage: '1d6+7', damageType: 'Cortante', notes: 'Com Fúria ativa' },
+        { kind: 'attack', name: 'Soco', bonus: 7, damage: '1+5', damageType: 'Contundente', notes: '' },
       ],
     },
   },
@@ -202,6 +202,27 @@ export const ImportacaoParcial: Story = {
       // The adjustment is kept as written and marked before any submit.
       await expect(canvas.getByLabelText('Ajuste de iniciativa')).toHaveValue(12);
       await expect(canvas.getByLabelText('Ajuste de iniciativa')).toHaveAttribute('aria-invalid', 'true');
+
+      region.querySelector('.qf-page')?.scrollTo(0, 0);
+    }
+  },
+};
+
+export const AtaqueComCd: Story = {
+  name: 'Ataque com CD de resistência',
+  play: async ({ canvasElement }) => {
+    for (const region of within(canvasElement).getAllByRole('region', { name: /^Tema / })) {
+      await userEvent.click(within(region).getByRole('tab', { name: /Ataques e características/ }));
+      await userEvent.click(within(region).getByRole('button', { name: /Adicionar ataque/ }));
+      const attack = within(within(region).getByRole('group', { name: 'Ataque 1' }));
+
+      // A save replaces the attack bonus with a DC and the ability of the save.
+      await userEvent.selectOptions(attack.getByLabelText('Bônus Atq/CD'), 'save');
+      await expect(attack.queryByLabelText('Bônus')).toBeNull();
+      await userEvent.type(attack.getByLabelText('CD'), '13');
+      await expect(attack.getByLabelText('Atributo da resistência')).toHaveValue('');
+      await userEvent.selectOptions(attack.getByLabelText('Atributo da resistência'), 'dexterity');
+      await expect(attack.getByLabelText('Atributo da resistência')).toHaveValue('dexterity');
 
       region.querySelector('.qf-page')?.scrollTo(0, 0);
     }

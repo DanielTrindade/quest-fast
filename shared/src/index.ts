@@ -72,6 +72,7 @@ export {
   collectPdfFields,
   normalizePdfFieldName,
   sheetFromOfficialPdf,
+  type ImportedAttack,
   type ImportedSheet,
   type PdfFieldValues,
   type PdfFormField,

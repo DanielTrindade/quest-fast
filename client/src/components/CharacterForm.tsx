@@ -23,6 +23,8 @@ import {
   type Coin,
   type Coins,
   type HitDie,
+  type AttackInput,
+  type ImportedAttack,
   type ImportedSheet,
   type ProficiencyLevel,
   type SheetImportResult,
@@ -102,7 +104,18 @@ const ERROR_TAB: Record<keyof CharacterFieldErrors, FormTab> = {
  * Numbers stay text while they are typed: a number state turns the "-" of
  * "-2" into NaN and a cleared field into an undeletable 0.
  */
-type FormAttack = { rowId: string; name: string; bonus: string; damage: string; damageType: string; notes: string };
+type FormAttack = {
+  rowId: string;
+  name: string;
+  /** An attack roll keeps `bonus`; a save keeps `dc` and `saveAbility`. Both stay while the kind is toggled. */
+  kind: 'attack' | 'save';
+  bonus: string;
+  dc: string;
+  saveAbility: Ability | '';
+  damage: string;
+  damageType: string;
+  notes: string;
+};
 type FormSpell = {
   rowId: string;
   level: string;
@@ -143,16 +156,18 @@ function lines(text: string) {
 /** The three fixed attunement slots of the official sheet. */
 const ATTUNED_SLOTS = ['attuned-1', 'attuned-2', 'attuned-3'] as const;
 
-/** What the editor reads from a sheet: the stored one, or one imported from a PDF. */
+/**
+ * What the editor reads from a sheet: the stored one, or one imported from a
+ * PDF, whose attacks may still have blanks (`null`) to fill.
+ */
 type SheetDraft = Omit<
   CharacterSheet,
-  'id' | 'campaignId' | 'ownerId' | 'ownerName' | 'hpCurrent' | 'hpTemp' | 'hitDiceSpent' | 'deathSaves' | 'heroicInspiration' | 'avatarUrl'
->;
+  'id' | 'campaignId' | 'ownerId' | 'ownerName' | 'hpCurrent' | 'hpTemp' | 'hitDiceSpent' | 'deathSaves' | 'heroicInspiration' | 'avatarUrl' | 'attacks'
+> & { attacks: ImportedAttack[] };
 
-function draftFromImport({ spellSlotTotals, attacks, ...imported }: ImportedSheet): SheetDraft {
+function draftFromImport({ spellSlotTotals, ...imported }: ImportedSheet): SheetDraft {
   return {
     ...imported,
-    attacks: attacks.map((attack) => ({ damageType: '', notes: '', ...attack })),
     spellSlots: spellSlotTotals.map((total) => ({ total, spent: 0 })),
     avatarAssetId: null,
   };
@@ -187,7 +202,10 @@ function freshState(character: SheetDraft | null) {
     attacks: (character?.attacks ?? []).map((attack): FormAttack => ({
       rowId: newRowId(),
       name: attack.name,
-      bonus: String(attack.bonus),
+      kind: attack.kind,
+      bonus: attack.kind === 'attack' && attack.bonus !== null ? String(attack.bonus) : '',
+      dc: attack.kind === 'save' ? String(attack.dc) : '',
+      saveAbility: attack.kind === 'save' ? attack.saveAbility ?? '' : '',
       damage: attack.damage,
       damageType: attack.damageType,
       notes: attack.notes,
@@ -223,18 +241,20 @@ type PanelProps = {
   clearError: ClearFieldError;
 };
 
-function SelectField({ label, value, onChange, className = '', children }: {
+function SelectField({ label, value, onChange, className = '', invalid = false, children }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   className?: string;
+  invalid?: boolean;
   children: ReactNode;
 }) {
   const id = useId();
   return (
     <div className={`qf-field ${className}`}>
       <label htmlFor={id}>{label}</label>
-      <select id={id} className="qf-input" value={value} onChange={(event) => onChange(event.target.value)}>
+      <select id={id} className="qf-input" value={value} aria-invalid={invalid || undefined}
+        onChange={(event) => onChange(event.target.value)}>
         {children}
       </select>
     </div>
@@ -480,6 +500,7 @@ function AttacksPanel({ idPrefix, active, state, set, errors, clearError }: Pane
           {state.attacks.map((attack, index) => {
             const position = index + 1;
             const bonus = numberValue(attack.bonus);
+            const dc = numberValue(attack.dc);
             return (
               <div key={attack.rowId} className="sheet-form__attack" role="group" aria-label={`Ataque ${position}`}>
                 <div className="sheet-form__attack-head">
@@ -497,9 +518,30 @@ function AttacksPanel({ idPrefix, active, state, set, errors, clearError }: Pane
                   <Field className="sheet-form__attack-name" label="Nome" value={attack.name}
                     aria-invalid={Boolean(errors.attacks) && attack.name.trim().length === 0}
                     onChange={(e) => updateAttack(index, { name: e.target.value })} />
-                  <Field label="Bônus" type="number" min={-20} max={20} value={attack.bonus}
-                    aria-invalid={Boolean(errors.attacks) && (!Number.isInteger(bonus) || Math.abs(bonus) > 20)}
-                    onChange={(e) => updateAttack(index, { bonus: e.target.value })} />
+                  <SelectField label="Bônus Atq/CD" value={attack.kind}
+                    onChange={(value) => updateAttack(index, { kind: value as FormAttack['kind'] })}>
+                    <option value="attack">Bônus de ataque</option>
+                    <option value="save">CD de resistência</option>
+                  </SelectField>
+                  {attack.kind === 'attack' ? (
+                    <Field label="Bônus" type="number" min={-20} max={20} value={attack.bonus}
+                      hint="Rola 1d20 + bônus contra a CA"
+                      aria-invalid={Boolean(errors.attacks) && (!Number.isInteger(bonus) || Math.abs(bonus) > 20)}
+                      onChange={(e) => updateAttack(index, { bonus: e.target.value })} />
+                  ) : (
+                    <>
+                      <Field label="CD" type="number" min={1} max={30} value={attack.dc}
+                        hint="O alvo faz o teste contra ela"
+                        aria-invalid={Boolean(errors.attacks) && (!Number.isInteger(dc) || dc < 1 || dc > 30)}
+                        onChange={(e) => updateAttack(index, { dc: e.target.value })} />
+                      <SelectField label="Atributo da resistência" value={attack.saveAbility}
+                        invalid={Boolean(errors.attacks) && !attack.saveAbility}
+                        onChange={(value) => updateAttack(index, { saveAbility: value as Ability | '' })}>
+                        <option value="">Escolha…</option>
+                        {ABILITIES.map((ability) => <option key={ability} value={ability}>{ABILITY_LABELS[ability]}</option>)}
+                      </SelectField>
+                    </>
+                  )}
                   <Field label="Dano" hint="Ex.: 1d8+3" autoComplete="off" spellCheck={false} value={attack.damage}
                     aria-invalid={Boolean(errors.attacks) && !parseDiceExpression(attack.damage)}
                     onChange={(e) => updateAttack(index, { damage: e.target.value })} />
@@ -514,7 +556,9 @@ function AttacksPanel({ idPrefix, active, state, set, errors, clearError }: Pane
           })}
           <div>
             <Button variant="secondary" type="button"
-              onClick={() => set('attacks', [...state.attacks, { rowId: newRowId(), name: '', bonus: '0', damage: '', damageType: '', notes: '' }])}>
+              onClick={() => set('attacks', [...state.attacks, {
+                rowId: newRowId(), name: '', kind: 'attack', bonus: '0', dc: '', saveAbility: '', damage: '', damageType: '', notes: '',
+              }])}>
               <Plus size={18} aria-hidden="true" /> Adicionar ataque
             </Button>
           </div>
@@ -796,13 +840,12 @@ export function CharacterForm({ campaignId, character, onSaved, onRequestClose, 
     armorTraining: state.armorTraining,
     weaponProficiencies: state.weaponProficiencies.trim(),
     toolProficiencies: state.toolProficiencies.trim(),
-    attacks: state.attacks.map((attack) => ({
-      name: attack.name,
-      bonus: numberValue(attack.bonus),
-      damage: attack.damage,
-      damageType: attack.damageType.trim(),
-      notes: attack.notes.trim(),
-    })),
+    attacks: state.attacks.map((attack): AttackInput => {
+      const details = { name: attack.name, damage: attack.damage, damageType: attack.damageType.trim(), notes: attack.notes.trim() };
+      return attack.kind === 'save'
+        ? { ...details, kind: 'save', dc: numberValue(attack.dc), saveAbility: attack.saveAbility || null }
+        : { ...details, kind: 'attack', bonus: numberValue(attack.bonus) };
+    }),
     features: lines(state.featuresText),
     speciesTraits: lines(state.speciesTraitsText),
     feats: lines(state.featsText),

@@ -12,7 +12,7 @@
  * Handling, Performance before Deception).
  */
 
-import type { CharacterInput } from './api.ts';
+import type { Attack, CharacterInput } from './api.ts';
 import { ABILITIES, SKILLS, abilityModifier, proficiencyBonus, skillAbility, type Ability, type Skill } from './modifiers.ts';
 import {
   ARMOR_TRAINING,
@@ -32,8 +32,19 @@ import {
 /** Field name to value, as the PDF reader returns them: text or a checkbox. */
 export type PdfFieldValues = Record<string, string | boolean>;
 
+/**
+ * An attack row read from the PDF. What was empty or unclear on the sheet is
+ * `null`, so the editor shows it as a field to fill instead of a guess.
+ */
+export type ImportedAttack = Pick<Attack, 'name' | 'damage' | 'damageType' | 'notes'> & (
+  | { kind: 'attack'; bonus: number | null }
+  | { kind: 'save'; dc: number; saveAbility: Ability | null }
+);
+
 /** Every optional part of the input filled, so the editor gets a full draft. */
-export type ImportedSheet = Required<Omit<CharacterInput, 'avatarAssetId'>>;
+export type ImportedSheet = Omit<Required<Omit<CharacterInput, 'avatarAssetId'>>, 'attacks'> & {
+  attacks: ImportedAttack[];
+};
 
 export type SheetImportResult = {
   input: ImportedSheet;
@@ -460,21 +471,36 @@ export function sheetFromOfficialPdf(raw: PdfFieldValues, unreadable: readonly s
     warnings.push(`Atributo de conjuração "${spellcastingText}" não reconhecido.`);
   }
 
-  const attacks = ATTACK_ROWS.flatMap((row) => {
+  const attacks = ATTACK_ROWS.flatMap((row): ImportedAttack[] => {
     const name = text(row.name);
     if (!name) return [];
     const damageText = text(row.damage);
     const damage = DAMAGE.exec(damageText);
-    const bonusText = text(row.bonus);
-    // "CD 13" is a save DC, not an attack bonus.
-    const bonus = /\b(cd|dc)\b/i.test(bonusText) ? 0 : parseInteger(bonusText) ?? 0;
-    return [{
+    const details = {
       name,
-      bonus,
       damage: damage ? damage[1]!.replace(/\s+/g, '') : damageText,
       damageType: damage ? damage[2]!.trim() : '',
       notes: text(row.notes),
-    }];
+    };
+
+    // The "Bônus Atq/CD" column: "CD 13 Des" is a save the target makes,
+    // "+5" an attack roll. Neither is guessed when the sheet does not say.
+    const bonusText = text(row.bonus);
+    const dc = /\b(?:cd|dc)\s*:?\s*(\d+)/i.exec(bonusText);
+    if (dc) {
+      const saveAbility = fold(bonusText).split(/[^a-z]+/).map((word) => ABILITY_WORDS[word]).find(Boolean) ?? null;
+      if (!saveAbility) warnings.push(`${name}: CD ${dc[1]} sem o atributo da resistência. Escolha o atributo antes de criar.`);
+      return [{ ...details, kind: 'save', dc: Number(dc[1]), saveAbility }];
+    }
+    const bonus = /^[+\-−–]?\s*\d+$/.test(bonusText) ? parseInteger(bonusText)! : null;
+    if (bonus === null) {
+      warnings.push(
+        bonusText
+          ? `${name}: "${bonusText}" não é um bônus de ataque nem uma CD. Preencha antes de criar.`
+          : `${name}: bônus de ataque vazio. Preencha o bônus ou a CD antes de criar.`,
+      );
+    }
+    return [{ ...details, kind: 'attack', bonus }];
   });
 
   const guessedCircle: string[] = [];

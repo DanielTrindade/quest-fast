@@ -76,7 +76,9 @@ Tudo aqui é função pura, com teste unitário ao lado (`*.test.ts`, rodando no
 - `src/schema.ts`: tabelas `users`, `sessions`, `campaigns`,
   `campaign_members`, `assets`, `characters` e `session_events`. Partes
   extensas da ficha (perícias, ataques, magias, inventário) e o `payload` dos
-  eventos são colunas JSON.
+  eventos são colunas JSON. Um campo novo dentro delas não ganha migração: o
+  servidor lê o JSON antigo com o padrão documentado (um ataque salvo sem
+  `kind` é uma rolagem de ataque).
 - `migrations/`: SQL gerado pelo `drizzle-kit`. Mudou o schema: rode
   `npm run db:generate` e versione a migração gerada. Migrações já publicadas
   não são editadas.

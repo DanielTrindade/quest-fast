@@ -146,7 +146,15 @@ for (const sheet of charactersSeed) {
       ac: sheet.ac,
       skills: sheet.skills,
       saves: sheet.saves,
-      attacks: sheet.attacks.map((attack) => ({ damageType: '', notes: '', ...attack })),
+      // The demo sheets only carry attack rolls.
+      attacks: sheet.attacks.flatMap((attack) => (attack.kind === 'save' ? [] : [{
+        kind: 'attack' as const,
+        name: attack.name,
+        bonus: attack.bonus,
+        damage: attack.damage,
+        damageType: attack.damageType ?? '',
+        notes: attack.notes ?? '',
+      }])),
       features: sheet.features,
       description: sheet.description,
       avatarAssetId: sheet.avatarAssetId,

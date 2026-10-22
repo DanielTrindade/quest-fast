@@ -27,6 +27,10 @@ Atualizado em 2026-10-21.
   navegador, nada é salvo antes da revisão, e o que não dá para ler com
   segurança vira aviso para o jogador conferir. Só esse modelo de PDF é
   reconhecido.
+- **Bônus de ataque ou CD:** cada linha de "Armas e truques de dano" é uma
+  rolagem de ataque (bônus contra a CA) ou um teste de resistência do alvo
+  (CD e atributo), sem botão de rolar ataque. Rolagem de dano pela ficha e
+  dano composto (`1d8+3+1d6`, issue #8) seguem em aberto.
 
 Pendência dessas entregas: rodar `verify:app` e `verify:group` contra o app
 rodando para fechar a qualidade de vida da sessão e a ficha oficial.
