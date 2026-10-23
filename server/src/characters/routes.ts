@@ -42,6 +42,7 @@ import {
 import type { Context } from '../context.ts';
 import { requireAuth, requireCampaignRole } from '../middleware.ts';
 import { recordRollEvent } from '../events/feed.ts';
+import { publishCharacterEncounters } from '../combat/routes.ts';
 import { boundedInteger, fail, isInputError, parseAttack, shortText, withInput } from '../validation.ts';
 
 function uniqueStrings<T>(values: T[]): T[] {
@@ -597,6 +598,8 @@ export function characterRoutes() {
         .run();
     });
     if (isInputError(result)) return c.json({ error: result.inputError }, 422);
+    // Name, armor class and hit points show in the encounters the character is in.
+    publishCharacterEncounters(c.var.deps, c.var.campaignId, current.id);
 
     const updated = characterSelect(db, c.var.campaignId, current.id)!;
     return c.json({ character: toSheet(updated) });
@@ -622,6 +625,7 @@ export function characterRoutes() {
         .run();
     });
     if (isInputError(result)) return c.json({ error: result.inputError }, 422);
+    publishCharacterEncounters(c.var.deps, c.var.campaignId, sheet.id);
 
     const updated = characterSelect(db, c.var.campaignId, sheet.id)!;
     return c.json({ character: toSheet(updated) });

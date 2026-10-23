@@ -112,10 +112,11 @@ src/
   campaigns/      campanhas, convite e membros
   characters/     ficha, estado de sessão e rolagens pela ficha
   statblocks/     bestiário da campanha (só o mestre)
+  combat/         encontros, iniciativa, turnos e a projeção por papel
   dice/           rolagem livre
   feed/           leitura paginada do feed
   assets/         upload de imagens (store em disco ou em memória)
-  events/         EventHub, persistência do feed e WebSocket
+  events/         EventHub, persistência e redação do feed, WebSocket
   validation.ts   parsers de entrada compartilhados (InputError, ataques)
   testing.ts      helpers dos testes de integração
 ```
@@ -132,6 +133,7 @@ montado em `app.ts`:
 | `/api/campaigns/:campaignId/rolls` | `dice/` |
 | `/api/campaigns/:campaignId/feed` | `feed/` |
 | `/api/campaigns/:campaignId/statblocks` | `statblocks/` |
+| `/api/campaigns/:campaignId/encounters` | `combat/` |
 | `/api/campaigns/:campaignId/ws` | `events/ws.ts` (upgrade) |
 
 As dependências chegam por injeção (`createApp(deps)`), não por import de
@@ -208,9 +210,28 @@ salvos da ficha e devolve o resultado pronto. Rolagens secretas do mestre são
 filtradas tanto na leitura do feed (no SQL) quanto no broadcast do socket.
 
 O WebSocket autoriza **antes** do upgrade (sessão e papel); um socket nunca
-troca de campanha. Não há replay de eventos: ao reconectar, o cliente refaz o
+troca de campanha. O hub guarda o papel e o `userId` de cada conexão: eventos
+do feed passam por `redactEvent` (o mesmo filtro da leitura paginada) e o
+combate sai por `publishCombat`, que chama `projectEncounter` para cada
+socket. Não há replay de eventos: ao reconectar, o cliente refaz o
 fetch. Novos tipos de evento (combate, tokens) entram no mesmo canal, e o
 cliente tem fallback para tipos que ainda não sabe renderizar.
+
+### Combate
+
+Toda mudança num encontro segue o mesmo caminho, numa transação SQLite: lê o
+encontro e os combatentes, aplica as regras de `shared/src/combat.ts`,
+incrementa `version` e grava; depois publica `combat.updated` com o estado
+completo **projetado para cada conexão** e responde com a projeção de quem
+pediu. O jogador nunca recebe encontro em preparação, combatente escondido nem
+PV, CA ou iniciativa de monstro — vê só a faixa de saúde. O cliente descarta
+mensagem com `version` menor que a conhecida e refaz o fetch ao reconectar.
+
+Pedido de turno leva `expectedActiveCombatantId`: se não bater com o turno
+atual, a resposta é 409 com o estado atual, o que evita turno pulado duas
+vezes por clique duplo ou mestre e jogador ao mesmo tempo. PV e condições de
+personagem continuam na ficha; mudar a ficha de quem está num encontro também
+publica `combat.updated`.
 
 ## Princípios
 

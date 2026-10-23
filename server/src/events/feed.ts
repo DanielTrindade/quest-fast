@@ -1,14 +1,15 @@
 import { randomUUID } from 'node:crypto';
 import { and, desc, eq, sql } from 'drizzle-orm';
 import { sessionEvents, users, type Db } from '@quest-fast/db';
-import type { RollPayload, RollSessionEvent } from '@quest-fast/shared';
+import type { CombatEndedPayload, CombatSessionEvent, CombatStartedPayload, RollPayload, RollSessionEvent, SessionEvent } from '@quest-fast/shared';
+import { redactEvent } from './redact.ts';
 
 /**
  * Persisting a roll event. `userName` is baked in so the feed stays readable
  * even if a member is later removed from the campaign.
  */
 export function recordRollEvent(
-  db: Db,
+  db: Pick<Db, 'insert'>,
   input: {
     campaignId: string;
     userId: string;
@@ -42,7 +43,43 @@ export function recordRollEvent(
   };
 }
 
-export type FeedPage = { events: RollSessionEvent[]; nextCursor: string | null };
+/** The start and the end of a combat; the payload is stored whole and redacted on read. */
+export function recordCombatEvent(
+  db: Pick<Db, 'insert'>,
+  input: {
+    campaignId: string;
+    userId: string;
+    userName: string;
+    payload: CombatStartedPayload | CombatEndedPayload;
+  },
+): CombatSessionEvent {
+  const row = db
+    .insert(sessionEvents)
+    .values({
+      id: randomUUID(),
+      campaignId: input.campaignId,
+      userId: input.userId,
+      type: input.payload.kind,
+      secret: false,
+      payload: input.payload,
+    })
+    .returning()
+    .get();
+
+  return {
+    id: row.id,
+    campaignId: row.campaignId,
+    userId: row.userId,
+    userName: input.userName,
+    secret: row.secret,
+    createdAt: row.createdAt.toISOString(),
+    ...(input.payload.kind === 'combat.started'
+      ? { type: 'combat.started', payload: input.payload }
+      : { type: 'combat.ended', payload: input.payload }),
+  };
+}
+
+export type FeedPage = { events: SessionEvent[]; nextCursor: string | null };
 
 /**
  * Latest events, oldest first, ready for the client. `before` is an opaque
@@ -91,16 +128,21 @@ export function readFeed(
   const hasOlder = rows.length > limit;
   const page = rows.slice(0, limit).reverse();
 
-  const events = page.map(({ event, userName }) => ({
-    id: event.id,
-    campaignId: event.campaignId,
-    userId: event.userId,
-    userName,
-    type: event.type as RollSessionEvent['type'],
-    secret: event.secret,
-    payload: event.payload as RollPayload,
-    createdAt: event.createdAt.toISOString(),
-  }));
+  const events = page.flatMap(({ event, userName }) => {
+    const stored = {
+      id: event.id,
+      campaignId: event.campaignId,
+      userId: event.userId,
+      userName,
+      type: event.type,
+      secret: event.secret,
+      payload: event.payload,
+      createdAt: event.createdAt.toISOString(),
+    } as SessionEvent;
+    // Secret rows were already filtered in SQL; redaction only trims payloads.
+    const visible = redactEvent(stored, role);
+    return visible ? [visible] : [];
+  });
 
   // The oldest id on the page is the cursor for the next "load more".
   const nextCursor = hasOlder ? (events[0]!.id as string) : null;
