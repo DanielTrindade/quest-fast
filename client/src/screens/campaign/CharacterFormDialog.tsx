@@ -15,12 +15,14 @@ export function CharacterFormDialog({
   open,
   onOpenChange,
   onSaved,
+  onSaveError,
 }: {
   campaignId: string;
   character: CharacterSheet | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSaved: () => void;
+  onSaveError?: (message: string) => void;
 }) {
   const formRef = useRef<CharacterFormHandle>(null);
 
@@ -40,6 +42,7 @@ export function CharacterFormDialog({
         campaignId={campaignId}
         character={character}
         onSaved={onSaved}
+        onSaveError={onSaveError}
         onRequestClose={() => onOpenChange(false)}
       />
     </Dialog>

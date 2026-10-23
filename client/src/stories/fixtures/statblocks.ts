@@ -17,8 +17,8 @@ export const goblin: Statblock = {
   initiativeBonus: 0,
   abilityScores: { strength: 8, dexterity: 14, constitution: 10, intelligence: 10, wisdom: 8, charisma: 8 },
   attacks: [
-    { name: 'Cimitarra', bonus: 4, damage: '1d6+2', damageType: 'Cortante', notes: 'Alcance 1,5 m' },
-    { name: 'Arco curto', bonus: 4, damage: '1d6+2', damageType: 'Perfurante', notes: 'Distância 24/96 m' },
+    { kind: 'attack', name: 'Cimitarra', bonus: 4, damage: '1d6+2', damageType: 'Cortante', notes: 'Alcance 1,5 m' },
+    { kind: 'attack', name: 'Arco curto', bonus: 4, damage: '1d6+2', damageType: 'Perfurante', notes: 'Distância 24/96 m' },
   ],
   traits: 'Fuga Ágil. Pode Desengajar ou Esconder como ação bônus.',
   actions: '',
@@ -40,9 +40,9 @@ export const wyrmDasCinzas: Statblock = {
   initiativeBonus: 4,
   abilityScores: { strength: 27, dexterity: 10, constitution: 25, intelligence: 16, wisdom: 13, charisma: 21 },
   attacks: [
-    { name: 'Mordida', bonus: 14, damage: '2d10+8', damageType: 'Perfurante', notes: 'Mais 2d6 de fogo' },
-    { name: 'Garra', bonus: 14, damage: '2d6+8', damageType: 'Cortante', notes: '' },
-    { name: 'Cauda', bonus: 14, damage: '2d8+8', damageType: 'Concussão', notes: 'Alcance 4,5 m' },
+    { kind: 'attack', name: 'Mordida', bonus: 14, damage: '2d10+8', damageType: 'Perfurante', notes: 'Mais 2d6 de fogo' },
+    { kind: 'attack', name: 'Garra', bonus: 14, damage: '2d6+8', damageType: 'Cortante', notes: '' },
+    { kind: 'attack', name: 'Cauda', bonus: 14, damage: '2d8+8', damageType: 'Concussão', notes: 'Alcance 4,5 m' },
   ],
   traits:
     'Resistência Lendária (3/dia). Se falhar numa salvaguarda, pode escolher passar.\n' +

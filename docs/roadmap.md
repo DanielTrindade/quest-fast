@@ -3,7 +3,7 @@
 O que já existe, o que vem a seguir e o que está em aberto. Atualize este
 arquivo no PR que entrega ou muda o escopo de uma etapa.
 
-Atualizado em 2026-10-18.
+Atualizado em 2026-10-21.
 
 ## Entregue
 
@@ -22,6 +22,15 @@ Atualizado em 2026-10-18.
 - **Ficha oficial (D&D 2024):** identidade, combate, especialização,
   conjuração, inventário, personalidade e estado de sessão editável sem abrir
   o editor. ([histórico](history/2026-09-13-official-character-sheet.md))
+- **Importação da ficha em PDF:** na criação de personagem, o PDF preenchido
+  da ficha oficial em português pré-preenche o editor. A leitura acontece no
+  navegador, nada é salvo antes da revisão, e o que não dá para ler com
+  segurança vira aviso para o jogador conferir. Só esse modelo de PDF é
+  reconhecido.
+- **Bônus de ataque ou CD:** cada linha de "Armas e truques de dano" é uma
+  rolagem de ataque (bônus contra a CA) ou um teste de resistência do alvo
+  (CD e atributo), sem botão de rolar ataque. Rolagem de dano pela ficha e
+  dano composto (`1d8+3+1d6`, issue #8) seguem em aberto.
 
 Pendência dessas entregas: rodar `verify:app` e `verify:group` contra o app
 rodando para fechar a qualidade de vida da sessão e a ficha oficial.
