@@ -122,6 +122,12 @@ a Redirect URI.
 | `DB_FILE` | não | Arquivo SQLite, relativo à raiz (padrão `quest-fast.db`) |
 | `CLIENT_DIR` | não | Build do SPA, relativo à raiz (padrão `client/dist`) |
 | `UPLOADS_DIR` | não | Avatares e uploads em disco, caminho absoluto ou relativo à raiz (padrão `uploads`) |
+| `ASSET_STORAGE` | não | `disk` (padrão) ou `r2`. Veja [Avatares no Cloudflare R2](#avatares-no-cloudflare-r2-opcional) |
+| `R2_ACCOUNT_ID` | com `r2` | ID da conta Cloudflare |
+| `R2_ACCESS_KEY_ID` | com `r2` | Chave de acesso do token de API do R2 |
+| `R2_SECRET_ACCESS_KEY` | com `r2` | Segredo do token de API do R2 |
+| `R2_BUCKET` | com `r2` | Nome do bucket |
+| `R2_PUBLIC_URL` | com `r2` | URL pública do bucket, como `https://cdn.seu-dominio` |
 | `COOKIE_SECURE` | não | `true` atrás de HTTPS; cookies `Secure` não valem em HTTP |
 
 ## Self-host com Docker
@@ -145,6 +151,33 @@ em `/dados`, num volume: **backup é copiar esse diretório**.
 
 Coloque um proxy reverso com HTTPS na frente. Sem HTTPS, `COOKIE_SECURE=true`
 impede o login; sem `Secure`, o cookie de sessão trafega em claro.
+
+### Avatares no Cloudflare R2 (opcional)
+
+Por padrão os avatares ficam em disco, ao lado do banco. Com
+`ASSET_STORAGE=r2`, os envios novos vão para um bucket do Cloudflare R2 e o
+navegador carrega as imagens direto da rede da Cloudflare, sem passar pelo
+servidor. O porquê está em
+[`docs/architecture.md`](docs/architecture.md#armazenamento-de-arquivos).
+
+1. No painel da Cloudflare, em **R2**, crie um bucket.
+2. Ligue um domínio seu ao bucket (por exemplo `cdn.seu-dominio`), para que ele
+   tenha acesso público. O domínio precisa estar na Cloudflare. A URL
+   `r2.dev` que o R2 oferece tem limite de requisições e serve só para teste.
+3. Crie um token de API do R2 com permissão de leitura e escrita de objetos,
+   restrito a esse bucket. Guarde o Access Key ID e o Secret Access Key: o
+   segredo só aparece uma vez.
+4. Preencha as variáveis `ASSET_STORAGE=r2` e `R2_*` (o Account ID aparece no
+   painel do R2) e reinicie o servidor. Na subida, ele mostra qual armazenamento
+   está em uso.
+
+**Avatares que já estavam em disco:** a URL de cada avatar é montada a partir
+do caminho salvo no banco (`campaigns/<campanha>/<arquivo>`), e no bucket a
+chave é o mesmo caminho. Ao ligar o R2, copie o conteúdo de `UPLOADS_DIR` para
+o bucket mantendo a estrutura de pastas (por exemplo, com `rclone copy` ou
+`aws s3 sync` apontando para o endpoint do R2). Sem essa cópia, os avatares
+antigos deixam de aparecer. O servidor continua servindo `/uploads`, então
+voltar para `disk` não perde nada que ainda esteja no disco.
 
 ## Verificação
 
