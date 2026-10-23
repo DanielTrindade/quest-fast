@@ -1,5 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { eq } from 'drizzle-orm';
+import { characters } from '@quest-fast/db';
 import type {
   CharacterListResponse,
   CharacterResponse,
@@ -142,7 +144,8 @@ test('a sheet in the pre-official shape is accepted with the documented defaults
   assert.equal(character.spellcastingAbility, null);
   assert.deepEqual(character.expertise, []);
   assert.deepEqual(character.coins, { cp: 0, sp: 0, ep: 0, gp: 0, pp: 0 });
-  assert.deepEqual(character.attacks[0], { name: 'Adaga', bonus: 7, damage: '1d4+4', damageType: '', notes: '' });
+  // An attack without a kind, as older clients send it, is an attack roll.
+  assert.deepEqual(character.attacks[0], { kind: 'attack', name: 'Adaga', bonus: 7, damage: '1d4+4', damageType: '', notes: '' });
   assert.equal(character.hpCurrent, 24);
 });
 
@@ -310,6 +313,70 @@ test('initiative rolls the dexterity modifier plus the adjustment, only for the 
   assert.equal(adjusted.event.payload.expression, '1d20+6');
 
   assert.equal((await roll(master, campaign.id, character.id, { kind: 'initiative' })).status, 403);
+});
+
+// --- Attack bonus or save DC ------------------------------------------------------
+
+const BREATH = { kind: 'save', name: 'Sopro de fogo', dc: 13, saveAbility: 'dexterity', damage: '2d6', damageType: 'Fogo' };
+
+test('an attack row can be a save DC with the ability the target rolls', async () => {
+  const { player, campaign } = await appWithCampaign();
+  const { response, character } = await create(player, campaign.id, { ...HAZIN, attacks: [...HAZIN.attacks, BREATH] });
+
+  assert.equal(response.status, 201);
+  assert.ok(character);
+  assert.deepEqual(character.attacks[1], { ...BREATH, notes: '' });
+  assert.equal('bonus' in character.attacks[1]!, false);
+  assert.equal(character.attacks[0]?.kind, 'attack');
+});
+
+test('a save DC needs a DC in range and a known ability', async () => {
+  const { player, campaign } = await appWithCampaign();
+  const invalid: Array<[string, unknown]> = [
+    ['DC below the range', { ...BREATH, dc: 0 }],
+    ['DC above the range', { ...BREATH, dc: 31 }],
+    ['fractional DC', { ...BREATH, dc: 12.5 }],
+    ['missing ability', { ...BREATH, saveAbility: undefined }],
+    ['ability not on the sheet', { ...BREATH, saveAbility: 'luck' }],
+    ['a bonus does not stand in for the DC', { ...BREATH, dc: undefined, bonus: 5 }],
+    ['unknown kind', { ...BREATH, kind: 'spell' }],
+  ];
+  for (const [label, attack] of invalid) {
+    assert.equal((await create(player, campaign.id, { ...HAZIN, attacks: [attack] })).response.status, 422, label);
+  }
+});
+
+test('a player cannot roll an attack on a save DC row', async () => {
+  const { player, campaign } = await appWithCampaign();
+  const { character } = await create(player, campaign.id, { ...HAZIN, attacks: [...HAZIN.attacks, BREATH] });
+  assert.ok(character);
+
+  const refused = await roll(player, campaign.id, character.id, { kind: 'attack', attackIndex: 1 });
+  assert.equal(refused.status, 422);
+  assert.match((await body<{ error: string }>(refused)).error, /teste de resistência/);
+
+  const axe = await body<RollResponse>(await roll(player, campaign.id, character.id, { kind: 'attack', attackIndex: 0 }));
+  assert.equal(axe.event.payload.expression, '1d20+7');
+});
+
+test('attacks stored before the save DC existed read as attack rolls', async () => {
+  const a = createTestApp(PROFILES);
+  const player = asUser(a, await signIn(a, 'rafael'));
+  const campaign = await body<CreatedCampaign>(
+    await player('/api/campaigns', { method: 'POST', body: JSON.stringify({ name: 'Ecos de Phandalin' }) }),
+  );
+  const { character } = await create(player, campaign.id, HAZIN);
+  assert.ok(character);
+  // The row as it was written before `kind` existed.
+  a.db.update(characters)
+    .set({ attacks: [{ name: 'Machado Grande', bonus: 7, damage: '1d12+5', damageType: 'Cortante', notes: '' }] as never })
+    .where(eq(characters.id, character.id))
+    .run();
+
+  const stored = await body<CharacterResponse>(await player(`/api/campaigns/${campaign.id}/characters/${character.id}`));
+  assert.equal(stored.character.attacks[0]?.kind, 'attack');
+  const axe = await body<RollResponse>(await roll(player, campaign.id, character.id, { kind: 'attack', attackIndex: 0 }));
+  assert.equal(axe.event.payload.expression, '1d20+7');
 });
 
 test('a spell attack needs a casting ability and follows it', async () => {

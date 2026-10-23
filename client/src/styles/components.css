@@ -60,6 +60,9 @@
 .qf-toast__icon { flex-shrink: 0; margin-top: var(--spacing-2); }
 .qf-toast--success .qf-toast__icon { color: var(--color-success-text); }
 .qf-toast--error .qf-toast__icon { color: var(--color-danger-text); }
+/* Success and error are tinted whole, not only the icon: the outcome reads at a glance. */
+.qf-toast--success { background: var(--color-success-surface); border-color: var(--color-success); border-inline-start-width: 4px; }
+.qf-toast--error { background: var(--color-danger-surface); border-color: var(--color-danger); border-inline-start-width: 4px; }
 .qf-toast--info .qf-toast__icon { color: var(--color-accent-text); }
 .qf-toast__title { font-weight: 600; }
 .qf-toast__description { color: var(--color-text-secondary); margin-top: var(--spacing-1); font-size: var(--text-small); }
