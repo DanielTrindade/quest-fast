@@ -356,7 +356,7 @@ export type Statblock = Omit<StatblockInput, 'attacks'> & {
 
 export type StatblockSummary = Pick<
   Statblock,
-  'id' | 'name' | 'size' | 'creatureType' | 'challengeRating' | 'ac' | 'hpAverage'
+  'id' | 'name' | 'size' | 'creatureType' | 'challengeRating' | 'ac' | 'hpAverage' | 'hpFormula'
 >;
 export type StatblockResponse = { statblock: Statblock };
 export type StatblockListResponse = { statblocks: StatblockSummary[] };

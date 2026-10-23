@@ -82,8 +82,8 @@ export const semExtras: Statblock = {
   reactions: '',
 };
 
-export function summaryOf({ id, name, size, creatureType, challengeRating, ac, hpAverage }: Statblock): StatblockSummary {
-  return { id, name, size, creatureType, challengeRating, ac, hpAverage };
+export function summaryOf({ id, name, size, creatureType, challengeRating, ac, hpAverage, hpFormula }: Statblock): StatblockSummary {
+  return { id, name, size, creatureType, challengeRating, ac, hpAverage, hpFormula };
 }
 
 export const bestiary: StatblockSummary[] = [goblin, semExtras, wyrmDasCinzas, textosLongos].map(summaryOf);

@@ -130,6 +130,7 @@ export function statblockRoutes() {
         challengeRating: statblocks.challengeRating,
         ac: statblocks.ac,
         hpAverage: statblocks.hpAverage,
+        hpFormula: statblocks.hpFormula,
       })
       .from(statblocks)
       .where(eq(statblocks.campaignId, c.var.campaignId))
