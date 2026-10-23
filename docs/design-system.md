@@ -146,3 +146,14 @@ Registro: [`history/2026-10-22-combat-and-bestiary.md`](history/2026-10-22-comba
 - Texto para leitor de tela em números ("passiva", "modificador") usa `sr-only`, não `aria-label` em `<span>`, que o axe marca como inconclusivo.
 
 Validação: `test:design` 172/172 (17 stories novas); React Doctor 100/100. Com a importação de NPC: 185/185 (4 stories novas). Nesta máquina, sem Chrome nem o Chromium do Playwright, a auditoria rodou com `PLAYWRIGHT_CHANNEL=msedge`.
+
+## Encontro e turnos (23 de outubro de 2026)
+
+Registro: [`history/2026-10-22-combat-and-bestiary.md`](history/2026-10-22-combat-and-bestiary.md), entrega 2. Sem token novo.
+
+- **`InitiativeList`** mostra a fila como o servidor a projetou, já ordenada: o círculo da iniciativa (com "•" quando o jogador sabe que há valor mas não pode vê-lo), nome, marcas ("Vez atual", "Seu personagem", "Escondido", "Derrotado", "Aguardando iniciativa"), CA e PV de quem o leitor pode ver e a faixa de saúde ("Ileso", "Ferido", "Muito ferido", "Derrotado") de quem não pode. O ativo tem borda e filete no tom de ação; escondido usa a superfície secreta com borda tracejada; derrotado fica riscado. Enquanto falta iniciativa, Rolar e Definir ficam à vista; depois, correções raras (rolar de novo, redefinir, esconder/revelar, remover em dois passos) ficam dobradas em "Ajustar", para a fila ser lida de relance.
+- **Empates** se reordenam com "Antes" e "Depois", um passo por vez, só entre quem tem a mesma iniciativa e a mesma Destreza. É a alternativa por teclado ao arrasto da spec; o arrasto fica para quando houver necessidade real.
+- **`TurnBar`**: round e de quem é a vez numa região `role="status"`, anunciada a cada troca. Mestre: Iniciar combate, Rolar iniciativa das criaturas, Começar round 1 (desabilitado com o motivo), Voltar e Próximo turno, Encerrar combate em dois passos. Jogador: "É a sua vez" e "Encerrar meu turno" só no próprio turno; vez de combatente escondido aparece como "Vez de outro combatente". O botão de turno fica ocupado até o servidor confirmar.
+- **`EncounterSetup`**: origem em segmentado (Personagem, Bestiário, Manual); quantidade e PV médio ou rolado para criatura do bestiário (rolado desabilitado sem fórmula); "Entra escondido dos jogadores". Valida por campo e leva o foco ao primeiro inválido. O mesmo formulário serve para reforço.
+- **`EncounterList`**: encontros do mais novo ao mais antigo, linha inteira clicável, o ativo destacado; o mestre cria pelo nome.
+
