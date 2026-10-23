@@ -2,8 +2,10 @@ import type { CSSProperties } from 'react';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { expect, fn, userEvent, within } from 'storybook/test';
 import { StatblockForm } from '../components/StatblockForm';
-import { goblin, wyrmDasCinzas } from './fixtures/statblocks';
+import { goblin, npcSheetImport, wyrmDasCinzas } from './fixtures/statblocks';
 import '../styles/campaign.css';
+
+const pdf = new File(['%PDF-1.7'], 'Ficha_Capita_Brisa.pdf', { type: 'application/pdf' });
 
 const frameStyle: CSSProperties = {
   maxWidth: 760,
@@ -50,6 +52,8 @@ export const EnvioValido: Story = {
     await expect(args.onSubmit).toHaveBeenCalledWith(
       expect.objectContaining({ name: 'Kobold', hpAverage: 5, hpFormula: '2d6-2' }),
     );
+    // Typing scrolled the frame below the importer; the audit reads it from the top.
+    region.querySelector('.qf-page')?.scrollTo(0, 0);
   },
 };
 
@@ -80,5 +84,75 @@ export const Descarte: Story = {
     await expect(args.onRequestClose).not.toHaveBeenCalled();
     await userEvent.click(form.getByRole('button', { name: 'Descartar alterações' }));
     await expect(args.onRequestClose).toHaveBeenCalled();
+  },
+};
+
+export const ImportandoNpc: Story = {
+  name: 'Importando NPC',
+  // A read that never ends holds the form in the reading state.
+  args: { readSheet: () => new Promise(() => {}) },
+  play: async ({ canvasElement, args }) => {
+    for (const region of within(canvasElement).getAllByRole('region', { name: /^Tema / })) {
+      const form = within(region);
+      await userEvent.upload(form.getByLabelText('Importar PDF'), pdf);
+      await expect(form.getByRole('textbox', { name: /^Nome/ })).toBeDisabled();
+      await expect(form.getByRole('button', { name: 'Adicionar ao bestiário' })).toBeDisabled();
+      await expect(form.getAllByText('Importando ficha…')).toHaveLength(2);
+      await expect(form.getByRole('button', { name: 'Cancelar' })).toBeEnabled();
+
+      // The submit handler is guarded too, not only the button.
+      region.querySelector('form')?.requestSubmit();
+      await expect(form.queryByText('Informe o nome da criatura.')).toBeNull();
+    }
+    await expect(args.onSubmit).not.toHaveBeenCalled();
+  },
+};
+
+export const ImportacaoNpc: Story = {
+  name: 'NPC importado com pontos para revisar',
+  args: { readSheet: async () => npcSheetImport },
+  play: async ({ canvasElement }) => {
+    for (const region of within(canvasElement).getAllByRole('region', { name: /^Tema / })) {
+      const form = within(region);
+      await userEvent.upload(form.getByLabelText('Importar PDF'), pdf);
+      await expect(await form.findByText(/Ficha importada com pontos para revisar/)).toBeVisible();
+      await expect(form.getByRole('textbox', { name: /^Nome/ })).toHaveValue('Capitã Brisa');
+      await expect(form.getByRole('textbox', { name: /^Tipo/ })).toHaveValue('Humana');
+      await expect(form.getByRole('spinbutton', { name: /^CA/ })).toHaveValue(16);
+      await expect(form.getByRole('textbox', { name: /^Fórmula de PV/ })).toHaveValue('3d10+6');
+      await expect(form.getByRole('textbox', { name: /^Traços/ })).toHaveValue(expect.stringContaining('Classe: Guerreira 3 (Campeã)'));
+
+      // The sheet's warning and the missing challenge rating are both listed.
+      const warnings = form.getByRole('list', { name: 'Pontos para revisar' });
+      await expect(warnings.children).toHaveLength(2);
+      await expect(within(warnings).getByText(/não tem nível de desafio/)).toBeVisible();
+      // The blank bonus is marked before any submit.
+      await expect(form.getByRole('group', { name: 'Ataque 2' }).querySelector('[aria-invalid="true"]')).not.toBeNull();
+
+      region.querySelector('.qf-page')?.scrollTo(0, 0);
+    }
+  },
+};
+
+export const PdfNaoOficial: Story = {
+  name: 'PDF que não é a ficha oficial',
+  args: { readSheet: async () => null },
+  play: async ({ canvasElement }) => {
+    for (const region of within(canvasElement).getAllByRole('region', { name: /^Tema / })) {
+      const form = within(region);
+      await userEvent.upload(form.getByLabelText('Importar PDF'), pdf);
+      await expect(await form.findByRole('alert')).toHaveTextContent('Este PDF não é a ficha oficial de D&D 2024 em português.');
+      await expect(form.getByRole('textbox', { name: /^Nome/ })).toHaveValue('');
+    }
+  },
+};
+
+export const EdicaoSemImportacao: Story = {
+  name: 'Edição não oferece importação',
+  args: { statblock: goblin },
+  play: async ({ canvasElement }) => {
+    for (const region of within(canvasElement).getAllByRole('region', { name: /^Tema / })) {
+      await expect(within(region).queryByLabelText('Importar PDF')).toBeNull();
+    }
   },
 };
