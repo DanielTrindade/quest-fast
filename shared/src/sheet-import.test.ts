@@ -234,6 +234,34 @@ test('attacks split the damage dice from the damage type', () => {
   ]);
 });
 
+test('a composite damage keeps every dice group out of the damage type', () => {
+  const { input, warnings } = sheetFromOfficialPdf(sheet({
+    ...attackRow('Fagulha estelar', '+5', '1d8 + 3 +1d6'),
+    'Caixa de texto 1_20': 'Espada flamejante',
+    'Caixa de texto 1_19': '+6',
+    'Caixa de texto 1_17': '1d8+3 + 1d6 fogo',
+  }))!;
+  assert.deepEqual(input.attacks.map(({ damage, damageType }) => ({ damage, damageType })), [
+    { damage: '1d8+3+1d6', damageType: '' },
+    { damage: '1d8+3+1d6', damageType: 'fogo' },
+  ]);
+  assert.deepEqual(warnings, []);
+});
+
+test('a damage the roller cannot read stays whole and is flagged for review', () => {
+  for (const damage of [
+    '1d8 - 1d6 fogo', 'veja as notas', '200d6',
+    // A valid roll up front must not hide a malformed tail.
+    '1d8+1d fogo', '1d8+3+', '1d8+3 + fogo', '1d8 fogo + 1d6 frio', '1d8+3 1d6 fogo', '1d8x2',
+  ]) {
+    const { input, warnings } = sheetFromOfficialPdf(sheet(attackRow('Golpe', '+5', damage)))!;
+    assert.equal(input.attacks[0]!.damage, damage, damage);
+    assert.equal(input.attacks[0]!.damageType, '', damage);
+    assert.equal(warnings.length, 1, damage);
+    assert.match(warnings[0]!, /^Golpe: o dano ".+" não é uma rolagem/);
+  }
+});
+
 test('an attack bonus of +5 or +0 is an attack roll', () => {
   assert.deepEqual(sheetFromOfficialPdf(sheet(attackRow('Adaga', '+5')))!.input.attacks[0], {
     kind: 'attack', name: 'Adaga', bonus: 5, damage: '1d6', damageType: '', notes: '',
