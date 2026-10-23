@@ -249,7 +249,11 @@ test('a composite damage keeps every dice group out of the damage type', () => {
 });
 
 test('a damage the roller cannot read stays whole and is flagged for review', () => {
-  for (const damage of ['1d8 - 1d6 fogo', 'veja as notas', '200d6']) {
+  for (const damage of [
+    '1d8 - 1d6 fogo', 'veja as notas', '200d6',
+    // A valid roll up front must not hide a malformed tail.
+    '1d8+1d fogo', '1d8+3+', '1d8+3 + fogo', '1d8 fogo + 1d6 frio', '1d8+3 1d6 fogo', '1d8x2',
+  ]) {
     const { input, warnings } = sheetFromOfficialPdf(sheet(attackRow('Golpe', '+5', damage)))!;
     assert.equal(input.attacks[0]!.damage, damage, damage);
     assert.equal(input.attacks[0]!.damageType, '', damage);
