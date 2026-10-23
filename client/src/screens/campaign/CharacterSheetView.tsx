@@ -179,9 +179,9 @@ function CharacterTab({
         <ul className="sheet-attacks">
           {contentKeys(character.attacks).map(({ item: attack, key }, index) => (
             <li key={key}>
-              <AttackCard name={attack.name} bonus={attack.bonus} damage={attack.damage}
-                damageType={attack.damageType} notes={attack.notes} disabled={rolling}
-                onRoll={canRoll ? () => roll({ kind: 'attack', attackIndex: index }) : undefined} />
+              {/* A save DC is rolled by the target: no attack roll to offer. */}
+              <AttackCard {...attack} disabled={rolling}
+                onRoll={canRoll && attack.kind === 'attack' ? () => roll({ kind: 'attack', attackIndex: index }) : undefined} />
             </li>
           ))}
         </ul>

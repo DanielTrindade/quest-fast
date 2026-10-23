@@ -59,7 +59,7 @@ test('the master creates a statblock and reads it back', async () => {
   const created = await createGoblin(master, base);
   assert.equal(created.campaignId, campaign.id);
   assert.equal(created.name, 'Goblin');
-  assert.deepEqual(created.attacks, [{ name: 'Cimitarra', bonus: 4, damage: '1d6+2', damageType: 'Cortante', notes: '' }]);
+  assert.deepEqual(created.attacks, [{ kind: 'attack', name: 'Cimitarra', bonus: 4, damage: '1d6+2', damageType: 'Cortante', notes: '' }]);
 
   const read = await master(`${base}/${created.id}`);
   assert.equal(read.status, 200);

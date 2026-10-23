@@ -5,11 +5,12 @@
  * server (`CHARACTER_LIMITS`), same visible language (pt-BR).
  */
 
-import { ABILITIES } from './modifiers.ts';
+import { ABILITIES, isAbility } from './modifiers.ts';
 import { parseDiceExpression } from './dice.ts';
 import { CHARACTER_LIMITS as L, COINS, SPELL_SLOT_CAPS, isSpeed } from './sheet.ts';
 import { STATBLOCK_LIMITS as S, isChallengeRating } from './combat.ts';
 import type { AttackInput, CharacterInput, StatblockInput } from './api.ts';
+import type { ImportedAttack } from './sheet-import.ts';
 
 export type CharacterFieldErrors = Partial<
   Record<
@@ -47,8 +48,8 @@ export type CharacterFieldErrors = Partial<
   >
 >;
 
-function inRange(value: number, min: number, max: number) {
-  return Number.isInteger(value) && value >= min && value <= max;
+function inRange(value: number | null, min: number, max: number) {
+  return value !== null && Number.isInteger(value) && value >= min && value <= max;
 }
 
 function tooLong(value: string | undefined, limit: number) {
@@ -60,13 +61,19 @@ function badList(items: readonly string[] | undefined) {
 }
 
 /** Sheets and statblocks share the attack rules; only the count differs. */
-function attackListError(attacks: readonly AttackInput[], max: number): string | undefined {
+function attackListError(attacks: ReadonlyArray<AttackInput | ImportedAttack>, max: number): string | undefined {
   if (attacks.length > max) return `Limite de ${max} ataques.`;
   if (attacks.some((attack) => attack.name.trim().length === 0 || !parseDiceExpression(attack.damage))) {
     return 'Cada ataque precisa de nome e de dano como expressão (ex.: 1d8+3).';
   }
-  if (attacks.some((attack) => !inRange(attack.bonus, -L.attackBonus, L.attackBonus))) {
+  if (attacks.some((attack) => attack.kind !== 'save' && !inRange(attack.bonus, -L.attackBonus, L.attackBonus))) {
     return `Bônus de ataque deve ser um número entre -${L.attackBonus} e ${L.attackBonus}.`;
+  }
+  if (attacks.some((attack) => attack.kind === 'save' && !inRange(attack.dc, L.saveDc.min, L.saveDc.max))) {
+    return `CD deve ser um número entre ${L.saveDc.min} e ${L.saveDc.max}.`;
+  }
+  if (attacks.some((attack) => attack.kind === 'save' && !isAbility(attack.saveAbility))) {
+    return 'Informe o atributo do teste de resistência.';
   }
   if (attacks.some((attack) => tooLong(attack.damageType, L.damageType) || tooLong(attack.notes, L.attackNotes))) {
     return `Tipo de dano até ${L.damageType} caracteres e notas até ${L.attackNotes}.`;
@@ -75,7 +82,10 @@ function attackListError(attacks: readonly AttackInput[], max: number): string |
 }
 
 /** Empty when the sheet is valid; each key maps to a player-facing message. */
-export function validateCharacterInput(input: CharacterInput): CharacterFieldErrors {
+/** The editor's input, or a sheet imported from a PDF whose blanks are still `null`. */
+type ValidatedInput = Omit<CharacterInput, 'attacks'> & { attacks: ReadonlyArray<AttackInput | ImportedAttack> };
+
+export function validateCharacterInput(input: ValidatedInput): CharacterFieldErrors {
   const errors: CharacterFieldErrors = {};
 
   if (input.name.trim().length === 0) errors.name = 'Informe o nome do personagem.';

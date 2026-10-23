@@ -6,7 +6,9 @@ import { Button } from './Button';
  * reachable while the form scrolls. With unsaved changes, closing turns into
  * a two-step choice: keep editing or discard.
  */
-export function FormFooter({ error, confirmingDiscard, onKeepEditing, onDiscard, onCancel, submitLabel, pending = false }: {
+export function FormFooter({
+  error, confirmingDiscard, onKeepEditing, onDiscard, onCancel, submitLabel, pending = false, busyMessage,
+}: {
   error?: string;
   confirmingDiscard: boolean;
   onKeepEditing: () => void;
@@ -14,6 +16,8 @@ export function FormFooter({ error, confirmingDiscard, onKeepEditing, onDiscard,
   onCancel: () => void;
   submitLabel: string;
   pending?: boolean;
+  /** Work that must finish before saving, such as reading an imported PDF: shown, and the submit stays off. */
+  busyMessage?: string;
 }) {
   return (
     <div className="sheet-form__footer">
@@ -31,8 +35,9 @@ export function FormFooter({ error, confirmingDiscard, onKeepEditing, onDiscard,
         </div>
       ) : (
         <div className="qf-dialog__actions">
+          {busyMessage && <p className="sheet-form__importing">{busyMessage}</p>}
           <Button variant="secondary" type="button" onClick={onCancel}>Cancelar</Button>
-          <Button type="submit" loading={pending}>{submitLabel}</Button>
+          <Button type="submit" disabled={Boolean(busyMessage)} loading={pending}>{submitLabel}</Button>
         </div>
       )}
     </div>
