@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import type { RollSessionEvent, UnknownSessionEvent } from '@quest-fast/shared';
+import type { CombatSessionEvent, RollSessionEvent, SessionEvent, UnknownSessionEvent } from '@quest-fast/shared';
 import { FeedEventCard } from '../components/FeedEventCard';
 import '../styles/campaign.css';
 
@@ -55,7 +55,32 @@ const unknown: UnknownSessionEvent = {
   createdAt: '2026-09-10T21:50:00.000Z',
 };
 
-function Frame({ event }: { event: RollSessionEvent | UnknownSessionEvent }) {
+const combatStarted: CombatSessionEvent = {
+  id: 'e5',
+  campaignId: 'phandalin',
+  userId: 'lia',
+  userName: 'Lia Martins',
+  type: 'combat.started',
+  secret: false,
+  payload: { kind: 'combat.started', encounterId: 'emboscada', encounterName: 'Emboscada na estrada' },
+  createdAt: '2026-09-10T21:51:00.000Z',
+};
+
+const combatEnded: CombatSessionEvent = {
+  ...combatStarted,
+  id: 'e6',
+  type: 'combat.ended',
+  payload: {
+    kind: 'combat.ended',
+    encounterId: 'emboscada',
+    encounterName: 'Emboscada na estrada',
+    rounds: 4,
+    defeated: [{ name: 'Goblin 1', hidden: false }, { name: 'Goblin 3', hidden: false }],
+  },
+  createdAt: '2026-09-10T22:20:00.000Z',
+};
+
+function Frame({ event }: { event: SessionEvent }) {
   return (
     <ol className="feed-list" style={{ maxWidth: 420 }}>
       <li><FeedEventCard event={event} /></li>
@@ -70,4 +95,6 @@ type Story = StoryObj<typeof meta>;
 export const Pericia: Story = { name: 'Perícia' };
 export const Ataque: Story = { args: { event: attack } };
 export const Secreta: Story = { args: { event: secret } };
+export const CombateIniciado: Story = { name: 'Combate iniciado', args: { event: combatStarted } };
+export const CombateEncerrado: Story = { name: 'Combate encerrado', args: { event: combatEnded } };
 export const TipoDesconhecido: Story = { name: 'Tipo desconhecido (Fase 2)', args: { event: unknown } };

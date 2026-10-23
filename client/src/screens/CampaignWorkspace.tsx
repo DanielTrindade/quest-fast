@@ -3,6 +3,7 @@ import { useNavigate } from '@tanstack/react-router';
 import { AppShell, type NavItem } from '../components/AppShell';
 import { useActiveSection } from '../hooks/useActiveSection';
 import { api } from '../lib/api';
+import { encountersQuery } from '../lib/combat-cache';
 import { AccountControls } from './AccountBar';
 import { Campaign } from './Campaign';
 
@@ -16,11 +17,12 @@ const NAVIGATION: NavItem[] = [
   { id: 'members', label: 'Membros e convite', href: '#members-title' },
 ];
 
-// Combat is the master's section today (the bestiary); players do not get it.
-const PLAYER_NAVIGATION = NAVIGATION.filter((item) => item.id !== 'combat');
+// A player gets the combat section once a fight has started (never one in
+// preparation, which the server does not list for them).
+const NO_COMBAT_NAVIGATION = NAVIGATION.filter((item) => item.id !== 'combat');
 
 // Each item's anchor names the heading the section observer watches. The
-// combat heading is absent for a player, and the observer skips it.
+// combat heading is absent for a player without a fight, and the observer skips it.
 const SECTION_IDS = NAVIGATION.map((item) => item.href.slice(1));
 
 export function CampaignWorkspace({ campaignId, user }: {
@@ -29,6 +31,8 @@ export function CampaignWorkspace({ campaignId, user }: {
   const navigate = useNavigate();
   const campaigns = useQuery({ queryKey: ['campaigns'], queryFn: api.campaigns });
   const campaign = useQuery({ queryKey: ['campaign', campaignId], queryFn: () => api.campaign(campaignId) });
+  const encounters = useQuery(encountersQuery(campaignId));
+  const showCombat = campaign.data?.role === 'master' || (encounters.data?.encounters.length ?? 0) > 0;
   const options = campaigns.data?.campaigns ?? [];
   // A direct link can resolve before the list. Keep the selected campaign
   // represented without substituting a different campaign in the control.
@@ -43,7 +47,7 @@ export function CampaignWorkspace({ campaignId, user }: {
 
   return <AppShell campaigns={available} campaignId={campaignId}
     onCampaignChange={id => { void navigate({ to: '/campaigns/$campaignId', params: { campaignId: id } }); }}
-    navigation={campaign.data?.role === 'master' ? NAVIGATION : PLAYER_NAVIGATION}
+    navigation={showCombat ? NAVIGATION : NO_COMBAT_NAVIGATION}
     activeItem={activeItem} user={<AccountControls {...user} />}>
     <Campaign campaignId={campaignId} />
   </AppShell>;

@@ -1,5 +1,5 @@
-import { EyeSlash, Info } from '@phosphor-icons/react';
-import type { RollPayload, RollSessionEvent, SessionEvent, UnknownSessionEvent } from '@quest-fast/shared';
+import { EyeSlash, FlagCheckered, Info, Sword } from '@phosphor-icons/react';
+import type { CombatSessionEvent, RollPayload, RollSessionEvent, SessionEvent, UnknownSessionEvent } from '@quest-fast/shared';
 import { ABILITY_LABELS, SKILL_LABELS } from '../lib/5e';
 import { formatTime } from '../lib/format';
 import { DiceResult } from './DiceResult';
@@ -56,6 +56,35 @@ function RollEventCard({ event }: { event: RollSessionEvent }) {
   );
 }
 
+/** The start and the summary of a combat; turn changes never reach the feed. */
+function CombatEventCard({ event }: { event: CombatSessionEvent }) {
+  if (event.type === 'combat.started') {
+    return (
+      <>
+        <FeedMeta event={event} />
+        <p className="qf-feed__combat">
+          <Sword size={16} aria-hidden="true" />
+          <span>Combate iniciado: <strong>{event.payload.encounterName}</strong></span>
+        </p>
+      </>
+    );
+  }
+  const { encounterName, rounds, defeated } = event.payload;
+  return (
+    <>
+      <FeedMeta event={event} />
+      <p className="qf-feed__combat">
+        <FlagCheckered size={16} aria-hidden="true" />
+        <span>
+          Combate encerrado: <strong>{encounterName}</strong>, {rounds} {rounds === 1 ? 'round' : 'rounds'}.
+          {' '}
+          {defeated.length > 0 ? `Derrotados: ${defeated.map((entry) => entry.name).join(', ')}.` : 'Nenhum derrotado.'}
+        </span>
+      </p>
+    </>
+  );
+}
+
 /**
  * Any event type the client does not render yet. The feed must not break or
  * go silent when Phase 2 adds `token.moved`/`fog.updated`: a generic row
@@ -79,10 +108,16 @@ function isRollSessionEvent(event: SessionEvent): event is RollSessionEvent {
   return event.type === 'roll';
 }
 
+function isCombatSessionEvent(event: SessionEvent): event is CombatSessionEvent {
+  return event.type === 'combat.started' || event.type === 'combat.ended';
+}
+
 /** Renders a feed event by its type, keeping the secret framing in one place. */
 export function FeedEventCard({ event }: { event: SessionEvent }) {
   const content = isRollSessionEvent(event)
     ? <RollEventCard event={event} />
-    : <UnknownEventCard event={event} />;
+    : isCombatSessionEvent(event)
+      ? <CombatEventCard event={event} />
+      : <UnknownEventCard event={event as UnknownSessionEvent} />;
   return event.secret ? <div className="qf-feed__secret">{content}</div> : <>{content}</>;
 }
