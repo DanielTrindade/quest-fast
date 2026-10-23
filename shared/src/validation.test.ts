@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { validateCharacterInput } from './validation.ts';
-import type { CharacterInput } from './api.ts';
+import { validateCharacterInput, validateStatblockInput } from './validation.ts';
+import { STATBLOCK_LIMITS } from './combat.ts';
+import type { CharacterInput, StatblockInput } from './api.ts';
 
 function validInput(overrides: Partial<CharacterInput> = {}): CharacterInput {
   return {
@@ -113,4 +114,65 @@ test('a fourth attuned item and negative coins are refused', () => {
 test('the boundaries themselves are valid', () => {
   const input = validInput({ level: 20, hp: 999, ac: 0, abilityScores: { ...validInput().abilityScores, strength: 30 } });
   assert.deepEqual(validateCharacterInput(input), {});
+});
+function validStatblock(overrides: Partial<StatblockInput> = {}): StatblockInput {
+  return {
+    name: 'Goblin',
+    size: 'small',
+    creatureType: 'Humanoide (goblinoide)',
+    challengeRating: '1/4',
+    ac: 15,
+    hpAverage: 7,
+    hpFormula: '2d6',
+    speed: '9 m',
+    initiativeBonus: 0,
+    abilityScores: { strength: 8, dexterity: 14, constitution: 10, intelligence: 10, wisdom: 8, charisma: 8 },
+    attacks: [{ name: 'Cimitarra', bonus: 4, damage: '1d6+2', damageType: 'Cortante', notes: '' }],
+    traits: 'Fuga Ágil.',
+    actions: '',
+    reactions: '',
+    ...overrides,
+  };
+}
+
+test('a complete statblock is valid, and so is a minimal one', () => {
+  assert.deepEqual(validateStatblockInput(validStatblock()), {});
+  assert.deepEqual(
+    validateStatblockInput(validStatblock({ hpFormula: '', challengeRating: '', attacks: [], creatureType: '' })),
+    {},
+  );
+});
+
+test('a statblock needs a name and numbers within bounds', () => {
+  const errors = validateStatblockInput(
+    validStatblock({ name: '  ', ac: 0, hpAverage: 0, initiativeBonus: 21 }),
+  );
+  assert.deepEqual(Object.keys(errors).sort(), ['ac', 'hpAverage', 'initiativeBonus', 'name']);
+});
+
+test('the hit point formula must be a dice expression', () => {
+  assert.ok(validateStatblockInput(validStatblock({ hpFormula: 'muitos' })).hpFormula);
+  assert.deepEqual(validateStatblockInput(validStatblock({ hpFormula: '12d10+24' })), {});
+});
+
+test('the challenge rating follows the 5e scale', () => {
+  for (const challengeRating of ['0', '1/8', '1/4', '1/2', '1', '17', '30']) {
+    assert.deepEqual(validateStatblockInput(validStatblock({ challengeRating })), {}, challengeRating);
+  }
+  for (const challengeRating of ['1/3', '31', '-1', 'dois']) {
+    assert.ok(validateStatblockInput(validStatblock({ challengeRating })).challengeRating, challengeRating);
+  }
+});
+
+test('statblock attacks follow the sheet rules, with room for more of them', () => {
+  const attack = { name: 'Mordida', bonus: 5, damage: '2d6+3' };
+  assert.ok(validateStatblockInput(validStatblock({ attacks: [{ ...attack, damage: 'forte' }] })).attacks);
+  assert.deepEqual(validateStatblockInput(validStatblock({ attacks: Array(STATBLOCK_LIMITS.attacks).fill(attack) })), {});
+  assert.ok(validateStatblockInput(validStatblock({ attacks: Array(STATBLOCK_LIMITS.attacks + 1).fill(attack) })).attacks);
+});
+
+test('statblock texts have a size limit', () => {
+  const long = 'x'.repeat(STATBLOCK_LIMITS.text + 1);
+  const errors = validateStatblockInput(validStatblock({ traits: long, actions: long, reactions: long }));
+  assert.deepEqual(Object.keys(errors).sort(), ['actions', 'reactions', 'traits']);
 });

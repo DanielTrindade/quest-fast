@@ -5,6 +5,7 @@ import {
   ROLES,
   SIZES,
   type Ability,
+  type ActiveCondition,
   type AbilityScores,
   type ArmorTraining,
   type Attack,
@@ -186,6 +187,10 @@ export const characters = sqliteTable(
     hitDiceSpent: integer('hit_dice_spent').notNull().default(0),
     deathSaves: text('death_saves', { mode: 'json' }).$type<DeathSaves>().notNull().default({ successes: 0, failures: 0 }),
     heroicInspiration: integer('heroic_inspiration', { mode: 'boolean' }).notNull().default(false),
+    // Phase 2: the sheet is the single source of truth for a character's
+    // conditions and concentration, in and out of combat.
+    conditions: text('conditions', { mode: 'json' }).$type<ActiveCondition[]>().notNull().default([]),
+    concentrating: integer('concentrating', { mode: 'boolean' }).notNull().default(false),
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(now),
     updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(now),
   },
@@ -220,3 +225,115 @@ export const sessionEvents = sqliteTable(
 export type AssetRow = typeof assets.$inferSelect;
 export type CharacterRow = typeof characters.$inferSelect;
 export type SessionEventRow = typeof sessionEvents.$inferSelect;
+
+// --- Phase 2: combat and bestiary ---------------------------------------------
+
+export const ENCOUNTER_STATUSES = ['preparing', 'active', 'ended'] as const;
+export const COMBATANT_SOURCES = ['character', 'statblock', 'manual'] as const;
+
+/**
+ * The campaign's bestiary, typed by the master. Combatants copy its values,
+ * so editing an entry never changes an encounter in progress.
+ */
+export const statblocks = sqliteTable(
+  'statblocks',
+  {
+    id: text('id').primaryKey(),
+    campaignId: text('campaign_id')
+      .notNull()
+      .references(() => campaigns.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    size: text('size', { enum: SIZES }).notNull().default('medium'),
+    creatureType: text('creature_type').notNull().default(''),
+    challengeRating: text('challenge_rating').notNull().default(''),
+    ac: integer('ac').notNull(),
+    hpAverage: integer('hp_average').notNull(),
+    hpFormula: text('hp_formula').notNull().default(''),
+    speed: text('speed').notNull().default(''),
+    initiativeBonus: integer('initiative_bonus').notNull().default(0),
+    abilityScores: text('ability_scores', { mode: 'json' }).$type<AbilityScores>().notNull(),
+    attacks: text('attacks', { mode: 'json' }).$type<Attack[]>().notNull(),
+    traits: text('traits').notNull().default(''),
+    actions: text('actions').notNull().default(''),
+    reactions: text('reactions').notNull().default(''),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(now),
+    updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(now),
+  },
+  (table) => [index('statblocks_campaign_id_idx').on(table.campaignId)],
+);
+
+/**
+ * The turn is kept by identity (`activeCombatantId`), not by position, so
+ * adding or removing a combatant never moves it to someone else. `version`
+ * grows with every change and orders the realtime messages on the client.
+ */
+export const encounters = sqliteTable(
+  'encounters',
+  {
+    id: text('id').primaryKey(),
+    campaignId: text('campaign_id')
+      .notNull()
+      .references(() => campaigns.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    status: text('status', { enum: ENCOUNTER_STATUSES }).notNull().default('preparing'),
+    round: integer('round').notNull().default(0),
+    // No foreign key: combatants reference the encounter, and the cycle would
+    // only add ordering trouble. The server keeps it consistent.
+    activeCombatantId: text('active_combatant_id'),
+    version: integer('version').notNull().default(0),
+    startedAt: integer('started_at', { mode: 'timestamp' }),
+    endedAt: integer('ended_at', { mode: 'timestamp' }),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(now),
+  },
+  (table) => [
+    index('encounters_campaign_id_idx').on(table.campaignId),
+    // At most one active encounter per campaign; any number in preparation.
+    uniqueIndex('encounters_one_active_idx')
+      .on(table.campaignId)
+      .where(sql`status = 'active'`),
+  ],
+);
+
+/**
+ * One participant of an encounter. Its `id` is stable: the VTT token will
+ * anchor on it. A combatant from a character stores neither hit points, armor
+ * class, conditions nor concentration — it reads and writes the sheet — so
+ * those columns are null for it.
+ */
+export const combatants = sqliteTable(
+  'combatants',
+  {
+    id: text('id').primaryKey(),
+    encounterId: text('encounter_id')
+      .notNull()
+      .references(() => encounters.id, { onDelete: 'cascade' }),
+    source: text('source', { enum: COMBATANT_SOURCES }).notNull(),
+    characterId: text('character_id').references(() => characters.id, { onDelete: 'cascade' }),
+    /** Where the values were copied from; kept only as a reference. */
+    statblockId: text('statblock_id').references(() => statblocks.id, { onDelete: 'set null' }),
+    name: text('name').notNull(),
+    size: text('size', { enum: SIZES }).notNull().default('medium'),
+    ac: integer('ac'),
+    hpMax: integer('hp_max'),
+    hpCurrent: integer('hp_current'),
+    hpTemp: integer('hp_temp'),
+    conditions: text('conditions', { mode: 'json' }).$type<ActiveCondition[]>(),
+    concentrating: integer('concentrating', { mode: 'boolean' }),
+    /** Initiative tie-breaker, copied from the sheet or the statblock. */
+    dexModifier: integer('dex_modifier').notNull().default(0),
+    initiative: integer('initiative'),
+    /** The master's order among combatants still tied after Dexterity. */
+    tieOrder: integer('tie_order').notNull().default(0),
+    hidden: integer('hidden', { mode: 'boolean' }).notNull().default(false),
+    attacks: text('attacks', { mode: 'json' }).$type<Attack[]>().notNull().default([]),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(now),
+  },
+  (table) => [
+    index('combatants_encounter_id_idx').on(table.encounterId),
+    index('combatants_character_id_idx').on(table.characterId),
+  ],
+);
+
+export type StatblockRow = typeof statblocks.$inferSelect;
+export type EncounterRow = typeof encounters.$inferSelect;
+export type CombatantRow = typeof combatants.$inferSelect;

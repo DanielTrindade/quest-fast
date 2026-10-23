@@ -3,7 +3,7 @@
 O que já existe, o que vem a seguir e o que está em aberto. Atualize este
 arquivo no PR que entrega ou muda o escopo de uma etapa.
 
-Atualizado em 2026-10-21.
+Atualizado em 2026-10-22.
 
 ## Entregue
 
@@ -26,7 +26,8 @@ Atualizado em 2026-10-21.
   da ficha oficial em português pré-preenche o editor. A leitura acontece no
   navegador, nada é salvo antes da revisão, e o que não dá para ler com
   segurança vira aviso para o jogador conferir. Só esse modelo de PDF é
-  reconhecido.
+  reconhecido. O mestre usa o mesmo PDF para criar uma criatura do bestiário
+  a partir de um NPC.
 - **Bônus de ataque ou CD:** cada linha de "Armas e truques de dano" é uma
   rolagem de ataque (bônus contra a CA) ou um teste de resistência do alvo
   (CD e atributo), sem botão de rolar ataque. Rolagem de dano pela ficha e
@@ -37,25 +38,28 @@ rodando para fechar a qualidade de vida da sessão e a ficha oficial.
 
 ## Próximas etapas
 
-### Fase 2 — combate e bestiário
+### Fase 2 — combate e bestiário (em andamento)
 
 O mestre roda um combate inteiro sem redigitar monstros e sem planilha ao
-lado.
+lado; os jogadores acompanham e agem no próprio combatente, inclusive no
+celular. Spec aprovada em
+[`history/2026-10-22-combat-and-bestiary.md`](history/2026-10-22-combat-and-bestiary.md),
+que substitui a seção `combat-tracker` do MVP. Quatro entregas, cada uma
+usável na mesa:
 
-- Bestiário da campanha (`Statblock`: nome, PV, CA, ataques).
-- Encontros com combatentes vindos de personagens, de statblocks ou
-  manuais.
-- Iniciativa (atribuída ou rolada), turnos e rounds.
-- PV ajustado pelo mestre em qualquer combatente e pelo jogador só no
-  próprio, publicado no feed.
-- Condições, encerramento do encontro com histórico preservado.
-- Evento `combat.updated` no mesmo canal WebSocket.
-- Testes de RBAC: jogador não avança turno, não altera PV alheio, não edita
-  statblock.
-
-Requisitos detalhados em
-[`history/2026-09-04-mvp-campaign-management.md`](history/2026-09-04-mvp-campaign-management.md),
-seção `combat-tracker`.
+1. **Base e bestiário — entregue.** Regras puras do combate em `shared/`,
+   schema de encontros e combatentes, e o bestiário da campanha (statblock com
+   atributos, fórmula de PV e ataques), só para o mestre, na seção "Combate".
+   Uma criatura nova pode vir de um NPC escrito na ficha oficial em PDF, pelo
+   mesmo leitor da importação de personagem.
+2. **Encontro e turnos.** Preparação invisível aos jogadores, iniciativa
+   (rolada no servidor ou atribuída), turnos e rounds, reforços, combatentes
+   escondidos, encerramento com resumo; `combat.updated` com visão por papel.
+3. **PV e condições.** Dano e cura por delta, faixa de saúde dos monstros para
+   os jogadores, teste contra a morte, as 15 condições com duração e
+   concentração com lembrete.
+4. **Ataques e acabamento.** Ataque e dano num clique com crítico, resumo no
+   feed, seed com statblock e encontro, `verify:app` e `verify:group`.
 
 ### Fase 3 — mundo
 
@@ -74,7 +78,8 @@ seção `world-entries`.
 ### Fechamento do MVP
 
 - Validação de formulários e tratamento de erros de ponta a ponta.
-- Seed completo: mestre, jogador, personagens, statblock, NPC e quest.
+- Seed completo: mestre, jogador, personagens, statblock, NPC e quest
+  (statblock e encontro entram na entrega 4 da fase 2).
 
 ### Fase 4 — campo de batalha (VTT)
 
@@ -99,8 +104,6 @@ Requisitos e spike em
   própria campanha e não há arquivamento. Quando entrar, a semântica
   escolhida é arquivamento reversível (`campaigns.archived_at`), não exclusão
   em cascata.
-- **Condições no combate:** lista livre ou enum fixo das condições 5e.
-  Decidir com a tela da fase 2.
 - **Retenção do feed:** histórico completo ou últimos N eventos. Decidir
   quando houver volume real.
 
