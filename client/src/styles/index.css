@@ -201,6 +201,15 @@
   color-scheme: dark;
 }
 
+/* Fundo de notificações de resultado: o estado tinge a superfície do tema.
+   Declarado em cada raiz de tema, e não no @theme, para que a mistura use a
+   superfície daquele tema; no :root ela congelaria o valor do tema da página. */
+:root,
+[data-preview-theme] {
+  --color-success-surface: color-mix(in oklab, var(--color-success) 18%, var(--color-surface-overlay));
+  --color-danger-surface: color-mix(in oklab, var(--color-danger) 18%, var(--color-surface-overlay));
+}
+
 /* --------------------------------------------------------------------------
    Base
    -------------------------------------------------------------------------- */

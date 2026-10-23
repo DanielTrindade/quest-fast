@@ -23,7 +23,11 @@ import {
   type Coin,
   type Coins,
   type HitDie,
+  type AttackInput,
+  type ImportedAttack,
+  type ImportedSheet,
   type ProficiencyLevel,
+  type SheetImportResult,
   type Size,
   type Skill,
 } from '@quest-fast/shared';
@@ -31,8 +35,10 @@ import { Avatar } from './Avatar';
 import { Button } from './Button';
 import { Field } from './Field';
 import { ProficiencyToggle } from './ProficiencyToggle';
+import { SheetImport, type SheetImportStatus } from './SheetImport';
 import { SheetTabPanel, SheetTabs } from './SheetTabs';
 import { ApiError, api } from '../lib/api';
+import { UnreadableSheetError, readSheetPdf } from '../lib/sheet-pdf';
 import { ABILITY_LABELS, SKILL_LABELS, signed } from '../lib/5e';
 import { ARMOR_TRAINING_LABELS, COIN_LABELS, SIZE_LABELS, circleLabel, signedBonus } from '../lib/sheet-labels';
 
@@ -98,7 +104,18 @@ const ERROR_TAB: Record<keyof CharacterFieldErrors, FormTab> = {
  * Numbers stay text while they are typed: a number state turns the "-" of
  * "-2" into NaN and a cleared field into an undeletable 0.
  */
-type FormAttack = { rowId: string; name: string; bonus: string; damage: string; damageType: string; notes: string };
+type FormAttack = {
+  rowId: string;
+  name: string;
+  /** An attack roll keeps `bonus`; a save keeps `dc` and `saveAbility`. Both stay while the kind is toggled. */
+  kind: 'attack' | 'save';
+  bonus: string;
+  dc: string;
+  saveAbility: Ability | '';
+  damage: string;
+  damageType: string;
+  notes: string;
+};
 type FormSpell = {
   rowId: string;
   level: string;
@@ -139,7 +156,24 @@ function lines(text: string) {
 /** The three fixed attunement slots of the official sheet. */
 const ATTUNED_SLOTS = ['attuned-1', 'attuned-2', 'attuned-3'] as const;
 
-function freshState(character: CharacterSheet | null) {
+/**
+ * What the editor reads from a sheet: the stored one, or one imported from a
+ * PDF, whose attacks may still have blanks (`null`) to fill.
+ */
+type SheetDraft = Omit<
+  CharacterSheet,
+  'id' | 'campaignId' | 'ownerId' | 'ownerName' | 'hpCurrent' | 'hpTemp' | 'hitDiceSpent' | 'deathSaves' | 'heroicInspiration' | 'avatarUrl' | 'attacks'
+> & { attacks: ImportedAttack[] };
+
+function draftFromImport({ spellSlotTotals, ...imported }: ImportedSheet): SheetDraft {
+  return {
+    ...imported,
+    spellSlots: spellSlotTotals.map((total) => ({ total, spent: 0 })),
+    avatarAssetId: null,
+  };
+}
+
+function freshState(character: SheetDraft | null) {
   return {
     name: character?.name ?? '',
     race: character?.race ?? '',
@@ -168,7 +202,10 @@ function freshState(character: CharacterSheet | null) {
     attacks: (character?.attacks ?? []).map((attack): FormAttack => ({
       rowId: newRowId(),
       name: attack.name,
-      bonus: String(attack.bonus),
+      kind: attack.kind,
+      bonus: attack.kind === 'attack' && attack.bonus !== null ? String(attack.bonus) : '',
+      dc: attack.kind === 'save' ? String(attack.dc) : '',
+      saveAbility: attack.kind === 'save' ? attack.saveAbility ?? '' : '',
       damage: attack.damage,
       damageType: attack.damageType,
       notes: attack.notes,
@@ -204,18 +241,20 @@ type PanelProps = {
   clearError: ClearFieldError;
 };
 
-function SelectField({ label, value, onChange, className = '', children }: {
+function SelectField({ label, value, onChange, className = '', invalid = false, children }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   className?: string;
+  invalid?: boolean;
   children: ReactNode;
 }) {
   const id = useId();
   return (
     <div className={`qf-field ${className}`}>
       <label htmlFor={id}>{label}</label>
-      <select id={id} className="qf-input" value={value} onChange={(event) => onChange(event.target.value)}>
+      <select id={id} className="qf-input" value={value} aria-invalid={invalid || undefined}
+        onChange={(event) => onChange(event.target.value)}>
         {children}
       </select>
     </div>
@@ -269,14 +308,21 @@ function IdentityPanel({
   uploadError,
   onAvatarPick,
   onAvatarRemove,
+  importer,
+  locked,
 }: PanelProps & {
   avatarUrl: string | null;
   uploadError: string | null;
   onAvatarPick: (file: File) => void;
   onAvatarRemove: () => void;
+  /** Only offered while creating: importing over a saved sheet would replace it. */
+  importer?: ReactNode;
+  /** While a PDF is read, the fields it will replace stay closed; the avatar does not come from it. */
+  locked: boolean;
 }) {
   return (
     <SheetTabPanel idPrefix={idPrefix} id="identity" active={active}>
+      {importer}
       <div className="sheet-form__identity">
         <Avatar name={state.name || '?'} src={avatarUrl ?? undefined} variant="character" size="lg" />
         <div className="sheet-form__avatar-actions">
@@ -305,6 +351,7 @@ function IdentityPanel({
         </div>
       </div>
 
+      <fieldset className="sheet-form__lock" disabled={locked}>
       <fieldset className="sheet-form__fieldset">
         <legend>Identidade</legend>
         <div className="sheet-form__grid">
@@ -351,6 +398,7 @@ function IdentityPanel({
             onChange={(e) => { set('passivePerceptionBonus', e.target.value); clearError('passivePerceptionBonus'); }} />
         </div>
         <Check label="Usa escudo" checked={state.shield} onChange={(checked) => set('shield', checked)} />
+      </fieldset>
       </fieldset>
     </SheetTabPanel>
   );
@@ -452,6 +500,7 @@ function AttacksPanel({ idPrefix, active, state, set, errors, clearError }: Pane
           {state.attacks.map((attack, index) => {
             const position = index + 1;
             const bonus = numberValue(attack.bonus);
+            const dc = numberValue(attack.dc);
             return (
               <div key={attack.rowId} className="sheet-form__attack" role="group" aria-label={`Ataque ${position}`}>
                 <div className="sheet-form__attack-head">
@@ -469,9 +518,30 @@ function AttacksPanel({ idPrefix, active, state, set, errors, clearError }: Pane
                   <Field className="sheet-form__attack-name" label="Nome" value={attack.name}
                     aria-invalid={Boolean(errors.attacks) && attack.name.trim().length === 0}
                     onChange={(e) => updateAttack(index, { name: e.target.value })} />
-                  <Field label="Bônus" type="number" min={-20} max={20} value={attack.bonus}
-                    aria-invalid={Boolean(errors.attacks) && (!Number.isInteger(bonus) || Math.abs(bonus) > 20)}
-                    onChange={(e) => updateAttack(index, { bonus: e.target.value })} />
+                  <SelectField label="Bônus Atq/CD" value={attack.kind}
+                    onChange={(value) => updateAttack(index, { kind: value as FormAttack['kind'] })}>
+                    <option value="attack">Bônus de ataque</option>
+                    <option value="save">CD de resistência</option>
+                  </SelectField>
+                  {attack.kind === 'attack' ? (
+                    <Field label="Bônus" type="number" min={-20} max={20} value={attack.bonus}
+                      hint="Rola 1d20 + bônus contra a CA"
+                      aria-invalid={Boolean(errors.attacks) && (!Number.isInteger(bonus) || Math.abs(bonus) > 20)}
+                      onChange={(e) => updateAttack(index, { bonus: e.target.value })} />
+                  ) : (
+                    <>
+                      <Field label="CD" type="number" min={1} max={30} value={attack.dc}
+                        hint="O alvo faz o teste contra ela"
+                        aria-invalid={Boolean(errors.attacks) && (!Number.isInteger(dc) || dc < 1 || dc > 30)}
+                        onChange={(e) => updateAttack(index, { dc: e.target.value })} />
+                      <SelectField label="Atributo da resistência" value={attack.saveAbility}
+                        invalid={Boolean(errors.attacks) && !attack.saveAbility}
+                        onChange={(value) => updateAttack(index, { saveAbility: value as Ability | '' })}>
+                        <option value="">Escolha…</option>
+                        {ABILITIES.map((ability) => <option key={ability} value={ability}>{ABILITY_LABELS[ability]}</option>)}
+                      </SelectField>
+                    </>
+                  )}
                   <Field label="Dano" hint="Ex.: 1d8+3" autoComplete="off" spellCheck={false} value={attack.damage}
                     aria-invalid={Boolean(errors.attacks) && !parseDiceExpression(attack.damage)}
                     onChange={(e) => updateAttack(index, { damage: e.target.value })} />
@@ -486,7 +556,9 @@ function AttacksPanel({ idPrefix, active, state, set, errors, clearError }: Pane
           })}
           <div>
             <Button variant="secondary" type="button"
-              onClick={() => set('attacks', [...state.attacks, { rowId: newRowId(), name: '', bonus: '0', damage: '', damageType: '', notes: '' }])}>
+              onClick={() => set('attacks', [...state.attacks, {
+                rowId: newRowId(), name: '', kind: 'attack', bonus: '0', dc: '', saveAbility: '', damage: '', damageType: '', notes: '',
+              }])}>
               <Plus size={18} aria-hidden="true" /> Adicionar ataque
             </Button>
           </div>
@@ -665,12 +737,16 @@ export type CharacterFormHandle = { requestClose: () => void };
  * stays with the consumer, which calls `requestClose` whenever Radix funnels a
  * close attempt (Escape, click outside, close button).
  */
-export function CharacterForm({ campaignId, character, onSaved, onRequestClose, ref }: {
+export function CharacterForm({ campaignId, character, onSaved, onSaveError, onRequestClose, ref, readSheet = readSheetPdf }: {
   campaignId: string;
   character: CharacterSheet | null;
   onSaved: () => void;
+  /** Called with the user-facing message when the save request fails. */
+  onSaveError?: (message: string) => void;
   onRequestClose: () => void;
   ref?: Ref<CharacterFormHandle>;
+  /** Reads an imported PDF; replaceable so stories can hold the read open. */
+  readSheet?: (file: File) => Promise<SheetImportResult | null>;
 }) {
   const [state, setState] = useState(() => freshState(character));
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
@@ -713,6 +789,33 @@ export function CharacterForm({ campaignId, character, onSaved, onRequestClose, 
     },
   });
 
+  // While a PDF is read the fields it replaces and the submit stay closed: a
+  // save would send the old values and an edit would be overwritten.
+  const [importStatus, setImportStatus] = useState<SheetImportStatus>({ kind: 'idle' });
+  const importing = importStatus.kind === 'reading';
+  const importPdf = async (file: File) => {
+    setImportStatus({ kind: 'reading' });
+    try {
+      const result = await readSheet(file);
+      if (!result) {
+        setImportStatus({ kind: 'error', message: 'Este PDF não é a ficha oficial de D&D 2024 em português.' });
+        return;
+      }
+      // The avatar is not on the sheet, so one already sent stays.
+      setState((current) => ({ ...freshState(draftFromImport(result.input)), avatarAssetId: current.avatarAssetId }));
+      // What the platform would refuse is marked now, not only on submit.
+      setErrors(validateCharacterInput(result.input));
+      setImportStatus({ kind: 'done', fileName: file.name, warnings: result.warnings });
+    } catch (error) {
+      setImportStatus({
+        kind: 'error',
+        message: error instanceof UnreadableSheetError
+          ? 'Não foi possível ler nenhum campo desta ficha.'
+          : 'Não foi possível ler este arquivo como PDF.',
+      });
+    }
+  };
+
   const buildInput = (): CharacterInput => ({
     name: state.name.trim(),
     race: state.race.trim(),
@@ -739,13 +842,12 @@ export function CharacterForm({ campaignId, character, onSaved, onRequestClose, 
     armorTraining: state.armorTraining,
     weaponProficiencies: state.weaponProficiencies.trim(),
     toolProficiencies: state.toolProficiencies.trim(),
-    attacks: state.attacks.map((attack) => ({
-      name: attack.name,
-      bonus: numberValue(attack.bonus),
-      damage: attack.damage,
-      damageType: attack.damageType.trim(),
-      notes: attack.notes.trim(),
-    })),
+    attacks: state.attacks.map((attack): AttackInput => {
+      const details = { name: attack.name, damage: attack.damage, damageType: attack.damageType.trim(), notes: attack.notes.trim() };
+      return attack.kind === 'save'
+        ? { ...details, kind: 'save', dc: numberValue(attack.dc), saveAbility: attack.saveAbility || null }
+        : { ...details, kind: 'attack', bonus: numberValue(attack.bonus) };
+    }),
     features: lines(state.featuresText),
     speciesTraits: lines(state.speciesTraitsText),
     feats: lines(state.featsText),
@@ -780,9 +882,12 @@ export function CharacterForm({ campaignId, character, onSaved, onRequestClose, 
       onSaved();
       onRequestClose();
     },
+    onError: (error) => onSaveError?.(errorMessage(error)),
   });
 
   const submit = () => {
+    // Guarded here and not only on the button: Enter in a field submits too.
+    if (importing) return;
     const fieldErrors = validateCharacterInput(buildInput());
     const keys = (Object.keys(fieldErrors) as Array<keyof CharacterFieldErrors>).filter((key) => fieldErrors[key]);
     if (keys.length > 0) {
@@ -842,15 +947,19 @@ export function CharacterForm({ campaignId, character, onSaved, onRequestClose, 
           set('avatarAssetId', null);
           setAvatarUrl(null);
         }}
+        importer={character ? undefined : <SheetImport status={importStatus} onPick={(file) => void importPdf(file)} />}
+        locked={importing}
       />
 
-      <AbilitiesPanel {...panelProps} active={tab} rules={previewRules} />
+      <fieldset className="sheet-form__lock" disabled={importing}>
+        <AbilitiesPanel {...panelProps} active={tab} rules={previewRules} />
 
-      <AttacksPanel {...panelProps} active={tab} />
+        <AttacksPanel {...panelProps} active={tab} />
 
-      <SpellsPanel {...panelProps} active={tab} />
+        <SpellsPanel {...panelProps} active={tab} />
 
-      <InventoryPanel {...panelProps} active={tab} />
+        <InventoryPanel {...panelProps} active={tab} />
+      </fieldset>
 
       {/* Pinned to the bottom of the dialog: on a phone the save action has
           to stay reachable while the form scrolls under the keyboard. */}
@@ -878,10 +987,11 @@ export function CharacterForm({ campaignId, character, onSaved, onRequestClose, 
           </div>
         ) : (
           <div className="qf-dialog__actions">
+            {importing && <p className="sheet-form__importing">Importando ficha…</p>}
             <Button variant="secondary" type="button" onClick={requestClose}>
               Cancelar
             </Button>
-            <Button type="submit" loading={save.isPending || avatarUpload.isPending}>
+            <Button type="submit" disabled={importing} loading={save.isPending || avatarUpload.isPending}>
               {character ? 'Salvar alterações' : 'Criar personagem'}
             </Button>
           </div>

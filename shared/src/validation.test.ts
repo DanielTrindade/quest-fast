@@ -57,6 +57,19 @@ test('an attack bonus outside the server bound is rejected', () => {
   assert.equal(errors.attacks, 'Bônus de ataque deve ser um número entre -20 e 20.');
 });
 
+test('a save DC entry needs a DC and the ability of the save, not a bonus', () => {
+  const save = { kind: 'save' as const, name: 'Sopro', damage: '2d6', dc: 13, saveAbility: 'dexterity' as const };
+  assert.deepEqual(validateCharacterInput(validInput({ attacks: [save] })), {});
+  assert.equal(
+    validateCharacterInput(validInput({ attacks: [{ ...save, dc: 0 }] })).attacks,
+    'CD deve ser um número entre 1 e 30.',
+  );
+  assert.equal(
+    validateCharacterInput(validInput({ attacks: [{ ...save, saveAbility: null }] })).attacks,
+    'Informe o atributo do teste de resistência.',
+  );
+});
+
 test('the official sheet fields are optional', () => {
   const input = validInput();
   assert.equal(input.subclass, undefined);

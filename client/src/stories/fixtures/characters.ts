@@ -37,8 +37,8 @@ export const hazinDan: CharacterSheet = {
   weaponProficiencies: 'Armas Simples e Marciais',
   toolProficiencies: 'Carpinteiro',
   attacks: [
-    { name: 'Machado Grande Hetto', bonus: 7, damage: '1d12+5', damageType: 'Cortante', notes: 'Pesada, duas mãos' },
-    { name: 'Machadinha', bonus: 7, damage: '1d6+5', damageType: 'Cortante', notes: 'Leve, arremesso (6 m / 18 m)' },
+    { kind: 'attack', name: 'Machado Grande Hetto', bonus: 7, damage: '1d12+5', damageType: 'Cortante', notes: 'Pesada, duas mãos' },
+    { kind: 'attack', name: 'Machadinha', bonus: 7, damage: '1d6+5', damageType: 'Cortante', notes: 'Leve, arremesso (6 m / 18 m)' },
   ],
   features: [
     'Fúria',
@@ -98,7 +98,10 @@ export const lyraVentoclaro: CharacterSheet = {
   armorTraining: ['light', 'medium', 'heavy', 'shields'],
   weaponProficiencies: 'Armas Simples',
   toolProficiencies: 'Kit de herbalismo',
-  attacks: [{ name: 'Maça', bonus: 5, damage: '1d6+2', damageType: 'Contundente', notes: '' }],
+  attacks: [
+    { kind: 'attack', name: 'Maça', bonus: 5, damage: '1d6+2', damageType: 'Contundente', notes: '' },
+    { kind: 'save', name: 'Palavra Radiante', dc: 13, saveAbility: 'constitution', damage: '1d6', damageType: 'Radiante', notes: 'Criaturas à escolha a até 1,5 m' },
+  ],
   features: ['Conjuração', 'Canalizar Divindade', 'Discípulo da Vida', 'Destruir Mortos-Vivos'],
   speciesTraits: ['Visão no Escuro', 'Resiliência Anã', 'Tenacidade Anã'],
   feats: ['Iniciado em Magia'],
