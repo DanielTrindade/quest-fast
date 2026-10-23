@@ -24,6 +24,41 @@ type RowProps = InitiativeActions & {
   tie: { up: boolean; down: boolean };
 };
 
+function Score({ combatant }: { combatant: CombatantView }) {
+  if (combatant.initiative !== null) {
+    return <span className="qf-initiative__score"><span className="sr-only">Iniciativa </span>{combatant.initiative}</span>;
+  }
+  // A player knows a monster rolled, not what it rolled.
+  const [symbol, text] = combatant.hasInitiative ? ['•', 'Iniciativa definida'] : ['–', 'Sem iniciativa'];
+  return (
+    <span className="qf-initiative__score">
+      <span aria-hidden="true">{symbol}</span>
+      <span className="sr-only">{text}</span>
+    </span>
+  );
+}
+
+function Tags({ combatant, active, own }: { combatant: CombatantView; active: boolean; own: boolean }) {
+  return (
+    <p className="qf-initiative__tags">
+      {active && <span className="qf-initiative__tag qf-initiative__tag--turn">Vez atual</span>}
+      {own && <span className="qf-initiative__tag">Seu personagem</span>}
+      {combatant.hidden && (
+        <span className="qf-initiative__tag">
+          <EyeSlash size={14} aria-hidden="true" /> Escondido
+        </span>
+      )}
+      {/* Without numbers the health band already says it. */}
+      {combatant.defeated && combatant.hpCurrent !== null && (
+        <span className="qf-initiative__tag">
+          <Skull size={14} aria-hidden="true" /> Derrotado
+        </span>
+      )}
+      {!combatant.hasInitiative && <span className="qf-initiative__tag">Aguardando iniciativa</span>}
+    </p>
+  );
+}
+
 function Vitals({ combatant }: { combatant: CombatantView }) {
   if (combatant.hpCurrent === null || combatant.hpMax === null) {
     return <p className="qf-initiative__band" data-band={combatant.healthBand}>{HEALTH_BAND_LABELS[combatant.healthBand]}</p>;
@@ -76,43 +111,104 @@ function AssignInitiative({ combatant, busy, onAssign }: {
   );
 }
 
-function InitiativeRow({ combatant, active, own, master, editable, busy, tie, onRoll, onAssign, onToggleHidden, onRemove, onMoveTie }: RowProps) {
-  const [confirmingRemoval, setConfirmingRemoval] = useState(false);
-  const canRoll = !!onRoll && editable && (master || (own && !combatant.hasInitiative));
+function RemoveCombatant({ combatant, busy, onRemove }: {
+  combatant: CombatantView;
+  busy: boolean;
+  onRemove: (combatantId: string) => void;
+}) {
+  const [confirming, setConfirming] = useState(false);
+  if (!confirming) {
+    return (
+      <Button variant="ghost" disabled={busy} onClick={() => setConfirming(true)}>
+        <Trash size={18} aria-hidden="true" /> Remover<span className="sr-only"> {combatant.name}</span>
+      </Button>
+    );
+  }
+  return (
+    <span className="qf-initiative__confirm" role="group" aria-label={`Remover ${combatant.name}?`}>
+      <Button variant="danger" disabled={busy} onClick={() => onRemove(combatant.id)}>Remover {combatant.name}</Button>
+      <Button variant="ghost" onClick={() => setConfirming(false)}>Manter</Button>
+    </span>
+  );
+}
+
+/** Rare corrections, folded so the queue reads at a glance. */
+function Adjust({ combatant, busy, onRoll, onAssign, onToggleHidden, onRemove }: InitiativeActions & {
+  combatant: CombatantView;
+  busy: boolean;
+}) {
+  const rolled = combatant.hasInitiative;
+  return (
+    <details className="qf-initiative__more">
+      <summary>
+        <DotsThree size={18} aria-hidden="true" /> Ajustar<span className="sr-only"> {combatant.name}</span>
+      </summary>
+      <div className="qf-initiative__more-body">
+        {rolled && onRoll && (
+          <Button variant="secondary" disabled={busy} onClick={() => onRoll(combatant.id)}>
+            <DiceFive size={18} aria-hidden="true" /> Rolar de novo<span className="sr-only"> a iniciativa de {combatant.name}</span>
+          </Button>
+        )}
+        {rolled && onAssign && <AssignInitiative combatant={combatant} busy={busy} onAssign={onAssign} />}
+        {onToggleHidden && (
+          <Button variant="ghost" disabled={busy} onClick={() => onToggleHidden(combatant.id, !combatant.hidden)}>
+            {combatant.hidden ? <Eye size={18} aria-hidden="true" /> : <EyeSlash size={18} aria-hidden="true" />}
+            {combatant.hidden ? 'Revelar' : 'Esconder'}
+            <span className="sr-only"> {combatant.name}</span>
+          </Button>
+        )}
+        {onRemove && <RemoveCombatant combatant={combatant} busy={busy} onRemove={onRemove} />}
+      </div>
+    </details>
+  );
+}
+
+/** The master's controls: setting initiative while it is missing, ties, then "Ajustar". */
+function MasterActions({ combatant, busy, tie, onMoveTie, ...actions }: InitiativeActions & {
+  combatant: CombatantView;
+  busy: boolean;
+  tie: { up: boolean; down: boolean };
+}) {
+  const { onRoll, onAssign } = actions;
+  const missing = !combatant.hasInitiative;
+  return (
+    <div className="qf-initiative__actions">
+      {missing && onRoll && (
+        <Button variant="secondary" disabled={busy} onClick={() => onRoll(combatant.id)}>
+          <DiceFive size={18} aria-hidden="true" /> Rolar<span className="sr-only"> iniciativa de {combatant.name}</span>
+        </Button>
+      )}
+      {missing && onAssign && <AssignInitiative combatant={combatant} busy={busy} onAssign={onAssign} />}
+      {onMoveTie && tie.up && (
+        <Button variant="ghost" disabled={busy} onClick={() => onMoveTie(combatant.id, 'up')}>
+          <ArrowUp size={18} aria-hidden="true" /> Antes<span className="sr-only"> no empate: {combatant.name}</span>
+        </Button>
+      )}
+      {onMoveTie && tie.down && (
+        <Button variant="ghost" disabled={busy} onClick={() => onMoveTie(combatant.id, 'down')}>
+          <ArrowDown size={18} aria-hidden="true" /> Depois<span className="sr-only"> no empate: {combatant.name}</span>
+        </Button>
+      )}
+      <Adjust combatant={combatant} busy={busy} {...actions} />
+    </div>
+  );
+}
+
+function InitiativeRow({ combatant, active, own, master, editable, busy, tie, ...actions }: RowProps) {
   const classes = ['qf-initiative__item'];
   if (active) classes.push('is-active');
   if (combatant.defeated) classes.push('is-defeated');
   if (combatant.hidden) classes.push('is-hidden');
+  // A player rolls their own initiative, once.
+  const playerRolls = !master && editable && own && !combatant.hasInitiative && !!actions.onRoll;
 
   return (
     <li className={classes.join(' ')} aria-current={active ? 'step' : undefined}>
       <div className="qf-initiative__main">
-        <span className="qf-initiative__score">
-          {combatant.initiative !== null ? (
-            <><span className="sr-only">Iniciativa </span>{combatant.initiative}</>
-          ) : combatant.hasInitiative ? (
-            <><span aria-hidden="true">•</span><span className="sr-only">Iniciativa definida</span></>
-          ) : (
-            <><span aria-hidden="true">–</span><span className="sr-only">Sem iniciativa</span></>
-          )}
-        </span>
+        <Score combatant={combatant} />
         <div className="qf-initiative__identity">
           <p className="qf-initiative__name">{combatant.name}</p>
-          <p className="qf-initiative__tags">
-            {active && <span className="qf-initiative__tag qf-initiative__tag--turn">Vez atual</span>}
-            {own && <span className="qf-initiative__tag">Seu personagem</span>}
-            {combatant.hidden && (
-              <span className="qf-initiative__tag qf-initiative__tag--hidden">
-                <EyeSlash size={14} aria-hidden="true" /> Escondido
-              </span>
-            )}
-            {combatant.defeated && combatant.hpCurrent !== null && (
-              <span className="qf-initiative__tag">
-                <Skull size={14} aria-hidden="true" /> Derrotado
-              </span>
-            )}
-            {!combatant.hasInitiative && <span className="qf-initiative__tag">Aguardando iniciativa</span>}
-          </p>
+          <Tags combatant={combatant} active={active} own={own} />
         </div>
         <Vitals combatant={combatant} />
       </div>
@@ -123,66 +219,12 @@ function InitiativeRow({ combatant, active, own, master, editable, busy, tie, on
         </ul>
       )}
 
-      {(canRoll || (master && editable)) && (
+      {master && editable && <MasterActions combatant={combatant} busy={busy} tie={tie} {...actions} />}
+      {playerRolls && (
         <div className="qf-initiative__actions">
-          {/* While initiative is missing, setting it is the job at hand. */}
-          {canRoll && (!master || !combatant.hasInitiative) && (
-            <Button variant="secondary" disabled={busy} onClick={() => onRoll!(combatant.id)}>
-              <DiceFive size={18} aria-hidden="true" />
-              {master ? 'Rolar' : 'Rolar iniciativa'}
-              {master && <span className="sr-only"> iniciativa de {combatant.name}</span>}
-            </Button>
-          )}
-          {master && editable && onAssign && !combatant.hasInitiative && (
-            <AssignInitiative combatant={combatant} busy={busy} onAssign={onAssign} />
-          )}
-          {master && editable && onMoveTie && tie.up && (
-            <Button variant="ghost" disabled={busy} onClick={() => onMoveTie(combatant.id, 'up')}>
-              <ArrowUp size={18} aria-hidden="true" /> Antes<span className="sr-only"> no empate: {combatant.name}</span>
-            </Button>
-          )}
-          {master && editable && onMoveTie && tie.down && (
-            <Button variant="ghost" disabled={busy} onClick={() => onMoveTie(combatant.id, 'down')}>
-              <ArrowDown size={18} aria-hidden="true" /> Depois<span className="sr-only"> no empate: {combatant.name}</span>
-            </Button>
-          )}
-
-          {/* Rare corrections stay folded so the queue reads at a glance. */}
-          {master && editable && (
-            <details className="qf-initiative__more">
-              <summary>
-                <DotsThree size={18} aria-hidden="true" /> Ajustar<span className="sr-only"> {combatant.name}</span>
-              </summary>
-              <div className="qf-initiative__more-body">
-                {combatant.hasInitiative && onRoll && (
-                  <Button variant="secondary" disabled={busy} onClick={() => onRoll(combatant.id)}>
-                    <DiceFive size={18} aria-hidden="true" /> Rolar de novo<span className="sr-only"> a iniciativa de {combatant.name}</span>
-                  </Button>
-                )}
-                {combatant.hasInitiative && onAssign && <AssignInitiative combatant={combatant} busy={busy} onAssign={onAssign} />}
-                {onToggleHidden && (
-                  <Button variant="ghost" disabled={busy} onClick={() => onToggleHidden(combatant.id, !combatant.hidden)}>
-                    {combatant.hidden ? <Eye size={18} aria-hidden="true" /> : <EyeSlash size={18} aria-hidden="true" />}
-                    {combatant.hidden ? 'Revelar' : 'Esconder'}
-                    <span className="sr-only"> {combatant.name}</span>
-                  </Button>
-                )}
-                {onRemove && !confirmingRemoval && (
-                  <Button variant="ghost" disabled={busy} onClick={() => setConfirmingRemoval(true)}>
-                    <Trash size={18} aria-hidden="true" /> Remover<span className="sr-only"> {combatant.name}</span>
-                  </Button>
-                )}
-                {onRemove && confirmingRemoval && (
-                  <span className="qf-initiative__confirm" role="group" aria-label={`Remover ${combatant.name}?`}>
-                    <Button variant="danger" disabled={busy} onClick={() => onRemove(combatant.id)}>
-                      Remover {combatant.name}
-                    </Button>
-                    <Button variant="ghost" onClick={() => setConfirmingRemoval(false)}>Manter</Button>
-                  </span>
-                )}
-              </div>
-            </details>
-          )}
+          <Button variant="secondary" disabled={busy} onClick={() => actions.onRoll!(combatant.id)}>
+            <DiceFive size={18} aria-hidden="true" /> Rolar iniciativa
+          </Button>
         </div>
       )}
     </li>
