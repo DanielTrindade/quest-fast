@@ -3,7 +3,7 @@
 O que já existe, o que vem a seguir e o que está em aberto. Atualize este
 arquivo no PR que entrega ou muda o escopo de uma etapa.
 
-Atualizado em 2026-10-22.
+Atualizado em 2026-10-23.
 
 ## Entregue
 
@@ -38,6 +38,10 @@ rodando para fechar a qualidade de vida da sessão e a ficha oficial.
 
 ## Próximas etapas
 
+Em ordem. O combate e o mapa vêm antes do mundo porque substituem as
+ferramentas que mais pesam na mesa hoje (Avrae e Owlbear); NPCs, locais e
+diários continuam no Kanka até a fase 3.
+
 ### Fase 2 — combate e bestiário (em andamento)
 
 O mestre roda um combate inteiro sem redigitar monstros e sem planilha ao
@@ -61,6 +65,23 @@ usável na mesa:
 4. **Ataques e acabamento.** Ataque e dano num clique com crítico, resumo no
    feed, seed com statblock e encontro, `verify:app` e `verify:group`.
 
+### Fase 4 — campo de batalha (VTT)
+
+Cenas com mapa, grid, tokens e fog of war em tempo real, substituindo o
+Owlbear Rodeo. É o item de maior risco técnico.
+
+Começa por um **spike descartável** que decide, por medição:
+
+- representação do fog (máscara bitmap ou polígonos revelados);
+- protocolo de movimento (frequência, throttle, resolução de conflito);
+- biblioteca de canvas ou canvas 2D direto.
+
+A garantia de segurança do fog é sobre **tokens ocultos**: eles nunca chegam
+ao cliente do jogador. A imagem do mapa, essa sim, é baixada inteira.
+
+Requisitos e spike em
+[`history/2026-09-04-vtt-battlefield.md`](history/2026-09-04-vtt-battlefield.md).
+
 ### Fase 3 — mundo
 
 NPCs, locais, quests e diários no mesmo lugar da mesa.
@@ -81,22 +102,22 @@ seção `world-entries`.
 - Seed completo: mestre, jogador, personagens, statblock, NPC e quest
   (statblock e encontro entram na entrega 4 da fase 2).
 
-### Fase 4 — campo de batalha (VTT)
+## Ideias levantadas (sem prioridade)
 
-Cenas com mapa, grid, tokens e fog of war em tempo real, substituindo o
-Owlbear Rodeo. É o item de maior risco técnico.
+Lacunas apontadas no brainstorm de 2026-10-22. Não são compromisso de
+entrega: entram no roadmap quando ganharem prioridade e escopo.
 
-Começa por um **spike descartável** que decide, por medição:
-
-- representação do fog (máscara bitmap ou polígonos revelados);
-- protocolo de movimento (frequência, throttle, resolução de conflito);
-- biblioteca de canvas ou canvas 2D direto.
-
-A garantia de segurança do fog é sobre **tokens ocultos**: eles nunca chegam
-ao cliente do jogador. A imagem do mapa, essa sim, é baixada inteira.
-
-Requisitos e spike em
-[`history/2026-09-04-vtt-battlefield.md`](history/2026-09-04-vtt-battlefield.md).
+- **Mestre:** painel do grupo (CA, PV, percepção passiva, condições e
+  inspiração de todos); handouts revelados a todos ou a alguns jogadores, com
+  visibilidade no servidor; preparação e resumo de sessão (próxima data, notas,
+  resumo a partir do feed); tabelas aleatórias da campanha roladas no feed;
+  distribuição de XP ou marcos e de tesouro.
+- **Jogadores:** gastar espaço de magia ao conjurar; descanso curto e longo
+  assistido, com confirmação a cada passo (sem virar motor de regras); notas
+  privadas do personagem; inventário do grupo.
+- **Campo de batalha (além da fase 4):** régua de distância no padrão 5e;
+  gabaritos de área (cone, esfera, linha, cubo); tamanho de criatura ocupando
+  as casas certas; ping e desenho temporário no mapa.
 
 ## Questões em aberto
 
