@@ -14,6 +14,10 @@ export default defineConfig({
     strictPort: true,
     // In development the SPA runs on Vite and the API on the server process.
     // In production the same Hono process serves both and there is no proxy.
-    proxy: { '/api': { target: 'http://localhost:3000', changeOrigin: true } },
+    // Uploaded files are served by the server too, so /uploads goes with /api.
+    proxy: {
+      '/api': { target: 'http://localhost:3000', changeOrigin: true },
+      '/uploads': { target: 'http://localhost:3000', changeOrigin: true },
+    },
   },
 });
