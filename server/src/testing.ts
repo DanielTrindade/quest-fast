@@ -7,7 +7,7 @@ import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import type { Db } from '@quest-fast/db';
 import { createApp } from './app.ts';
-import { createMemoryAssetStore } from './assets/store.ts';
+import { createMemoryAssetStore, type AssetStore } from './assets/store.ts';
 import { DiscordFailure, type DiscordClient, type DiscordProfile } from './auth/discord.ts';
 import { SESSION_COOKIE, STATE_COOKIE } from './auth/session.ts';
 import { createEventHub } from './events/hub.ts';
@@ -57,16 +57,27 @@ export type TestApp = ReturnType<typeof createTestApp>;
  * app satisfy it. */
 type RequestApp = { app: TestApp['app'] };
 
-export function createTestApp(profiles: Record<string, DiscordProfile>) {
+/**
+ * `assets`, `env` and `serveClient` default to an app without disk or SPA; the
+ * upload tests swap them to exercise the real store and the static routes.
+ */
+export function createTestApp(
+  profiles: Record<string, DiscordProfile>,
+  { assets = createMemoryAssetStore(), env = testEnv, serveClient = false }: {
+    assets?: AssetStore;
+    env?: Env;
+    serveClient?: boolean;
+  } = {},
+) {
   const db = createTestDb();
   const hub = createEventHub();
   const app = createApp({
     db,
-    env: testEnv,
+    env,
     discord: createFakeDiscord(profiles),
     hub,
-    assets: createMemoryAssetStore(),
-    serveClient: false,
+    assets,
+    serveClient,
   });
   return { db, app, hub };
 }

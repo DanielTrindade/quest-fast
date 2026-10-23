@@ -8,7 +8,8 @@
 import { ABILITIES, isAbility } from './modifiers.ts';
 import { parseDiceExpression } from './dice.ts';
 import { CHARACTER_LIMITS as L, COINS, SPELL_SLOT_CAPS, isSpeed } from './sheet.ts';
-import type { AttackInput, CharacterInput } from './api.ts';
+import { STATBLOCK_LIMITS as S, isChallengeRating } from './combat.ts';
+import type { AttackInput, CharacterInput, StatblockInput } from './api.ts';
 import type { ImportedAttack } from './sheet-import.ts';
 
 export type CharacterFieldErrors = Partial<
@@ -57,6 +58,27 @@ function tooLong(value: string | undefined, limit: number) {
 
 function badList(items: readonly string[] | undefined) {
   return (items ?? []).length > L.listItems || (items ?? []).some((item) => item.length > L.listItem);
+}
+
+/** Sheets and statblocks share the attack rules; only the count differs. */
+function attackListError(attacks: ReadonlyArray<AttackInput | ImportedAttack>, max: number): string | undefined {
+  if (attacks.length > max) return `Limite de ${max} ataques.`;
+  if (attacks.some((attack) => attack.name.trim().length === 0 || !parseDiceExpression(attack.damage))) {
+    return 'Cada ataque precisa de nome e de dano como expressão (ex.: 1d8+3).';
+  }
+  if (attacks.some((attack) => attack.kind !== 'save' && !inRange(attack.bonus, -L.attackBonus, L.attackBonus))) {
+    return `Bônus de ataque deve ser um número entre -${L.attackBonus} e ${L.attackBonus}.`;
+  }
+  if (attacks.some((attack) => attack.kind === 'save' && !inRange(attack.dc, L.saveDc.min, L.saveDc.max))) {
+    return `CD deve ser um número entre ${L.saveDc.min} e ${L.saveDc.max}.`;
+  }
+  if (attacks.some((attack) => attack.kind === 'save' && !isAbility(attack.saveAbility))) {
+    return 'Informe o atributo do teste de resistência.';
+  }
+  if (attacks.some((attack) => tooLong(attack.damageType, L.damageType) || tooLong(attack.notes, L.attackNotes))) {
+    return `Tipo de dano até ${L.damageType} caracteres e notas até ${L.attackNotes}.`;
+  }
+  return undefined;
 }
 
 /** Empty when the sheet is valid; each key maps to a player-facing message. */
@@ -112,27 +134,8 @@ export function validateCharacterInput(input: ValidatedInput): CharacterFieldErr
     errors.toolProficiencies = `Use até ${L.proficiencyText} caracteres.`;
   }
 
-  if (input.attacks.length > L.attacks) {
-    errors.attacks = `Limite de ${L.attacks} ataques.`;
-  } else if (
-    input.attacks.some((attack) => attack.name.trim().length === 0 || !parseDiceExpression(attack.damage))
-  ) {
-    errors.attacks = 'Cada ataque precisa de nome e de dano como expressão (ex.: 1d8+3).';
-  } else if (
-    input.attacks.some((attack) => attack.kind !== 'save' && !inRange(attack.bonus, -L.attackBonus, L.attackBonus))
-  ) {
-    errors.attacks = `Bônus de ataque deve ser um número entre -${L.attackBonus} e ${L.attackBonus}.`;
-  } else if (
-    input.attacks.some((attack) => attack.kind === 'save' && !inRange(attack.dc, L.saveDc.min, L.saveDc.max))
-  ) {
-    errors.attacks = `CD deve ser um número entre ${L.saveDc.min} e ${L.saveDc.max}.`;
-  } else if (input.attacks.some((attack) => attack.kind === 'save' && !isAbility(attack.saveAbility))) {
-    errors.attacks = 'Informe o atributo do teste de resistência.';
-  } else if (
-    input.attacks.some((attack) => tooLong(attack.damageType, L.damageType) || tooLong(attack.notes, L.attackNotes))
-  ) {
-    errors.attacks = `Tipo de dano até ${L.damageType} caracteres e notas até ${L.attackNotes}.`;
-  }
+  const attacksError = attackListError(input.attacks, L.attacks);
+  if (attacksError) errors.attacks = attacksError;
 
   const listMessage = `Até ${L.listItems} itens, cada um com até ${L.listItem} caracteres.`;
   if (badList(input.features)) errors.features = listMessage;
@@ -175,6 +178,66 @@ export function validateCharacterInput(input: ValidatedInput): CharacterFieldErr
   }
   if (input.coins && COINS.some((coin) => !inRange(input.coins![coin], 0, L.coins))) {
     errors.coins = `Moedas devem ser números entre 0 e ${L.coins}.`;
+  }
+
+  return errors;
+}
+
+export type StatblockFieldErrors = Partial<
+  Record<
+    | 'name'
+    | 'creatureType'
+    | 'challengeRating'
+    | 'ac'
+    | 'hpAverage'
+    | 'hpFormula'
+    | 'speed'
+    | 'initiativeBonus'
+    | 'abilityScores'
+    | 'attacks'
+    | 'traits'
+    | 'actions'
+    | 'reactions',
+    string
+  >
+>;
+
+/** The editor's input, or a statblock imported from a PDF whose blanks are still `null`. */
+type ValidatedStatblock = Omit<StatblockInput, 'attacks'> & { attacks: ReadonlyArray<AttackInput | ImportedAttack> };
+
+/** Same contract as `validateCharacterInput`, for a bestiary entry. */
+export function validateStatblockInput(input: ValidatedStatblock): StatblockFieldErrors {
+  const errors: StatblockFieldErrors = {};
+
+  if (input.name.trim().length === 0) errors.name = 'Informe o nome da criatura.';
+  else if (input.name.length > S.name) errors.name = `O nome deve ter até ${S.name} caracteres.`;
+  if (tooLong(input.creatureType, S.creatureType)) errors.creatureType = `Use até ${S.creatureType} caracteres.`;
+  if (input.challengeRating !== '' && !isChallengeRating(input.challengeRating)) {
+    errors.challengeRating = 'ND deve ser 0, 1/8, 1/4, 1/2 ou um número de 1 a 30.';
+  }
+
+  if (!inRange(input.ac, S.ac.min, S.ac.max)) errors.ac = `CA deve ser um número entre ${S.ac.min} e ${S.ac.max}.`;
+  if (!inRange(input.hpAverage, S.hp.min, S.hp.max)) {
+    errors.hpAverage = `PV deve ser um número entre ${S.hp.min} e ${S.hp.max}.`;
+  }
+  if (input.hpFormula !== '' && (input.hpFormula.length > S.hpFormula || !parseDiceExpression(input.hpFormula))) {
+    errors.hpFormula = 'Use uma expressão de dados (ex.: 2d8+2) ou deixe em branco.';
+  }
+  if (tooLong(input.speed, S.speed)) errors.speed = `Use até ${S.speed} caracteres.`;
+  if (!inRange(input.initiativeBonus, S.initiativeBonus.min, S.initiativeBonus.max)) {
+    errors.initiativeBonus = `O bônus deve ser um número entre ${S.initiativeBonus.min} e ${S.initiativeBonus.max}.`;
+  }
+  if (
+    ABILITIES.some((ability) => !inRange(input.abilityScores[ability], L.abilityScore.min, L.abilityScore.max))
+  ) {
+    errors.abilityScores = `Atributos devem ser números entre ${L.abilityScore.min} e ${L.abilityScore.max}.`;
+  }
+
+  const attacksError = attackListError(input.attacks, S.attacks);
+  if (attacksError) errors.attacks = attacksError;
+
+  for (const key of ['traits', 'actions', 'reactions'] as const) {
+    if (tooLong(input[key], S.text)) errors[key] = `Use até ${S.text} caracteres.`;
   }
 
   return errors;

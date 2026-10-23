@@ -328,3 +328,7 @@
   .sheet-head { flex-wrap: wrap; }
   .sheet.qf-surface { padding: var(--spacing-3); }
 }
+
+/* Combate (mestre): por enquanto só o bestiário; encontros entram na próxima entrega. */
+.campaign-combat { display: grid; gap: var(--spacing-3); min-width: 0; }
+.campaign-combat__title { margin-bottom: var(--spacing-4); font: 600 var(--text-h2)/var(--text-h2--line-height) var(--font-display); }

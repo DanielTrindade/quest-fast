@@ -14,6 +14,9 @@ import type {
   MeResponse,
   MembersResponse,
   RollResponse,
+  StatblockInput,
+  StatblockListResponse,
+  StatblockResponse,
 } from '@quest-fast/shared';
 
 /**
@@ -128,6 +131,22 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(body),
     }),
+
+  statblocks: (campaignId: string) => request<StatblockListResponse>(`/api/campaigns/${campaignId}/statblocks`),
+  statblock: (campaignId: string, statblockId: string) =>
+    request<StatblockResponse>(`/api/campaigns/${campaignId}/statblocks/${statblockId}`),
+  createStatblock: (campaignId: string, input: StatblockInput) =>
+    request<StatblockResponse>(`/api/campaigns/${campaignId}/statblocks`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  updateStatblock: (campaignId: string, statblockId: string, input: StatblockInput) =>
+    request<StatblockResponse>(`/api/campaigns/${campaignId}/statblocks/${statblockId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(input),
+    }),
+  deleteStatblock: (campaignId: string, statblockId: string) =>
+    request<void>(`/api/campaigns/${campaignId}/statblocks/${statblockId}`, { method: 'DELETE' }),
 };
 
 /** Login leaves the SPA: Discord answers the server, not the client. */

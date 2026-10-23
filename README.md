@@ -100,7 +100,7 @@ npm run dev               # SPA buildado + API em http://localhost:3000
 
 ```sh
 npm run dev               # API na porta 3000
-npm run dev:client        # SPA em http://localhost:5273, com proxy de /api
+npm run dev:client        # SPA em http://localhost:5273, com proxy de /api e /uploads
 ```
 
 Para o login funcionar nesse modo, aponte `DISCORD_REDIRECT_URI` para a porta
@@ -121,7 +121,7 @@ a Redirect URI.
 | `PORT` | não | Porta do processo (padrão `3000`) |
 | `DB_FILE` | não | Arquivo SQLite, relativo à raiz (padrão `quest-fast.db`) |
 | `CLIENT_DIR` | não | Build do SPA, relativo à raiz (padrão `client/dist`) |
-| `UPLOADS_DIR` | não | Avatares e uploads em disco, relativo à raiz (padrão `uploads`) |
+| `UPLOADS_DIR` | não | Avatares e uploads em disco, caminho absoluto ou relativo à raiz (padrão `uploads`) |
 | `COOKIE_SECURE` | não | `true` atrás de HTTPS; cookies `Secure` não valem em HTTP |
 
 ## Self-host com Docker

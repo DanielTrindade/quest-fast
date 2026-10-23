@@ -1,9 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join, relative } from 'node:path';
 import { assets } from '@quest-fast/db';
 import type { AssetUploadResponse, CreatedCampaign } from '@quest-fast/shared';
-import { asUser, body, createTestApp, signIn } from '../testing.ts';
-import { MAX_ASSET_SIZE } from './store.ts';
+import { asUser, body, createTestApp, signIn, testEnv } from '../testing.ts';
+import { MAX_ASSET_SIZE, createDiskAssetStore } from './store.ts';
 
 const PROFILES = {
   lia: { discordId: '111', name: 'Lia Martins', avatarUrl: null },
@@ -11,8 +14,8 @@ const PROFILES = {
   outsider: { discordId: '333', name: 'Ana Estranha', avatarUrl: null },
 };
 
-async function appWithCampaign() {
-  const a = createTestApp(PROFILES);
+async function appWithCampaign(options?: Parameters<typeof createTestApp>[1]) {
+  const a = createTestApp(PROFILES, options);
   const master = asUser(a, await signIn(a, 'lia'));
   const player = asUser(a, await signIn(a, 'rafael'));
   const outsider = asUser(a, await signIn(a, 'outsider'));
@@ -127,4 +130,56 @@ test('a body that is not multipart is refused', async () => {
     body: JSON.stringify({ file: 'pretend' }),
   });
   assert.equal(response.status, 422);
+});
+
+// --- Serving what was uploaded ----------------------------------------------
+
+/** A valid 1x1 PNG: the bytes read back must be exactly these. */
+const PNG = Uint8Array.from(Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+  'base64',
+));
+
+/** An app whose uploads go to a real directory, removed when the test ends. */
+async function appWithDiskUploads(t: test.TestContext, pathStyle: 'absolute' | 'relative') {
+  const dir = await mkdtemp(join(tmpdir(), 'qf-uploads-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const uploadsDir = pathStyle === 'absolute' ? dir : relative(process.cwd(), dir);
+  return appWithCampaign({ assets: createDiskAssetStore(uploadsDir), env: { ...testEnv, uploadsDir } });
+}
+
+for (const pathStyle of ['absolute', 'relative'] as const) {
+  test(`an uploaded image is served back at its URL, byte for byte (${pathStyle} UPLOADS_DIR)`, async (t) => {
+    const { a, player, campaign } = await appWithDiskUploads(t, pathStyle);
+    const uploaded = await upload(player, campaign.id, new File([PNG], 'avatar.png', { type: 'image/png' }));
+    assert.equal(uploaded.status, 201);
+    const { asset } = await body<AssetUploadResponse>(uploaded);
+
+    const response = await a.app.request(asset.url);
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get('content-type'), 'image/png');
+    assert.deepEqual(new Uint8Array(await response.arrayBuffer()), PNG);
+  });
+}
+
+test('a missing upload is a 404, not the SPA page', async (t) => {
+  const clientDir = await mkdtemp(join(tmpdir(), 'qf-client-'));
+  t.after(() => rm(clientDir, { recursive: true, force: true }));
+  await writeFile(join(clientDir, 'index.html'), '<!doctype html><title>SPA</title>');
+  const uploadsDir = await mkdtemp(join(tmpdir(), 'qf-uploads-'));
+  t.after(() => rm(uploadsDir, { recursive: true, force: true }));
+  const { app } = createTestApp(PROFILES, {
+    assets: createDiskAssetStore(uploadsDir),
+    env: { ...testEnv, uploadsDir, clientDir },
+    serveClient: true,
+  });
+
+  // The SPA itself still answers its own routes.
+  assert.match(await (await app.request('/campanhas')).text(), /<title>SPA<\/title>/);
+
+  for (const url of ['/uploads/campaigns/nope/missing.png', '/uploads/', '/uploads/campaigns']) {
+    const response = await app.request(url);
+    assert.equal(response.status, 404, url);
+    assert.doesNotMatch(response.headers.get('content-type') ?? '', /html/, url);
+  }
 });

@@ -6,6 +6,7 @@ import { assetRoutes } from './assets/routes.ts';
 import { characterRoutes } from './characters/routes.ts';
 import { diceRoutes } from './dice/routes.ts';
 import { feedRoutes } from './feed/routes.ts';
+import { statblockRoutes } from './statblocks/routes.ts';
 import type { Context, Deps } from './context.ts';
 import { requireAuth } from './middleware.ts';
 
@@ -36,12 +37,21 @@ export function createApp({ serveClient = true, ...deps }: AppOptions) {
   app.route('/api/campaigns/:campaignId/assets', assetRoutes());
   app.route('/api/campaigns/:campaignId/rolls', diceRoutes());
   app.route('/api/campaigns/:campaignId/feed', feedRoutes());
+  app.route('/api/campaigns/:campaignId/statblocks', statblockRoutes());
 
   // Any missing route under /api is an API error, never the SPA's HTML.
   app.all('/api/*', (c) => c.json({ error: 'Rota não encontrada.' }, 404));
 
   // Uploaded assets (avatars today, maps in a later change) come from disk.
-  app.use('/uploads/*', serveStatic({ root: deps.env.uploadsDir }));
+  // The public URL keeps the /uploads prefix, but the files sit directly under
+  // uploadsDir (`<uploadsDir>/campaigns/...`), so the prefix is dropped first.
+  app.use('/uploads/*', serveStatic({
+    root: deps.env.uploadsDir,
+    rewriteRequestPath: (path) => path.replace(/^\/uploads/, ''),
+  }));
+  // A missing upload is a 404, never the SPA's HTML: an <img> fed index.html
+  // fails silently and hides the broken URL.
+  app.all('/uploads/*', (c) => c.json({ error: 'Arquivo não encontrado.' }, 404));
 
   if (serveClient) {
     app.use('/*', serveStatic({ root: deps.env.clientDir }));

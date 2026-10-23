@@ -315,3 +315,45 @@ export type SocketMessage = {
   type: 'session.event';
   event: SessionEvent;
 };
+
+// --- Phase 2: combat and bestiary --------------------------------------------
+
+/**
+ * A bestiary entry of the campaign, typed by the master (no SRD). Combatants
+ * copy its values, so editing it never changes an encounter in progress.
+ */
+export type StatblockInput = {
+  name: string;
+  size: Size;
+  /** e.g. "Humanoide (goblinoide)"; empty when not informed. */
+  creatureType: string;
+  /** "1/4", "2"…; empty when not informed. */
+  challengeRating: string;
+  ac: number;
+  hpAverage: number;
+  /** Dice expression to roll each copy's hit points; empty for the average only. */
+  hpFormula: string;
+  /** Free text, e.g. "9 m, escalada 6 m". */
+  speed: string;
+  initiativeBonus: number;
+  abilityScores: AbilityScores;
+  attacks: AttackInput[];
+  traits: string;
+  actions: string;
+  reactions: string;
+};
+
+export type Statblock = Omit<StatblockInput, 'attacks'> & {
+  id: string;
+  campaignId: string;
+  attacks: Attack[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type StatblockSummary = Pick<
+  Statblock,
+  'id' | 'name' | 'size' | 'creatureType' | 'challengeRating' | 'ac' | 'hpAverage'
+>;
+export type StatblockResponse = { statblock: Statblock };
+export type StatblockListResponse = { statblocks: StatblockSummary[] };
