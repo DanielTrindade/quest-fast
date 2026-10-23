@@ -53,3 +53,15 @@ test('an unknown storage or a public URL that is not http(s) is refused', () => 
     assert.throws(() => readEnv({ ...DISCORD, ...R2, R2_PUBLIC_URL: url }), /Invalid R2_PUBLIC_URL/, url);
   }
 });
+
+test('a public URL with a query or fragment is refused, since the path would land there', () => {
+  for (const url of [
+    'https://cdn.example.com?download=1',
+    'https://cdn.example.com#assets',
+    'https://cdn.example.com/avatars/?v=2',
+    'https://cdn.example.com?',
+    'https://cdn.example.com#',
+  ]) {
+    assert.throws(() => readEnv({ ...DISCORD, ...R2, R2_PUBLIC_URL: url }), /Invalid R2_PUBLIC_URL/, url);
+  }
+});

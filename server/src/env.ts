@@ -57,9 +57,10 @@ function readR2(source: NodeJS.ProcessEnv): R2Config | undefined {
   }
   const value = (key: keyof typeof R2_VARIABLES) => source[R2_VARIABLES[key]]!.trim();
   // Avatar URLs are this base plus the path: it must be an absolute http(s)
-  // URL, and a trailing slash would double the one the path adds.
+  // URL, and a trailing slash would double the one the path adds. A query or
+  // fragment would swallow the path, so the key never reaches the pathname.
   const publicUrl = value('publicUrl').replace(/\/+$/, '');
-  if (!/^https?:\/\/[^/]/.test(publicUrl) || !URL.canParse(publicUrl)) {
+  if (!/^https?:\/\/[^/?#]/.test(publicUrl) || /[?#]/.test(publicUrl) || !URL.canParse(publicUrl)) {
     throw new InvalidEnv(`Invalid R2_PUBLIC_URL: ${source.R2_PUBLIC_URL}. Use the bucket's public URL, e.g. https://cdn.example.com.`);
   }
   return {
