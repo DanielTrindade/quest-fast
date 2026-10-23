@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { EyeSlash, DiceFive } from '@phosphor-icons/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { parseDiceExpression, type RollMode } from '@quest-fast/shared';
+import { isSingleD20, parseDiceExpression, type RollMode } from '@quest-fast/shared';
 import { Button } from '../../components/Button';
 import { DiceResult } from '../../components/DiceResult';
 import { Field } from '../../components/Field';
@@ -22,7 +22,7 @@ export function DiceRoller({ campaignId, isMaster }: { campaignId: string; isMas
   const [lastExpression, setLastExpression] = useState<string | null>(null);
 
   const parsed = parseDiceExpression(expression);
-  const modeMismatch = mode !== 'normal' && parsed && (parsed.count !== 1 || parsed.sides !== 20);
+  const modeMismatch = mode !== 'normal' && parsed && !isSingleD20(parsed);
 
   const queryClient = useQueryClient();
   const roll = useMutation({
@@ -55,7 +55,7 @@ export function DiceRoller({ campaignId, isMaster }: { campaignId: string; isMas
 
           <Field
             label="Expressão"
-            hint="Ex.: 1d20+5, 2d6+3"
+            hint="Ex.: 1d20+5, 2d6+3, 1d8+3+1d6"
             placeholder="1d20+5"
             inputMode="text"
             autoComplete="off"

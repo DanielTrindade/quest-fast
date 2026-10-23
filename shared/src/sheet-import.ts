@@ -13,6 +13,7 @@
  */
 
 import type { Attack, CharacterInput } from './api.ts';
+import { parseDiceExpression } from './dice.ts';
 import { ABILITIES, SKILLS, abilityModifier, proficiencyBonus, skillAbility, type Ability, type Skill } from './modifiers.ts';
 import {
   ARMOR_TRAINING,
@@ -324,8 +325,10 @@ function splitList(text: string, onCut: (item: string) => void): string[] {
     });
 }
 
-// `1d8+3 Cortante`: the dice part is the damage, the rest is its type.
-const DAMAGE = /^\s*(\d+\s*[dD]\s*\d+(?:\s*[+-]\s*\d+)?)\s*[,;:\-–]?\s*(.*)$/;
+// `1d8+3 Cortante` or `1d8+3 + 1d6 fogo`: every dice group and constant up
+// front is the damage, the rest is its type. A term only continues the
+// expression when a number follows the sign, so `1d8 - fogo` keeps the type.
+const DAMAGE = /^\s*(\d+\s*[dD]\s*\d+(?:\s*[+-]\s*\d+(?:\s*[dD]\s*\d+)?)*)\s*[,;:\-–]?\s*(.*)$/;
 
 // Players often write a cantrip as "Truque: Raio de Fogo" instead of circle 0.
 const CANTRIP_PREFIX = /^truque\b\s*:?\s*/i;
@@ -475,10 +478,17 @@ export function sheetFromOfficialPdf(raw: PdfFieldValues, unreadable: readonly s
     const name = text(row.name);
     if (!name) return [];
     const damageText = text(row.damage);
-    const damage = DAMAGE.exec(damageText);
+    const match = DAMAGE.exec(damageText);
+    const expression = match?.[1]!.replace(/\s+/g, '');
+    // Only a roll the platform accepts is split; anything else stays whole in
+    // the damage field, marked for review, so no term ends up as the type.
+    const damage = expression && parseDiceExpression(expression) ? match : null;
+    if (damageText && !damage) {
+      warnings.push(`${name}: o dano "${damageText}" não é uma rolagem que o aplicativo entende. Revise antes de criar.`);
+    }
     const details = {
       name,
-      damage: damage ? damage[1]!.replace(/\s+/g, '') : damageText,
+      damage: damage ? expression! : damageText,
       damageType: damage ? damage[2]!.trim() : '',
       notes: text(row.notes),
     };

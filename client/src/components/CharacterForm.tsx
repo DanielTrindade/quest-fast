@@ -542,7 +542,7 @@ function AttacksPanel({ idPrefix, active, state, set, errors, clearError }: Pane
                       </SelectField>
                     </>
                   )}
-                  <Field label="Dano" hint="Ex.: 1d8+3" autoComplete="off" spellCheck={false} value={attack.damage}
+                  <Field label="Dano" hint="Ex.: 1d8+3 ou 1d8+3+1d6" autoComplete="off" spellCheck={false} value={attack.damage}
                     aria-invalid={Boolean(errors.attacks) && !parseDiceExpression(attack.damage)}
                     onChange={(e) => updateAttack(index, { damage: e.target.value })} />
                   <Field label="Tipo de dano" maxLength={30} value={attack.damageType} hint="Ex.: Cortante"
