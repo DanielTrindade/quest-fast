@@ -1,4 +1,4 @@
-import type { Statblock, StatblockSummary } from '@quest-fast/shared';
+import type { SheetImportResult, Statblock, StatblockSummary } from '@quest-fast/shared';
 
 const stamps = { campaignId: 'phandalin', createdAt: '2026-10-22T18:00:00.000Z', updatedAt: '2026-10-22T18:00:00.000Z' };
 
@@ -87,3 +87,30 @@ export function summaryOf({ id, name, size, creatureType, challengeRating, ac, h
 }
 
 export const bestiary: StatblockSummary[] = [goblin, semExtras, wyrmDasCinzas, textosLongos].map(summaryOf);
+
+/**
+ * An NPC written on the official sheet, as the PDF parser hands it over: the
+ * crossbow's bonus was left blank, which the sheet parser already warns about.
+ */
+export const npcSheetImport: SheetImportResult = {
+  input: {
+    name: 'Capitã Brisa', race: 'Humana', class: 'Guerreira', subclass: 'Campeã',
+    // "background" é o antecedente da ficha, não uma cor.
+    // eslint-disable-next-line local/no-raw-color
+    background: 'Soldado',
+    alignment: 'Leal e Neutra', level: 3, experience: 900, size: 'medium',
+    abilityScores: { strength: 16, dexterity: 14, constitution: 14, intelligence: 10, wisdom: 12, charisma: 8 },
+    hp: 28, ac: 16, shield: true, speed: 9, hitDie: 10, initiativeBonus: 0, passivePerceptionBonus: 0,
+    skills: ['athletics', 'perception'], expertise: [], saves: ['strength', 'constitution'],
+    armorTraining: ['light', 'medium', 'heavy', 'shields'], weaponProficiencies: 'Simples e marciais', toolProficiencies: '',
+    attacks: [
+      { kind: 'attack', name: 'Espada longa', bonus: 5, damage: '1d8+3', damageType: 'Cortante', notes: '' },
+      { kind: 'attack', name: 'Besta leve', bonus: null, damage: '1d8+2', damageType: 'Perfurante', notes: '' },
+    ],
+    features: ['Retomar o fôlego', 'Surto de ação'], speciesTraits: ['Engenhosa'], feats: ['Alerta'],
+    spellcastingAbility: null, spellBonus: 0, spellSlotTotals: [0, 0, 0, 0, 0, 0, 0, 0, 0], spells: [],
+    appearance: '', description: '', languages: 'Comum, Anão', equipment: '', attunedItems: [],
+    coins: { cp: 0, sp: 0, ep: 0, gp: 0, pp: 0 },
+  },
+  warnings: ['Besta leve: bônus de ataque vazio. Preencha o bônus ou a CD antes de criar.'],
+};

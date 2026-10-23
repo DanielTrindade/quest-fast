@@ -68,6 +68,9 @@ parameter properties. Os imports levam a extensão `.ts`.
   ordem de iniciativa, avanço e recuo de turno, faixa de saúde, CD de
   concentração, teste contra a morte, numeração de cópias e limites do
   statblock.
+- `sheet-import.ts`: leitura dos campos do PDF da ficha oficial de 2024, com
+  avisos do que não deu para ler com segurança. `statblock-import.ts` converte
+  essa leitura numa criatura do bestiário (NPC escrito na ficha oficial).
 - `validation.ts`: validação da ficha e do statblock, usada pelo formulário
   (feedback por campo) e pelo servidor (o que vale).
 - `invite.ts`, `role.ts`: código de convite e papéis (`master`, `player`).

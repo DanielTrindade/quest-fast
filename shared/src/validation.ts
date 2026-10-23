@@ -203,7 +203,10 @@ export type StatblockFieldErrors = Partial<
 >;
 
 /** Same contract as `validateCharacterInput`, for a bestiary entry. */
-export function validateStatblockInput(input: StatblockInput): StatblockFieldErrors {
+/** The editor's input, or a statblock imported from a PDF whose blanks are still `null`. */
+type ValidatedStatblock = Omit<StatblockInput, 'attacks'> & { attacks: ReadonlyArray<AttackInput | ImportedAttack> };
+
+export function validateStatblockInput(input: ValidatedStatblock): StatblockFieldErrors {
   const errors: StatblockFieldErrors = {};
 
   if (input.name.trim().length === 0) errors.name = 'Informe o nome da criatura.';

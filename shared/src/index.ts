@@ -108,6 +108,12 @@ export {
   type PdfFormField,
   type SheetImportResult,
 } from './sheet-import.ts';
+export {
+  statblockFromSheet,
+  type ImportedStatblock,
+  type StatblockImportLabels,
+  type StatblockImportResult,
+} from './statblock-import.ts';
 export type {
   AbilityScores,
   Asset,
