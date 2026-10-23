@@ -25,6 +25,7 @@ export const CHARACTER_LIMITS = {
   adjustment: { min: -10, max: 10 },
   attacks: 10,
   attackBonus: 20,
+  saveDc: { min: 1, max: 30 },
   damage: 30,
   damageType: 30,
   attackNotes: 120,

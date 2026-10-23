@@ -1,4 +1,4 @@
-import { CHARACTER_LIMITS as L, parseDiceExpression, type Attack } from '@quest-fast/shared';
+import { CHARACTER_LIMITS as L, isAbility, parseDiceExpression, type Attack } from '@quest-fast/shared';
 
 /**
  * Request parsing shared by the routes. A parser throws `InputError` through
@@ -28,16 +28,27 @@ export function parseAttack(value: unknown): Attack | undefined {
   if (typeof value !== 'object' || value === null) return undefined;
   const attack = value as Record<string, unknown>;
   const name = shortText(attack.name, L.name);
-  const bonus = boundedInteger(attack.bonus, -L.attackBonus, L.attackBonus);
   const damage = shortText(attack.damage, L.damage);
-  if (!name || bonus === undefined || !damage) return undefined;
+  if (!name || !damage) return undefined;
   // Damage is a dice expression: catching a typo now beats a wrong roll later.
   if (!parseDiceExpression(damage)) return undefined;
   const damageType = attack.damageType === undefined ? '' : attack.damageType;
   const notes = attack.notes === undefined ? '' : attack.notes;
   if (typeof damageType !== 'string' || damageType.length > L.damageType) return undefined;
   if (typeof notes !== 'string' || notes.length > L.attackNotes) return undefined;
-  return { name, bonus, damage, damageType: damageType.trim(), notes: notes.trim() };
+  const details = { name, damage, damageType: damageType.trim(), notes: notes.trim() };
+
+  // A save DC has no attack roll: the target rolls the ability against it.
+  if (attack.kind === 'save') {
+    const dc = boundedInteger(attack.dc, L.saveDc.min, L.saveDc.max);
+    if (dc === undefined || !isAbility(attack.saveAbility)) return undefined;
+    return { ...details, kind: 'save', dc, saveAbility: attack.saveAbility };
+  }
+  // Older clients send no kind: an attack roll, as before.
+  if (attack.kind !== undefined && attack.kind !== 'attack') return undefined;
+  const bonus = boundedInteger(attack.bonus, -L.attackBonus, L.attackBonus);
+  if (bonus === undefined) return undefined;
+  return { ...details, kind: 'attack', bonus };
 }
 
 export async function withInput<T>(run: () => T | Promise<T>): Promise<T | { inputError: string }> {

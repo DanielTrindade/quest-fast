@@ -30,7 +30,7 @@ Para auditar um Storybook já aberto, defina `STORYBOOK_URL` e execute `node scr
 - `Surface`: base, elevada, sobreposta e secreta. A variante secreta inclui borda tracejada, EyeSlash e rótulo; o consumidor continua responsável pela autorização dos dados.
 - `Avatar`, `Badge`, `Skeleton` e `EmptyState`: identidade, papel, espera e orientação para preencher uma tela vazia.
 - `Dialog`: título e descrição obrigatórios, foco modal e retorno ao gatilho; composição shadcn/ui sobre Radix.
-- `ToastProvider` e `Toast`: notificações de sucesso, erro e informação, com fechamento manual e pausa do tempo ao interagir.
+- `ToastProvider` e `Toast`: notificações de sucesso, erro e informação, com fechamento manual e pausa do tempo ao interagir. Sucesso e erro tingem o toast inteiro (tokens `success-surface` e `danger-surface`, borda no tom do estado), não só o ícone, para o resultado ser lido de relance.
 - `CopyField`: usa o clipboard do navegador, confirma a cópia e orienta a seleção manual quando ela falha.
 - `AppShell`: cabeçalho, seletor de campanha, navegação desktop e navegação recolhível em telas estreitas. Os callbacks e destinos de navegação são fornecidos pelo consumidor.
 - `DiceResult`: apresenta total, decomposição, dados descartados e naturais recebidos. Não rola dados nem calcula regras 5e.
