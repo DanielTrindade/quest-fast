@@ -89,6 +89,8 @@
 .qf-feed__secret { margin: 0 calc(var(--spacing-3) * -1); padding: var(--spacing-2) var(--spacing-3); background: var(--color-surface-secret); border: 1px dashed var(--color-border-control); border-radius: var(--radius-control); }
 .qf-feed__unknown-body { display: flex; align-items: center; gap: var(--spacing-2); color: var(--color-text-secondary); font-size: var(--text-small); margin: 0; }
 .qf-feed__unknown-body svg { flex-shrink: 0; color: var(--color-text-muted); }
+.qf-feed__combat { display: flex; align-items: flex-start; gap: var(--spacing-2); margin: 0; color: var(--color-text-primary); overflow-wrap: anywhere; }
+.qf-feed__combat svg { flex-shrink: 0; margin-top: 2px; color: var(--color-accent-text); }
 
 /* O feed ganha altura própria e rolagem interna no desktop; no celular ele
    continua na página, sem empilhar uma rolagem dentro da outra. */
@@ -331,4 +333,14 @@
 
 /* Combate (mestre): por enquanto só o bestiário; encontros entram na próxima entrega. */
 .campaign-combat { display: grid; gap: var(--spacing-3); min-width: 0; }
-.campaign-combat__title { margin-bottom: var(--spacing-4); font: 600 var(--text-h2)/var(--text-h2--line-height) var(--font-display); }
+.campaign-combat__title { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--spacing-2); margin-bottom: var(--spacing-4); font: 600 var(--text-h2)/var(--text-h2--line-height) var(--font-display); }
+.campaign-combat__count { font: var(--text-small)/var(--text-small--line-height) var(--font-sans); color: var(--color-text-secondary); }
+.qf-encounter-panel { display: grid; gap: var(--spacing-4); min-width: 0; }
+.qf-encounter-panel__toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--spacing-2) var(--spacing-3); min-width: 0; }
+.qf-encounter-panel__title { margin: 0; font: 600 var(--text-h1)/var(--text-h1--line-height) var(--font-display); overflow-wrap: anywhere; min-width: 0; }
+/* The turn stays in sight while the queue scrolls. */
+.qf-encounter-panel__bar { position: sticky; top: var(--spacing-2); z-index: 2; }
+.qf-encounter-panel__summary p { margin: 0; }
+.qf-encounter-panel__setup { display: grid; gap: var(--spacing-3); }
+.qf-encounter-panel__subtitle { margin: 0; font: 600 var(--text-h2)/var(--text-h2--line-height) var(--font-display); }
+.qf-encounter-panel__danger, .qf-encounter-panel__confirm { display: flex; flex-wrap: wrap; gap: var(--spacing-2); }

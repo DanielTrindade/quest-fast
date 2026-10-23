@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { SocketMessage } from '@quest-fast/shared';
+import { mergeEncounter } from '../lib/combat-cache';
 import { mergeFeedEvent } from '../lib/feed-cache';
 
 export type SocketStatus = 'connecting' | 'connected' | 'disconnected';
@@ -70,7 +71,8 @@ function openCampaignSocket(campaignId: string, handlers: CampaignSocketHandlers
 }
 
 /**
- * Connects to the campaign room and merges pushed events into the feed cache.
+ * Connects to the campaign room and merges pushed events into the feed cache
+ * and encounter updates into the combat cache.
  * On a lost connection the feed is refetched from the server once the socket
  * is back: pushed events are a hint, never the source of truth.
  */
@@ -81,10 +83,15 @@ export function useCampaignSocket(campaignId: string): SocketStatus {
   useEffect(() => {
     return openCampaignSocket(campaignId, {
       onStatus: setStatus,
-      onReconnected: () => queryClient.invalidateQueries({ queryKey: ['feed', campaignId] }),
+      onReconnected: () => {
+        queryClient.invalidateQueries({ queryKey: ['feed', campaignId] });
+        // Combat updates missed while offline are not replayed either.
+        queryClient.invalidateQueries({ queryKey: ['encounters', campaignId] });
+        queryClient.invalidateQueries({ queryKey: ['encounter', campaignId] });
+      },
       onMessage: (message) => {
-        if (message.type !== 'session.event') return;
-        mergeFeedEvent(queryClient, campaignId, message.event);
+        if (message.type === 'combat.updated') mergeEncounter(queryClient, campaignId, message.encounter);
+        else if (message.type === 'session.event') mergeFeedEvent(queryClient, campaignId, message.event);
       },
     });
   }, [campaignId, queryClient]);

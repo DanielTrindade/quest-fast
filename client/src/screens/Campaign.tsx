@@ -17,6 +17,7 @@ import { formatDate } from '../lib/format';
 import '../styles/campaign.css';
 import { CharactersSection } from './campaign/CharactersSection';
 import { CombatSection } from './campaign/CombatSection';
+import { encountersQuery } from '../lib/combat-cache';
 import { DiceRoller } from './campaign/DiceRoller';
 import { SessionFeed } from './campaign/SessionFeed';
 
@@ -242,6 +243,8 @@ export function Campaign({ campaignId }: { campaignId: string }) {
     queryKey: ['members', campaignId],
     queryFn: () => api.members(campaignId),
   });
+  // A player's list holds only active and ended fights, never one in preparation.
+  const encounters = useQuery(encountersQuery(campaignId));
 
   const onRemoved = () => {
     setRemoved(true);
@@ -289,8 +292,11 @@ export function Campaign({ campaignId }: { campaignId: string }) {
             currentUserId={me.data?.user.id ?? ''}
             isMaster={isMaster}
           />
-          {/* The bestiary is the master's; a player would only get a 403. */}
-          {isMaster && <CombatSection campaignId={campaignId} />}
+          {/* The master always has combat (encounters and bestiary); a player
+              only once a fight has started. */}
+          {(isMaster || (encounters.data?.encounters.length ?? 0) > 0) && (
+            <CombatSection campaignId={campaignId} isMaster={isMaster} currentUserId={me.data?.user.id ?? ''} />
+          )}
         </div>
 
         <aside className="campaign-aside" aria-label="Mesa">

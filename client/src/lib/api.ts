@@ -7,9 +7,14 @@ import type {
   CharacterListResponse,
   CharacterResponse,
   CharacterStateInput,
+  CombatantInput,
+  CombatantPatch,
   CreatedCampaign,
+  EncounterListResponse,
+  EncounterResponse,
   FeedResponse,
   FreeRollRequest,
+  InitiativeRequest,
   LinkedRollRequest,
   MeResponse,
   MembersResponse,
@@ -17,6 +22,7 @@ import type {
   StatblockInput,
   StatblockListResponse,
   StatblockResponse,
+  TurnRequest,
 } from '@quest-fast/shared';
 
 /**
@@ -147,6 +153,49 @@ export const api = {
     }),
   deleteStatblock: (campaignId: string, statblockId: string) =>
     request<void>(`/api/campaigns/${campaignId}/statblocks/${statblockId}`, { method: 'DELETE' }),
+
+  encounters: (campaignId: string) => request<EncounterListResponse>(`/api/campaigns/${campaignId}/encounters`),
+  encounter: (campaignId: string, encounterId: string) =>
+    request<EncounterResponse>(`/api/campaigns/${campaignId}/encounters/${encounterId}`),
+  createEncounter: (campaignId: string, name: string) =>
+    request<EncounterResponse>(`/api/campaigns/${campaignId}/encounters`, { method: 'POST', body: JSON.stringify({ name }) }),
+  deleteEncounter: (campaignId: string, encounterId: string) =>
+    request<void>(`/api/campaigns/${campaignId}/encounters/${encounterId}`, { method: 'DELETE' }),
+  /** Start, end, turn and "roll every monster": one shape for the encounter-wide actions. */
+  encounterAction: (
+    campaignId: string,
+    encounterId: string,
+    action: 'start' | 'end' | 'turn' | 'initiative',
+    body: TurnRequest | { secret?: boolean } = {},
+  ) =>
+    request<EncounterResponse>(`/api/campaigns/${campaignId}/encounters/${encounterId}/${action}`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  setTieOrder: (campaignId: string, encounterId: string, combatantIds: string[]) =>
+    request<EncounterResponse>(`/api/campaigns/${campaignId}/encounters/${encounterId}/tie-order`, {
+      method: 'PUT',
+      body: JSON.stringify({ combatantIds }),
+    }),
+  addCombatant: (campaignId: string, encounterId: string, input: CombatantInput) =>
+    request<EncounterResponse>(`/api/campaigns/${campaignId}/encounters/${encounterId}/combatants`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  updateCombatant: (campaignId: string, encounterId: string, combatantId: string, patch: CombatantPatch) =>
+    request<EncounterResponse>(`/api/campaigns/${campaignId}/encounters/${encounterId}/combatants/${combatantId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(patch),
+    }),
+  removeCombatant: (campaignId: string, encounterId: string, combatantId: string) =>
+    request<EncounterResponse>(`/api/campaigns/${campaignId}/encounters/${encounterId}/combatants/${combatantId}`, {
+      method: 'DELETE',
+    }),
+  combatantInitiative: (campaignId: string, encounterId: string, combatantId: string, body: InitiativeRequest) =>
+    request<EncounterResponse>(
+      `/api/campaigns/${campaignId}/encounters/${encounterId}/combatants/${combatantId}/initiative`,
+      { method: 'POST', body: JSON.stringify(body) },
+    ),
 };
 
 /** Login leaves the SPA: Discord answers the server, not the client. */
