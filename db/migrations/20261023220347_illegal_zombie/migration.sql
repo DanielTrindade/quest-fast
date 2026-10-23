@@ -1,0 +1,1 @@
+ALTER TABLE `combatants` ADD `initiative_bonus` integer DEFAULT 0 NOT NULL;
