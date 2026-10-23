@@ -26,7 +26,8 @@ Atualizado em 2026-10-22.
   da ficha oficial em português pré-preenche o editor. A leitura acontece no
   navegador, nada é salvo antes da revisão, e o que não dá para ler com
   segurança vira aviso para o jogador conferir. Só esse modelo de PDF é
-  reconhecido.
+  reconhecido. O mestre usa o mesmo PDF para criar uma criatura do bestiário
+  a partir de um NPC.
 - **Bônus de ataque ou CD:** cada linha de "Armas e truques de dano" é uma
   rolagem de ataque (bônus contra a CA) ou um teste de resistência do alvo
   (CD e atributo), sem botão de rolar ataque. Rolagem de dano pela ficha e
@@ -49,6 +50,8 @@ usável na mesa:
 1. **Base e bestiário — entregue.** Regras puras do combate em `shared/`,
    schema de encontros e combatentes, e o bestiário da campanha (statblock com
    atributos, fórmula de PV e ataques), só para o mestre, na seção "Combate".
+   Uma criatura nova pode vir de um NPC escrito na ficha oficial em PDF, pelo
+   mesmo leitor da importação de personagem.
 2. **Encontro e turnos.** Preparação invisível aos jogadores, iniciativa
    (rolada no servidor ou atribuída), turnos e rounds, reforços, combatentes
    escondidos, encerramento com resumo; `combat.updated` com visão por papel.
