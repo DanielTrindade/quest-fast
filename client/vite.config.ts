@@ -14,6 +14,12 @@ export default defineConfig({
     strictPort: true,
     // In development the SPA runs on Vite and the API on the server process.
     // In production the same Hono process serves both and there is no proxy.
-    proxy: { '/api': { target: 'http://localhost:3000', changeOrigin: true } },
+    // Uploaded files are served by the server too, so /uploads goes with /api.
+    // `ws` forwards the session feed's WebSocket (/api/campaigns/:id/ws);
+    // without it the upgrade never reaches the server and the feed hangs.
+    proxy: {
+      '/api': { target: 'http://localhost:3000', changeOrigin: true, ws: true },
+      '/uploads': { target: 'http://localhost:3000', changeOrigin: true },
+    },
   },
 });

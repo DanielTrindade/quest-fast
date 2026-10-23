@@ -43,7 +43,15 @@ export function createApp({ serveClient = true, ...deps }: AppOptions) {
   app.all('/api/*', (c) => c.json({ error: 'Rota não encontrada.' }, 404));
 
   // Uploaded assets (avatars today, maps in a later change) come from disk.
-  app.use('/uploads/*', serveStatic({ root: deps.env.uploadsDir }));
+  // The public URL keeps the /uploads prefix, but the files sit directly under
+  // uploadsDir (`<uploadsDir>/campaigns/...`), so the prefix is dropped first.
+  app.use('/uploads/*', serveStatic({
+    root: deps.env.uploadsDir,
+    rewriteRequestPath: (path) => path.replace(/^\/uploads/, ''),
+  }));
+  // A missing upload is a 404, never the SPA's HTML: an <img> fed index.html
+  // fails silently and hides the broken URL.
+  app.all('/uploads/*', (c) => c.json({ error: 'Arquivo não encontrado.' }, 404));
 
   if (serveClient) {
     app.use('/*', serveStatic({ root: deps.env.clientDir }));
