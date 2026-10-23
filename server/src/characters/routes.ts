@@ -340,7 +340,7 @@ function parseCharacterInput(body: unknown): ParsedSheet {
   if (attacksInput.length > L.attacks) fail(`Limite de ${L.attacks} ataques.`);
   const attacks = attacksInput.map((raw) => {
     const attack = parseAttack(raw);
-    if (!attack) fail('Ataque inválido: nome, bônus e dano (expressão como 1d8+3).');
+    if (!attack) fail('Ataque inválido: nome, dano (expressão como 1d8+3) e bônus de ataque ou CD com o atributo da resistência.');
     return attack;
   });
 
@@ -445,7 +445,13 @@ function toSheet({ character: row, ownerName, avatarPath }: SelectedCharacter): 
   return {
     ...fields,
     ownerName,
-    attacks: attacks.map((attack) => ({ ...attack, damageType: attack.damageType ?? '', notes: attack.notes ?? '' })),
+    // Attacks stored before the save DC existed have no kind: attack rolls.
+    attacks: attacks.map((attack) => ({
+      ...attack,
+      kind: attack.kind ?? 'attack',
+      damageType: attack.damageType ?? '',
+      notes: attack.notes ?? '',
+    }) as Attack),
     spellSlots: emptySpellSlots().map((empty, circle) => spellSlots[circle] ?? empty),
     avatarUrl: avatarUrl(avatarPath),
   };
@@ -685,6 +691,7 @@ function parseLinkedRoll(body: LinkedRollRequest, sheet: CharacterSheet): Linked
     const index = body?.attackIndex;
     const attack = Number.isInteger(index) ? sheet.attacks[Number(index)] : undefined;
     if (!attack) return { error: 'Ataque inválido.' };
+    if (attack.kind === 'save') return { error: 'Este ataque pede um teste de resistência do alvo; não há rolagem de ataque.' };
     return d20(sheet, attack.bonus, mode, { rollKind: 'attack', attackName: attack.name });
   }
 

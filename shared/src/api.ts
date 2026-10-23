@@ -58,11 +58,8 @@ export type MembersResponse = { members: CampaignMember[] };
 
 export type AbilityScores = Record<Ability, number>;
 
-/** Attacks are stored as structured text: the table never derives them. */
-export type Attack = {
+type AttackDetails = {
   name: string;
-  /** Attack roll bonus, e.g. +5. */
-  bonus: number;
   /** Damage as a dice expression, e.g. "1d8+3". */
   damage: string;
   /** e.g. "Cortante"; empty when not informed. */
@@ -70,8 +67,27 @@ export type Attack = {
   notes: string;
 };
 
-/** Attacks sent by older clients may omit the type and notes. */
-export type AttackInput = Omit<Attack, 'damageType' | 'notes'> & Partial<Pick<Attack, 'damageType' | 'notes'>>;
+/**
+ * A row of "Armas e truques de dano", stored as structured text: the table
+ * never derives it. The "Bônus Atq/CD" column holds one of two things: an
+ * attack bonus (the character rolls 1d20 + bonus against the target's AC) or
+ * a save DC (the target rolls a saving throw of an ability against it, and
+ * there is no attack roll).
+ */
+export type Attack = AttackDetails & (
+  | { kind: 'attack'; /** Attack roll bonus, e.g. +5. */ bonus: number }
+  | { kind: 'save'; dc: number; saveAbility: Ability }
+);
+
+/**
+ * What clients send. Older clients omit `kind` (an attack roll), the damage
+ * type and the notes. A save may arrive without its ability so validation can
+ * point at it; it is never stored that way.
+ */
+export type AttackInput = Pick<AttackDetails, 'name' | 'damage'> & Partial<Pick<AttackDetails, 'damageType' | 'notes'>> & (
+  | { kind?: 'attack'; bonus: number }
+  | { kind: 'save'; dc: number; saveAbility: Ability | null }
+);
 
 /**
  * The official D&D 2024 sheet. `race` is labelled "Espécie", `hp` is the
