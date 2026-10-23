@@ -8,19 +8,27 @@ export type SheetImportStatus =
   | { kind: 'error'; message: string };
 
 /**
- * Picks the official sheet PDF to fill a new character. Presentational: the
- * reading happens in the consumer, which reports back through `status`.
+ * Picks the official sheet PDF to fill a new character, or a bestiary
+ * creature from an NPC written on the same sheet. Presentational: the reading
+ * happens in the consumer, which reports back through `status`.
  */
-export function SheetImport({ status, onPick }: { status: SheetImportStatus; onPick: (file: File) => void }) {
+export function SheetImport({
+  status,
+  onPick,
+  title = 'Já tem a ficha preenchida?',
+  description = 'Importe o PDF da ficha oficial de D&D 2024 em português. Ele substitui o que estiver neste formulário, e nada é salvo antes de você conferir.',
+}: {
+  status: SheetImportStatus;
+  onPick: (file: File) => void;
+  title?: string;
+  description?: string;
+}) {
   const titleId = useId();
   return (
     <section className="sheet-import" aria-labelledby={titleId}>
       <div className="sheet-import__intro">
-        <h3 id={titleId} className="sheet-import__title">Já tem a ficha preenchida?</h3>
-        <p className="sheet-import__hint">
-          Importe o PDF da ficha oficial de D&amp;D 2024 em português. Ele substitui o que estiver neste
-          formulário, e nada é salvo antes de você conferir.
-        </p>
+        <h3 id={titleId} className="sheet-import__title">{title}</h3>
+        <p className="sheet-import__hint">{description}</p>
       </div>
 
       <label className="qf-file-button" aria-disabled={status.kind === 'reading' || undefined}>
