@@ -40,6 +40,7 @@ import {
   type Skill,
   type Spell,
 } from '@quest-fast/shared';
+import type { AssetStore } from '../assets/store.ts';
 import type { Context } from '../context.ts';
 import { requireAuth, requireCampaignRole } from '../middleware.ts';
 import { recordRollEvent } from '../events/feed.ts';
@@ -428,8 +429,8 @@ function officialColumns({ spellSlotTotals: _totals, ...columns }: OfficialField
   return columns;
 }
 
-function avatarUrl(path: string | null): string | null {
-  return path ? `/uploads/${path}` : null;
+function avatarUrl(store: AssetStore, path: string | null): string | null {
+  return path ? store.urlFor(path) : null;
 }
 
 function toSummary(row: {
@@ -445,7 +446,7 @@ function toSummary(row: {
   ownerId: string;
   ownerName: string;
   avatarPath: string | null;
-}): CharacterSummary {
+}, store: AssetStore): CharacterSummary {
   return {
     id: row.id,
     name: row.name,
@@ -454,7 +455,7 @@ function toSummary(row: {
     level: row.level,
     ownerId: row.ownerId,
     ownerName: row.ownerName,
-    avatarUrl: avatarUrl(row.avatarPath),
+    avatarUrl: avatarUrl(store, row.avatarPath),
     hp: row.hp,
     hpCurrent: row.hpCurrent,
     hpTemp: row.hpTemp,
@@ -475,14 +476,14 @@ function characterSelect(db: Db, campaignId: string, characterId: string) {
 type SelectedCharacter = { character: CharacterRow; ownerName: string; avatarPath: string | null };
 
 /** Rows stored before a field existed read as that field's default. */
-function toSheet({ character: row, ownerName, avatarPath }: SelectedCharacter): CharacterSheet {
+function toSheet({ character: row, ownerName, avatarPath }: SelectedCharacter, store: AssetStore): CharacterSheet {
   const { createdAt: _created, updatedAt: _updated, spellSlots, attacks, ...fields } = row;
   return {
     ...fields,
     ownerName,
     attacks: attacks.map((attack) => ({ ...attack, damageType: attack.damageType ?? '', notes: attack.notes ?? '' })),
     spellSlots: emptySpellSlots().map((empty, circle) => spellSlots[circle] ?? empty),
-    avatarUrl: avatarUrl(avatarPath),
+    avatarUrl: avatarUrl(store, avatarPath),
   };
 }
 
@@ -573,7 +574,7 @@ export function characterRoutes() {
       .where(eq(characters.campaignId, c.var.campaignId))
       .orderBy(characters.createdAt, characters.id)
       .all();
-    return c.json({ characters: rows.map(toSummary) });
+    return c.json({ characters: rows.map((row) => toSummary(row, c.var.deps.assets)) });
   });
 
   routes.post('/', requireCampaignRole(), async (c) => {
@@ -600,14 +601,14 @@ export function characterRoutes() {
     });
     if (isInputError(result)) return c.json({ error: result.inputError }, 422);
     const row = characterSelect(db, c.var.campaignId, result.id)!;
-    return c.json({ character: toSheet(row) }, 201);
+    return c.json({ character: toSheet(row, c.var.deps.assets) }, 201);
   });
 
   routes.get('/:characterId', requireCampaignRole(), (c) => {
     const { db } = c.var.deps;
     const row = characterSelect(db, c.var.campaignId, c.req.param('characterId'));
     if (!row) return c.json({ error: 'Personagem não encontrado.' }, 404);
-    return c.json({ character: toSheet(row) });
+    return c.json({ character: toSheet(row, c.var.deps.assets) });
   });
 
   routes.patch('/:characterId', requireCampaignRole(), async (c) => {
@@ -618,7 +619,7 @@ export function characterRoutes() {
       return c.json({ error: 'Apenas o dono da ficha pode editá-la.' }, 403);
     }
 
-    const current = toSheet(row);
+    const current = toSheet(row, c.var.deps.assets);
     const body = await c.req.json().catch(() => ({}));
     const result = await withInput(() => {
       const { core, official: sent } = parseCharacterInput(body);
@@ -641,7 +642,7 @@ export function characterRoutes() {
     if (isInputError(result)) return c.json({ error: result.inputError }, 422);
 
     const updated = characterSelect(db, c.var.campaignId, current.id)!;
-    return c.json({ character: toSheet(updated) });
+    return c.json({ character: toSheet(updated, c.var.deps.assets) });
   });
 
   // Play state without resending the sheet: a quick control must neither
@@ -654,7 +655,7 @@ export function characterRoutes() {
       return c.json({ error: 'Apenas o dono da ficha pode alterar o estado do personagem.' }, 403);
     }
 
-    const sheet = toSheet(row);
+    const sheet = toSheet(row, c.var.deps.assets);
     const body = await c.req.json().catch(() => ({}));
     const result = await withInput(() => {
       const changes = parseStateInput(body, sheet);
@@ -666,7 +667,7 @@ export function characterRoutes() {
     if (isInputError(result)) return c.json({ error: result.inputError }, 422);
 
     const updated = characterSelect(db, c.var.campaignId, sheet.id)!;
-    return c.json({ character: toSheet(updated) });
+    return c.json({ character: toSheet(updated, c.var.deps.assets) });
   });
 
   routes.delete('/:characterId', requireCampaignRole(), (c) => {
@@ -689,7 +690,7 @@ export function characterRoutes() {
     }
 
     const body = (await c.req.json().catch(() => ({}))) as LinkedRollRequest;
-    const parsed = parseLinkedRoll(body, toSheet(row));
+    const parsed = parseLinkedRoll(body, toSheet(row, c.var.deps.assets));
     if ('error' in parsed) return c.json({ error: parsed.error }, 422);
 
     const event = recordRollEvent(db, {

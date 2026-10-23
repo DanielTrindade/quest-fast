@@ -4,7 +4,7 @@ import { createDb } from '@quest-fast/db';
 import { createApp } from './app.ts';
 import { createDiscordClient } from './auth/discord.ts';
 import { deleteExpiredSessions } from './auth/session.ts';
-import { createDiskAssetStore } from './assets/store.ts';
+import { createDiskAssetStore, createR2AssetStore } from './assets/store.ts';
 import { InvalidEnv, readEnv } from './env.ts';
 import { createEventHub } from './events/hub.ts';
 import { attachWebSocket } from './events/ws.ts';
@@ -21,7 +21,8 @@ try {
   });
 
   const hub = createEventHub();
-  const app = createApp({ db, env, discord, hub, assets: createDiskAssetStore(env.uploadsDir) });
+  const assets = env.r2 ? createR2AssetStore(env.r2) : createDiskAssetStore(env.uploadsDir);
+  const app = createApp({ db, env, discord, hub, assets });
 
   // One HTTP server carries REST, the SPA and the WebSocket — the upgrade
   // belongs to us, so the listener is built with getRequestListener (serve()
@@ -29,6 +30,7 @@ try {
   const server = createServer(getRequestListener(app.fetch));
   server.listen(env.port, () => {
     console.log(`quest-fast on http://localhost:${env.port}`);
+    console.log(env.r2 ? `uploads: R2 bucket ${env.r2.bucket} (${env.r2.publicUrl})` : `uploads: disk (${env.uploadsDir})`);
   });
   attachWebSocket(server, { db, hub });
 } catch (error) {
