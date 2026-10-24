@@ -2,6 +2,8 @@ import { sql } from 'drizzle-orm';
 import { index, integer, real, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
 import {
   ABILITIES,
+  COMBATANT_SOURCES,
+  ENCOUNTER_STATUSES,
   ROLES,
   SIZES,
   type Ability,
@@ -228,8 +230,6 @@ export type SessionEventRow = typeof sessionEvents.$inferSelect;
 
 // --- Phase 2: combat and bestiary ---------------------------------------------
 
-export const ENCOUNTER_STATUSES = ['preparing', 'active', 'ended'] as const;
-export const COMBATANT_SOURCES = ['character', 'statblock', 'manual'] as const;
 
 /**
  * The campaign's bestiary, typed by the master. Combatants copy its values,
@@ -321,6 +321,9 @@ export const combatants = sqliteTable(
     concentrating: integer('concentrating', { mode: 'boolean' }),
     /** Initiative tie-breaker, copied from the sheet or the statblock. */
     dexModifier: integer('dex_modifier').notNull().default(0),
+    /** Added to Dexterity when the server rolls a monster's initiative; a
+     * character's comes from the sheet at roll time. */
+    initiativeBonus: integer('initiative_bonus').notNull().default(0),
     initiative: integer('initiative'),
     /** The master's order among combatants still tied after Dexterity. */
     tieOrder: integer('tie_order').notNull().default(0),
