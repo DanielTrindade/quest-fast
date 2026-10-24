@@ -1,0 +1,108 @@
+name: Pullfrog
+
+# O Pullfrog só dispara este workflow (review, correção, menção, CI) a partir do
+# branch padrão. O console precisa estar com o modelo em "Custom (set in
+# workflow)": a cadeia de modelos abaixo só vale assim. Ver docs/pullfrog.md.
+#
+# O Pullfrog não tem review encadeado nem fallback entre provedores, então a
+# cadeia é feita aqui: DeepSeek dá o primeiro parecer sem publicar nada, o Codex
+# revisa e decide, e o Claude entra só se o passo do Codex falhar (cota
+# esgotada, credencial recusada).
+
+run-name: ${{ inputs.name || github.workflow }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      prompt:
+        type: string
+        description: Prompt do agente
+      name:
+        type: string
+        description: Nome da execução
+
+permissions:
+  contents: read
+
+jobs:
+  pullfrog:
+    name: Agente
+    runs-on: ubuntu-latest
+    timeout-minutes: 80
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Baixa o repositório
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+
+      - name: Primeiro parecer (DeepSeek V4.1 Flash)
+        id: first_pass
+        continue-on-error: true
+        uses: pullfrog/pullfrog@25a837a2b078177c3acdce790506d1fd1acedd82 # v0.1.102
+        with:
+          model: opencode-go/deepseek-v4.1-flash
+          effort: max
+          push: disabled
+          shell: restricted
+          progress_comments: disabled
+          timeout: 15m
+          prompt: |
+            Você é a primeira passada de uma cadeia de revisão. Outro agente
+            revisa depois e é o único que publica no GitHub.
+
+            Se a tarefa abaixo não for revisar um pull request, devolva
+            `applies: false` e encerre sem fazer mais nada.
+
+            Se for, leia o diff do PR e AGENTS.md e liste os possíveis defeitos
+            com arquivo, linha, severidade e justificativa. Não publique review,
+            comentário nem reação, não aprove e não altere código: o resultado
+            vai só no JSON.
+
+            Tarefa:
+            ${{ inputs.prompt }}
+          output_schema: |
+            {
+              "type": "object",
+              "required": ["applies", "findings"],
+              "properties": {
+                "applies": { "type": "boolean" },
+                "findings": { "type": "string" }
+              }
+            }
+
+      - name: Guarda o primeiro parecer
+        if: ${{ steps.first_pass.outputs.result != '' }}
+        env:
+          RESULT: ${{ steps.first_pass.outputs.result }}
+        run: |
+          if [ "$(jq -r '.applies' <<< "$RESULT")" = "true" ]; then
+            mkdir -p .pullfrog
+            jq -r '.findings' <<< "$RESULT" > .pullfrog/primeiro-parecer.md
+            echo ".pullfrog/" >> .git/info/exclude
+          fi
+
+      - name: Revisão e tarefa (Codex GPT-6.1 Sol)
+        id: codex
+        continue-on-error: true
+        uses: pullfrog/pullfrog@25a837a2b078177c3acdce790506d1fd1acedd82 # v0.1.102
+        with:
+          prompt: ${{ inputs.prompt }}
+          model: openai/gpt-6.1-sol
+          effort: high
+          push: restricted
+          shell: restricted
+          timeout: 30m
+
+      - name: Fallback (Claude Opus 5.5)
+        if: ${{ steps.codex.outcome == 'failure' }}
+        uses: pullfrog/pullfrog@25a837a2b078177c3acdce790506d1fd1acedd82 # v0.1.102
+        with:
+          prompt: ${{ inputs.prompt }}
+          model: anthropic/claude-opus-5-5
+          effort: high
+          push: restricted
+          shell: restricted
+          timeout: 30m
