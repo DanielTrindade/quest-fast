@@ -129,9 +129,9 @@ try {
   await rafael.page.getByRole('button', { name: 'Novo personagem' }).first().click();
   const dialog = rafael.page.getByRole('dialog');
   await dialog.waitFor({ timeout: 10000 });
-  await dialog.getByLabel('Nome').fill('Kaelen');
+  await dialog.getByLabel('Nome do personagem').fill('Kaelen');
   await dialog.getByLabel('Espécie').fill('Elfo');
-  await dialog.getByLabel('Classe').fill('Ladino');
+  await dialog.getByRole('textbox', { name: 'Classe', exact: true }).fill('Ladino');
   await dialog.getByRole('button', { name: 'Criar personagem' }).click();
   await rafael.page.getByText('Kaelen', { exact: true }).first().waitFor({ timeout: 15000 });
   ok('Rafael cria a ficha de Kaelen');
@@ -218,11 +218,11 @@ try {
 
   // 11) Um formulário longo não perde trabalho por um Escape distraído.
   const editor = rafael.page.getByRole('dialog');
-  await editor.getByLabel('Nome').fill('Kaelen, o Silencioso');
+  await editor.getByLabel('Nome do personagem').fill('Kaelen, o Silencioso');
   await rafael.page.keyboard.press('Escape');
   await editor.getByText('Há alterações que ainda não foram salvas.').waitFor({ timeout: 5000 });
   await editor.getByRole('button', { name: 'Continuar editando' }).click();
-  if ((await editor.getByLabel('Nome').inputValue()) !== 'Kaelen, o Silencioso') {
+  if ((await editor.getByLabel('Nome do personagem').inputValue()) !== 'Kaelen, o Silencioso') {
     throw new Error('continuar editando perdeu o que estava digitado');
   }
   await rafael.page.keyboard.press('Escape');
