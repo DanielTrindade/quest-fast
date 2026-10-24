@@ -14,6 +14,8 @@ componentes é o Storybook (`npm run storybook`).
 - [`design-system.md`](design-system.md): tokens, temas, componentes e as
   garantias verificadas por `npm run test:design`, com o histórico de
   acabamento por data.
+- [`pullfrog.md`](pullfrog.md): review e correção automática de PRs, cadeia
+  de modelos, política de auto-merge, setup do App e checagens visuais.
 
 ## Histórico
 
