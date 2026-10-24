@@ -30,6 +30,11 @@ mesmo provedor). A cadeia fica em
 | 2 | `openai/gpt-6.1-sol` | `high` | ChatGPT (Codex) | revisa, corrige, aprova ou não |
 | 3 | `anthropic/claude-opus-5-5` | `high` | Claude Pro/Max | só roda se o passo 2 falhar |
 
+- O payload do Pullfrog (`inputs.prompt`) precisa chegar intacto à action;
+  embrulhado em outro texto, a execução falha. Por isso o passo 1 é uma
+  execução avulsa: o workflow lê do payload o número do PR e o tipo da tarefa
+  e monta um prompt próprio. Menção sem "review"/"revis" no texto pula o
+  passo 1.
 - O passo 1 só age em tarefa de review. Ele devolve os achados em JSON, que o
   workflow grava em `.pullfrog/primeiro-parecer.md` (fora do git). O passo 2
   lê esse arquivo e valida cada achado antes de publicar: o review publicado é
