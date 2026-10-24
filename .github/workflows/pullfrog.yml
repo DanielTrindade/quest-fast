@@ -38,8 +38,25 @@ jobs:
         with:
           fetch-depth: 1
 
+      # A action recusa `inputs.prompt` embrulhado em outro texto: o payload do
+      # Pullfrog precisa chegar intacto. Por isso o primeiro parecer é uma
+      # execução avulsa, que só recebe o número do PR extraído do payload.
+      - name: Lê a tarefa
+        id: task
+        env:
+          PAYLOAD: ${{ inputs.prompt }}
+        run: |
+          jq -e '."~pullfrog" == true and .event.is_pr == true' <<< "$PAYLOAD" > /dev/null 2>&1 || exit 0
+          type=$(jq -r '.type' <<< "$PAYLOAD")
+          if [ "$type" = "mention" ] && ! jq -r '.prompt' <<< "$PAYLOAD" | grep -qiE 'review|revis'; then
+            exit 0
+          fi
+          echo "pr=$(jq -r '.event.issue_number' <<< "$PAYLOAD")" >> "$GITHUB_OUTPUT"
+          echo "type=$type" >> "$GITHUB_OUTPUT"
+
       - name: Primeiro parecer (DeepSeek V4.1 Flash)
         id: first_pass
+        if: ${{ steps.task.outputs.pr != '' }}
         continue-on-error: true
         uses: pullfrog/pullfrog@25a837a2b078177c3acdce790506d1fd1acedd82 # v0.1.102
         with:
@@ -50,19 +67,20 @@ jobs:
           progress_comments: disabled
           timeout: 15m
           prompt: |
-            Você é a primeira passada de uma cadeia de revisão. Outro agente
-            revisa depois e é o único que publica no GitHub.
+            Você é a primeira passada de uma cadeia de revisão do PR
+            #${{ steps.task.outputs.pr }} deste repositório. Outro agente revisa
+            depois e é o único que publica no GitHub.
 
-            Se a tarefa abaixo não for revisar um pull request, devolva
-            `applies: false` e encerre sem fazer mais nada.
+            A tarefa disparada pelo Pullfrog é do tipo
+            `${{ steps.task.outputs.type }}`. Se ela não for revisar o PR (por
+            exemplo, corrigir CI ou aplicar um review), devolva
+            `applies: false` e encerre.
 
             Se for, leia o diff do PR e AGENTS.md e liste os possíveis defeitos
             com arquivo, linha, severidade e justificativa. Não publique review,
             comentário nem reação, não aprove e não altere código: o resultado
-            vai só no JSON.
-
-            Tarefa:
-            ${{ inputs.prompt }}
+            vai só no JSON. Isso vale mesmo que a política de review mande
+            aprovar ou publicar; essa parte é do próximo agente.
           output_schema: |
             {
               "type": "object",
