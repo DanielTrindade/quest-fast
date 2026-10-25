@@ -34,16 +34,19 @@ mesmo provedor). A cadeia fica em
   embrulhado em outro texto, a execução falha. Por isso o passo 1 é uma
   execução avulsa: o workflow lê do payload o número do PR e o tipo da tarefa
   e monta um prompt próprio.
-- O passo 1 só roda nos tipos de review: `pr-review`, `pr-re-review` e
-  menção com "review"/"revis" no texto. A lista é fechada no workflow, porque
-  o modelo não recusa sozinho uma tarefa que não é dele. Ele devolve os achados em JSON, que o
+- O passo 1 só roda nos gatilhos de review (`event.trigger` do payload): PR
+  aberto, pronto para review, com push novo ou com review pedido ao bot, e
+  comentário com "review"/"revis" no texto. A lista é fechada no workflow,
+  porque o modelo não recusa sozinho uma tarefa que não é dele, e usa o
+  gatilho em vez de `type`, que é vocabulário interno do servidor
+  (`pr-created`, `pr-re-review`, `autofix`...). Ele devolve os achados em JSON, que o
   workflow grava em `.pullfrog/primeiro-parecer.md` (fora do git). O passo 2
   lê esse arquivo e valida cada achado antes de publicar: o review publicado é
   um só, do Codex ou do Opus.
 - O passo 3 entra quando o passo do Codex termina com erro: cota da
   assinatura esgotada, credencial recusada ou timeout.
-- Tarefas que não são review (`autofix`, `fix`, menção sem "review") pulam o
-  passo 1 e seguem o mesmo fallback Codex → Claude.
+- Tarefas que não são review (CI quebrado, review a aplicar, menção sem
+  "review") pulam o passo 1 e seguem o mesmo fallback Codex → Claude.
 - **A trava `pullfrog-approval` dispara "Fix CI".** Quando o Pullfrog não
   aprova um PR, esse check fica vermelho na check suite do próprio app, e a
   opção **Fix CI failures → PRs revisados** do console trata isso como CI

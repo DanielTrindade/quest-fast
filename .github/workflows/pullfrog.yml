@@ -47,13 +47,15 @@ jobs:
           PAYLOAD: ${{ inputs.prompt }}
         run: |
           jq -e '."~pullfrog" == true and .event.is_pr == true' <<< "$PAYLOAD" > /dev/null 2>&1 || exit 0
-          type=$(jq -r '.type' <<< "$PAYLOAD")
-          # Lista fechada: correção (autofix, fix) ou tipo novo não cai no
-          # primeiro parecer. Pedir ao modelo que recuse a tarefa não basta: no
-          # #32 ele revisou um autofix até estourar o timeout.
-          case "$type" in
-            pr-review|pr-re-review) ;;
-            mention) jq -r '.prompt' <<< "$PAYLOAD" | grep -qiE 'review|revis' || exit 0 ;;
+          # Lista fechada sobre `event.trigger`, que é tipado no contrato da
+          # action; `type` é vocabulário do servidor. Correção (CI, review a
+          # aplicar) ou gatilho novo não cai no primeiro parecer: pedir ao
+          # modelo que recuse não basta, no #32 ele revisou um autofix até
+          # estourar o timeout.
+          case "$(jq -r '.event.trigger' <<< "$PAYLOAD")" in
+            pull_request_opened|pull_request_ready_for_review|pull_request_synchronize|pull_request_review_requested) ;;
+            issue_comment_created|pull_request_review_comment_created)
+              jq -r '.prompt' <<< "$PAYLOAD" | grep -qiE 'review|revis' || exit 0 ;;
             *) exit 0 ;;
           esac
           echo "pr=$(jq -r '.event.issue_number' <<< "$PAYLOAD")" >> "$GITHUB_OUTPUT"
