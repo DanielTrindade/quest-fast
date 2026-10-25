@@ -475,6 +475,8 @@ export type TurnRequest = {
   direction: 'next' | 'previous';
   /** The turn the client is looking at; a stale one answers 409. */
   expectedActiveCombatantId: string | null;
+  /** The round of that turn: one combatant standing acts in every round. */
+  expectedRound: number;
 };
 
 /** The master's order for combatants still tied after Dexterity. */

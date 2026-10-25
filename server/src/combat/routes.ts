@@ -97,8 +97,9 @@ function rollInitiative(
       campaignId: mutation.loaded.encounter.campaignId,
       userId: mutation.viewer.userId,
       userName: mutation.userName,
-      // A hidden combatant's roll would give it away.
-      secret: options.secret || row.hidden,
+      // A hidden combatant's roll would give it away, and so would any roll
+      // of an encounter the players cannot see yet.
+      secret: options.secret || row.hidden || mutation.loaded.encounter.status === 'preparing',
       payload: {
         kind: 'roll',
         ...result,
@@ -280,16 +281,22 @@ function editCombatant(mutation: Mutation, combatant: LoadedCombatant, body: Rec
   mutation.tx.update(combatants).set(changes).where(eq(combatants.id, row.id)).run();
 }
 
+/**
+ * Passes the turn on when the active combatant is about to leave. Runs before
+ * the combatant goes, so its position in the queue is still known.
+ */
+function handOffTurn(tx: Executor, loaded: LoadedEncounter, combatantId: string) {
+  const { encounter } = loaded;
+  if (encounter.activeCombatantId !== combatantId) return;
+  const next = nextTurn(turnOrder(loaded), encounter.activeCombatantId, encounter.round);
+  tx.update(encounters)
+    .set({ activeCombatantId: next.activeId === combatantId ? null : next.activeId, round: next.round })
+    .where(eq(encounters.id, encounter.id))
+    .run();
+}
+
 function removeCombatant(mutation: Mutation, combatant: LoadedCombatant) {
-  const { encounter } = mutation.loaded;
-  // The turn moves on before the combatant leaves, so its position is known.
-  if (encounter.activeCombatantId === combatant.row.id) {
-    const next = nextTurn(turnOrder(mutation.loaded), encounter.activeCombatantId, encounter.round);
-    setEncounter(mutation, {
-      activeCombatantId: next.activeId === combatant.row.id ? null : next.activeId,
-      round: next.round,
-    });
-  }
+  handOffTurn(mutation.tx, mutation.loaded, combatant.row.id);
   mutation.tx.delete(combatants).where(eq(combatants.id, combatant.row.id)).run();
 }
 
@@ -329,10 +336,14 @@ function changeTurn(mutation: Mutation, body: Record<string, unknown>) {
   if (direction === 'previous' || encounter.round === 0) requireMaster(viewer);
 
   // A player sees `null` while a hidden combatant acts; that is still a match.
+  // The round tells two turns of the same combatant apart: with one combatant
+  // standing, the id alone would let a repeated request pass again.
   const expected = body.expectedActiveCombatantId ?? null;
   const active = loaded.combatants.find((combatant) => combatant.row.id === encounter.activeCombatantId);
   const seen = viewer.role !== 'master' && active?.row.hidden ? null : encounter.activeCombatantId;
-  if (expected !== seen) refuse(409, 'O turno mudou enquanto você decidia. Confira a vez atual.', true);
+  if (expected !== seen || body.expectedRound !== encounter.round) {
+    refuse(409, 'O turno mudou enquanto você decidia. Confira a vez atual.', true);
+  }
 
   if (direction === 'previous') {
     if (encounter.round === 0) refuse(409, 'O primeiro round ainda não começou.');
@@ -482,14 +493,11 @@ async function mutate(
   }
 }
 
-/** For a change made outside the combat routes — a sheet's hit points, say. */
-export function publishCharacterEncounters(
-  deps: Pick<Context['Variables']['deps'], 'db' | 'hub'>,
-  campaignId: string,
-  characterId: string,
-) {
-  const { db, hub } = deps;
-  const active = db
+type Deps = Pick<Context['Variables']['deps'], 'db' | 'hub'>;
+
+/** The encounters not yet ended that a character takes part in. */
+function openEncountersOf(tx: Executor, campaignId: string, characterId: string): string[] {
+  return tx
     .select({ id: encounters.id })
     .from(encounters)
     .innerJoin(combatants, eq(combatants.encounterId, encounters.id))
@@ -500,14 +508,41 @@ export function publishCharacterEncounters(
         eq(combatants.characterId, characterId),
       ),
     )
-    .all();
-  for (const { id } of active) {
+    .all()
+    .map(({ id }) => id);
+}
+
+/** For a change made outside the combat routes — a sheet's hit points, say. */
+export function publishCharacterEncounters(deps: Deps, campaignId: string, characterId: string) {
+  const { db, hub } = deps;
+  for (const id of openEncountersOf(db, campaignId, characterId)) {
     const loaded = db.transaction((tx) => {
       tx.update(encounters).set({ version: sql`${encounters.version} + 1` }).where(eq(encounters.id, id)).run();
       return loadEncounter(tx, findEncounter(tx, campaignId, id)!);
     });
     hub.publishCombat(campaignId, (viewer) => projectEncounter(loaded, viewer));
   }
+}
+
+/**
+ * Deletes a character that may be fighting. The cascade takes its combatants
+ * away, so first the turn passes on in every open encounter it was in, as if
+ * the master had removed it, and those encounters reach every connection.
+ */
+export function deleteCharacter(deps: Deps, campaignId: string, characterId: string) {
+  const { db, hub } = deps;
+  const changed = db.transaction((tx) => {
+    const ids = openEncountersOf(tx, campaignId, characterId);
+    for (const id of ids) {
+      const loaded = loadEncounter(tx, findEncounter(tx, campaignId, id)!);
+      const combatant = loaded.combatants.find((candidate) => candidate.row.characterId === characterId)!;
+      handOffTurn(tx, loaded, combatant.row.id);
+      tx.update(encounters).set({ version: sql`${encounters.version} + 1` }).where(eq(encounters.id, id)).run();
+    }
+    tx.delete(characters).where(and(eq(characters.id, characterId), eq(characters.campaignId, campaignId))).run();
+    return ids.map((id) => loadEncounter(tx, findEncounter(tx, campaignId, id)!));
+  });
+  for (const loaded of changed) hub.publishCombat(campaignId, (viewer) => projectEncounter(loaded, viewer));
 }
 
 /**
