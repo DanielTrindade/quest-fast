@@ -224,14 +224,18 @@ encontro e os combatentes, aplica as regras de `shared/src/combat.ts`,
 incrementa `version` e grava; depois publica `combat.updated` com o estado
 completo **projetado para cada conexão** e responde com a projeção de quem
 pediu. O jogador nunca recebe encontro em preparação, combatente escondido nem
-PV, CA ou iniciativa de monstro — vê só a faixa de saúde. O cliente descarta
-mensagem com `version` menor que a conhecida e refaz o fetch ao reconectar.
+PV, CA ou iniciativa de monstro — vê só a faixa de saúde. Pelo mesmo motivo,
+toda rolagem de iniciativa feita na preparação vai para o feed como secreta. O
+cliente descarta mensagem com `version` menor que a conhecida e refaz o fetch
+ao reconectar.
 
-Pedido de turno leva `expectedActiveCombatantId`: se não bater com o turno
-atual, a resposta é 409 com o estado atual, o que evita turno pulado duas
-vezes por clique duplo ou mestre e jogador ao mesmo tempo. PV e condições de
-personagem continuam na ficha; mudar a ficha de quem está num encontro também
-publica `combat.updated`.
+Pedido de turno leva `expectedActiveCombatantId` e `expectedRound`: se não
+baterem com o turno atual, a resposta é 409 com o estado atual, o que evita
+turno pulado duas vezes por clique duplo ou mestre e jogador ao mesmo tempo. O
+round é o que distingue dois turnos seguidos do mesmo combatente quando só ele
+está de pé. PV e condições de personagem continuam na ficha; mudar a ficha de
+quem está num encontro também publica `combat.updated`, e excluí-la passa o
+turno adiante, como remover o combatente, antes de o cascade apagá-lo.
 
 ## Princípios
 

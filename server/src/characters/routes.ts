@@ -42,7 +42,7 @@ import {
 import type { Context } from '../context.ts';
 import { requireAuth, requireCampaignRole } from '../middleware.ts';
 import { recordRollEvent } from '../events/feed.ts';
-import { publishCharacterEncounters } from '../combat/routes.ts';
+import { deleteCharacter, publishCharacterEncounters } from '../combat/routes.ts';
 import { boundedInteger, fail, isInputError, parseAttack, shortText, withInput } from '../validation.ts';
 
 function uniqueStrings<T>(values: T[]): T[] {
@@ -638,7 +638,7 @@ export function characterRoutes() {
     if (row.character.ownerId !== c.var.user.id && c.var.role !== 'master') {
       return c.json({ error: 'Apenas o dono ou o mestre podem excluir o personagem.' }, 403);
     }
-    db.delete(characters).where(eq(characters.id, row.character.id)).run();
+    deleteCharacter(c.var.deps, c.var.campaignId, row.character.id);
     return c.body(null, 204);
   });
 
