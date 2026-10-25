@@ -330,7 +330,9 @@ function splitList(text: string, onCut: (item: string) => void): string[] {
 // expression when a number follows the sign, so `1d8 - fogo` keeps the type.
 // The roll must end at a separator, a space or the end of the text, so a
 // malformed tail like `1d8+1d fogo` does not leave `1d8+1` as the damage.
-const DAMAGE = /^\s*(\d+\s*[dD]\s*\d+(?:\s*[+-]\s*\d+(?:\s*[dD]\s*\d+)?)*)(?:\s*[,;:\-–]\s*|\s+|$)(.*)$/;
+// The separator mark is captured: a mark with no type after it (`1d8+3-`) is
+// an unfinished roll, not a roll without a type.
+const DAMAGE = /^\s*(\d+\s*[dD]\s*\d+(?:\s*[+-]\s*\d+(?:\s*[dD]\s*\d+)?)*)(?:\s*([,;:\-–])\s*|\s+|$)(.*)$/;
 
 // A damage type is a word like `fogo`. A tail that starts with a sign or
 // still carries numbers (`+`, `1d6 frio`) is part of a roll left unread.
@@ -486,11 +488,14 @@ export function sheetFromOfficialPdf(raw: PdfFieldValues, unreadable: readonly s
     const damageText = text(row.damage);
     const match = DAMAGE.exec(damageText);
     const expression = match?.[1]!.replace(/\s+/g, '');
-    const damageType = match?.[2]!.trim() ?? '';
-    // Only a roll the platform accepts, followed by a plain type, is split;
-    // anything else stays whole in the damage field, marked for review, so no
-    // term ends up as the type.
-    const split = Boolean(expression && parseDiceExpression(expression) && (!damageType || DAMAGE_TYPE.test(damageType)));
+    const separator = match?.[2];
+    const damageType = match?.[3]!.trim() ?? '';
+    // Only a roll the platform accepts, followed by a plain type (or by
+    // nothing, when no separator mark asks for one), is split; anything else
+    // stays whole in the damage field, marked for review, so no term ends up
+    // as the type and no dangling sign is dropped.
+    const typeOk = damageType ? DAMAGE_TYPE.test(damageType) : !separator;
+    const split = Boolean(expression && parseDiceExpression(expression) && typeOk);
     if (damageText && !split) {
       warnings.push(`${name}: o dano "${damageText}" não é uma rolagem que o aplicativo entende. Revise antes de criar.`);
     }
