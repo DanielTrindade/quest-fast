@@ -7,7 +7,9 @@ processo de contribuição, o [`CONTRIBUTING.md`](../CONTRIBUTING.md).
 ## Visão geral
 
 Um único processo Node serve tudo: o SPA buildado, a API REST e o WebSocket.
-Os dados ficam num arquivo SQLite e os uploads, em disco.
+Os dados ficam num arquivo SQLite e os uploads, em disco ou, se quem hospeda
+escolher, num bucket do Cloudflare R2 (veja
+[Armazenamento de arquivos](#armazenamento-de-arquivos)).
 
 ```mermaid
 flowchart LR
@@ -22,6 +24,7 @@ flowchart LR
   end
   db[(SQLite<br/>Drizzle)]
   disk[(uploads/)]
+  r2[(Cloudflare R2<br/>opcional)]
   discord[Discord OAuth]
 
   spa -- fetch --> http
@@ -30,6 +33,8 @@ flowchart LR
   http --> hub
   hub --> ws
   http --> disk
+  http -.->|ASSET_STORAGE=r2| r2
+  r2 -.->|imagens| spa
   http -- login --> discord
   static --> spa
 ```
@@ -114,7 +119,7 @@ src/
   statblocks/     bestiário da campanha (só o mestre)
   dice/           rolagem livre
   feed/           leitura paginada do feed
-  assets/         upload de imagens (store em disco ou em memória)
+  assets/         upload de imagens (store em disco, no R2 ou em memória)
   events/         EventHub, persistência do feed e WebSocket
   validation.ts   parsers de entrada compartilhados (InputError, ataques)
   testing.ts      helpers dos testes de integração
@@ -212,6 +217,68 @@ troca de campanha. Não há replay de eventos: ao reconectar, o cliente refaz o
 fetch. Novos tipos de evento (combate, tokens) entram no mesmo canal, e o
 cliente tem fallback para tipos que ainda não sabe renderizar.
 
+## Armazenamento de arquivos
+
+Avatares (e, no VTT, mapas) passam pelo `AssetStore` em
+`server/src/assets/store.ts`. As rotas só conhecem essa interface:
+`save` guarda o arquivo e `urlFor` diz de onde o navegador o carrega. O
+armazenamento é escolhido uma vez, na subida, por `ASSET_STORAGE`.
+
+| Modo | Onde fica | Como o navegador carrega |
+| --- | --- | --- |
+| `disk` (padrão) | `UPLOADS_DIR`, ao lado do banco | `/uploads/...`, servido pelo próprio processo |
+| `r2` | Bucket do Cloudflare R2 | `R2_PUBLIC_URL/...`, direto da rede da Cloudflare |
+
+O banco guarda só o caminho (`campaigns/<campanha>/<uuid>.<ext>`), nunca a
+URL. O mesmo caminho é o arquivo no disco e a chave no bucket, então a URL é
+montada na leitura e trocar de armazenamento é copiar a pasta para o bucket,
+sem migração de dados. Cada caminho leva um UUID novo e nunca é sobrescrito,
+por isso o R2 entrega as imagens com cache permanente
+(`Cache-Control: immutable`).
+
+### Por que R2, e por que opcional
+
+**Por que um armazenamento de objetos.** Em disco, cada imagem passa pelo
+processo Node, e o arquivo se perde se o volume não for persistido. Num
+bucket, as imagens sobrevivem a qualquer recriação do servidor e são entregues
+por uma CDN, perto de quem está na mesa.
+
+**Por que Cloudflare R2, e não Amazon S3.** Avatar é escrito uma vez e lido a
+cada abertura de campanha, por todos os jogadores. O custo que cresce é o de
+leitura, e o R2 não cobra transferência de saída. O S3 cobra cada GB baixado
+além da cota gratuita e só vira CDN com o CloudFront na frente, que é um
+segundo serviço para configurar. O R2 ainda tem um plano gratuito permanente
+que cobre com folga os avatares de uma mesa. A API do R2 é a do S3, e o
+servidor usa o SDK oficial da AWS (`@aws-sdk/client-s3`): voltar para o S3,
+ou ir para qualquer serviço compatível, é configuração, não código novo.
+
+**Por que opcional.** O princípio 3 (um processo, um artefato) e a escala
+alvo continuam valendo: quem hospeda uma mesa sozinho não precisa de conta em
+serviço externo, e o disco segue como padrão. O R2 é uma escolha de quem
+hospeda, para não depender do volume local e tirar o tráfego de imagens do
+servidor. Nada no cliente muda: ele recebe uma URL pronta, como antes.
+
+**Alternativas descartadas.**
+
+- **Amazon S3 com CloudFront:** mesmo resultado, mas com taxa de saída e dois
+  serviços para configurar.
+- **R2 obrigatório:** quebraria o self-host sem conta na Cloudflare.
+- **Guardar a URL completa no banco:** trocar de armazenamento, ou de domínio
+  do bucket, exigiria migrar todas as linhas de `assets`.
+
+**Consequências.**
+
+- Ligar o R2 numa instância com avatares em disco exige copiar `UPLOADS_DIR`
+  para o bucket. Até lá, os avatares antigos não aparecem. O passo a passo está
+  no [`README.md`](../README.md#avatares-no-cloudflare-r2-opcional).
+- `/uploads` continua servido mesmo com o R2 ligado, então voltar para `disk`
+  não perde o que ainda está no disco.
+- Uma falha ao guardar no bucket responde 502 com mensagem em português, e
+  nenhuma linha é gravada em `assets` para um arquivo que não foi guardado.
+- As credenciais do R2 ficam só no servidor, em variáveis de ambiente. O
+  navegador nunca escreve no bucket: o upload continua passando pela rota, que
+  valida tipo, tamanho e papel na campanha.
+
 ## Princípios
 
 São as regras que não mudam de uma feature para outra:
@@ -248,6 +315,7 @@ O raciocínio completo, com alternativas descartadas, está em
 | Combate projetado por papel no servidor | O jogador nunca recebe PV de monstro, combatente escondido nem encontro em preparação, nem no REST nem no socket | [combate](history/2026-10-22-combat-and-bestiary.md) |
 | Combatente com id estável, turno por identidade | O token do VTT vai se ancorar no combatente; adicionar ou remover alguém não move o turno | [combate](history/2026-10-22-combat-and-bestiary.md) |
 | Tokens próprios + Storybook como fonte da interface | Consistência e auditoria automática de a11y/overflow | [design system](history/2026-09-04-design-system-foundation.md) |
+| Uploads em disco por padrão, Cloudflare R2 opcional (não S3) | Avatar é muito lido: o R2 não cobra saída e já é CDN; o disco mantém o self-host sem conta externa | [Armazenamento de arquivos](#armazenamento-de-arquivos) |
 
 Decisão nova que mude um desses pontos, ou um dos princípios acima, deve ser
 registrada: atualize este documento no mesmo PR e explique o porquê na
@@ -263,6 +331,7 @@ descrição do PR.
 | Emitir um novo tipo de evento | tipo em `shared/src/api.ts`, gravação em `server/src/events/`, renderização em `FeedEventCard` |
 | Criar um componente | story em `client/src/stories/`, componente em `client/src/components/`, `npm run test:design` |
 | Ajustar cor, tipografia ou espaçamento | tokens em `client/src/styles/index.css` e [`design-system.md`](design-system.md) |
+| Mudar onde os uploads ficam | `server/src/assets/store.ts` (um `AssetStore` novo), `server/src/env.ts` e a escolha em `server/src/index.ts` |
 
 ## Testes
 
