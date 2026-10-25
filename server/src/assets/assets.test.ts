@@ -4,9 +4,9 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 import { assets } from '@quest-fast/db';
-import type { AssetUploadResponse, CreatedCampaign } from '@quest-fast/shared';
+import type { AssetUploadResponse, CharacterResponse, CreatedCampaign } from '@quest-fast/shared';
 import { asUser, body, createTestApp, signIn, testEnv } from '../testing.ts';
-import { MAX_ASSET_SIZE, createDiskAssetStore } from './store.ts';
+import { MAX_ASSET_SIZE, createDiskAssetStore, createR2AssetStore } from './store.ts';
 
 const PROFILES = {
   lia: { discordId: '111', name: 'Lia Martins', avatarUrl: null },
@@ -182,4 +182,47 @@ test('a missing upload is a 404, not the SPA page', async (t) => {
     assert.equal(response.status, 404, url);
     assert.doesNotMatch(response.headers.get('content-type') ?? '', /html/, url);
   }
+});
+
+test('with R2 on, the upload and the avatar on the sheet point at the bucket', async () => {
+  const sent: unknown[] = [];
+  const assetStore = createR2AssetStore(
+    { accountId: 'a', accessKeyId: 'k', secretAccessKey: 's', bucket: 'b', publicUrl: 'https://cdn.example.com' },
+    { send: async (command) => void sent.push(command) },
+  );
+  const { player, campaign } = await appWithCampaign({ assets: assetStore });
+
+  const uploaded = await upload(player, campaign.id, new File([PNG], 'avatar.png', { type: 'image/png' }));
+  assert.equal(uploaded.status, 201);
+  const { asset } = await body<AssetUploadResponse>(uploaded);
+  assert.ok(asset.url.startsWith(`https://cdn.example.com/campaigns/${campaign.id}/`), asset.url);
+  assert.match(asset.url, /\/[0-9a-f-]{36}\.png$/);
+  assert.equal(sent.length, 1);
+
+  const created = await player(`/api/campaigns/${campaign.id}/characters`, {
+    method: 'POST',
+    body: JSON.stringify({
+      name: 'Kaelen', race: 'Elfo', class: 'Ladino', level: 3,
+      abilityScores: { strength: 10, dexterity: 18, constitution: 14, intelligence: 12, wisdom: 8, charisma: 13 },
+      hp: 24, ac: 15, skills: [], saves: [], attacks: [], features: [], description: '',
+      avatarAssetId: asset.id,
+    }),
+  });
+  assert.equal(created.status, 201);
+  const { character } = await body<CharacterResponse>(created);
+  assert.equal(character.avatarUrl, asset.url);
+});
+
+test('a storage failure is a 502 with a message, and no asset row is left behind', async () => {
+  const failing = createR2AssetStore(
+    { accountId: 'a', accessKeyId: 'k', secretAccessKey: 's', bucket: 'b', publicUrl: 'https://cdn.example.com' },
+    { send: async () => { throw new Error('R2 fora do ar'); } },
+  );
+  const { a, player, campaign } = await appWithCampaign({ assets: failing });
+
+  const response = await upload(player, campaign.id, new File([PNG], 'avatar.png', { type: 'image/png' }));
+  assert.equal(response.status, 502);
+  const { error } = await body<{ error: string }>(response);
+  assert.match(error, /Não foi possível guardar a imagem/);
+  assert.equal(a.db.select().from(assets).all().length, 0);
 });

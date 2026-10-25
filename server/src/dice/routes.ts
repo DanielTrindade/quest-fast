@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import type { FreeRollRequest, RollMode, RollPayload } from '@quest-fast/shared';
-import { isRollMode, rollDice } from '@quest-fast/shared';
+import { isRollMode, isSingleD20, parseDiceExpression, rollDice } from '@quest-fast/shared';
 import type { Context } from '../context.ts';
 import { requireAuth, requireCampaignRole } from '../middleware.ts';
 import { recordRollEvent } from '../events/feed.ts';
@@ -28,14 +28,16 @@ export function diceRoutes() {
     }
     const mode: RollMode = rawMode ?? 'normal';
 
-    const result = rollDice(expression, mode);
-    if (!result) {
-      const message =
-        mode !== 'normal' && expression !== '1d20'
-          ? 'Vantagem e desvantagem valem apenas para um d20 (1d20 ou 1d20+modificador).'
-          : 'Expressão de dados inválida. Use o formato 1d20+5, 2d6+3, etc.';
-      return c.json({ error: message }, 422);
+    // The whole expression is checked before any die is rolled: a composite
+    // roll past a limit is refused, never rolled in part.
+    const parsed = parseDiceExpression(expression);
+    if (!parsed) {
+      return c.json({ error: 'Expressão de dados inválida. Use o formato 1d20+5, 2d6+3 ou 1d8+3+1d6.' }, 422);
     }
+    if (mode !== 'normal' && !isSingleD20(parsed)) {
+      return c.json({ error: 'Vantagem e desvantagem valem apenas para um d20 (1d20 ou 1d20+modificador).' }, 422);
+    }
+    const result = rollDice(expression, mode)!;
 
     const secret = body?.secret === true;
     if (secret && c.var.role !== 'master') {

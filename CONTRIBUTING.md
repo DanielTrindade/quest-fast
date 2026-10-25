@@ -208,6 +208,21 @@ frequência e que as regras deste guia ainda não cobrem.
 Código feito com agente segue as mesmas regras e a mesma revisão de qualquer
 outro PR. Quem abre o PR responde pelo código.
 
+## Revisão automática
+
+Todo PR recebe um review automático do [Pullfrog](docs/pullfrog.md): um
+primeiro parecer do DeepSeek, validado e publicado pelo Codex GPT-6.1 Sol (ou
+pelo Claude Opus, se o Codex estiver sem cota). Em mudanças de frontend ele sobe o
+Storybook e confere telas no Chrome headless. Ele também corrige o PR quando
+um review pede mudança, quando o CI quebra ou quando alguém comenta
+`@pullfrog <pedido>`.
+
+PR simples (documentação, testes, stories, componente presentacional,
+atualização minor/patch do Dependabot) pode ser aprovado e mesclado pelo bot.
+Tudo que toca um caminho de [`.github/CODEOWNERS`](.github/CODEOWNERS) —
+servidor, regras 5e, banco, telas, CI — precisa de merge humano. A política
+completa e o setup estão em [`docs/pullfrog.md`](docs/pullfrog.md).
+
 ## Para onde olhar
 
 - [`README.md`](README.md): produto, setup, variáveis de ambiente e Docker.

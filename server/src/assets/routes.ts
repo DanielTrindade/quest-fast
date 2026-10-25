@@ -33,7 +33,15 @@ export function assetRoutes() {
     }
 
     const buffer = new Uint8Array(await file.arrayBuffer());
-    const stored = await store.save(c.var.campaignId, buffer, file.type);
+    // The store may be a remote bucket: a failure there is reported, and no
+    // row is written for a file that was never kept.
+    let stored;
+    try {
+      stored = await store.save(c.var.campaignId, buffer, file.type);
+    } catch (error) {
+      console.error('asset upload failed', error);
+      return c.json({ error: 'Não foi possível guardar a imagem. Tente novamente.' }, 502);
+    }
     const asset = db
       .insert(assets)
       .values({
