@@ -8,10 +8,14 @@ function knownEncounter(queryClient: QueryClient, campaignId: string, encounterI
   return queryClient.getQueryData<EncounterResponse>(encounterKey(campaignId, encounterId))?.encounter;
 }
 
-/** A detail invalidated on reconnect may have missed updates; only a live one beats the list. */
-function liveEncounter(queryClient: QueryClient, campaignId: string, encounterId: string): EncounterView | undefined {
-  const key = encounterKey(campaignId, encounterId);
-  return queryClient.getQueryState(key)?.isInvalidated ? undefined : knownEncounter(queryClient, campaignId, encounterId);
+/**
+ * The detail, if it changed after `since`. A detail from an earlier visit may
+ * have missed updates while the socket was closed: only one that arrived
+ * during the list's GET is newer than its answer.
+ */
+function updatedSince(queryClient: QueryClient, campaignId: string, encounterId: string, since: number): EncounterView | undefined {
+  const updatedAt = queryClient.getQueryState(encounterKey(campaignId, encounterId))?.dataUpdatedAt ?? 0;
+  return updatedAt > since ? knownEncounter(queryClient, campaignId, encounterId) : undefined;
 }
 
 function listItem(item: EncounterListItem, encounter: EncounterView): EncounterListItem {
@@ -27,16 +31,17 @@ function listItem(item: EncounterListItem, encounter: EncounterView): EncounterL
 
 /**
  * Shared by the section and the navigation: a player sees combat once there
- * is one. The list carries no version, so an answer that left before a live
- * update takes each encounter's state from the detail the socket keeps fresh.
+ * is one. The list carries no version, so an encounter updated live while
+ * the GET was out keeps that update.
  */
 export const encountersQuery = (campaignId: string) => ({
   queryKey: ['encounters', campaignId],
   queryFn: async ({ client }: { client: QueryClient }): Promise<EncounterListResponse> => {
+    const startedAt = Date.now();
     const { encounters } = await api.encounters(campaignId);
     return {
       encounters: encounters.map((item) => {
-        const known = liveEncounter(client, campaignId, item.id);
+        const known = updatedSince(client, campaignId, item.id, startedAt);
         return known ? listItem(item, known) : item;
       }),
     };
