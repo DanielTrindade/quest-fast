@@ -7,11 +7,13 @@ import {
   healthBand,
   isActiveCondition,
   isCondition,
+  isDefeated,
   nextTurn,
   numberCopies,
   previousTurn,
   sortInitiative,
   tickConditions,
+  turnQueue,
   type ActiveCondition,
 } from './combat.ts';
 
@@ -180,4 +182,21 @@ test('copies of a creature are numbered, continuing what is already there', () =
   assert.deepEqual(numberCopies('Goblin', 1, ['Goblin']), ['Goblin 2']);
   assert.deepEqual(numberCopies('Goblin', 1, ['Goblin Chefe']), ['Goblin']);
   assert.deepEqual(numberCopies('Goblin', 0, []), []);
+});
+
+test('the turn queue follows initiative and marks only fallen monsters as defeated', () => {
+  const base = { dexModifier: 0, tieOrder: 0 };
+  const queue = turnQueue([
+    { ...base, id: 'goblin', source: 'statblock', hpCurrent: 0, initiative: 18 },
+    { ...base, id: 'kaelen', source: 'character', hpCurrent: 0, initiative: 12 },
+    { ...base, id: 'bandit', source: 'manual', hpCurrent: 4, initiative: 15 },
+    { ...base, id: 'late', source: 'statblock', hpCurrent: 7, initiative: null },
+  ]);
+  assert.deepEqual(queue, [
+    { id: 'goblin', defeated: true },
+    { id: 'bandit', defeated: false },
+    { id: 'kaelen', defeated: false },
+  ]);
+  assert.equal(isDefeated({ source: 'manual', hpCurrent: -2 }), true);
+  assert.equal(isDefeated({ source: 'character', hpCurrent: 0 }), false);
 });

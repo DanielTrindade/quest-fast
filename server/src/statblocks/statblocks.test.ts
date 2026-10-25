@@ -96,8 +96,8 @@ test('the list is alphabetical and carries only the summary', async () => {
   assert.deepEqual(
     statblocks.map(({ id: _id, ...summary }) => summary),
     [
-      { name: 'Goblin', size: 'small', creatureType: 'Humanoide (goblinoide)', challengeRating: '1/4', ac: 15, hpAverage: 7 },
-      { name: 'Ogro', size: 'small', creatureType: 'Humanoide (goblinoide)', challengeRating: '2', ac: 11, hpAverage: 59 },
+      { name: 'Goblin', size: 'small', creatureType: 'Humanoide (goblinoide)', challengeRating: '1/4', ac: 15, hpAverage: 7, hpFormula: '2d6' },
+      { name: 'Ogro', size: 'small', creatureType: 'Humanoide (goblinoide)', challengeRating: '2', ac: 11, hpAverage: 59, hpFormula: '2d6' },
     ],
   );
 });

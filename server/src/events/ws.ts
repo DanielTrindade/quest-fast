@@ -54,7 +54,7 @@ export function attachWebSocket(server: ServerType, deps: { db: Db; hub: EventHu
     if (!role) return socket.destroy();
 
     wss.handleUpgrade(request, socket, head, (ws: WebSocket) => {
-      deps.hub.join(campaignId, role, ws);
+      deps.hub.join(campaignId, { role, userId: user.id }, ws);
       wss.emit('connection', ws, request);
     });
   });

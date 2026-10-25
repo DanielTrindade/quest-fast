@@ -43,6 +43,7 @@ import type { AssetStore } from '../assets/store.ts';
 import type { Context } from '../context.ts';
 import { requireAuth, requireCampaignRole } from '../middleware.ts';
 import { recordRollEvent } from '../events/feed.ts';
+import { deleteCharacter, publishCharacterEncounters } from '../combat/routes.ts';
 import { boundedInteger, fail, isInputError, parseAttack, shortText, withInput } from '../validation.ts';
 
 function uniqueStrings<T>(values: T[]): T[] {
@@ -383,10 +384,11 @@ function parseCharacterInput(body: unknown): ParsedSheet {
 
 /** Expertise is a subset of proficiency; an edit that drops a skill drops its expertise. */
 function checkExpertise(official: OfficialFields, skills: Skill[], sent: boolean): OfficialFields {
-  if (sent && official.expertise.some((skill) => !skills.includes(skill))) {
+  const proficient = new Set(skills);
+  if (sent && official.expertise.some((skill) => !proficient.has(skill))) {
     fail('Especialização exige proficiência na perícia.');
   }
-  return { ...official, expertise: official.expertise.filter((skill) => skills.includes(skill)) };
+  return { ...official, expertise: official.expertise.filter((skill) => proficient.has(skill)) };
 }
 
 /** Splits the editor's slot totals from the columns stored as they are. */
@@ -598,6 +600,8 @@ export function characterRoutes() {
         .run();
     });
     if (isInputError(result)) return c.json({ error: result.inputError }, 422);
+    // Name, armor class and hit points show in the encounters the character is in.
+    publishCharacterEncounters(c.var.deps, c.var.campaignId, current.id);
 
     const updated = characterSelect(db, c.var.campaignId, current.id)!;
     return c.json({ character: toSheet(updated, c.var.deps.assets) });
@@ -623,6 +627,7 @@ export function characterRoutes() {
         .run();
     });
     if (isInputError(result)) return c.json({ error: result.inputError }, 422);
+    publishCharacterEncounters(c.var.deps, c.var.campaignId, sheet.id);
 
     const updated = characterSelect(db, c.var.campaignId, sheet.id)!;
     return c.json({ character: toSheet(updated, c.var.deps.assets) });
@@ -635,7 +640,7 @@ export function characterRoutes() {
     if (row.character.ownerId !== c.var.user.id && c.var.role !== 'master') {
       return c.json({ error: 'Apenas o dono ou o mestre podem excluir o personagem.' }, 403);
     }
-    db.delete(characters).where(eq(characters.id, row.character.id)).run();
+    deleteCharacter(c.var.deps, c.var.campaignId, row.character.id);
     return c.body(null, 204);
   });
 

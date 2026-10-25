@@ -26,6 +26,9 @@ export type Condition = (typeof CONDITIONS)[number];
 
 export const EXHAUSTION_MAX = 6;
 
+export const ENCOUNTER_STATUSES = ['preparing', 'active', 'ended'] as const;
+export const COMBATANT_SOURCES = ['character', 'statblock', 'manual'] as const;
+
 export type ActiveCondition = {
   condition: Condition;
   /** Only for `exhaustion`: 1 to 6. */
@@ -121,6 +124,25 @@ export function previousTurn(order: readonly TurnEntry[], activeId: string | nul
   return { activeId, round };
 }
 
+export type QueueEntry = InitiativeEntry & {
+  id: string;
+  source: (typeof COMBATANT_SOURCES)[number];
+  hpCurrent: number;
+};
+
+/**
+ * A monster or manual combatant at 0 hit points is out of the fight; a
+ * character at 0 still takes turns (death saving throws).
+ */
+export function isDefeated(combatant: Pick<QueueEntry, 'source' | 'hpCurrent'>): boolean {
+  return combatant.source !== 'character' && combatant.hpCurrent <= 0;
+}
+
+/** The queue `nextTurn` and `previousTurn` walk: initiative order, defeated marked. */
+export function turnQueue(combatants: readonly QueueEntry[]): TurnEntry[] {
+  return sortInitiative(combatants).map((combatant) => ({ id: combatant.id, defeated: isDefeated(combatant) }));
+}
+
 export const HEALTH_BANDS = ['unhurt', 'wounded', 'bloodied', 'defeated'] as const;
 export type HealthBand = (typeof HEALTH_BANDS)[number];
 
@@ -185,6 +207,15 @@ export const STATBLOCK_LIMITS = {
   hp: { min: 1, max: 999 },
   initiativeBonus: { min: -10, max: 20 },
   attacks: 20,
+} as const;
+
+/** Bounds of an encounter and its combatants, shared by the server and the setup form. */
+export const ENCOUNTER_LIMITS = {
+  name: 80,
+  /** Copies of one statblock added at once. */
+  copies: 20,
+  combatants: 60,
+  initiative: { min: -10, max: 50 },
 } as const;
 
 /** Challenge ratings of the 5e scale, as written in a statblock. */
