@@ -9,7 +9,7 @@ import { Skeleton } from '../../components/Skeleton';
 import { Surface } from '../../components/Surface';
 import { TurnBar, type TurnAction } from '../../components/TurnBar';
 import { ApiError, api } from '../../lib/api';
-import { mergeEncounter } from '../../lib/combat-cache';
+import { encounterQuery, mergeEncounter } from '../../lib/combat-cache';
 
 function errorMessage(error: unknown) {
   return error instanceof ApiError ? error.message : 'Algo deu errado. Tente novamente.';
@@ -172,10 +172,7 @@ export function EncounterPanel({ campaignId, encounterId, isMaster, currentUserI
   onBack?: () => void;
   onDeleted: (name: string) => void;
 }) {
-  const query = useQuery({
-    queryKey: ['encounter', campaignId, encounterId],
-    queryFn: () => api.encounter(campaignId, encounterId),
-  });
+  const query = useQuery(encounterQuery(campaignId, encounterId));
   const actions = useEncounterActions(campaignId, encounterId);
   const encounter = query.data?.encounter;
 

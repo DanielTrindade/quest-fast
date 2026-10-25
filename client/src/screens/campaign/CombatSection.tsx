@@ -14,11 +14,33 @@ import { EncounterPanel } from './EncounterPanel';
 import { StatblockDialog } from './StatblockDialog';
 import { StatblockFormDialog } from './StatblockFormDialog';
 
-/** A player lands on the fight in progress, or else on the latest one. */
-function defaultEncounter(encounters: EncounterListItem[], isMaster: boolean): string | null {
+/**
+ * The fight in progress; once it ends, the one that was being followed, so
+ * its summary stays in sight. A player arriving with no fight lands on the
+ * one that ended last, which is not the one created last.
+ */
+function defaultEncounter(encounters: EncounterListItem[], isMaster: boolean, followedId: string | null): string | null {
   const active = encounters.find((encounter) => encounter.status === 'active');
   if (active) return active.id;
-  return isMaster ? null : (encounters[0]?.id ?? null);
+  if (encounters.some((encounter) => encounter.id === followedId)) return followedId;
+  if (isMaster) return null;
+  const lastEnded = encounters
+    .filter((encounter) => encounter.endedAt !== null)
+    .reduce<EncounterListItem | undefined>((last, encounter) => (!last || encounter.endedAt! > last.endedAt! ? encounter : last), undefined);
+  return (lastEnded ?? encounters[0])?.id ?? null;
+}
+
+/** Which encounter is open: the one picked, or else the one being followed. */
+function useOpenEncounter(list: EncounterListItem[], isMaster: boolean) {
+  // `undefined`: nobody picked yet, so the screen follows the fight in progress.
+  const [chosenId, setChosenId] = useState<string | null | undefined>(undefined);
+  const [followedId, setFollowedId] = useState<string | null>(null);
+  // Remembered while rendering, not in an effect: the render that sees the
+  // fight end already keeps it open.
+  const activeId = list.find((encounter) => encounter.status === 'active')?.id;
+  if (activeId && activeId !== followedId) setFollowedId(activeId);
+  const openId = chosenId === undefined ? defaultEncounter(list, isMaster, followedId) : chosenId;
+  return { openId, setChosenId };
 }
 
 function Loading({ label }: { label: string }) {
@@ -112,14 +134,12 @@ export function CombatSection({ campaignId, isMaster, currentUserId }: {
   currentUserId: string;
 }) {
   const queryClient = useQueryClient();
-  // `undefined`: nobody picked yet, so the screen follows the fight in progress.
-  const [chosenId, setChosenId] = useState<string | null | undefined>(undefined);
   const [notice, setNotice] = useState<string | null>(null);
   const [createError, setCreateError] = useState<string | null>(null);
 
   const encounters = useQuery(encountersQuery(campaignId));
   const list = encounters.data?.encounters ?? [];
-  const openId = chosenId === undefined ? defaultEncounter(list, isMaster) : chosenId;
+  const { openId, setChosenId } = useOpenEncounter(list, isMaster);
 
   const create = useMutation({
     mutationFn: (name: string) => api.createEncounter(campaignId, name),
