@@ -383,10 +383,11 @@ function parseCharacterInput(body: unknown): ParsedSheet {
 
 /** Expertise is a subset of proficiency; an edit that drops a skill drops its expertise. */
 function checkExpertise(official: OfficialFields, skills: Skill[], sent: boolean): OfficialFields {
-  if (sent && official.expertise.some((skill) => !skills.includes(skill))) {
+  const proficient = new Set(skills);
+  if (sent && official.expertise.some((skill) => !proficient.has(skill))) {
     fail('Especialização exige proficiência na perícia.');
   }
-  return { ...official, expertise: official.expertise.filter((skill) => skills.includes(skill)) };
+  return { ...official, expertise: official.expertise.filter((skill) => proficient.has(skill)) };
 }
 
 /** Splits the editor's slot totals from the columns stored as they are. */
