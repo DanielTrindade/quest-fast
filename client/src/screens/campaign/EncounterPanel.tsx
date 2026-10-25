@@ -34,6 +34,7 @@ function turnRequest(campaignId: string, encounter: EncounterView, action: TurnA
     direction: action,
     // The turn the screen shows; the server answers 409 if it already moved.
     expectedActiveCombatantId: encounter.activeCombatantId,
+    expectedRound: encounter.round,
   });
 }
 
