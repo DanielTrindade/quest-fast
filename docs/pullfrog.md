@@ -33,16 +33,29 @@ mesmo provedor). A cadeia fica em
 - O payload do Pullfrog (`inputs.prompt`) precisa chegar intacto à action;
   embrulhado em outro texto, a execução falha. Por isso o passo 1 é uma
   execução avulsa: o workflow lê do payload o número do PR e o tipo da tarefa
-  e monta um prompt próprio. Menção sem "review"/"revis" no texto pula o
-  passo 1.
-- O passo 1 só age em tarefa de review. Ele devolve os achados em JSON, que o
+  e monta um prompt próprio.
+- O passo 1 só roda nos gatilhos de review (`event.trigger` do payload): PR
+  aberto, pronto para review, com push novo ou com review pedido ao bot, e
+  comentário com "review"/"revis" no texto. A lista é fechada no workflow,
+  porque o modelo não recusa sozinho uma tarefa que não é dele, e usa o
+  gatilho em vez de `type`, que é vocabulário interno do servidor
+  (`pr-created`, `pr-re-review`, `autofix`...). Ele devolve os achados em JSON, que o
   workflow grava em `.pullfrog/primeiro-parecer.md` (fora do git). O passo 2
   lê esse arquivo e valida cada achado antes de publicar: o review publicado é
   um só, do Codex ou do Opus.
 - O passo 3 entra quando o passo do Codex termina com erro: cota da
   assinatura esgotada, credencial recusada ou timeout.
-- Tarefas que não são review (correção, CI, menção) pulam o passo 1 quase sem
-  custo e seguem o mesmo fallback Codex → Claude.
+- Tarefas que não são review (CI quebrado, review a aplicar, menção sem
+  "review") pulam o passo 1 e seguem o mesmo fallback Codex → Claude.
+- **A trava `pullfrog-approval` dispara "Fix CI".** Quando o Pullfrog não
+  aprova um PR, esse check fica vermelho na check suite do próprio app, e a
+  opção **Fix CI failures → PRs revisados** do console trata isso como CI
+  quebrado: dispara um `autofix` em todo PR que precisa de merge humano. O
+  workflow não pode simplesmente pular a execução, porque o app já criou o
+  comentário de progresso e o check `pullfrog`, que ficariam pendurados.
+  Por isso a política abaixo manda o agente encerrar logo nesse caso. Para
+  não gastar nem essa execução, desligue `fix-ci.reviewed-prs` no console, ao
+  custo de perder a correção de CI nos PRs de pessoas.
 
 Isso depende do console estar com o modelo em **Custom (set in workflow)**:
 modelo escolhido no console vence o `model:` do workflow e desfaz a cadeia. A
@@ -106,6 +119,12 @@ Quando o PR alterar client/:
 
 Ao corrigir um PR: siga AGENTS.md, rode `npm test`, `npm run typecheck` e
 `npm run lint` antes do push e use Conventional Commits em português.
+
+Ao corrigir CI: se a check suite que falhou é a do próprio Pullfrog (o único
+check com falha é `pullfrog-approval`), não há o que corrigir: é a trava de
+aprovação de um PR que precisa de merge humano. Confira só os checks da
+suite; não faça checkout, não rode testes nem investigue o código, e encerre
+informando isso em uma linha.
 ```
 
 ## Segurança

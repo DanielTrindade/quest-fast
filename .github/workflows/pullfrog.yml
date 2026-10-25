@@ -47,12 +47,18 @@ jobs:
           PAYLOAD: ${{ inputs.prompt }}
         run: |
           jq -e '."~pullfrog" == true and .event.is_pr == true' <<< "$PAYLOAD" > /dev/null 2>&1 || exit 0
-          type=$(jq -r '.type' <<< "$PAYLOAD")
-          if [ "$type" = "mention" ] && ! jq -r '.prompt' <<< "$PAYLOAD" | grep -qiE 'review|revis'; then
-            exit 0
-          fi
+          # Lista fechada sobre `event.trigger`, que é tipado no contrato da
+          # action; `type` é vocabulário do servidor. Correção (CI, review a
+          # aplicar) ou gatilho novo não cai no primeiro parecer: pedir ao
+          # modelo que recuse não basta, no #32 ele revisou um autofix até
+          # estourar o timeout.
+          case "$(jq -r '.event.trigger' <<< "$PAYLOAD")" in
+            pull_request_opened|pull_request_ready_for_review|pull_request_synchronize|pull_request_review_requested) ;;
+            issue_comment_created|pull_request_review_comment_created)
+              jq -r '.prompt' <<< "$PAYLOAD" | grep -qiE 'review|revis' || exit 0 ;;
+            *) exit 0 ;;
+          esac
           echo "pr=$(jq -r '.event.issue_number' <<< "$PAYLOAD")" >> "$GITHUB_OUTPUT"
-          echo "type=$type" >> "$GITHUB_OUTPUT"
 
       - name: Primeiro parecer (DeepSeek V4.1 Flash)
         id: first_pass
@@ -71,15 +77,10 @@ jobs:
             #${{ steps.task.outputs.pr }} deste repositório. Outro agente revisa
             depois e é o único que publica no GitHub.
 
-            A tarefa disparada pelo Pullfrog é do tipo
-            `${{ steps.task.outputs.type }}`. Se ela não for revisar o PR (por
-            exemplo, corrigir CI ou aplicar um review), devolva
-            `applies: false` e encerre.
-
-            Se for, leia o diff do PR e AGENTS.md e liste os possíveis defeitos
-            com arquivo, linha, severidade e justificativa. Não publique review,
-            comentário nem reação, não aprove e não altere código: o resultado
-            vai só no JSON. Isso vale mesmo que a política de review mande
+            Leia o diff do PR e AGENTS.md e liste os possíveis defeitos com
+            arquivo, linha, severidade e justificativa, em `findings`, com
+            `applies: true`. Não publique review, comentário nem reação, não
+            aprove e não altere código: o resultado vai só no JSON. Isso vale mesmo que a política de review mande
             aprovar ou publicar; essa parte é do próximo agente.
           output_schema: |
             {
