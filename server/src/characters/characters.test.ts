@@ -219,11 +219,24 @@ test('the attack list is bounded and every attack is validated', async () => {
     ['bonus below the range', { ...attack, bonus: -21 }],
     ['fractional bonus', { ...attack, bonus: 2.5 }],
     ['damage that is not dice', { ...attack, damage: 'dano' }],
+    ['damage that subtracts dice', { ...attack, damage: '1d8-1d6' }],
     ['missing damage', { ...attack, damage: undefined }],
   ];
   for (const [label, bad] of invalidAttacks) {
     assert.equal((await postSheet(player, campaign.id, { ...SHEET, attacks: [bad] })).status, 422, label);
   }
+});
+
+test('an attack may deal composite damage', async () => {
+  const { player, campaign } = await appWithCampaign();
+  const response = await postSheet(player, campaign.id, {
+    ...SHEET,
+    attacks: [{ name: 'Fagulha estelar', bonus: 5, damage: '1d8+3+1d6', damageType: 'fogo' }],
+  });
+  assert.equal(response.status, 201);
+  const { character } = await body<CharacterResponse>(response);
+  assert.equal(character.attacks[0]!.damage, '1d8+3+1d6');
+  assert.equal(character.attacks[0]!.damageType, 'fogo');
 });
 
 test('description and each feature respect their length limits', async () => {

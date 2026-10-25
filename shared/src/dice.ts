@@ -4,35 +4,84 @@
  * source of truth — the server decides the result, this module only says how.
  */
 
-export type ParsedDice = {
+/** One `NdM` term of an expression: `count` dice of `sides` faces. */
+export type DiceGroup = {
   count: number;
   sides: number;
+};
+
+export type ParsedDice = {
+  /** In the order written; `1d8+3+1d6` has two groups. */
+  groups: DiceGroup[];
+  /** Every constant term summed: `1d8+3+1d6-1` has modifier 2. */
   modifier: number;
 };
 
-// No space around `d`: `2 d6` is a typo, while `1d20 + 4` (space after the
-// sign) is common enough to accept.
-const EXPRESSION = /^\s*(\d+)[dD](\d+)\s*([+-]\s*\d+)?\s*$/;
+// A term is `NdM` or a whole number. No space around `d`: `2 d6` is a typo,
+// while `1d20 + 4` (space around the sign) is common enough to accept.
+const FIRST_TERM = /^\s*(\d+)[dD](\d+)/y;
+const NEXT_TERM = /\s*([+-])\s*(\d+)(?:[dD](\d+))?/y;
+const TRAILING_SPACE = /\s*$/y;
 
 /** Bounds keep a typo from flooding the table with dice or a huge modifier. */
 export const DICE_COUNT_LIMIT = 100;
 export const DICE_SIDES_LIMIT = 100;
 export const DICE_MODIFIER_LIMIT = 100;
+/** Terms (dice groups and constants) in one expression. */
+export const DICE_TERMS_LIMIT = 10;
 
 /**
- * Parses `NdM` with an optional signed modifier, or returns `undefined` when
- * the input cannot be a roll. The caller decides the message to show.
+ * Parses a sum of terms that starts with a dice group: `1d20`, `1d8+3`,
+ * `1d8 + 3 + 1d6`. Constants may be added or subtracted; dice groups are only
+ * added, since a negative die has no meaning at the table. Returns `undefined`
+ * when the input cannot be a roll; the caller decides the message to show.
+ *
+ * The limits apply to the whole expression: the dice of every group together,
+ * and the summed modifier, so splitting a roll into terms cannot dodge them.
  */
 export function parseDiceExpression(input: string): ParsedDice | undefined {
-  const match = EXPRESSION.exec(input);
-  if (!match) return undefined;
-  const count = Number(match[1]);
-  const sides = Number(match[2]);
-  const modifier = match[3] ? Number(match[3].replace(/\s+/g, '')) : 0;
-  if (count < 1 || count > DICE_COUNT_LIMIT) return undefined;
-  if (sides < 2 || sides > DICE_SIDES_LIMIT) return undefined;
+  FIRST_TERM.lastIndex = 0;
+  const first = FIRST_TERM.exec(input);
+  if (!first) return undefined;
+  const groups: DiceGroup[] = [{ count: Number(first[1]), sides: Number(first[2]) }];
+  let modifier = 0;
+  let terms = 1;
+  let position = FIRST_TERM.lastIndex;
+
+  for (;;) {
+    NEXT_TERM.lastIndex = position;
+    const term = NEXT_TERM.exec(input);
+    if (!term) break;
+    position = NEXT_TERM.lastIndex;
+    if (++terms > DICE_TERMS_LIMIT) return undefined;
+    const [, sign, amount, sides] = term;
+    if (sides === undefined) {
+      const value = Number(amount);
+      if (value > DICE_MODIFIER_LIMIT) return undefined;
+      modifier += sign === '-' ? -value : value;
+    } else {
+      if (sign === '-') return undefined;
+      groups.push({ count: Number(amount), sides: Number(sides) });
+    }
+  }
+
+  TRAILING_SPACE.lastIndex = position;
+  TRAILING_SPACE.exec(input);
+  if (TRAILING_SPACE.lastIndex !== input.length) return undefined;
+
+  if (groups.some((group) => group.count < 1 || group.sides < 2 || group.sides > DICE_SIDES_LIMIT)) return undefined;
+  if (groups.reduce((sum, group) => sum + group.count, 0) > DICE_COUNT_LIMIT) return undefined;
   if (modifier < -DICE_MODIFIER_LIMIT || modifier > DICE_MODIFIER_LIMIT) return undefined;
-  return { count, sides, modifier };
+  return { groups, modifier };
+}
+
+/**
+ * Whether the expression is a single d20 test (`1d20`, `1d20+5`): the only
+ * kind of roll advantage and disadvantage apply to.
+ */
+export function isSingleD20(parsed: ParsedDice): boolean {
+  const [group, ...rest] = parsed.groups;
+  return rest.length === 0 && group!.count === 1 && group!.sides === 20;
 }
 
 export type RollMode = 'normal' | 'advantage' | 'disadvantage';
@@ -74,25 +123,27 @@ function rollDie(sides: number, random: () => number): number {
 export function rollDice(input: string, mode: RollMode = 'normal', random: () => number = Math.random): RollResult | undefined {
   const parsed = parseDiceExpression(input);
   if (!parsed) return undefined;
-  if (mode !== 'normal' && (parsed.count !== 1 || parsed.sides !== 20)) return undefined;
+  if (mode !== 'normal' && !isSingleD20(parsed)) return undefined;
 
-  const { count, sides, modifier } = parsed;
+  const { groups, modifier } = parsed;
   const dice: DieResult[] = [];
 
   if (mode === 'normal') {
-    for (let i = 0; i < count; i++) dice.push({ value: rollDie(sides, random), sides });
+    for (const { count, sides } of groups) {
+      for (let i = 0; i < count; i++) dice.push({ value: rollDie(sides, random), sides });
+    }
   } else {
-    const first = rollDie(sides, random);
-    const second = rollDie(sides, random);
+    const first = rollDie(20, random);
+    const second = rollDie(20, random);
     const keep = mode === 'advantage' ? Math.max(first, second) : Math.min(first, second);
     // A tie would otherwise mark both dice as kept; exactly one survives.
     let kept = false;
     for (const value of [first, second]) {
       if (!kept && value === keep) {
-        dice.push({ value, sides });
+        dice.push({ value, sides: 20 });
         kept = true;
       } else {
-        dice.push({ value, sides, discarded: true });
+        dice.push({ value, sides: 20, discarded: true });
       }
     }
   }
