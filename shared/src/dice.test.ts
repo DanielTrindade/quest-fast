@@ -14,24 +14,24 @@ const seq = (...values: number[]) => {
 };
 
 test('parses the canonical NdM form', () => {
-  assert.deepEqual(parseDiceExpression('1d20'), { count: 1, sides: 20, modifier: 0 });
-  assert.deepEqual(parseDiceExpression('2d6'), { count: 2, sides: 6, modifier: 0 });
-  assert.deepEqual(parseDiceExpression('3d8'), { count: 3, sides: 8, modifier: 0 });
+  assert.deepEqual(parseDiceExpression('1d20'), { groups: [{ count: 1, sides: 20 }], modifier: 0 });
+  assert.deepEqual(parseDiceExpression('2d6'), { groups: [{ count: 2, sides: 6 }], modifier: 0 });
+  assert.deepEqual(parseDiceExpression('3d8'), { groups: [{ count: 3, sides: 8 }], modifier: 0 });
 });
 
 test('parses an optional signed modifier', () => {
-  assert.deepEqual(parseDiceExpression('1d20+5'), { count: 1, sides: 20, modifier: 5 });
-  assert.deepEqual(parseDiceExpression('2d6-1'), { count: 2, sides: 6, modifier: -1 });
-  assert.deepEqual(parseDiceExpression('1d20 + 4'), { count: 1, sides: 20, modifier: 4 });
-  assert.deepEqual(parseDiceExpression('2d6 - 3'), { count: 2, sides: 6, modifier: -3 });
+  assert.deepEqual(parseDiceExpression('1d20+5'), { groups: [{ count: 1, sides: 20 }], modifier: 5 });
+  assert.deepEqual(parseDiceExpression('2d6-1'), { groups: [{ count: 2, sides: 6 }], modifier: -1 });
+  assert.deepEqual(parseDiceExpression('1d20 + 4'), { groups: [{ count: 1, sides: 20 }], modifier: 4 });
+  assert.deepEqual(parseDiceExpression('2d6 - 3'), { groups: [{ count: 2, sides: 6 }], modifier: -3 });
 });
 
 test('parses the letter d case-insensitively', () => {
-  assert.deepEqual(parseDiceExpression('1D20'), { count: 1, sides: 20, modifier: 0 });
-  assert.deepEqual(parseDiceExpression('1D20+2'), { count: 1, sides: 20, modifier: 2 });
+  assert.deepEqual(parseDiceExpression('1D20'), { groups: [{ count: 1, sides: 20 }], modifier: 0 });
+  assert.deepEqual(parseDiceExpression('1D20+2'), { groups: [{ count: 1, sides: 20 }], modifier: 2 });
 });
 
-test('rejects expressions that are not NdM with optional modifier', () => {
+test('rejects expressions that are not a sum of dice and constants', () => {
   const invalid = [
     '',
     '   ',
@@ -43,7 +43,12 @@ test('rejects expressions that are not NdM with optional modifier', () => {
     '1d1',
     '1d20+',
     '1d20-',
-    '1d20+5+2',
+    '-1d20',
+    '1d8-1d6',
+    '5+1d6',
+    '1d8++3',
+    '1d8+3 1d6',
+    '1d8+1d',
     '1d20x',
     'abc',
     '1.5d6',
@@ -149,4 +154,44 @@ test('sides and count are capped so a typo cannot flood the table', () => {
   assert.equal(parseDiceExpression('101d20'), undefined);
   assert.equal(parseDiceExpression('1d101'), undefined);
   assert.equal(parseDiceExpression('1d20+101'), undefined);
+});
+
+test('parses several dice groups and constants', () => {
+  const expected = { groups: [{ count: 1, sides: 8 }, { count: 1, sides: 6 }], modifier: 3 };
+  assert.deepEqual(parseDiceExpression('1d8+3+1d6'), expected);
+  assert.deepEqual(parseDiceExpression('1d8 + 3 +1d6'), expected);
+  assert.deepEqual(parseDiceExpression(' 1d8 + 3 + 1d6 '), expected);
+  assert.deepEqual(parseDiceExpression('2d6+1d4+2-1'), { groups: [{ count: 2, sides: 6 }, { count: 1, sides: 4 }], modifier: 1 });
+  assert.deepEqual(parseDiceExpression('1d20+5+2'), { groups: [{ count: 1, sides: 20 }], modifier: 7 });
+});
+
+test('limits apply to the whole expression, not to each term', () => {
+  assert.ok(parseDiceExpression('50d6+50d6'));
+  assert.equal(parseDiceExpression('50d6+51d6'), undefined);
+  assert.equal(parseDiceExpression('1d8+60+60'), undefined);
+  assert.equal(parseDiceExpression('1d8+1d101'), undefined);
+  assert.ok(parseDiceExpression('1d4' + '+1'.repeat(9)));
+  assert.equal(parseDiceExpression('1d4' + '+1'.repeat(10)), undefined);
+});
+
+test('rolls every group and adds every term to the total', () => {
+  const result = rollDice('1d8+3+1d6', 'normal', seq(0.5, 0.5));
+  assert.ok(result);
+  assert.deepEqual(result.dice, [
+    { value: 5, sides: 8 },
+    { value: 4, sides: 6 },
+  ]);
+  assert.equal(result.modifier, 3);
+  assert.equal(result.total, 12); // 5 + 3 + 4
+  assert.equal(result.expression, '1d8+3+1d6');
+});
+
+test('advantage and disadvantage reject a composite expression', () => {
+  assert.equal(rollDice('1d20+1d4', 'advantage', at(0.5)), undefined);
+  assert.equal(rollDice('1d20+2+1d6', 'disadvantage', at(0.5)), undefined);
+  assert.ok(rollDice('1d20+2+1', 'advantage', at(0.5)));
+});
+
+test('an expression past the limits rolls nothing', () => {
+  assert.equal(rollDice('60d6+60d6', 'normal', at(0.5)), undefined);
 });
