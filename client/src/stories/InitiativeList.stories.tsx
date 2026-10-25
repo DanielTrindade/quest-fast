@@ -29,6 +29,8 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
+const LONG_SUFFIX = 'Guardião Esquecido das Catacumbas Submersas de Vel’Tharon';
+
 /** Unfolds a combatant's "Ajustar" corrections. */
 async function openAdjust(region: HTMLElement, name: string) {
   const summary = [...region.querySelectorAll('summary')].find((element) => element.textContent?.trim() === `Ajustar ${name}`);
@@ -146,10 +148,23 @@ export const NomesLongos: Story = {
   args: {
     combatants: masterCombatants.map((combatant) => ({
       ...combatant,
-      name: `${combatant.name}, Guardião Esquecido das Catacumbas Submersas de Vel’Tharon`,
+      name: `${combatant.name}, ${LONG_SUFFIX}`,
       hpCurrent: combatant.hpCurrent === null ? null : 999,
       hpMax: combatant.hpMax === null ? null : 999,
       hpTemp: 99,
     })),
+  },
+};
+
+/** The removal confirmation carries the whole name, and must still fit a phone. */
+export const NomesLongosRemovendo: Story = {
+  name: 'Nomes longos, removendo',
+  args: NomesLongos.args,
+  play: async ({ canvasElement }) => {
+    const [region] = within(canvasElement).getAllByRole('region', { name: /^Tema / });
+    const name = `Goblin 4, ${LONG_SUFFIX}`;
+    await openAdjust(region, name);
+    await userEvent.click(within(region).getByRole('button', { name: `Remover ${name}` }));
+    await expect(within(region).getByRole('group', { name: `Remover ${name}?` })).toBeVisible();
   },
 };

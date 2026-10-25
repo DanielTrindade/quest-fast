@@ -595,6 +595,9 @@ span.qf-slots__pip { width: 24px; height: 24px; cursor: default; }
   border: 1px solid var(--color-border-control); border-radius: var(--radius-control); background: var(--color-surface);
 }
 .qf-initiative__actions, .qf-initiative__confirm { display: flex; flex-wrap: wrap; align-items: center; gap: var(--spacing-2); }
+/* The confirmation names the combatant in full: a long name wraps inside the button instead of widening the row. */
+.qf-initiative__confirm { min-width: 0; max-width: 100%; }
+.qf-initiative__confirm > .qf-button { min-width: 0; max-width: 100%; white-space: normal; overflow-wrap: anywhere; text-align: center; }
 .qf-initiative__assign { display: flex; gap: var(--spacing-1); }
 .qf-initiative__more { min-width: 0; }
 .qf-initiative__more > summary {
