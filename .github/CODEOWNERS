@@ -1,0 +1,17 @@
+# Caminhos que nunca entram por auto-merge: a aprovação do Pullfrog não basta
+# e o merge fica com uma pessoa. O resto do repositório não tem dono, então a
+# aprovação do bot satisfaz o ruleset. Ver docs/pullfrog.md.
+
+/server/                        @DanielTrindade
+/shared/                        @DanielTrindade
+/db/                            @DanielTrindade
+/scripts/                       @DanielTrindade
+/client/src/screens/            @DanielTrindade
+/.github/                       @DanielTrindade
+/Dockerfile                     @DanielTrindade
+/AGENTS.md                      @DanielTrindade
+/CLAUDE.md                      @DanielTrindade
+/.claude/                       @DanielTrindade
+/SECURITY.md                    @DanielTrindade
+/docs/architecture.md           @DanielTrindade
+/docs/pullfrog.md               @DanielTrindade

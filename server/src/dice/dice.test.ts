@@ -98,6 +98,44 @@ test('a multi-die expression is rolled as a group', async () => {
   assert.equal(event.payload.total, event.payload.dice.reduce((sum, die) => sum + die.value, 0) + 3);
 });
 
+test('a composite expression rolls every group and adds every term', async () => {
+  const { player, campaign } = await appWithCampaign();
+  for (const expression of ['1d8+3+1d6', '1d8 + 3 + 1d6']) {
+    const response = await player(`/api/campaigns/${campaign.id}/rolls`, {
+      method: 'POST',
+      body: JSON.stringify({ expression }),
+    });
+    assert.equal(response.status, 201, expression);
+    const { event } = await body<RollResponse>(response);
+    assert.deepEqual(event.payload.dice.map((die) => die.sides), [8, 6], expression);
+    assert.equal(event.payload.modifier, 3);
+    assert.equal(event.payload.total, event.payload.dice.reduce((sum, die) => sum + die.value, 0) + 3);
+  }
+});
+
+test('a composite expression past a limit is refused without a partial roll', async () => {
+  const { player, campaign } = await appWithCampaign();
+  for (const expression of ['60d6+60d6', '1d8+60+60', '1d8-1d6', '1d8+1d101']) {
+    const response = await player(`/api/campaigns/${campaign.id}/rolls`, {
+      method: 'POST',
+      body: JSON.stringify({ expression }),
+    });
+    assert.equal(response.status, 422, expression);
+  }
+  assert.deepEqual(await lastFeed(player, campaign.id), []);
+});
+
+test('advantage on a composite expression is refused with the d20 message', async () => {
+  const { player, campaign } = await appWithCampaign();
+  const response = await player(`/api/campaigns/${campaign.id}/rolls`, {
+    method: 'POST',
+    body: JSON.stringify({ expression: '1d20+1d4', mode: 'advantage' }),
+  });
+  assert.equal(response.status, 422);
+  const { error } = await body<{ error: string }>(response);
+  assert.match(error, /apenas para um d20/);
+});
+
 test('an invalid expression is refused and nothing reaches the feed', async () => {
   const { player, campaign } = await appWithCampaign();
   for (const expression of ['', 'abc', 'd20', '1d0', '2d6+']) {

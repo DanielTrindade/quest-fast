@@ -30,6 +30,7 @@ export const testEnv: Env = {
   dbFile: ':memory:',
   clientDir: './unused',
   uploadsDir: './unused-uploads',
+  r2: undefined,
   discordClientId: 'test-id',
   discordClientSecret: 'test-secret',
   discordRedirectUri: 'http://localhost/api/auth/discord/callback',

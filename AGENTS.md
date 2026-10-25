@@ -62,6 +62,14 @@ As skills de design trabalham **dentro** do design system: proponha direção
 com os tokens existentes; mudar token ou tema é decisão a registrar em
 `docs/design-system.md`, não efeito colateral de um componente.
 
+## Antes de ir para produção
+
+Ao tratar de deploy, domínio ou produção, lembre quem está trabalhando da
+[#30](https://github.com/DanielTrindade/quest-fast/issues/30): os avatares no
+R2 só foram validados pela URL `r2.dev`, que é de desenvolvimento. Produção
+precisa de domínio próprio no bucket. Quando a #30 for fechada, apague esta
+seção.
+
 ## Verificação
 
 Antes de dar uma tarefa por concluída (o merge na `master` exige o

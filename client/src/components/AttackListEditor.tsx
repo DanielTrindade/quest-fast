@@ -69,7 +69,7 @@ export function AttackListEditor({ attacks, onChange, error, notesHint = 'Ex.: P
                     </SelectField>
                   </>
                 )}
-                <Field label="Dano" hint="Ex.: 1d8+3" autoComplete="off" spellCheck={false} value={attack.damage}
+                <Field label="Dano" hint="Ex.: 1d8+3 ou 1d8+3+1d6" autoComplete="off" spellCheck={false} value={attack.damage}
                   aria-invalid={Boolean(error) && !parseDiceExpression(attack.damage)}
                   onChange={(e) => update(index, { damage: e.target.value })} />
                 <Field label="Tipo de dano" maxLength={CHARACTER_LIMITS.damageType} value={attack.damageType} hint="Ex.: Cortante"
