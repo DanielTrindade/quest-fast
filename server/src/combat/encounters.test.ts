@@ -122,13 +122,13 @@ async function runningEncounter(s: Setup, { start = true } = {}) {
   }
   if (start) {
     await encounterOf(await send(s.master, `${path}/start`, 'POST'));
-    view = await encounterOf(await send(s.master, `${path}/turn`, 'POST', { direction: 'next', expectedActiveCombatantId: null }));
+    view = await encounterOf(await send(s.master, `${path}/turn`, 'POST', { direction: 'next', expectedActiveCombatantId: null, expectedRound: 0 }));
   }
   return { encounter: view, path, id: (name: string) => byName(view, name).id };
 }
 
-async function advance(request: Request, path: string, expected: string | null) {
-  return send(request, `${path}/turn`, 'POST', { direction: 'next', expectedActiveCombatantId: expected });
+async function advance(request: Request, path: string, expected: string | null, round = 1) {
+  return send(request, `${path}/turn`, 'POST', { direction: 'next', expectedActiveCombatantId: expected, expectedRound: round });
 }
 
 // --- Preparation -----------------------------------------------------------------
@@ -332,6 +332,30 @@ test("the master's monster initiative is secret by default", async () => {
   assert.equal(playerFeed.events.length, 0);
 });
 
+test('no initiative rolled in preparation reaches a player, even when asked public', async () => {
+  const s = await setup();
+  const encounter = await createEncounter(s);
+  const path = `${s.base}/${encounter.id}`;
+  let view = await encounterOf(await send(s.master, `${path}/combatants`, 'POST', { source: 'character', characterId: s.kaelen.id }), 201);
+  view = await encounterOf(await send(s.master, `${path}/combatants`, 'POST', { source: 'character', characterId: s.mira.id }), 201);
+  await send(s.master, `${path}/combatants`, 'POST', { source: 'statblock', statblockId: s.goblin.id, count: 2, hp: 'average' });
+
+  // A character's roll is public by default, and the master asks for it.
+  await encounterOf(await send(s.master, `${path}/combatants/${byName(view, 'Kaelen').id}/initiative`, 'POST', { secret: false }));
+  await encounterOf(await send(s.master, `${path}/initiative`, 'POST', { secret: false }));
+  const masterFeed = await body<FeedResponse>(await s.master(`${s.root}/feed`));
+  assert.equal(masterFeed.events.filter((event) => event.type === 'roll').length, 3);
+  assert.ok(masterFeed.events.every((event) => event.secret));
+  assert.equal((await body<FeedResponse>(await s.player(`${s.root}/feed`))).events.length, 0);
+
+  // Once the combat runs, a public roll is the table's again.
+  await send(s.master, `${path}/start`, 'POST');
+  await encounterOf(await send(s.master, `${path}/combatants/${byName(view, 'Mira').id}/initiative`, 'POST'));
+  const playerFeed = await body<FeedResponse>(await s.player(`${s.root}/feed`));
+  const rolls = playerFeed.events.filter((event) => event.type === 'roll');
+  assert.deepEqual(rolls.map((event) => (event.payload as { characterName?: string }).characterName), ['Mira']);
+});
+
 test('round 1 waits for every initiative and starts with the highest', async () => {
   const s = await setup();
   const encounter = await createEncounter(s);
@@ -340,13 +364,13 @@ test('round 1 waits for every initiative and starts with the highest', async () 
   let view = await encounterOf(await send(s.master, `${path}/combatants`, 'POST', { source: 'statblock', statblockId: s.goblin.id, count: 1, hp: 'average' }), 201);
   await encounterOf(await send(s.master, `${path}/start`, 'POST'));
 
-  const early = await advance(s.master, path, null);
+  const early = await advance(s.master, path, null, 0);
   assert.equal(early.status, 409);
   assert.match((await body<{ error: string }>(early)).error, /Kaelen/);
 
   await send(s.master, `${path}/combatants/${byName(view, 'Kaelen').id}/initiative`, 'POST', { value: 4 });
   await send(s.master, `${path}/combatants/${byName(view, 'Goblin').id}/initiative`, 'POST', { value: 12 });
-  view = await encounterOf(await advance(s.master, path, null));
+  view = await encounterOf(await advance(s.master, path, null, 0));
   assert.equal(view.round, 1);
   assert.equal(view.activeCombatantId, byName(view, 'Goblin').id);
 });
@@ -379,14 +403,14 @@ test('turns go down the queue, skip defeated monsters and wrap into a new round'
   const seen: string[] = [];
   let current = encounter;
   for (let step = 0; step < 4; step++) {
-    current = await encounterOf(await advance(s.master, path, current.activeCombatantId));
+    current = await encounterOf(await advance(s.master, path, current.activeCombatantId, current.round));
     seen.push(`${current.round}:${byName(current, current.combatants.find((c) => c.id === current.activeCombatantId)!.name).name}`);
   }
   assert.deepEqual(seen, ['1:Kaelen', '1:Bandido', '1:Mira', '2:Goblin 1']);
   assert.equal(byName(current, 'Goblin 2').defeated, true);
 
   const back = await encounterOf(
-    await send(s.master, `${path}/turn`, 'POST', { direction: 'previous', expectedActiveCombatantId: current.activeCombatantId }),
+    await send(s.master, `${path}/turn`, 'POST', { direction: 'previous', expectedActiveCombatantId: current.activeCombatantId, expectedRound: current.round }),
   );
   assert.deepEqual([back.round, back.activeCombatantId], [1, id('Mira')]);
 });
@@ -415,6 +439,32 @@ test('a stale turn request answers 409 with the current state', async () => {
   const conflict = await body<EncounterConflictResponse>(stale);
   assert.equal(conflict.encounter.activeCombatantId, id('Kaelen'));
   assert.ok(conflict.error.length > 0);
+});
+
+test('with one combatant standing, a repeated turn request does not pass twice', async () => {
+  const s = await setup();
+  const encounter = await createEncounter(s);
+  const path = `${s.base}/${encounter.id}`;
+  let view = await encounterOf(await send(s.master, `${path}/combatants`, 'POST', { source: 'character', characterId: s.kaelen.id }), 201);
+  view = await encounterOf(await send(s.master, `${path}/combatants`, 'POST', { source: 'statblock', statblockId: s.goblin.id, count: 1, hp: 'average' }), 201);
+  const kaelen = byName(view, 'Kaelen').id;
+  await send(s.master, `${path}/combatants/${kaelen}/initiative`, 'POST', { value: 15 });
+  await send(s.master, `${path}/combatants/${byName(view, 'Goblin').id}/initiative`, 'POST', { value: 10 });
+  s.app.db.update(combatants).set({ hpCurrent: 0 }).where(eq(combatants.id, byName(view, 'Goblin').id)).run();
+  await send(s.master, `${path}/start`, 'POST');
+  view = await encounterOf(await advance(s.master, path, null, 0));
+  assert.deepEqual([view.round, view.activeCombatantId], [1, kaelen]);
+  s.app.db.update(characters).set({ conditions: [{ condition: 'poisoned', roundsLeft: 3 }] }).where(eq(characters.id, s.kaelen.id)).run();
+
+  // Kaelen's turn wraps into Kaelen's turn: only the round tells them apart.
+  view = await encounterOf(await advance(s.player, path, kaelen, 1));
+  assert.deepEqual([view.round, view.activeCombatantId], [2, kaelen]);
+  const repeated = await advance(s.player, path, kaelen, 1);
+  assert.equal(repeated.status, 409);
+  assert.equal((await body<EncounterConflictResponse>(repeated)).encounter.round, 2);
+  assert.deepEqual(byName(await encounterOf(await s.master(path)), 'Kaelen').conditions, [
+    { condition: 'poisoned', roundsLeft: 2 },
+  ]);
 });
 
 test('a player cannot go back a turn', async () => {
@@ -467,6 +517,31 @@ test('removing the active combatant passes the turn to the next one', async () =
   const view = await encounterOf(await send(s.master, `${path}/combatants/${encounter.activeCombatantId}`, 'DELETE'));
   assert.equal(view.activeCombatantId, id('Kaelen'));
   assert.equal(view.round, 1);
+});
+
+test('deleting the sheet of the active character passes the turn to the next one', async () => {
+  const s = await setup();
+  const { encounter, path, id } = await runningEncounter(s);
+  const kaelenTurn = await encounterOf(await advance(s.master, path, encounter.activeCombatantId));
+  assert.equal(kaelenTurn.activeCombatantId, id('Kaelen'));
+
+  assert.equal((await send(s.player, `${s.root}/characters/${s.kaelen.id}`, 'DELETE')).status, 204);
+  const view = await encounterOf(await s.master(path));
+  assert.equal(view.combatants.some((combatant) => combatant.name === 'Kaelen'), false);
+  assert.deepEqual([view.round, view.activeCombatantId], [1, id('Bandido')]);
+  assert.ok(view.version > kaelenTurn.version);
+  const next = await encounterOf(await advance(s.master, path, id('Bandido')));
+  assert.equal(next.activeCombatantId, id('Goblin 2'));
+});
+
+test('deleting the sheet of a waiting character keeps the turn where it is', async () => {
+  const s = await setup();
+  const { encounter, path, id } = await runningEncounter(s);
+  assert.equal((await send(s.master, `${s.root}/characters/${s.mira.id}`, 'DELETE')).status, 204);
+  const view = await encounterOf(await s.master(path));
+  assert.equal(view.combatants.some((combatant) => combatant.name === 'Mira'), false);
+  assert.deepEqual([view.round, view.activeCombatantId], [1, id('Goblin 1')]);
+  assert.ok(view.version > encounter.version);
 });
 
 // --- Start and end -----------------------------------------------------------------
@@ -647,4 +722,10 @@ test('combat.updated reaches each socket projected for its viewer', async (t) =>
   await until(() => playerUpdates.length === 2);
   assert.equal(byName(playerUpdates[1]!, 'Kaelen').hpCurrent, 9);
   assert.ok(playerUpdates[1]!.version > playerView.version);
+
+  // So does a sheet deleted mid-fight: the character leaves the encounter.
+  await send(s.player, `${s.root}/characters/${s.kaelen.id}`, 'DELETE');
+  await until(() => playerUpdates.length === 3);
+  assert.equal(playerUpdates[2]!.combatants.some((combatant) => combatant.name === 'Kaelen'), false);
+  assert.ok(playerUpdates[2]!.version > playerUpdates[1]!.version);
 });
