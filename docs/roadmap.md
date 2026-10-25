@@ -53,9 +53,13 @@ usável na mesa:
    atributos, fórmula de PV e ataques), só para o mestre, na seção "Combate".
    Uma criatura nova pode vir de um NPC escrito na ficha oficial em PDF, pelo
    mesmo leitor da importação de personagem.
-2. **Encontro e turnos.** Preparação invisível aos jogadores, iniciativa
-   (rolada no servidor ou atribuída), turnos e rounds, reforços, combatentes
-   escondidos, encerramento com resumo; `combat.updated` com visão por papel.
+2. **Encontro e turnos — entregue.** O mestre prepara encontros invisíveis aos
+   jogadores (personagens, cópias do bestiário com PV médio ou rolado e
+   combatentes manuais), rola ou atribui a iniciativa e conduz turnos e rounds;
+   cada jogador rola a própria iniciativa uma vez e encerra o próprio turno.
+   Reforços, empates (Antes/Depois), combatentes escondidos e encerramento com
+   resumo no feed. Tudo chega ao vivo por `combat.updated`, projetado por papel:
+   o jogador vê aliados por inteiro e monstros só pela faixa de saúde.
 3. **PV e condições.** Dano e cura por delta, faixa de saúde dos monstros para
    os jogadores, teste contra a morte, as 15 condições com duração e
    concentração com lembrete.
