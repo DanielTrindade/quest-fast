@@ -1,6 +1,6 @@
 import type { QueryClient } from '@tanstack/react-query';
 import type { EncounterListItem, EncounterListResponse, EncounterResponse, EncounterView } from '@quest-fast/shared';
-import { api } from './api';
+import { ApiError, api } from './api';
 
 const encounterKey = (campaignId: string, encounterId: string) => ['encounter', campaignId, encounterId] as const;
 
@@ -59,14 +59,27 @@ export const encountersQuery = (campaignId: string) => ({
   },
 });
 
-/** One encounter; a GET answered after a newer live update keeps the update. */
+const isGone = (error: unknown) => error instanceof ApiError && error.status === 404;
+
+/**
+ * One encounter; a GET answered after a newer live update keeps the update.
+ * A 404 is a deletion this tab never heard of — a reconnect replays none — so
+ * it counts as one, and asking again would not bring the encounter back.
+ */
 export const encounterQuery = (campaignId: string, encounterId: string) => ({
   queryKey: encounterKey(campaignId, encounterId),
   queryFn: async ({ client }: { client: QueryClient }): Promise<EncounterResponse> => {
-    const fresh = await api.encounter(campaignId, encounterId);
+    let fresh: EncounterResponse;
+    try {
+      fresh = await api.encounter(campaignId, encounterId);
+    } catch (error) {
+      if (isGone(error)) forgetEncounter(client, campaignId, encounterId);
+      throw error;
+    }
     const known = knownEncounter(client, campaignId, encounterId);
     return known && known.version > fresh.encounter.version ? { encounter: known } : fresh;
   },
+  retry: (attempts: number, error: unknown) => !isGone(error) && attempts < 2,
 });
 
 /**
@@ -91,12 +104,8 @@ export function mergeEncounter(queryClient: QueryClient, campaignId: string, enc
   });
 }
 
-/**
- * Drops an encounter the master deleted. The list goes first: the section
- * leaves the encounter before its detail is gone, so the open panel never
- * asks the server for it again.
- */
-export function removeEncounter(queryClient: QueryClient, campaignId: string, encounterId: string): void {
+/** Records a deletion and takes the encounter off the list. */
+function forgetEncounter(queryClient: QueryClient, campaignId: string, encounterId: string): void {
   deletedEncounters.add(encounterId);
   const list = queryClient.getQueryData<EncounterListResponse>(['encounters', campaignId]);
   if (list) {
@@ -104,5 +113,14 @@ export function removeEncounter(queryClient: QueryClient, campaignId: string, en
       encounters: list.encounters.filter((item) => item.id !== encounterId),
     });
   }
+}
+
+/**
+ * Drops an encounter the master deleted. The list goes first: the section
+ * leaves the encounter before its detail is gone, so the open panel never
+ * asks the server for it again.
+ */
+export function removeEncounter(queryClient: QueryClient, campaignId: string, encounterId: string): void {
+  forgetEncounter(queryClient, campaignId, encounterId);
   queryClient.removeQueries({ queryKey: encounterKey(campaignId, encounterId) });
 }
