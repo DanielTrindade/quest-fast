@@ -477,6 +477,20 @@ test('a player cannot go back a turn', async () => {
   assert.equal(response.status, 403);
 });
 
+test('the first turn of round 1 has nothing to go back to, and nothing changes', async () => {
+  const s = await setup();
+  const { encounter, path } = await runningEncounter(s);
+  const response = await send(s.master, `${path}/turn`, 'POST', {
+    direction: 'previous',
+    expectedActiveCombatantId: encounter.activeCombatantId,
+    expectedRound: 1,
+  });
+  assert.equal(response.status, 409);
+  const after = await encounterOf(await s.master(path));
+  assert.equal(after.version, encounter.version);
+  assert.equal(after.activeCombatantId, encounter.activeCombatantId);
+});
+
 test('durations tick at the end of the affected combatant\'s turn', async () => {
   const s = await setup();
   const { encounter, path, id } = await runningEncounter(s);
