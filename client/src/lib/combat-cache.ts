@@ -4,6 +4,16 @@ import { api } from './api';
 
 const encounterKey = (campaignId: string, encounterId: string) => ['encounter', campaignId, encounterId] as const;
 
+/**
+ * Encounters deleted while this tab was open. A deletion is final, so the ids
+ * outlive the cache: no answer that left before it may bring one back.
+ */
+const deletedEncounters = new Set<string>();
+
+export function isDeletedEncounter(encounterId: string): boolean {
+  return deletedEncounters.has(encounterId);
+}
+
 function knownEncounter(queryClient: QueryClient, campaignId: string, encounterId: string): EncounterView | undefined {
   return queryClient.getQueryData<EncounterResponse>(encounterKey(campaignId, encounterId))?.encounter;
 }
@@ -40,7 +50,8 @@ export const encountersQuery = (campaignId: string) => ({
     const startedAt = Date.now();
     const { encounters } = await api.encounters(campaignId);
     return {
-      encounters: encounters.map((item) => {
+      // A GET sent before a deletion still lists the encounter; it stays gone.
+      encounters: encounters.filter((item) => !isDeletedEncounter(item.id)).map((item) => {
         const known = updatedSince(client, campaignId, item.id, startedAt);
         return known ? listItem(item, known) : item;
       }),
@@ -66,7 +77,7 @@ export const encounterQuery = (campaignId: string, encounterId: string) => ({
  */
 export function mergeEncounter(queryClient: QueryClient, campaignId: string, encounter: EncounterView): void {
   const known = knownEncounter(queryClient, campaignId, encounter.id);
-  if (known && known.version > encounter.version) return;
+  if (isDeletedEncounter(encounter.id) || (known && known.version > encounter.version)) return;
   queryClient.setQueryData<EncounterResponse>(encounterKey(campaignId, encounter.id), { encounter });
 
   const list = queryClient.getQueryData<EncounterListResponse>(['encounters', campaignId]);
@@ -86,6 +97,7 @@ export function mergeEncounter(queryClient: QueryClient, campaignId: string, enc
  * asks the server for it again.
  */
 export function removeEncounter(queryClient: QueryClient, campaignId: string, encounterId: string): void {
+  deletedEncounters.add(encounterId);
   const list = queryClient.getQueryData<EncounterListResponse>(['encounters', campaignId]);
   if (list) {
     queryClient.setQueryData<EncounterListResponse>(['encounters', campaignId], {

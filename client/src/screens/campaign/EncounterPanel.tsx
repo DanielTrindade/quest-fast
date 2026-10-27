@@ -9,7 +9,7 @@ import { Skeleton } from '../../components/Skeleton';
 import { Surface } from '../../components/Surface';
 import { TurnBar, type TurnAction } from '../../components/TurnBar';
 import { ApiError, api } from '../../lib/api';
-import { encounterQuery, mergeEncounter } from '../../lib/combat-cache';
+import { encounterQuery, mergeEncounter, removeEncounter } from '../../lib/combat-cache';
 
 function errorMessage(error: unknown) {
   return error instanceof ApiError ? error.message : 'Algo deu errado. Tente novamente.';
@@ -145,10 +145,7 @@ function useEncounterActions(campaignId: string, encounterId: string) {
   });
   const remove = useMutation({
     mutationFn: () => api.deleteEncounter(campaignId, encounterId),
-    onSuccess: () => {
-      queryClient.removeQueries({ queryKey: ['encounter', campaignId, encounterId] });
-      void queryClient.invalidateQueries({ queryKey: ['encounters', campaignId] });
-    },
+    onSuccess: () => removeEncounter(queryClient, campaignId, encounterId),
     onError: fail,
   });
 

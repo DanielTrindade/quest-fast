@@ -9,7 +9,7 @@ import { Skeleton } from '../../components/Skeleton';
 import { Surface } from '../../components/Surface';
 import { Toast } from '../../components/Toast';
 import { ApiError, api } from '../../lib/api';
-import { encountersQuery, mergeEncounter } from '../../lib/combat-cache';
+import { encountersQuery, isDeletedEncounter, mergeEncounter } from '../../lib/combat-cache';
 import { EncounterPanel } from './EncounterPanel';
 import { StatblockDialog } from './StatblockDialog';
 import { StatblockFormDialog } from './StatblockFormDialog';
@@ -32,11 +32,10 @@ function defaultEncounter(encounters: EncounterListItem[], isMaster: boolean, fo
 
 /**
  * Which encounter is open: the one picked, or else the one being followed.
- * A picked encounter that left a settled list was deleted, so the screen
- * falls back as if nothing had been picked. While the list is refetching, a
- * just-created encounter may not be in it yet, and stays open.
+ * A picked encounter that was deleted is forgotten for good, and the screen
+ * falls back as if nothing had been picked.
  */
-function useOpenEncounter(list: EncounterListItem[], isMaster: boolean, settled: boolean) {
+function useOpenEncounter(list: EncounterListItem[], isMaster: boolean) {
   // `undefined`: nobody picked yet, so the screen follows the fight in progress.
   const [chosenId, setChosenId] = useState<string | null | undefined>(undefined);
   const [followedId, setFollowedId] = useState<string | null>(null);
@@ -44,7 +43,8 @@ function useOpenEncounter(list: EncounterListItem[], isMaster: boolean, settled:
   // fight end already keeps it open.
   const activeId = list.find((encounter) => encounter.status === 'active')?.id;
   if (activeId && activeId !== followedId) setFollowedId(activeId);
-  const chosenGone = typeof chosenId === 'string' && settled && !list.some((encounter) => encounter.id === chosenId);
+  const chosenGone = typeof chosenId === 'string' && isDeletedEncounter(chosenId);
+  if (chosenGone) setChosenId(undefined);
   const openId = chosenId === undefined || chosenGone ? defaultEncounter(list, isMaster, followedId) : chosenId;
   return { openId, setChosenId };
 }
@@ -145,7 +145,7 @@ export function CombatSection({ campaignId, isMaster, currentUserId }: {
 
   const encounters = useQuery(encountersQuery(campaignId));
   const list = encounters.data?.encounters ?? [];
-  const { openId, setChosenId } = useOpenEncounter(list, isMaster, !encounters.isFetching);
+  const { openId, setChosenId } = useOpenEncounter(list, isMaster);
 
   const create = useMutation({
     mutationFn: (name: string) => api.createEncounter(campaignId, name),
