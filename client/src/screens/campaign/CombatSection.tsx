@@ -9,7 +9,7 @@ import { Skeleton } from '../../components/Skeleton';
 import { Surface } from '../../components/Surface';
 import { Toast } from '../../components/Toast';
 import { ApiError, api } from '../../lib/api';
-import { encounterQuery, encountersQuery, isDeletedEncounter, mergeEncounter } from '../../lib/combat-cache';
+import { encounterQuery, encountersQuery, isDeletedEncounter, isMissingEncounter, mergeEncounter } from '../../lib/combat-cache';
 import { EncounterPanel } from './EncounterPanel';
 import { StatblockDialog } from './StatblockDialog';
 import { StatblockFormDialog } from './StatblockFormDialog';
@@ -32,21 +32,23 @@ function defaultEncounter(encounters: EncounterListItem[], isMaster: boolean, fo
 
 /**
  * Which encounter is open: the one picked, or else the one being followed.
- * A picked encounter that was deleted is forgotten for good, and the screen
- * falls back as if nothing had been picked.
+ * A picked encounter that is gone — deleted, or answering 404 — is let go
+ * for good, and the screen falls back as if nothing had been picked.
  */
 function useOpenEncounter(campaignId: string, list: EncounterListItem[], isMaster: boolean) {
   // `undefined`: nobody picked yet, so the screen follows the fight in progress.
   const [chosenId, setChosenId] = useState<string | null | undefined>(undefined);
   // The same query the open panel runs, watched here too: a deletion missed
   // while offline only shows up as its 404, and the list may not change then.
-  useQuery({ ...encounterQuery(campaignId, chosenId ?? ''), enabled: typeof chosenId === 'string' });
+  // An old 404 being asked again (picked anew after rejoining) is not one.
+  const chosen = useQuery({ ...encounterQuery(campaignId, chosenId ?? ''), enabled: typeof chosenId === 'string' });
+  const chosenMissing = isMissingEncounter(chosen.error) && !chosen.isFetching;
   const [followedId, setFollowedId] = useState<string | null>(null);
   // Remembered while rendering, not in an effect: the render that sees the
   // fight end already keeps it open.
   const activeId = list.find((encounter) => encounter.status === 'active')?.id;
   if (activeId && activeId !== followedId) setFollowedId(activeId);
-  const chosenGone = typeof chosenId === 'string' && isDeletedEncounter(chosenId);
+  const chosenGone = typeof chosenId === 'string' && (isDeletedEncounter(chosenId) || chosenMissing);
   if (chosenGone) setChosenId(undefined);
   const openId = chosenId === undefined || chosenGone ? defaultEncounter(list, isMaster, followedId) : chosenId;
   return { openId, setChosenId };

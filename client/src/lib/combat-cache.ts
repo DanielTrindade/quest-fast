@@ -59,12 +59,18 @@ export const encountersQuery = (campaignId: string) => ({
   },
 });
 
-const isGone = (error: unknown) => error instanceof ApiError && error.status === 404;
+/**
+ * The encounter answered 404: deleted while this tab was not listening (a
+ * reconnect replays no deletion), or this viewer lost access to the campaign
+ * — the server says the same to a non-member. Either way it is gone for now,
+ * but only a `combat.deleted` makes that final.
+ */
+export const isMissingEncounter = (error: unknown) => error instanceof ApiError && error.status === 404;
 
 /**
  * One encounter; a GET answered after a newer live update keeps the update.
- * A 404 is a deletion this tab never heard of — a reconnect replays none — so
- * it counts as one, and asking again would not bring the encounter back.
+ * A 404 takes it off the cached list, which the next authorized list may
+ * undo; asking again right away would not bring it back.
  */
 export const encounterQuery = (campaignId: string, encounterId: string) => ({
   queryKey: encounterKey(campaignId, encounterId),
@@ -73,13 +79,13 @@ export const encounterQuery = (campaignId: string, encounterId: string) => ({
     try {
       fresh = await api.encounter(campaignId, encounterId);
     } catch (error) {
-      if (isGone(error)) forgetEncounter(client, campaignId, encounterId);
+      if (isMissingEncounter(error)) dropFromList(client, campaignId, encounterId);
       throw error;
     }
     const known = knownEncounter(client, campaignId, encounterId);
     return known && known.version > fresh.encounter.version ? { encounter: known } : fresh;
   },
-  retry: (attempts: number, error: unknown) => !isGone(error) && attempts < 2,
+  retry: (attempts: number, error: unknown) => !isMissingEncounter(error) && attempts < 2,
 });
 
 /**
@@ -104,9 +110,7 @@ export function mergeEncounter(queryClient: QueryClient, campaignId: string, enc
   });
 }
 
-/** Records a deletion and takes the encounter off the list. */
-function forgetEncounter(queryClient: QueryClient, campaignId: string, encounterId: string): void {
-  deletedEncounters.add(encounterId);
+function dropFromList(queryClient: QueryClient, campaignId: string, encounterId: string): void {
   const list = queryClient.getQueryData<EncounterListResponse>(['encounters', campaignId]);
   if (list) {
     queryClient.setQueryData<EncounterListResponse>(['encounters', campaignId], {
@@ -121,6 +125,7 @@ function forgetEncounter(queryClient: QueryClient, campaignId: string, encounter
  * asks the server for it again.
  */
 export function removeEncounter(queryClient: QueryClient, campaignId: string, encounterId: string): void {
-  forgetEncounter(queryClient, campaignId, encounterId);
+  deletedEncounters.add(encounterId);
+  dropFromList(queryClient, campaignId, encounterId);
   queryClient.removeQueries({ queryKey: encounterKey(campaignId, encounterId) });
 }
