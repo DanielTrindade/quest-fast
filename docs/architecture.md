@@ -232,7 +232,9 @@ pediu. O jogador nunca recebe encontro em preparação, combatente escondido nem
 PV, CA ou iniciativa de monstro — vê só a faixa de saúde. Pelo mesmo motivo,
 toda rolagem de iniciativa feita na preparação vai para o feed como secreta. O
 cliente descarta mensagem com `version` menor que a conhecida e refaz o fetch
-ao reconectar.
+ao reconectar. Excluir um encontro publica `combat.deleted` só para quem podia
+vê-lo (o de preparação, só para o mestre); o cliente o tira do cache e, se
+estava aberto, volta para o padrão da seção.
 
 Pedido de turno leva `expectedActiveCombatantId` e `expectedRound`: se não
 baterem com o turno atual, a resposta é 409 com o estado atual, o que evita

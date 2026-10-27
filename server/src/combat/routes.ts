@@ -621,6 +621,12 @@ export function encounterRoutes() {
     if (c.var.role !== 'master') return c.json({ error: MASTER_ONLY }, 403);
     if (encounter.status === 'active') return c.json({ error: 'Encerre o combate antes de excluí-lo.' }, 409);
     db.delete(encounters).where(eq(encounters.id, encounter.id)).run();
+    // Whoever has it open must learn it is gone; one in preparation was never a player's.
+    c.var.deps.hub.publishCombatDeleted(
+      c.var.campaignId,
+      encounter.id,
+      (viewer) => viewer.role === 'master' || encounter.status !== 'preparing',
+    );
     return c.body(null, 204);
   });
 

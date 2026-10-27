@@ -23,6 +23,8 @@ export type EventHub = {
    * `null` means this viewer may not know the encounter, and nothing is sent.
    */
   publishCombat(campaignId: string, project: (viewer: Viewer) => EncounterView | null): void;
+  /** Sends `combat.deleted` to each connection whose viewer `couldSee` the encounter. */
+  publishCombatDeleted(campaignId: string, encounterId: string, couldSee: (viewer: Viewer) => boolean): void;
   join(campaignId: string, viewer: Viewer, socket: WebSocket): void;
   leave(socket: WebSocket): void;
 };
@@ -73,6 +75,10 @@ export function createEventHub(): EventHub {
         const encounter = project(connection);
         return encounter ? { type: 'combat.updated', encounter } : null;
       });
+    },
+
+    publishCombatDeleted(campaignId, encounterId, couldSee) {
+      send(campaignId, (connection) => (couldSee(connection) ? { type: 'combat.deleted', encounterId } : null));
     },
   };
 
