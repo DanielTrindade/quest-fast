@@ -185,20 +185,22 @@ export function deathSaveOutcome(d20: number, saves: DeathSaves): DeathSaveOutco
  */
 export function numberCopies(name: string, count: number, existingNames: readonly string[]): string[] {
   let highest = 0;
-  for (const existing of existingNames) {
-    if (existing === name) highest = Math.max(highest, 1);
-    else if (existing.startsWith(`${name} `)) {
-      const suffix = existing.slice(name.length + 1);
-      if (/^\d+$/.test(suffix)) highest = Math.max(highest, Number(suffix));
-    }
-  }
+  for (const existing of existingNames) highest = Math.max(highest, copyNumber(existing, name) ?? 0);
   if (count === 1 && highest === 0) return [name];
   return Array.from({ length: count }, (_, index) => `${name} ${highest + index + 1}`);
 }
 
-/** The creature a copy's name numbers: `Goblin 3` → `Goblin`. */
-export function copyBaseName(name: string): string {
-  return /^(.*\S) \d+$/.exec(name)?.[1] ?? name;
+/**
+ * Which copy of `creature` a name is: the plain name is copy 1, `Goblin 3` is
+ * copy 3, anything else is not a copy (`null`). Only the creature's own name
+ * tells a number apart from the name itself: `Construto 7` is copy 7 of
+ * `Construto`, but copy 1 of `Construto 7`.
+ */
+export function copyNumber(name: string, creature: string): number | null {
+  if (name === creature) return 1;
+  if (!name.startsWith(`${creature} `)) return null;
+  const suffix = name.slice(creature.length + 1);
+  return /^\d+$/.test(suffix) ? Number(suffix) : null;
 }
 
 export type CopyEntry = {

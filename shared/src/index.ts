@@ -50,7 +50,7 @@ export {
   HEALTH_BANDS,
   STATBLOCK_LIMITS,
   concentrationDc,
-  copyBaseName,
+  copyNumber,
   deathSaveOutcome,
   healthBand,
   isActiveCondition,

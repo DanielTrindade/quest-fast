@@ -6,7 +6,7 @@ import {
   ENCOUNTER_LIMITS as E,
   STATBLOCK_LIMITS as S,
   abilityModifier,
-  copyBaseName,
+  copyNumber,
   initiative as sheetInitiative,
   isRollMode,
   isSize,
@@ -135,6 +135,17 @@ function parseHidden(value: unknown): boolean {
 /** The encounter's names as `placeCopies` sees them: only bestiary copies are renumbered. */
 function copyEntries(loaded: readonly LoadedCombatant[]): CopyEntry[] {
   return loaded.map(({ row, name }) => ({ id: row.id, name, hidden: row.hidden, renamable: row.source === 'statblock' }));
+}
+
+/**
+ * The bestiary name a combatant is a numbered copy of. Only the creature's
+ * name tells a copy number from a number in the name; with the creature
+ * renamed or deleted, or the copy renamed by the master, there is none.
+ */
+function copiedCreature(tx: Executor, row: LoadedCombatant['row']): string | null {
+  if (row.source !== 'statblock' || !row.statblockId) return null;
+  const creature = tx.select({ name: statblocks.name }).from(statblocks).where(eq(statblocks.id, row.statblockId)).get();
+  return creature && copyNumber(row.name, creature.name) !== null ? creature.name : null;
 }
 
 function renameCopies(tx: Executor, renamed: readonly { id: string; name: string }[]) {
@@ -271,12 +282,15 @@ function editCombatant(mutation: Mutation, combatant: LoadedCombatant, body: Rec
     const name = shortText(body.name, S.name);
     if (!name) refuse(422, `Informe o nome do combatente, com até ${S.name} caracteres.`);
     changes.name = name;
-  } else if (row.hidden && changes.hidden === false && row.source === 'statblock') {
+  } else if (row.hidden && changes.hidden === false) {
     // A revealed copy takes the next visible number, so the players never see a gap.
-    const others = mutation.loaded.combatants.filter((other) => other.row.id !== row.id);
-    const { names, renamed } = placeCopies(copyBaseName(row.name), 1, false, copyEntries(others));
-    renameCopies(mutation.tx, renamed);
-    changes.name = names[0];
+    const creature = copiedCreature(mutation.tx, row);
+    if (creature) {
+      const others = mutation.loaded.combatants.filter((other) => other.row.id !== row.id);
+      const { names, renamed } = placeCopies(creature, 1, false, copyEntries(others));
+      renameCopies(mutation.tx, renamed);
+      changes.name = names[0];
+    }
   }
   if (body.ac !== undefined) {
     const ac = boundedInteger(body.ac, S.ac.min, S.ac.max);

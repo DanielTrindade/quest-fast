@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   CONDITIONS,
   concentrationDc,
-  copyBaseName,
+  copyNumber,
   deathSaveOutcome,
   healthBand,
   isActiveCondition,
@@ -186,11 +186,15 @@ test('copies of a creature are numbered, continuing what is already there', () =
   assert.deepEqual(numberCopies('Goblin', 0, []), []);
 });
 
-test('a copy name is numbered on its creature name', () => {
-  assert.equal(copyBaseName('Goblin 3'), 'Goblin');
-  assert.equal(copyBaseName('Goblin'), 'Goblin');
-  assert.equal(copyBaseName('Goblin Chefe'), 'Goblin Chefe');
-  assert.equal(copyBaseName('Lobo Atroz 12'), 'Lobo Atroz');
+test('a copy number is read against the creature name, never guessed from the name alone', () => {
+  assert.equal(copyNumber('Goblin 3', 'Goblin'), 3);
+  assert.equal(copyNumber('Goblin', 'Goblin'), 1);
+  assert.equal(copyNumber('Goblin Chefe', 'Goblin'), null);
+  assert.equal(copyNumber('Lobo Atroz 12', 'Lobo Atroz'), 12);
+  // A number that belongs to the creature's name is not a copy number.
+  assert.equal(copyNumber('Construto 7', 'Construto 7'), 1);
+  assert.equal(copyNumber('Construto 7 2', 'Construto 7'), 2);
+  assert.equal(copyNumber('Construto', 'Construto 7'), null);
 });
 
 test('visible copies number after the visible ones only, so a hidden copy leaves no gap', () => {

@@ -332,6 +332,38 @@ test('revealing one of two hidden copies takes the next visible number', async (
   assert.equal(new Set(view.combatants.map((combatant) => combatant.name)).size, view.combatants.length);
 });
 
+test('revealing a copy keeps a number that belongs to the creature name', async () => {
+  const s = await setup();
+  const construct = (await body<StatblockResponse>(
+    await send(s.master, `${s.root}/statblocks`, 'POST', { ...GOBLIN, name: 'Construto 7' }),
+  )).statblock;
+  const encounter = await createEncounter(s);
+  const path = `${s.base}/${encounter.id}`;
+  let view = await encounterOf(
+    await send(s.master, `${path}/combatants`, 'POST', { source: 'statblock', statblockId: construct.id, hp: 'average', hidden: true }),
+    201,
+  );
+  const id = byName(view, 'Construto 7').id;
+
+  view = await encounterOf(await send(s.master, `${path}/combatants/${id}`, 'PATCH', { hidden: false }));
+  assert.equal(byName(view, 'Construto 7').id, id);
+});
+
+test('revealing a copy the master renamed keeps the name the master gave', async () => {
+  const s = await setup();
+  const encounter = await createEncounter(s);
+  const path = `${s.base}/${encounter.id}`;
+  let view = await encounterOf(
+    await send(s.master, `${path}/combatants`, 'POST', { source: 'statblock', statblockId: s.goblin.id, hp: 'average', hidden: true }),
+    201,
+  );
+  const id = byName(view, 'Goblin').id;
+  await encounterOf(await send(s.master, `${path}/combatants/${id}`, 'PATCH', { name: 'Batedor 3' }));
+
+  view = await encounterOf(await send(s.master, `${path}/combatants/${id}`, 'PATCH', { hidden: false }));
+  assert.equal(byName(view, 'Batedor 3').id, id);
+});
+
 // --- Initiative --------------------------------------------------------------------
 
 test('a player rolls their own initiative once; the master may still override it', async () => {
