@@ -50,6 +50,19 @@ export const MestreEmCombate: Story = {
   },
 };
 
+export const MestrePrimeiroTurno: Story = {
+  name: 'Mestre: primeiro turno do round 1',
+  args: { round: 1, activeName: 'Goblin 1', canGoBack: false },
+  play: async ({ canvasElement }) => {
+    const [region] = within(canvasElement).getAllByRole('region', { name: /^Tema / });
+    const bar = within(region);
+    const back = bar.getByRole('button', { name: /Voltar turno/ });
+    await expect(back).toBeDisabled();
+    await expect(back).toHaveAccessibleDescription('Ainda não há turno anterior.');
+    await expect(bar.getByRole('button', { name: /Próximo turno/ })).toBeEnabled();
+  },
+};
+
 export const EsperandoServidor: Story = {
   name: 'Esperando o servidor',
   args: { pending: 'next' },
