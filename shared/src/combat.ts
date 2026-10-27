@@ -185,15 +185,53 @@ export function deathSaveOutcome(d20: number, saves: DeathSaves): DeathSaveOutco
  */
 export function numberCopies(name: string, count: number, existingNames: readonly string[]): string[] {
   let highest = 0;
-  for (const existing of existingNames) {
-    if (existing === name) highest = Math.max(highest, 1);
-    else if (existing.startsWith(`${name} `)) {
-      const suffix = existing.slice(name.length + 1);
-      if (/^\d+$/.test(suffix)) highest = Math.max(highest, Number(suffix));
-    }
-  }
+  for (const existing of existingNames) highest = Math.max(highest, copyNumber(existing, name) ?? 0);
   if (count === 1 && highest === 0) return [name];
   return Array.from({ length: count }, (_, index) => `${name} ${highest + index + 1}`);
+}
+
+/**
+ * Which copy of `creature` a name is: the plain name is copy 1, `Goblin 3` is
+ * copy 3, anything else is not a copy (`null`). Only the creature's own name
+ * tells a number apart from the name itself: `Construto 7` is copy 7 of
+ * `Construto`, but copy 1 of `Construto 7`.
+ */
+export function copyNumber(name: string, creature: string): number | null {
+  if (name === creature) return 1;
+  if (!name.startsWith(`${creature} `)) return null;
+  const suffix = name.slice(creature.length + 1);
+  return /^\d+$/.test(suffix) ? Number(suffix) : null;
+}
+
+export type CopyEntry = {
+  id: string;
+  name: string;
+  hidden: boolean;
+  /** Only numbered creatures give way; a name the master typed stays. */
+  renamable: boolean;
+};
+
+/**
+ * Names for `count` copies joining an encounter, so that what a player sees
+ * never hints at a hidden combatant. Visible copies number after the visible
+ * ones only — a hidden copy leaves no gap. A hidden copy holding one of those
+ * names gives it up and takes a number after every name, so the master never
+ * sees two combatants with the same name. Hidden copies number after every
+ * name. Revealing a copy is placing it again as one visible copy.
+ */
+export function placeCopies(
+  name: string,
+  count: number,
+  hidden: boolean,
+  existing: readonly CopyEntry[],
+): { names: string[]; renamed: { id: string; name: string }[] } {
+  const allNames = existing.map((entry) => entry.name);
+  if (hidden) return { names: numberCopies(name, count, allNames), renamed: [] };
+
+  const names = numberCopies(name, count, existing.filter((entry) => !entry.hidden).map((entry) => entry.name));
+  const displaced = existing.filter((entry) => entry.hidden && entry.renamable && names.includes(entry.name));
+  const fresh = numberCopies(name, displaced.length, [...allNames, ...names]);
+  return { names, renamed: displaced.map((entry, index) => ({ id: entry.id, name: fresh[index]! })) };
 }
 
 /** Bounds of a bestiary entry, shared by the server parser and the editor. */

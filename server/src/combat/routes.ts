@@ -6,14 +6,16 @@ import {
   ENCOUNTER_LIMITS as E,
   STATBLOCK_LIMITS as S,
   abilityModifier,
+  copyNumber,
   initiative as sheetInitiative,
   isRollMode,
   isSize,
   nextTurn,
-  numberCopies,
+  placeCopies,
   previousTurn,
   rollDice,
   tickConditions,
+  type CopyEntry,
   type EncounterListItem,
   type RollMode,
   type SessionEvent,
@@ -130,6 +132,26 @@ function parseHidden(value: unknown): boolean {
   return value;
 }
 
+/** The encounter's names as `placeCopies` sees them: only bestiary copies are renumbered. */
+function copyEntries(loaded: readonly LoadedCombatant[]): CopyEntry[] {
+  return loaded.map(({ row, name }) => ({ id: row.id, name, hidden: row.hidden, renamable: row.source === 'statblock' }));
+}
+
+/**
+ * The bestiary name a combatant is a numbered copy of. Only the creature's
+ * name tells a copy number from a number in the name; with the creature
+ * renamed or deleted, or the copy renamed by the master, there is none.
+ */
+function copiedCreature(tx: Executor, row: LoadedCombatant['row']): string | null {
+  if (row.source !== 'statblock' || !row.statblockId) return null;
+  const creature = tx.select({ name: statblocks.name }).from(statblocks).where(eq(statblocks.id, row.statblockId)).get();
+  return creature && copyNumber(row.name, creature.name) !== null ? creature.name : null;
+}
+
+function renameCopies(tx: Executor, renamed: readonly { id: string; name: string }[]) {
+  for (const { id, name } of renamed) tx.update(combatants).set({ name }).where(eq(combatants.id, id)).run();
+}
+
 function addCombatants(mutation: Mutation, body: Record<string, unknown>) {
   const { tx, loaded } = mutation;
   const encounterId = loaded.encounter.id;
@@ -179,11 +201,8 @@ function addCombatants(mutation: Mutation, body: Record<string, unknown>) {
     if (hp !== 'average' && hp !== 'rolled') refuse(422, 'Escolha PV médio ou rolado.');
     if (hp === 'rolled' && !statblock.hpFormula) refuse(422, `${statblock.name} não tem fórmula de PV para rolar.`);
 
-    const names = numberCopies(
-      statblock.name,
-      count,
-      loaded.combatants.map((combatant) => combatant.name),
-    );
+    const { names, renamed } = placeCopies(statblock.name, count, hidden, copyEntries(loaded.combatants));
+    renameCopies(tx, renamed);
     for (const name of names) {
       // A roll can land below 1 with a negative modifier; a creature starts standing.
       const hpMax = hp === 'rolled' ? Math.max(1, rollDice(statblock.hpFormula)!.total) : statblock.hpAverage;
@@ -263,6 +282,15 @@ function editCombatant(mutation: Mutation, combatant: LoadedCombatant, body: Rec
     const name = shortText(body.name, S.name);
     if (!name) refuse(422, `Informe o nome do combatente, com até ${S.name} caracteres.`);
     changes.name = name;
+  } else if (row.hidden && changes.hidden === false) {
+    // A revealed copy takes the next visible number, so the players never see a gap.
+    const creature = copiedCreature(mutation.tx, row);
+    if (creature) {
+      const others = mutation.loaded.combatants.filter((other) => other.row.id !== row.id);
+      const { names, renamed } = placeCopies(creature, 1, false, copyEntries(others));
+      renameCopies(mutation.tx, renamed);
+      changes.name = names[0];
+    }
   }
   if (body.ac !== undefined) {
     const ac = boundedInteger(body.ac, S.ac.min, S.ac.max);
