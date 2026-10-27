@@ -5,6 +5,12 @@ import { redactEvent } from './redact.ts';
 /** Who sits behind a socket: what every projection and redaction needs. */
 export type Viewer = { role: Role; userId: string };
 
+/**
+ * Close code for a socket whose user is no longer a member of the campaign.
+ * In the private 4000 range, echoing the 404 the REST routes give non-members.
+ */
+export const NOT_A_MEMBER_CLOSE_CODE = 4404;
+
 type Connection = Viewer & {
   campaignId: string;
   socket: WebSocket;
@@ -12,7 +18,9 @@ type Connection = Viewer & {
 
 /**
  * One room per campaign, decided at the handshake: a socket never changes
- * campaigns. The server decides who receives what — secret events reach only
+ * campaigns, and the role it carries is the one checked then. Any route that
+ * ends or changes a membership must `kick` that user, or the old socket keeps
+ * receiving the room as before. The server decides who receives what — secret events reach only
  * masters, over the socket exactly as in the feed read, and an encounter goes
  * out as each viewer may see it.
  */
@@ -25,6 +33,12 @@ export type EventHub = {
   publishCombat(campaignId: string, project: (viewer: Viewer) => EncounterView | null): void;
   join(campaignId: string, viewer: Viewer, socket: WebSocket): void;
   leave(socket: WebSocket): void;
+  /**
+   * Drops every socket of the user in the campaign's room at once — the next
+   * publish no longer reaches them — and closes each with
+   * `NOT_A_MEMBER_CLOSE_CODE`. A reconnect goes through the handshake again.
+   */
+  kick(campaignId: string, userId: string): void;
 };
 
 export function createEventHub(): EventHub {
@@ -59,6 +73,16 @@ export function createEventHub(): EventHub {
       if (!connection) return;
       connections.delete(socket);
       rooms.get(connection.campaignId)?.delete(socket);
+    },
+
+    kick(campaignId, userId) {
+      const room = rooms.get(campaignId);
+      if (!room) return;
+      for (const socket of [...room]) {
+        if (connections.get(socket)?.userId !== userId) continue;
+        hub.leave(socket);
+        socket.close(NOT_A_MEMBER_CLOSE_CODE, 'not a member');
+      }
     },
 
     publish(campaignId, event) {
