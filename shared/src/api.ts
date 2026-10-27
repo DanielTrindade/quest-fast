@@ -317,7 +317,9 @@ export type RollResponse = { event: RollSessionEvent };
  */
 export type SocketMessage =
   | { type: 'session.event'; event: SessionEvent }
-  | { type: 'combat.updated'; encounter: EncounterView };
+  | { type: 'combat.updated'; encounter: EncounterView }
+  /** Sent only to whoever could see the encounter: never one in preparation to a player. */
+  | { type: 'combat.deleted'; encounterId: string };
 
 // --- Phase 2: combat and bestiary --------------------------------------------
 

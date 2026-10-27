@@ -729,3 +729,43 @@ test('combat.updated reaches each socket projected for its viewer', async (t) =>
   assert.equal(playerUpdates[2]!.combatants.some((combatant) => combatant.name === 'Kaelen'), false);
   assert.ok(playerUpdates[2]!.version > playerUpdates[1]!.version);
 });
+
+/** The `encounterId` of every `combat.deleted` a socket receives, in order. */
+function collectDeleted(socket: WebSocket): string[] {
+  const deleted: string[] = [];
+  socket.on('message', (data) => {
+    const message = JSON.parse(data.toString()) as SocketMessage;
+    if (message.type === 'combat.deleted') deleted.push(message.encounterId);
+  });
+  return deleted;
+}
+
+test('deleting an encounter reaches only the sockets that could see it', async (t) => {
+  const server = await createTestServer(PROFILES);
+  const s = await setup({ app: server.app, db: server.db });
+  const masterSocket = connect(server.port, s.campaign.id, await signIn({ app: server.app }, 'lia'));
+  const playerSocket = connect(server.port, s.campaign.id, await signIn({ app: server.app }, 'rafael'));
+  t.after(async () => {
+    masterSocket.close();
+    playerSocket.close();
+    await server.close();
+  });
+  await Promise.all([masterSocket, playerSocket].map((socket) => new Promise((resolve) => socket.once('open', resolve))));
+  const masterDeleted = collectDeleted(masterSocket);
+  const playerDeleted = collectDeleted(playerSocket);
+
+  // An ended combat was in sight of the table: everyone learns it is gone.
+  const { encounter: ended, path } = await runningEncounter(s);
+  await encounterOf(await send(s.master, `${path}/end`, 'POST'));
+  assert.equal((await send(s.master, path, 'DELETE')).status, 204);
+  await until(() => masterDeleted.length === 1 && playerDeleted.length === 1);
+  assert.deepEqual([masterDeleted[0], playerDeleted[0]], [ended.id, ended.id]);
+
+  // One in preparation never existed for the player, not even its deletion.
+  const preparing = await createEncounter(s, 'Covil');
+  assert.equal((await send(s.master, `${s.base}/${preparing.id}`, 'DELETE')).status, 204);
+  await until(() => masterDeleted.length === 2);
+  assert.equal(masterDeleted[1], preparing.id);
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  assert.deepEqual(playerDeleted, [ended.id]);
+});

@@ -79,3 +79,18 @@ export function mergeEncounter(queryClient: QueryClient, campaignId: string, enc
     encounters: list.encounters.map((item) => (item.id === encounter.id ? listItem(item, encounter) : item)),
   });
 }
+
+/**
+ * Drops an encounter the master deleted. The list goes first: the section
+ * leaves the encounter before its detail is gone, so the open panel never
+ * asks the server for it again.
+ */
+export function removeEncounter(queryClient: QueryClient, campaignId: string, encounterId: string): void {
+  const list = queryClient.getQueryData<EncounterListResponse>(['encounters', campaignId]);
+  if (list) {
+    queryClient.setQueryData<EncounterListResponse>(['encounters', campaignId], {
+      encounters: list.encounters.filter((item) => item.id !== encounterId),
+    });
+  }
+  queryClient.removeQueries({ queryKey: encounterKey(campaignId, encounterId) });
+}

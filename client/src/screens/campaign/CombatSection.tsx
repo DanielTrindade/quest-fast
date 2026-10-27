@@ -30,8 +30,13 @@ function defaultEncounter(encounters: EncounterListItem[], isMaster: boolean, fo
   return (lastEnded ?? encounters[0])?.id ?? null;
 }
 
-/** Which encounter is open: the one picked, or else the one being followed. */
-function useOpenEncounter(list: EncounterListItem[], isMaster: boolean) {
+/**
+ * Which encounter is open: the one picked, or else the one being followed.
+ * A picked encounter that left a settled list was deleted, so the screen
+ * falls back as if nothing had been picked. While the list is refetching, a
+ * just-created encounter may not be in it yet, and stays open.
+ */
+function useOpenEncounter(list: EncounterListItem[], isMaster: boolean, settled: boolean) {
   // `undefined`: nobody picked yet, so the screen follows the fight in progress.
   const [chosenId, setChosenId] = useState<string | null | undefined>(undefined);
   const [followedId, setFollowedId] = useState<string | null>(null);
@@ -39,7 +44,8 @@ function useOpenEncounter(list: EncounterListItem[], isMaster: boolean) {
   // fight end already keeps it open.
   const activeId = list.find((encounter) => encounter.status === 'active')?.id;
   if (activeId && activeId !== followedId) setFollowedId(activeId);
-  const openId = chosenId === undefined ? defaultEncounter(list, isMaster, followedId) : chosenId;
+  const chosenGone = typeof chosenId === 'string' && settled && !list.some((encounter) => encounter.id === chosenId);
+  const openId = chosenId === undefined || chosenGone ? defaultEncounter(list, isMaster, followedId) : chosenId;
   return { openId, setChosenId };
 }
 
@@ -139,7 +145,7 @@ export function CombatSection({ campaignId, isMaster, currentUserId }: {
 
   const encounters = useQuery(encountersQuery(campaignId));
   const list = encounters.data?.encounters ?? [];
-  const { openId, setChosenId } = useOpenEncounter(list, isMaster);
+  const { openId, setChosenId } = useOpenEncounter(list, isMaster, !encounters.isFetching);
 
   const create = useMutation({
     mutationFn: (name: string) => api.createEncounter(campaignId, name),
