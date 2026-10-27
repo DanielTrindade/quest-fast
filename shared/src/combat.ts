@@ -196,6 +196,42 @@ export function numberCopies(name: string, count: number, existingNames: readonl
   return Array.from({ length: count }, (_, index) => `${name} ${highest + index + 1}`);
 }
 
+/** The creature a copy's name numbers: `Goblin 3` → `Goblin`. */
+export function copyBaseName(name: string): string {
+  return /^(.*\S) \d+$/.exec(name)?.[1] ?? name;
+}
+
+export type CopyEntry = {
+  id: string;
+  name: string;
+  hidden: boolean;
+  /** Only numbered creatures give way; a name the master typed stays. */
+  renamable: boolean;
+};
+
+/**
+ * Names for `count` copies joining an encounter, so that what a player sees
+ * never hints at a hidden combatant. Visible copies number after the visible
+ * ones only — a hidden copy leaves no gap. A hidden copy holding one of those
+ * names gives it up and takes a number after every name, so the master never
+ * sees two combatants with the same name. Hidden copies number after every
+ * name. Revealing a copy is placing it again as one visible copy.
+ */
+export function placeCopies(
+  name: string,
+  count: number,
+  hidden: boolean,
+  existing: readonly CopyEntry[],
+): { names: string[]; renamed: { id: string; name: string }[] } {
+  const allNames = existing.map((entry) => entry.name);
+  if (hidden) return { names: numberCopies(name, count, allNames), renamed: [] };
+
+  const names = numberCopies(name, count, existing.filter((entry) => !entry.hidden).map((entry) => entry.name));
+  const displaced = existing.filter((entry) => entry.hidden && entry.renamable && names.includes(entry.name));
+  const fresh = numberCopies(name, displaced.length, [...allNames, ...names]);
+  return { names, renamed: displaced.map((entry, index) => ({ id: entry.id, name: fresh[index]! })) };
+}
+
 /** Bounds of a bestiary entry, shared by the server parser and the editor. */
 export const STATBLOCK_LIMITS = {
   name: 80,
