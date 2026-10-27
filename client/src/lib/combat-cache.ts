@@ -14,6 +14,16 @@ export function isDeletedEncounter(encounterId: string): boolean {
   return deletedEncounters.has(encounterId);
 }
 
+/**
+ * When each encounter last answered 404. Unlike a deletion this is not final
+ * (see `isMissingEncounter`): only a list asked for before it is too old.
+ */
+const missingSince = new Map<string, number>();
+
+function missingAfter(encounterId: string, since: number): boolean {
+  return (missingSince.get(encounterId) ?? 0) > since;
+}
+
 function knownEncounter(queryClient: QueryClient, campaignId: string, encounterId: string): EncounterView | undefined {
   return queryClient.getQueryData<EncounterResponse>(encounterKey(campaignId, encounterId))?.encounter;
 }
@@ -50,8 +60,9 @@ export const encountersQuery = (campaignId: string) => ({
     const startedAt = Date.now();
     const { encounters } = await api.encounters(campaignId);
     return {
-      // A GET sent before a deletion still lists the encounter; it stays gone.
-      encounters: encounters.filter((item) => !isDeletedEncounter(item.id)).map((item) => {
+      // A GET sent before a deletion, or before a 404, still lists the
+      // encounter; it stays gone. One sent after a 404 may bring it back.
+      encounters: encounters.filter((item) => !isDeletedEncounter(item.id) && !missingAfter(item.id, startedAt)).map((item) => {
         const known = updatedSince(client, campaignId, item.id, startedAt);
         return known ? listItem(item, known) : item;
       }),
@@ -69,8 +80,9 @@ export const isMissingEncounter = (error: unknown) => error instanceof ApiError 
 
 /**
  * One encounter; a GET answered after a newer live update keeps the update.
- * A 404 takes it off the cached list, which the next authorized list may
- * undo; asking again right away would not bring it back.
+ * A 404 takes it off the cached list and off any list already on its way;
+ * only a list asked for afterwards may bring it back. Asking again right away
+ * would not.
  */
 export const encounterQuery = (campaignId: string, encounterId: string) => ({
   queryKey: encounterKey(campaignId, encounterId),
@@ -79,7 +91,10 @@ export const encounterQuery = (campaignId: string, encounterId: string) => ({
     try {
       fresh = await api.encounter(campaignId, encounterId);
     } catch (error) {
-      if (isMissingEncounter(error)) dropFromList(client, campaignId, encounterId);
+      if (isMissingEncounter(error)) {
+        missingSince.set(encounterId, Date.now());
+        dropFromList(client, campaignId, encounterId);
+      }
       throw error;
     }
     const known = knownEncounter(client, campaignId, encounterId);
