@@ -290,6 +290,80 @@ test('revealing a hidden combatant shows it to the players', async () => {
   assert.equal(byName(view, 'Bandido').hidden, false);
 });
 
+test('a hidden copy leaves no gap in the numbering a player sees', async () => {
+  const s = await setup();
+  const { path } = await runningEncounter(s); // Goblin 1 and 2, visible
+  const addGoblin = (hidden: boolean) =>
+    send(s.master, `${path}/combatants`, 'POST', { source: 'statblock', statblockId: s.goblin.id, hp: 'average', hidden });
+
+  await encounterOf(await addGoblin(true), 201);
+  const master = await encounterOf(await addGoblin(false), 201);
+  // The reinforcement takes the next visible number; the hidden copy gives it up.
+  assert.equal(byName(master, 'Goblin 3').hidden, false);
+  assert.equal(byName(master, 'Goblin 4').hidden, true);
+  const goblins = (view: EncounterView) =>
+    view.combatants.map((combatant) => combatant.name).filter((name) => name.startsWith('Goblin')).sort();
+
+  assert.deepEqual(goblins(await encounterOf(await s.player(path))), ['Goblin 1', 'Goblin 2', 'Goblin 3']);
+
+  // Revealed, it comes right after the visible ones.
+  await encounterOf(await send(s.master, `${path}/combatants/${byName(master, 'Goblin 4').id}`, 'PATCH', { hidden: false }));
+  assert.deepEqual(goblins(await encounterOf(await s.player(path))), ['Goblin 1', 'Goblin 2', 'Goblin 3', 'Goblin 4']);
+});
+
+test('revealing one of two hidden copies takes the next visible number', async () => {
+  const s = await setup();
+  const encounter = await createEncounter(s);
+  const path = `${s.base}/${encounter.id}`;
+  await send(s.master, `${path}/combatants`, 'POST', { source: 'statblock', statblockId: s.goblin.id, count: 2, hp: 'average', hidden: true });
+  let view = await encounterOf(
+    await send(s.master, `${path}/combatants`, 'POST', { source: 'statblock', statblockId: s.goblin.id, hp: 'average' }),
+    201,
+  );
+  // A lone visible copy keeps the plain name; the hidden ones keep theirs.
+  assert.deepEqual(view.combatants.map((combatant) => combatant.name).sort(), ['Goblin', 'Goblin 1', 'Goblin 2']);
+
+  // Goblin 1 becomes Goblin 2, after the plain Goblin; the hidden Goblin 2 moves on.
+  const revealed = byName(view, 'Goblin 1').id;
+  view = await encounterOf(await send(s.master, `${path}/combatants/${revealed}`, 'PATCH', { hidden: false }));
+  assert.equal(byName(view, 'Goblin 2').id, revealed);
+  assert.equal(byName(view, 'Goblin 2').hidden, false);
+  assert.equal(byName(view, 'Goblin 3').hidden, true);
+  assert.equal(new Set(view.combatants.map((combatant) => combatant.name)).size, view.combatants.length);
+});
+
+test('revealing a copy keeps a number that belongs to the creature name', async () => {
+  const s = await setup();
+  const construct = (await body<StatblockResponse>(
+    await send(s.master, `${s.root}/statblocks`, 'POST', { ...GOBLIN, name: 'Construto 7' }),
+  )).statblock;
+  const encounter = await createEncounter(s);
+  const path = `${s.base}/${encounter.id}`;
+  let view = await encounterOf(
+    await send(s.master, `${path}/combatants`, 'POST', { source: 'statblock', statblockId: construct.id, hp: 'average', hidden: true }),
+    201,
+  );
+  const id = byName(view, 'Construto 7').id;
+
+  view = await encounterOf(await send(s.master, `${path}/combatants/${id}`, 'PATCH', { hidden: false }));
+  assert.equal(byName(view, 'Construto 7').id, id);
+});
+
+test('revealing a copy the master renamed keeps the name the master gave', async () => {
+  const s = await setup();
+  const encounter = await createEncounter(s);
+  const path = `${s.base}/${encounter.id}`;
+  let view = await encounterOf(
+    await send(s.master, `${path}/combatants`, 'POST', { source: 'statblock', statblockId: s.goblin.id, hp: 'average', hidden: true }),
+    201,
+  );
+  const id = byName(view, 'Goblin').id;
+  await encounterOf(await send(s.master, `${path}/combatants/${id}`, 'PATCH', { name: 'Batedor 3' }));
+
+  view = await encounterOf(await send(s.master, `${path}/combatants/${id}`, 'PATCH', { hidden: false }));
+  assert.equal(byName(view, 'Batedor 3').id, id);
+});
+
 // --- Initiative --------------------------------------------------------------------
 
 test('a player rolls their own initiative once; the master may still override it', async () => {
@@ -475,6 +549,20 @@ test('a player cannot go back a turn', async () => {
     expectedActiveCombatantId: encounter.activeCombatantId,
   });
   assert.equal(response.status, 403);
+});
+
+test('the first turn of round 1 has nothing to go back to, and nothing changes', async () => {
+  const s = await setup();
+  const { encounter, path } = await runningEncounter(s);
+  const response = await send(s.master, `${path}/turn`, 'POST', {
+    direction: 'previous',
+    expectedActiveCombatantId: encounter.activeCombatantId,
+    expectedRound: 1,
+  });
+  assert.equal(response.status, 409);
+  const after = await encounterOf(await s.master(path));
+  assert.equal(after.version, encounter.version);
+  assert.equal(after.activeCombatantId, encounter.activeCombatantId);
 });
 
 test('durations tick at the end of the affected combatant\'s turn', async () => {
@@ -768,4 +856,27 @@ test('deleting an encounter reaches only the sockets that could see it', async (
   assert.equal(masterDeleted[1], preparing.id);
   await new Promise((resolve) => setTimeout(resolve, 100));
   assert.deepEqual(playerDeleted, [ended.id]);
+});
+
+test('a reinforcement after a hidden copy reaches the player socket without a gap', async (t) => {
+  const server = await createTestServer(PROFILES);
+  const s = await setup({ app: server.app, db: server.db });
+  const { path } = await runningEncounter(s);
+  const playerSocket = connect(server.port, s.campaign.id, await signIn({ app: server.app }, 'rafael'));
+  t.after(async () => {
+    playerSocket.close();
+    await server.close();
+  });
+  await new Promise((resolve) => playerSocket.once('open', resolve));
+  const playerUpdates = collectCombat(playerSocket);
+
+  for (const hidden of [true, false]) {
+    await send(s.master, `${path}/combatants`, 'POST', { source: 'statblock', statblockId: s.goblin.id, hp: 'average', hidden });
+  }
+  await until(() => playerUpdates.some((view) => view.combatants.length === 5));
+
+  const latest = playerUpdates.at(-1)!;
+  const goblins = latest.combatants.map((combatant) => combatant.name).filter((name) => name.startsWith('Goblin')).sort();
+  assert.deepEqual(goblins, ['Goblin 1', 'Goblin 2', 'Goblin 3']);
+  assert.equal(JSON.stringify(playerUpdates).includes('Goblin 4'), false);
 });
