@@ -218,7 +218,11 @@ O WebSocket autoriza **antes** do upgrade (sessão e papel); um socket nunca
 troca de campanha. O hub guarda o papel e o `userId` de cada conexão: eventos
 do feed passam por `redactEvent` (o mesmo filtro da leitura paginada) e o
 combate sai por `publishCombat`, que chama `projectEncounter` para cada
-socket. Não há replay de eventos: ao reconectar, o cliente refaz o
+socket. Como o papel é conferido só no upgrade, toda rota que encerra uma
+filiação (o mestre remove o membro ou ele sai) chama `hub.kick`, que tira os
+sockets daquele usuário da sala e os fecha com o código 4404; uma rota futura
+que mude o papel precisa fazer o mesmo, para a reconexão passar pela
+autorização de novo. Não há replay de eventos: ao reconectar, o cliente refaz o
 fetch. Novos tipos de evento (combate, tokens) entram no mesmo canal, e o
 cliente tem fallback para tipos que ainda não sabe renderizar.
 

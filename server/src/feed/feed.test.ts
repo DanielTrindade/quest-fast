@@ -188,3 +188,73 @@ test('events are not delivered to sockets of other campaigns', async (t) => {
   assert.equal(received.some((event) => event.payload.expression === '1d20+9'), false);
   assert.equal(received.some((event) => event.payload.expression === '1d20'), true);
 });
+
+/** Resolves with the close code once the server ends the connection. */
+function waitForClose(socket: WebSocket, timeoutMs = 2000): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('timed out waiting for the socket to close')), timeoutMs);
+    socket.once('close', (code) => {
+      clearTimeout(timer);
+      resolve(code);
+    });
+  });
+}
+
+async function memberIdOf(master: ReturnType<typeof asUser>, campaignId: string, name: string) {
+  const { members } = await body<{ members: { id: string; name: string }[] }>(
+    await master(`/api/campaigns/${campaignId}/members`),
+  );
+  const member = members.find((candidate) => candidate.name === name);
+  if (!member) throw new Error(`member ${name} not found`);
+  return member.id;
+}
+
+test('a player removed by the master has the socket closed and gets no further event', async (t) => {
+  const { server, app, master, campaign } = await appWithCampaign();
+  const masterSocket = connect(server.port, campaign.id, await signIn(app, 'lia'));
+  const playerSocket = connect(server.port, campaign.id, await signIn(app, 'rafael'));
+  t.after(() => shutdown(server, [masterSocket, playerSocket]));
+  await Promise.all([waitForOpen(masterSocket), waitForOpen(playerSocket)]);
+  const playerEvents = collect(playerSocket);
+  const closed = waitForClose(playerSocket);
+
+  const memberId = await memberIdOf(master, campaign.id, 'Rafael Costa');
+  const removed = await master(`/api/campaigns/${campaign.id}/members/${memberId}`, { method: 'DELETE' });
+  assert.equal(removed.status, 204);
+
+  const masterReceives = waitForEvent(masterSocket, (event) => event.payload.expression === '1d20+3');
+  await master(`/api/campaigns/${campaign.id}/rolls`, {
+    method: 'POST',
+    body: JSON.stringify({ expression: '1d20+3' }),
+  });
+  await masterReceives;
+
+  assert.equal(await closed, 4404);
+  assert.equal(playerEvents.some((event) => event.payload.expression === '1d20+3'), false);
+});
+
+test('a player who leaves the campaign has every open socket of it closed', async (t) => {
+  const { server, app, master, player, campaign } = await appWithCampaign();
+  // Two tabs of the same player: both must go.
+  const tabs = [
+    connect(server.port, campaign.id, await signIn(app, 'rafael')),
+    connect(server.port, campaign.id, await signIn(app, 'rafael')),
+  ];
+  const masterSocket = connect(server.port, campaign.id, await signIn(app, 'lia'));
+  t.after(() => shutdown(server, [...tabs, masterSocket]));
+  await Promise.all([...tabs, masterSocket].map(waitForOpen));
+  const closed = Promise.all(tabs.map((tab) => waitForClose(tab)));
+
+  const left = await player(`/api/campaigns/${campaign.id}/members/me`, { method: 'DELETE' });
+  assert.equal(left.status, 204);
+
+  assert.deepEqual(await closed, [4404, 4404]);
+  // The master stays in the room.
+  const masterReceives = waitForEvent(masterSocket);
+  await master(`/api/campaigns/${campaign.id}/rolls`, {
+    method: 'POST',
+    body: JSON.stringify({ expression: '1d20' }),
+  });
+  await masterReceives;
+  assert.equal(masterSocket.readyState, WebSocket.OPEN);
+});

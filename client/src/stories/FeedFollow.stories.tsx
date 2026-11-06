@@ -46,7 +46,7 @@ function Live({ count = 20, older = 0 }: { count?: number; older?: number }) {
     // The page container turns on the desktop height cap, as in the campaign.
     <div className="qf-page">
       <div className="qf-stack" style={{ maxWidth: 420 }}>
-        <FeedFollow count={events.length} newestId={events.at(-1)?.id ?? ''} hasMore={oldest > 0}
+        <FeedFollow ids={events.map((event) => event.id)} hasMore={oldest > 0}
           onLoadMore={() => setOldest((value) => Math.max(0, value - PAGE))}>
           <ol className="feed-list">
             {events.map((event) => (
@@ -54,9 +54,13 @@ function Live({ count = 20, older = 0 }: { count?: number; older?: number }) {
             ))}
           </ol>
         </FeedFollow>
-        <div>
+        <div className="flex flex-wrap gap-2">
           <Button variant="secondary" onClick={() => setNewest((value) => value + 1)}>
             Chegar novo resultado
+          </Button>
+          {/* A reconnect refetches the feed: only the latest page comes back. */}
+          <Button variant="secondary" onClick={() => setOldest(Math.max(0, newest - count))}>
+            Reconectar
           </Button>
         </div>
       </div>
