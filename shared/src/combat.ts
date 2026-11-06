@@ -124,6 +124,12 @@ export function previousTurn(order: readonly TurnEntry[], activeId: string | nul
   return { activeId, round };
 }
 
+/** Whether `previousTurn` would change anything: the master's "Voltar turno". */
+export function hasPreviousTurn(order: readonly TurnEntry[], activeId: string | null, round: number): boolean {
+  const previous = previousTurn(order, activeId, round);
+  return previous.activeId !== activeId || previous.round !== round;
+}
+
 export type QueueEntry = InitiativeEntry & {
   id: string;
   source: (typeof COMBATANT_SOURCES)[number];

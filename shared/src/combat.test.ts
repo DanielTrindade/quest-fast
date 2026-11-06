@@ -4,6 +4,7 @@ import {
   CONDITIONS,
   concentrationDc,
   deathSaveOutcome,
+  hasPreviousTurn,
   healthBand,
   isActiveCondition,
   isCondition,
@@ -123,6 +124,15 @@ test('the previous turn steps back and unwinds the round', () => {
 
 test('going back from the very first turn of the combat is a no-op', () => {
   assert.deepEqual(previousTurn(queue('a', 'b'), 'a', 1), { activeId: 'a', round: 1 });
+});
+
+test('there is a previous turn anywhere but the first turn standing of round 1', () => {
+  assert.equal(hasPreviousTurn(queue('a', 'b'), 'a', 1), false);
+  assert.equal(hasPreviousTurn([{ id: 'a', defeated: true }, ...queue('b', 'c')], 'b', 1), false);
+  assert.equal(hasPreviousTurn(queue('a', 'b'), 'b', 1), true);
+  assert.equal(hasPreviousTurn(queue('a', 'b'), 'a', 2), true);
+  // Alone and standing, going back still unwinds the round.
+  assert.equal(hasPreviousTurn(queue('a'), 'a', 2), true);
 });
 
 test('the health band hides hit points behind four steps', () => {

@@ -60,16 +60,25 @@ function InitiativeActions({ missingInitiative, monstersWithoutInitiative, pendi
   );
 }
 
-function RoundActions({ pending, onAction }: ActionProps) {
+/** The first turn of round 1 has nothing before it: going back stays off, with the reason. */
+function RoundActions({ canGoBack, pending, onAction }: ActionProps & { canGoBack: boolean }) {
+  const noPreviousId = useId();
   const busy = pending !== null;
   return (
     <>
-      <Button variant="secondary" loading={pending === 'previous'} disabled={busy} onClick={() => onAction('previous')}>
+      <Button
+        variant="secondary"
+        loading={pending === 'previous'}
+        disabled={busy || !canGoBack}
+        aria-describedby={canGoBack ? undefined : noPreviousId}
+        onClick={() => onAction('previous')}
+      >
         <ArrowCounterClockwise size={18} aria-hidden="true" /> Voltar turno
       </Button>
       <Button loading={pending === 'next'} disabled={busy} onClick={() => onAction('next')}>
         Próximo turno <ArrowRight size={18} aria-hidden="true" />
       </Button>
+      {!canGoBack && <p id={noPreviousId} className="qf-turn-bar__hint">Ainda não há turno anterior.</p>}
     </>
   );
 }
@@ -94,9 +103,10 @@ function EndCombat({ pending, onAction }: ActionProps) {
   );
 }
 
-function MasterActions({ status, round, missingInitiative, monstersWithoutInitiative, pending, onAction }: ActionProps & {
+function MasterActions({ status, round, canGoBack, missingInitiative, monstersWithoutInitiative, pending, onAction }: ActionProps & {
   status: EncounterStatus;
   round: number;
+  canGoBack: boolean;
   missingInitiative: number;
   monstersWithoutInitiative: number;
 }) {
@@ -114,7 +124,7 @@ function MasterActions({ status, round, missingInitiative, monstersWithoutInitia
         <InitiativeActions missingInitiative={missingInitiative} monstersWithoutInitiative={monstersWithoutInitiative}
           pending={pending} onAction={onAction} />
       ) : (
-        <RoundActions pending={pending} onAction={onAction} />
+        <RoundActions canGoBack={canGoBack} pending={pending} onAction={onAction} />
       )}
       <EndCombat pending={pending} onAction={onAction} />
     </>
@@ -134,6 +144,7 @@ export function TurnBar({
   activeHidden = false,
   master,
   ownTurn = false,
+  canGoBack = true,
   missingInitiative = 0,
   monstersWithoutInitiative = 0,
   pending = null,
@@ -145,6 +156,8 @@ export function TurnBar({
   activeHidden?: boolean;
   master: boolean;
   ownTurn?: boolean;
+  /** False on the first turn of round 1, when there is no turn to go back to. */
+  canGoBack?: boolean;
   /** Combatants still without initiative; round 1 waits for all of them. */
   missingInitiative?: number;
   /** The ones the master may roll in one go (characters roll their own). */
@@ -168,7 +181,7 @@ export function TurnBar({
 
       <div className="qf-turn-bar__actions">
         {master ? (
-          <MasterActions status={status} round={round} missingInitiative={missingInitiative}
+          <MasterActions status={status} round={round} canGoBack={canGoBack} missingInitiative={missingInitiative}
             monstersWithoutInitiative={monstersWithoutInitiative} pending={pending} onAction={onAction} />
         ) : (
           yourTurn && (

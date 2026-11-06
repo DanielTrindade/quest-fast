@@ -51,6 +51,7 @@ export {
   STATBLOCK_LIMITS,
   concentrationDc,
   deathSaveOutcome,
+  hasPreviousTurn,
   healthBand,
   isActiveCondition,
   isChallengeRating,

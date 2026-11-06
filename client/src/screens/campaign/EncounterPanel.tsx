@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ArrowLeft, Trash } from '@phosphor-icons/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { CombatantInput, EncounterResponse, EncounterSummaryView, EncounterView } from '@quest-fast/shared';
+import { hasPreviousTurn, type CombatantInput, type EncounterResponse, type EncounterSummaryView, type EncounterView } from '@quest-fast/shared';
 import { Button } from '../../components/Button';
 import { EncounterSetup } from '../../components/EncounterSetup';
 import { InitiativeList } from '../../components/InitiativeList';
@@ -25,6 +25,17 @@ function reorderedTie(encounter: EncounterView, id: string, direction: 'up' | 'd
   const to = direction === 'up' ? from - 1 : from + 1;
   [ids[from], ids[to]] = [ids[to]!, ids[from]!];
   return ids;
+}
+
+/**
+ * The server's rule for "Voltar turno", on what the master sees: the
+ * combatants come in queue order, and a monster's band says whether it fell.
+ */
+function canGoBack(encounter: EncounterView): boolean {
+  const order = encounter.combatants
+    .filter((combatant) => combatant.hasInitiative)
+    .map((combatant) => ({ id: combatant.id, defeated: combatant.source !== 'character' && combatant.healthBand === 'defeated' }));
+  return hasPreviousTurn(order, encounter.activeCombatantId, encounter.round);
 }
 
 function turnRequest(campaignId: string, encounter: EncounterView, action: TurnAction) {
@@ -215,6 +226,7 @@ export function EncounterPanel({ campaignId, encounterId, isMaster, currentUserI
           activeHidden={encounter.activeHidden}
           master={isMaster}
           ownTurn={active?.ownerId === currentUserId}
+          canGoBack={canGoBack(encounter)}
           missingInitiative={combatants.filter((combatant) => !combatant.hasInitiative).length}
           monstersWithoutInitiative={combatants.filter((combatant) => combatant.source !== 'character' && !combatant.hasInitiative).length}
           pending={actions.pendingTurn}
