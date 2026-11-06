@@ -10,16 +10,16 @@
     "typecheck": "tsc -b"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.1156.0",
-    "@hono/node-server": "^2.1.5",
+    "@aws-sdk/client-s3": "^3.1161.0",
+    "@hono/node-server": "^2.1.6",
     "@quest-fast/db": "*",
     "@quest-fast/shared": "*",
     "drizzle-orm": "1.0.0-rc.5",
-    "hono": "^4.13.7",
-    "ws": "^8.22.0"
+    "hono": "^4.13.16",
+    "ws": "^8.22.1"
   },
   "devDependencies": {
-    "@types/node": "^26.6.5",
+    "@types/node": "^26.6.6",
     "@types/ws": "^8.18.2",
     "typescript": "~7.0.2"
   }
