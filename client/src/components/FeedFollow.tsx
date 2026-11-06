@@ -65,6 +65,9 @@ export function FeedFollow({ children, count, newestId, hasMore, onLoadMore, loa
       if (scrollable) viewport.scrollTop = viewport.scrollHeight;
       else endRef.current?.scrollIntoView({ block: 'nearest' });
     } else {
+      // Whether the reader is at the end comes from the observer through a ref,
+      // so the count of unseen events cannot be derived during render.
+      // react-doctor-disable-next-line react-doctor/no-adjust-state-on-prop-change
       setUnseen((current) => current + Math.max(1, count - before.count));
     }
   }, [count, newestId]);
