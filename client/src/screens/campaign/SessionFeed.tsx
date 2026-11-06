@@ -70,8 +70,7 @@ export function SessionFeed({ campaignId }: { campaignId: string }) {
 
         {feed.isSuccess && events.length > 0 && (
           <FeedFollow
-            count={events.length}
-            newestId={events[events.length - 1]!.id}
+            ids={events.map((event) => event.id)}
             hasMore={nextCursor !== null}
             onLoadMore={() => nextCursor && !loadMore.isPending && loadMore.mutate(nextCursor)}
             loadingMore={loadMore.isPending}

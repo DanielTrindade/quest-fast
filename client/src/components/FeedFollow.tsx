@@ -7,13 +7,12 @@ import { Button } from './Button';
  * container query), a "load more" for the paginated past and a pill counting
  * events that arrived while the table read something older.
  *
- * New events are told apart from older pages by `newestId`: loading the past
- * grows `count` without moving the newest event, so it is never counted as new.
+ * `ids` lists the events oldest first. Only events after the last one the
+ * reader saw are counted as new, so loading the past never moves the count.
  */
-export function FeedFollow({ children, count, newestId, hasMore, onLoadMore, loadingMore = false, loadMoreError = null }: {
+export function FeedFollow({ children, ids, hasMore, onLoadMore, loadingMore = false, loadMoreError = null }: {
   children: ReactNode;
-  count: number;
-  newestId: string;
+  ids: readonly string[];
   hasMore: boolean;
   onLoadMore: () => void;
   loadingMore?: boolean;
@@ -21,9 +20,15 @@ export function FeedFollow({ children, count, newestId, hasMore, onLoadMore, loa
 }) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
-  const atEndRef = useRef(true);
-  const previous = useRef<{ count: number; newestId: string; scrollHeight: number } | null>(null);
-  const [unseen, setUnseen] = useState(0);
+  const newestRef = useRef<string | undefined>(undefined);
+  const previous = useRef<{ count: number; newestId: string | undefined; scrollHeight: number } | null>(null);
+  const [atEnd, setAtEnd] = useState(true);
+  const [seenId, setSeenId] = useState<string | undefined>(undefined);
+
+  const count = ids.length;
+  const newestId = ids.at(-1);
+  const seenIndex = seenId === undefined ? -1 : ids.indexOf(seenId);
+  const unseen = atEnd || seenIndex < 0 ? 0 : count - 1 - seenIndex;
 
   // The end marker is watched against the page viewport, so "at the end"
   // holds both inside the desktop scroll box and in the mobile page flow.
@@ -32,8 +37,8 @@ export function FeedFollow({ children, count, newestId, hasMore, onLoadMore, loa
     if (!end) return;
     const observer = new IntersectionObserver(([entry]) => {
       if (!entry) return;
-      atEndRef.current = entry.isIntersecting;
-      if (entry.isIntersecting) setUnseen(0);
+      setAtEnd(entry.isIntersecting);
+      setSeenId(newestRef.current);
     });
     observer.observe(end);
     return () => observer.disconnect();
@@ -42,6 +47,7 @@ export function FeedFollow({ children, count, newestId, hasMore, onLoadMore, loa
   useLayoutEffect(() => {
     const viewport = viewportRef.current;
     const before = previous.current;
+    newestRef.current = newestId;
     previous.current = { count, newestId, scrollHeight: viewport?.scrollHeight ?? 0 };
     if (!viewport) return;
     const scrollable = viewport.scrollHeight > viewport.clientHeight;
@@ -61,20 +67,15 @@ export function FeedFollow({ children, count, newestId, hasMore, onLoadMore, loa
       return;
     }
 
-    if (atEndRef.current) {
-      if (scrollable) viewport.scrollTop = viewport.scrollHeight;
-      else endRef.current?.scrollIntoView({ block: 'nearest' });
-    } else {
-      // Whether the reader is at the end comes from the observer through a ref,
-      // so the count of unseen events cannot be derived during render.
-      // react-doctor-disable-next-line react-doctor/no-adjust-state-on-prop-change
-      setUnseen((current) => current + Math.max(1, count - before.count));
-    }
-  }, [count, newestId]);
+    if (!atEnd) return;
+    if (scrollable) viewport.scrollTop = viewport.scrollHeight;
+    else endRef.current?.scrollIntoView({ block: 'nearest' });
+  }, [count, newestId, atEnd]);
 
   const jumpToEnd = () => {
     endRef.current?.scrollIntoView({ block: 'end' });
-    setUnseen(0);
+    setAtEnd(true);
+    setSeenId(newestId);
   };
 
   return (
