@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { SocketMessage } from '@quest-fast/shared';
-import { mergeEncounter } from '../lib/combat-cache';
+import { mergeEncounter, removeEncounter } from '../lib/combat-cache';
 import { mergeFeedEvent } from '../lib/feed-cache';
 
 export type SocketStatus = 'connecting' | 'connected' | 'disconnected';
@@ -91,6 +91,7 @@ export function useCampaignSocket(campaignId: string): SocketStatus {
       },
       onMessage: (message) => {
         if (message.type === 'combat.updated') mergeEncounter(queryClient, campaignId, message.encounter);
+        else if (message.type === 'combat.deleted') removeEncounter(queryClient, campaignId, message.encounterId);
         else if (message.type === 'session.event') mergeFeedEvent(queryClient, campaignId, message.event);
       },
     });
