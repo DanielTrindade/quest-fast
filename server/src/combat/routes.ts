@@ -7,6 +7,7 @@ import {
   STATBLOCK_LIMITS as S,
   abilityModifier,
   copyNumber,
+  hasPreviousTurn,
   initiative as sheetInitiative,
   isRollMode,
   isSize,
@@ -375,7 +376,10 @@ function changeTurn(mutation: Mutation, body: Record<string, unknown>) {
 
   if (direction === 'previous') {
     if (encounter.round === 0) refuse(409, 'O primeiro round ainda não começou.');
-    const previous = previousTurn(turnOrder(loaded), encounter.activeCombatantId, encounter.round);
+    const order = turnOrder(loaded);
+    // An empty step would still bump the version and reach the whole table.
+    if (!hasPreviousTurn(order, encounter.activeCombatantId, encounter.round)) refuse(409, 'Ainda não há turno anterior.');
+    const previous = previousTurn(order, encounter.activeCombatantId, encounter.round);
     setEncounter(mutation, { activeCombatantId: previous.activeId, round: previous.round });
     return;
   }

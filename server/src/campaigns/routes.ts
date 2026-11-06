@@ -163,6 +163,7 @@ export function campaignRoutes() {
     db.delete(campaignMembers)
       .where(and(eq(campaignMembers.campaignId, c.var.campaignId), eq(campaignMembers.userId, c.var.user.id)))
       .run();
+    c.var.deps.hub.kick(c.var.campaignId, c.var.user.id);
     return c.body(null, 204);
   });
 
@@ -179,6 +180,8 @@ export function campaignRoutes() {
     if (target.role === 'master') return c.json({ error: 'O mestre não pode ser removido.' }, 409);
 
     db.delete(campaignMembers).where(eq(campaignMembers.id, target.id)).run();
+    // The membership is gone; an open socket must not keep the room.
+    c.var.deps.hub.kick(c.var.campaignId, target.userId);
     return c.body(null, 204);
   });
 

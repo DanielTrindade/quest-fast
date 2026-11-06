@@ -124,6 +124,12 @@ export function previousTurn(order: readonly TurnEntry[], activeId: string | nul
   return { activeId, round };
 }
 
+/** Whether `previousTurn` would change anything: the master's "Voltar turno". */
+export function hasPreviousTurn(order: readonly TurnEntry[], activeId: string | null, round: number): boolean {
+  const previous = previousTurn(order, activeId, round);
+  return previous.activeId !== activeId || previous.round !== round;
+}
+
 export type QueueEntry = InitiativeEntry & {
   id: string;
   source: (typeof COMBATANT_SOURCES)[number];
@@ -229,7 +235,8 @@ export function placeCopies(
   if (hidden) return { names: numberCopies(name, count, allNames), renamed: [] };
 
   const names = numberCopies(name, count, existing.filter((entry) => !entry.hidden).map((entry) => entry.name));
-  const displaced = existing.filter((entry) => entry.hidden && entry.renamable && names.includes(entry.name));
+  const taken = new Set(names);
+  const displaced = existing.filter((entry) => entry.hidden && entry.renamable && taken.has(entry.name));
   const fresh = numberCopies(name, displaced.length, [...allNames, ...names]);
   return { names, renamed: displaced.map((entry, index) => ({ id: entry.id, name: fresh[index]! })) };
 }

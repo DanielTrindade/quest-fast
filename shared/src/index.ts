@@ -52,6 +52,7 @@ export {
   concentrationDc,
   copyNumber,
   deathSaveOutcome,
+  hasPreviousTurn,
   healthBand,
   isActiveCondition,
   isChallengeRating,
