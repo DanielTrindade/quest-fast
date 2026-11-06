@@ -28,7 +28,10 @@ export function FeedFollow({ children, ids, hasMore, onLoadMore, loadingMore = f
   const count = ids.length;
   const newestId = ids.at(-1);
   const seenIndex = seenId === undefined ? -1 : ids.indexOf(seenId);
-  const unseen = atEnd || seenIndex < 0 ? 0 : count - 1 - seenIndex;
+  // A refetch on reconnect keeps only the latest page, which can drop the last
+  // seen event: then every listed event is newer and more may be missing.
+  const anchorLost = seenId !== undefined && seenIndex < 0;
+  const unseen = atEnd || seenId === undefined ? 0 : anchorLost ? count : count - 1 - seenIndex;
 
   // The end marker is watched against the page viewport, so "at the end"
   // holds both inside the desktop scroll box and in the mobile page flow.
@@ -98,7 +101,7 @@ export function FeedFollow({ children, ids, hasMore, onLoadMore, loadingMore = f
         {unseen > 0 && (
           <button type="button" className="qf-feed-follow__pill" onClick={jumpToEnd}>
             <ArrowDown size={14} aria-hidden="true" />
-            {unseen} {unseen === 1 ? 'novo resultado' : 'novos resultados'}
+            {unseen}{anchorLost && '+'} {unseen === 1 && !anchorLost ? 'novo resultado' : 'novos resultados'}
           </button>
         )}
       </div>
