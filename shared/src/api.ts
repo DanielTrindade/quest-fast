@@ -2,7 +2,7 @@ import type { Role } from './role.ts';
 import type { DieResult, RollMode } from './dice.ts';
 import type { Ability, Skill } from './modifiers.ts';
 import type { ArmorTraining, Coins, DeathSaves, HitDie, Size, Spell, SpellSlot } from './sheet.ts';
-import type { ActiveCondition, COMBATANT_SOURCES, ENCOUNTER_STATUSES, HealthBand } from './combat.ts';
+import type { ActiveCondition, COMBATANT_SOURCES, CombatReminder, ENCOUNTER_STATUSES, HealthBand, HpOperation } from './combat.ts';
 
 /**
  * Contract between server and client. Dates travel as ISO 8601; formatting
@@ -147,6 +147,8 @@ export type CharacterSheet = {
   hitDiceSpent: number;
   deathSaves: DeathSaves;
   heroicInspiration: boolean;
+  conditions: ActiveCondition[];
+  concentrating: boolean;
   avatarUrl: string | null;
   /** Kept so the editor can keep or replace the uploaded image. */
   avatarAssetId: string | null;
@@ -397,7 +399,12 @@ export type CombatantView = {
   /** A monster or manual combatant at 0 hit points: its turn is skipped. */
   defeated: boolean;
   conditions: ActiveCondition[];
+  /** Always false for a player looking at a monster. */
   concentrating: boolean;
+  /** Only for a character; a monster has none. */
+  deathSaves: DeathSaves | null;
+  /** Always empty for a player looking at a monster: a DC gives the damage away. */
+  reminders: CombatReminder[];
 };
 
 export type EncounterSummaryView = {
@@ -483,6 +490,31 @@ export type TurnRequest = {
 
 /** The master's order for combatants still tied after Dexterity. */
 export type TieOrderRequest = { combatantIds: string[] };
+
+/** A change by amount, never a final value: two at the same time both count. */
+export type HpRequest = { operation: HpOperation; amount: number };
+
+export type ConditionRequest = {
+  /** Only for exhaustion: 1 to 6. */
+  level?: number;
+  roundsLeft?: number;
+};
+
+export type ConcentrationRequest = { concentrating: boolean };
+
+/** No `failures` rolls on the server; `failures` records damage taken at 0 hit points. */
+export type DeathSaveRequest = {
+  failures?: 1 | 2;
+  /** The reminder this answers, cleared along with it. */
+  reminderId?: string;
+};
+
+export type ConcentrationSaveRequest = {
+  reminderId: string;
+  mode?: RollMode;
+  /** Master only; a monster's roll is secret unless told otherwise. */
+  secret?: boolean;
+};
 
 export type CombatStartedPayload = { kind: 'combat.started'; encounterId: string; encounterName: string };
 export type CombatEndedPayload = {

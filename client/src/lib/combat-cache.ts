@@ -1,5 +1,5 @@
 import type { QueryClient } from '@tanstack/react-query';
-import type { EncounterListItem, EncounterListResponse, EncounterResponse, EncounterView } from '@quest-fast/shared';
+import { changedCharacters, type EncounterListItem, type EncounterListResponse, type EncounterResponse, type EncounterView } from '@quest-fast/shared';
 import { ApiError, api } from './api';
 
 const encounterKey = (campaignId: string, encounterId: string) => ['encounter', campaignId, encounterId] as const;
@@ -36,6 +36,19 @@ function knownEncounter(queryClient: QueryClient, campaignId: string, encounterI
 function updatedSince(queryClient: QueryClient, campaignId: string, encounterId: string, since: number): EncounterView | undefined {
   const updatedAt = queryClient.getQueryState(encounterKey(campaignId, encounterId))?.dataUpdatedAt ?? 0;
   return updatedAt > since ? knownEncounter(queryClient, campaignId, encounterId) : undefined;
+}
+
+/**
+ * A character's hit points and conditions live on the sheet, so a sheet open
+ * elsewhere asks for its new state. Runs wherever an encounter enters the
+ * cache: what got there first is what the next arrival is compared with.
+ */
+function refreshChangedSheets(queryClient: QueryClient, campaignId: string, known: EncounterView | undefined, encounter: EncounterView): void {
+  const changed = changedCharacters(known?.combatants, encounter.combatants);
+  for (const characterId of changed) {
+    void queryClient.invalidateQueries({ queryKey: ['character', campaignId, characterId] });
+  }
+  if (changed.length > 0) void queryClient.invalidateQueries({ queryKey: ['characters', campaignId] });
 }
 
 function listItem(item: EncounterListItem, encounter: EncounterView): EncounterListItem {
@@ -98,7 +111,9 @@ export const encounterQuery = (campaignId: string, encounterId: string) => ({
       throw error;
     }
     const known = knownEncounter(client, campaignId, encounterId);
-    return known && known.version > fresh.encounter.version ? { encounter: known } : fresh;
+    if (known && known.version > fresh.encounter.version) return { encounter: known };
+    refreshChangedSheets(client, campaignId, known, fresh.encounter);
+    return fresh;
   },
   retry: (attempts: number, error: unknown) => !isMissingEncounter(error) && attempts < 2,
 });
@@ -113,6 +128,7 @@ export function mergeEncounter(queryClient: QueryClient, campaignId: string, enc
   const known = knownEncounter(queryClient, campaignId, encounter.id);
   if (isDeletedEncounter(encounter.id) || (known && known.version > encounter.version)) return;
   queryClient.setQueryData<EncounterResponse>(encounterKey(campaignId, encounter.id), { encounter });
+  refreshChangedSheets(queryClient, campaignId, known, encounter);
 
   const list = queryClient.getQueryData<EncounterListResponse>(['encounters', campaignId]);
   if (!list?.encounters.some((item) => item.id === encounter.id)) {

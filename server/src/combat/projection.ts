@@ -1,4 +1,4 @@
-import { healthBand, isDefeated, type CombatantView, type EncounterView } from '@quest-fast/shared';
+import { healthBand, isDefeated, pendingReminders, type CombatantView, type EncounterView } from '@quest-fast/shared';
 import type { Viewer } from '../events/hub.ts';
 import { queueOrder, type LoadedCombatant, type LoadedEncounter } from './state.ts';
 
@@ -29,7 +29,9 @@ function projectCombatant(combatant: LoadedCombatant, master: boolean): Combatan
     healthBand: healthBand(combatant.hpCurrent, combatant.hpMax),
     defeated: defeated(combatant),
     conditions: combatant.conditions,
-    concentrating: combatant.concentrating,
+    concentrating: known && combatant.concentrating,
+    deathSaves: combatant.sheet?.deathSaves ?? null,
+    reminders: known ? pendingReminders(row.reminders, combatant) : [],
   };
 }
 

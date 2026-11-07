@@ -67,6 +67,8 @@ export const hazinDan: CharacterSheet = {
   hitDiceSpent: 1,
   deathSaves: { successes: 0, failures: 0 },
   heroicInspiration: false,
+  conditions: [],
+  concentrating: false,
   avatarUrl: null,
   avatarAssetId: null,
 };

@@ -1,4 +1,4 @@
-import type { DeathSaves } from './sheet.ts';
+import { applyDamage, applyHealing, applyTempHp, type DeathSaves, type HitPoints } from './sheet.ts';
 
 /**
  * Pure combat rules (D&D 2024). The server applies them inside a transaction;
@@ -49,9 +49,19 @@ export function isActiveCondition(value: unknown): value is ActiveCondition {
   if (typeof value !== 'object' || value === null) return false;
   const { condition, level, roundsLeft } = value as Record<string, unknown>;
   if (!isCondition(condition)) return false;
-  if (roundsLeft !== undefined && !isPositiveInteger(roundsLeft)) return false;
+  if (roundsLeft !== undefined && (!isPositiveInteger(roundsLeft) || roundsLeft > COMBAT_LIMITS.conditionRounds.max)) return false;
   if (condition === 'exhaustion') return isPositiveInteger(level) && level <= EXHAUSTION_MAX;
   return level === undefined;
+}
+
+/** A combatant has each condition once: applying it again updates level and duration. */
+export function setCondition(conditions: readonly ActiveCondition[], active: ActiveCondition): ActiveCondition[] {
+  if (!conditions.some(({ condition }) => condition === active.condition)) return [...conditions, active];
+  return conditions.map((current) => (current.condition === active.condition ? active : current));
+}
+
+export function removeCondition(conditions: readonly ActiveCondition[], condition: Condition): ActiveCondition[] {
+  return conditions.filter((current) => current.condition !== condition);
 }
 
 /**
@@ -164,7 +174,123 @@ export function concentrationDc(damage: number): number {
   return Math.min(30, Math.max(10, Math.floor(damage / 2)));
 }
 
+export const HP_OPERATIONS = ['damage', 'heal', 'temp'] as const;
+export type HpOperation = (typeof HP_OPERATIONS)[number];
+
+/** One change of hit points, and whether it crossed 0 in either direction. */
+export function applyHpChange(
+  state: HitPoints,
+  operation: HpOperation,
+  amount: number,
+  hpMax: number,
+): { hitPoints: HitPoints; fell: boolean; rose: boolean } {
+  const hitPoints =
+    operation === 'damage'
+      ? applyDamage(state, amount)
+      : operation === 'heal'
+        ? applyHealing(state, amount, hpMax)
+        : applyTempHp(state, amount);
+  return {
+    hitPoints,
+    fell: state.hpCurrent > 0 && hitPoints.hpCurrent === 0,
+    rose: state.hpCurrent === 0 && hitPoints.hpCurrent > 0,
+  };
+}
+
+/**
+ * Something the table has to resolve; nothing is applied on its own. It lives
+ * on the combatant so it survives a reload and reaches whoever has to roll,
+ * who may not be the one who caused the damage.
+ */
+export type CombatReminder = { id: string } & (
+  | { kind: 'concentration'; dc: number }
+  | { kind: 'deathFailure' }
+);
+
+/** A reminder not yet stored: the server gives it its id. */
+export type ReminderDraft = { kind: 'concentration'; dc: number } | { kind: 'deathFailure' };
+
+/**
+ * What a hit leaves to resolve. Damage soaked by temporary hit points is still
+ * damage. The hit that takes a character down is not a failure yet; only one
+ * taken while already at 0 is.
+ */
+export function damageReminders(input: {
+  amount: number;
+  hpCurrentBefore: number;
+  concentrating: boolean;
+  source: (typeof COMBATANT_SOURCES)[number];
+}): ReminderDraft[] {
+  if (input.amount <= 0) return [];
+  const reminders: ReminderDraft[] = [];
+  if (input.concentrating) reminders.push({ kind: 'concentration', dc: concentrationDc(input.amount) });
+  if (input.source === 'character' && input.hpCurrentBefore === 0) reminders.push({ kind: 'deathFailure' });
+  return reminders;
+}
+
+/**
+ * Drops the reminders that lost their meaning: nobody rolls to keep a
+ * concentration already gone, nor marks a failure on someone back on their
+ * feet — even when that changed on the sheet, outside the combat routes.
+ */
+export function pendingReminders(
+  reminders: readonly CombatReminder[],
+  state: { hpCurrent: number; concentrating: boolean },
+): CombatReminder[] {
+  return reminders.filter((reminder) => (reminder.kind === 'concentration' ? state.concentrating : state.hpCurrent === 0));
+}
+
 const DEATH_SAVES_MAX = 3;
+
+export type DeathSaveStatus = 'pending' | 'stable' | 'dead';
+
+export function deathSaveStatus(saves: DeathSaves): DeathSaveStatus {
+  if (saves.failures >= DEATH_SAVES_MAX) return 'dead';
+  return saves.successes >= DEATH_SAVES_MAX ? 'stable' : 'pending';
+}
+
+/**
+ * Failures from damage taken at 0 hit points. A stable character who is hit
+ * starts the death saves over; one still dying keeps the successes.
+ */
+export function deathSaveFailure(saves: DeathSaves, count: number): DeathSaves {
+  const start = deathSaveStatus(saves) === 'stable' ? { successes: 0, failures: 0 } : saves;
+  return { successes: start.successes, failures: Math.min(DEATH_SAVES_MAX, start.failures + count) };
+}
+
+/** What a sheet shows of a character that combat can change. */
+export type CharacterVitals = {
+  characterId: string | null;
+  hpCurrent: number | null;
+  hpTemp: number | null;
+  conditions: ActiveCondition[];
+  concentrating: boolean;
+  deathSaves: DeathSaves | null;
+};
+
+function sameVitals(a: CharacterVitals, b: CharacterVitals): boolean {
+  return (
+    a.hpCurrent === b.hpCurrent &&
+    a.hpTemp === b.hpTemp &&
+    a.concentrating === b.concentrating &&
+    JSON.stringify(a.conditions) === JSON.stringify(b.conditions) &&
+    JSON.stringify(a.deathSaves) === JSON.stringify(b.deathSaves)
+  );
+}
+
+/**
+ * The characters whose sheet is out of date after an encounter update. With
+ * no earlier state to compare, any of them may have changed.
+ */
+export function changedCharacters(before: readonly CharacterVitals[] | undefined, after: readonly CharacterVitals[]): string[] {
+  const ids: string[] = [];
+  for (const vitals of after) {
+    if (!vitals.characterId) continue;
+    const known = before?.find((candidate) => candidate.characterId === vitals.characterId);
+    if (!known || !sameVitals(known, vitals)) ids.push(vitals.characterId);
+  }
+  return ids;
+}
 
 export type DeathSaveOutcome = {
   saves: DeathSaves;
@@ -261,6 +387,13 @@ export const ENCOUNTER_LIMITS = {
   copies: 20,
   combatants: 60,
   initiative: { min: -10, max: 50 },
+} as const;
+
+/** Bounds of what happens during a fight, shared by the server and the controls. */
+export const COMBAT_LIMITS = {
+  /** One change of hit points. */
+  hpAmount: { min: 1, max: 999 },
+  conditionRounds: { min: 1, max: 100 },
 } as const;
 
 /** Challenge ratings of the 5e scale, as written in a statblock. */

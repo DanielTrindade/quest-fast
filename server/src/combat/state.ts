@@ -24,6 +24,7 @@ type SheetColumns = Pick<
   | 'ac'
   | 'conditions'
   | 'concentrating'
+  | 'deathSaves'
   | 'abilityScores'
   | 'initiativeBonus'
 >;
@@ -57,6 +58,7 @@ const sheetColumns = {
   ac: characters.ac,
   conditions: characters.conditions,
   concentrating: characters.concentrating,
+  deathSaves: characters.deathSaves,
   abilityScores: characters.abilityScores,
   initiativeBonus: characters.initiativeBonus,
 };
