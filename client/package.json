@@ -10,6 +10,7 @@
     "lint": "eslint . && node ../scripts/check-design-tokens.mjs",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
+    "test": "node --import ./test/resolve-ts.mjs --test \"test/**/*.test.ts\"",
     "test:tokens": "node --test eslint-rules/no-raw-color.test.js"
   },
   "dependencies": {

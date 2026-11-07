@@ -38,6 +38,19 @@ function updatedSince(queryClient: QueryClient, campaignId: string, encounterId:
   return updatedAt > since ? knownEncounter(queryClient, campaignId, encounterId) : undefined;
 }
 
+/**
+ * A character's hit points and conditions live on the sheet, so a sheet open
+ * elsewhere asks for its new state. Runs wherever an encounter enters the
+ * cache: what got there first is what the next arrival is compared with.
+ */
+function refreshChangedSheets(queryClient: QueryClient, campaignId: string, known: EncounterView | undefined, encounter: EncounterView): void {
+  const changed = changedCharacters(known?.combatants, encounter.combatants);
+  for (const characterId of changed) {
+    void queryClient.invalidateQueries({ queryKey: ['character', campaignId, characterId] });
+  }
+  if (changed.length > 0) void queryClient.invalidateQueries({ queryKey: ['characters', campaignId] });
+}
+
 function listItem(item: EncounterListItem, encounter: EncounterView): EncounterListItem {
   return {
     ...item,
@@ -98,7 +111,9 @@ export const encounterQuery = (campaignId: string, encounterId: string) => ({
       throw error;
     }
     const known = knownEncounter(client, campaignId, encounterId);
-    return known && known.version > fresh.encounter.version ? { encounter: known } : fresh;
+    if (known && known.version > fresh.encounter.version) return { encounter: known };
+    refreshChangedSheets(client, campaignId, known, fresh.encounter);
+    return fresh;
   },
   retry: (attempts: number, error: unknown) => !isMissingEncounter(error) && attempts < 2,
 });
@@ -107,19 +122,13 @@ export const encounterQuery = (campaignId: string, encounterId: string) => ({
  * Takes an encounter from the socket or from a mutation's answer. Messages can
  * cross on the wire, so one older than the `version` already held is dropped
  * whole, from the detail and from the list: the screen never steps back to a
- * turn that has passed. A character's hit points and conditions live on the
- * sheet, so a sheet open elsewhere asks for its new state.
+ * turn that has passed.
  */
 export function mergeEncounter(queryClient: QueryClient, campaignId: string, encounter: EncounterView): void {
   const known = knownEncounter(queryClient, campaignId, encounter.id);
   if (isDeletedEncounter(encounter.id) || (known && known.version > encounter.version)) return;
   queryClient.setQueryData<EncounterResponse>(encounterKey(campaignId, encounter.id), { encounter });
-
-  const changed = changedCharacters(known?.combatants, encounter.combatants);
-  for (const characterId of changed) {
-    void queryClient.invalidateQueries({ queryKey: ['character', campaignId, characterId] });
-  }
-  if (changed.length > 0) void queryClient.invalidateQueries({ queryKey: ['characters', campaignId] });
+  refreshChangedSheets(queryClient, campaignId, known, encounter);
 
   const list = queryClient.getQueryData<EncounterListResponse>(['encounters', campaignId]);
   if (!list?.encounters.some((item) => item.id === encounter.id)) {
