@@ -1,5 +1,5 @@
 import { useId, useState } from 'react';
-import { Plus, ArrowUpRight, Users } from '@phosphor-icons/react';
+import { Plus, ArrowUpRight, CalendarBlank, Users } from '@phosphor-icons/react';
 import { AppShell } from '../components/AppShell';
 import { Avatar } from '../components/Avatar';
 import { Badge } from '../components/Badge';
@@ -30,6 +30,7 @@ export function Campaign({ role = 'master', loading = false, empty = false }: {
   const [toast, setToast] = useState(false);
   const [invite, setInvite] = useState(false);
   const [removing, setRemoving] = useState<string>();
+  const [collapsed, setCollapsed] = useState(false);
   const master = role === 'master';
   const selected = campaigns.find(item => item.id === campaign)!;
   function changeCampaign(value: string) {
@@ -37,9 +38,10 @@ export function Campaign({ role = 'master', loading = false, empty = false }: {
   }
   const inviteContent = <CopyField value={campaign === 'phandalin' ? 'MESA42' : 'NEVOA7'} />;
   return <ToastProvider>
-    <AppShell campaigns={campaigns} campaignId={campaign} onCampaignChange={changeCampaign}
-      navigation={[{ id: 'members', label: 'Membros', href: `#${id}-members` }, { id: 'session', label: 'Próxima sessão', href: `#${id}-session` }]}
-      activeItem="members" user={<><Avatar name={master ? 'Lia Martins' : 'Rafael Costa'} /><span className="campaign-user">{master ? 'Lia' : 'Rafael'}</span></>}>
+    <AppShell campaigns={campaigns.map(item => ({ ...item, role }))} campaignId={campaign} onCampaignChange={changeCampaign}
+      navigation={[{ id: 'members', label: 'Membros', href: `#${id}-members`, icon: Users }, { id: 'session', label: 'Próxima sessão', shortLabel: 'Sessão', href: `#${id}-session`, icon: CalendarBlank }]}
+      activeItem="members" account={{ name: master ? 'Lia Martins' : 'Rafael Costa', avatarUrl: null, onSignOut: () => {} }}
+      collapsed={collapsed} onCollapsedChange={setCollapsed}>
       <header className="campaign-heading">
         <div><p className="campaign-eyebrow">Sua mesa · D&D 5e</p><h1>{selected.name}</h1>
           <p className="campaign-description">A próxima aventura começa com a mesa reunida.</p></div>
