@@ -88,6 +88,9 @@ export function useCampaignSocket(campaignId: string): SocketStatus {
         // Combat updates missed while offline are not replayed either.
         queryClient.invalidateQueries({ queryKey: ['encounters', campaignId] });
         queryClient.invalidateQueries({ queryKey: ['encounter', campaignId] });
+        // A fight changes the sheets too, and those changes were missed with it.
+        queryClient.invalidateQueries({ queryKey: ['characters', campaignId] });
+        queryClient.invalidateQueries({ queryKey: ['character', campaignId] });
       },
       onMessage: (message) => {
         if (message.type === 'combat.updated') mergeEncounter(queryClient, campaignId, message.encounter);
