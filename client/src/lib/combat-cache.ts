@@ -1,5 +1,5 @@
 import type { QueryClient } from '@tanstack/react-query';
-import type { EncounterListItem, EncounterListResponse, EncounterResponse, EncounterView } from '@quest-fast/shared';
+import { changedCharacters, type EncounterListItem, type EncounterListResponse, type EncounterResponse, type EncounterView } from '@quest-fast/shared';
 import { ApiError, api } from './api';
 
 const encounterKey = (campaignId: string, encounterId: string) => ['encounter', campaignId, encounterId] as const;
@@ -107,12 +107,19 @@ export const encounterQuery = (campaignId: string, encounterId: string) => ({
  * Takes an encounter from the socket or from a mutation's answer. Messages can
  * cross on the wire, so one older than the `version` already held is dropped
  * whole, from the detail and from the list: the screen never steps back to a
- * turn that has passed.
+ * turn that has passed. A character's hit points and conditions live on the
+ * sheet, so a sheet open elsewhere asks for its new state.
  */
 export function mergeEncounter(queryClient: QueryClient, campaignId: string, encounter: EncounterView): void {
   const known = knownEncounter(queryClient, campaignId, encounter.id);
   if (isDeletedEncounter(encounter.id) || (known && known.version > encounter.version)) return;
   queryClient.setQueryData<EncounterResponse>(encounterKey(campaignId, encounter.id), { encounter });
+
+  const changed = changedCharacters(known?.combatants, encounter.combatants);
+  for (const characterId of changed) {
+    void queryClient.invalidateQueries({ queryKey: ['character', campaignId, characterId] });
+  }
+  if (changed.length > 0) void queryClient.invalidateQueries({ queryKey: ['characters', campaignId] });
 
   const list = queryClient.getQueryData<EncounterListResponse>(['encounters', campaignId]);
   if (!list?.encounters.some((item) => item.id === encounter.id)) {

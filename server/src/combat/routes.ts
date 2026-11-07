@@ -223,6 +223,7 @@ function addCombatants(mutation: Mutation, body: Record<string, unknown>) {
           concentrating: false,
           dexModifier: abilityModifier(statblock.abilityScores.dexterity) ?? 0,
           initiativeBonus: statblock.initiativeBonus,
+          constitutionModifier: abilityModifier(statblock.abilityScores.constitution) ?? 0,
           attacks: statblock.attacks,
           hidden,
         })

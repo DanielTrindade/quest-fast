@@ -12,6 +12,7 @@ import {
   type ArmorTraining,
   type Attack,
   type Coins,
+  type CombatReminder,
   type DeathSaves,
   type HitDie,
   type Skill,
@@ -329,6 +330,12 @@ export const combatants = sqliteTable(
     tieOrder: integer('tie_order').notNull().default(0),
     hidden: integer('hidden', { mode: 'boolean' }).notNull().default(false),
     attacks: text('attacks', { mode: 'json' }).$type<Attack[]>().notNull().default([]),
+    /** Saved to keep concentration; a character's comes from the sheet. */
+    constitutionModifier: integer('constitution_modifier').notNull().default(0),
+    /** What is left for the table to resolve. Belongs to this fight, so it stays here even for a character. */
+    reminders: text('reminders', { mode: 'json' }).$type<CombatReminder[]>().notNull().default([]),
+    /** The round of the last death save rolled: a player rolls once per turn. */
+    deathSaveRound: integer('death_save_round'),
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(now),
   },
   (table) => [
