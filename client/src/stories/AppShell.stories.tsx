@@ -49,11 +49,16 @@ export const RecolherEExpandir: Story = {
     // Narrow containers have the tab bar instead of the sidebar.
     const toggle = canvas.queryByRole('button', { name: 'Recolher menu' });
     if (!toggle) return;
-    await userEvent.click(toggle);
-    await expect(canvas.getByRole('button', { name: 'Expandir menu' })).toHaveAttribute('aria-expanded', 'false');
+    toggle.focus();
+    await userEvent.keyboard('{Enter}');
+    const expand = canvas.getByRole('button', { name: 'Expandir menu' });
+    await expect(expand).toHaveAttribute('aria-expanded', 'false');
+    await expect(expand).toHaveFocus();
     await expect(canvas.getAllByRole('link', { name: 'Personagens' })[0]).toBeInTheDocument();
-    await userEvent.click(canvas.getByRole('button', { name: 'Expandir menu' }));
-    await expect(canvas.getByRole('button', { name: 'Recolher menu' })).toHaveAttribute('aria-expanded', 'true');
+    await userEvent.keyboard('{Enter}');
+    const collapse = canvas.getByRole('button', { name: 'Recolher menu' });
+    await expect(collapse).toHaveAttribute('aria-expanded', 'true');
+    await expect(collapse).toHaveFocus();
   },
 };
 

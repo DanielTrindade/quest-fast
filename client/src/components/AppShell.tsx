@@ -43,13 +43,13 @@ export function AppShell({
       <a className="qf-skip-link" href={`#${id}-content`}>Ir para o conteúdo</a>
       <div className="qf-shell__frame" data-collapsed={collapsed || undefined}>
         <aside id={`${id}-sidebar`} className="qf-shell__sidebar" aria-label="Menu da campanha">
-          {collapsed
-            ? <Tooltip label="Trocar campanha"><span className="qf-shell__slot"><CampaignSwitcher {...switcher} compact /></span></Tooltip>
-            : <CampaignSwitcher {...switcher} />}
+          <Tooltip label="Trocar campanha" disabled={!collapsed}>
+            <span className="qf-shell__slot"><CampaignSwitcher {...switcher} compact={collapsed} /></span>
+          </Tooltip>
           <SectionNav items={navigation} activeItem={activeItem} ariaLabel="Navegação da campanha" collapsed={collapsed} />
           <div className="qf-shell__sidebar-footer">
             <AccountMenu {...account} compact={collapsed} side={collapsed ? 'right' : 'top'} />
-            {collapsed ? <Tooltip label={<>{collapseLabel} <kbd>Ctrl B</kbd></>}>{collapseButton}</Tooltip> : collapseButton}
+            <Tooltip label={<>{collapseLabel} <kbd>Ctrl B</kbd></>} disabled={!collapsed}>{collapseButton}</Tooltip>
           </div>
         </aside>
         <header className="qf-shell__topbar">

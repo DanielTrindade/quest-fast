@@ -28,13 +28,13 @@ function NavLink({ item, active, variant, collapsed }: {
   const Glyph = item.icon;
   const label = variant === 'bar' ? item.shortLabel ?? item.label : item.label;
   // The items are sections of one page, so "location", not "page".
-  const link = <a href={item.href} className="qf-section-nav__item" aria-current={active ? 'location' : undefined}>
+  const name = item.badge ? `${item.label}, ${item.badge}` : undefined;
+  const link = <a href={item.href} className="qf-section-nav__item" aria-current={active ? 'location' : undefined} aria-label={name}>
     {Glyph && <Glyph size={20} aria-hidden="true" weight={active ? 'fill' : 'regular'} />}
     <span className="qf-section-nav__label">{label}</span>
-    {item.badge && <span className="qf-section-nav__badge"><span className="sr-only">, </span>{item.badge}</span>}
+    {item.badge && <span className="qf-section-nav__badge">{item.badge}</span>}
   </a>;
-  if (!collapsed) return link;
-  return <Tooltip label={item.badge ? `${item.label}, ${item.badge}` : item.label}>{link}</Tooltip>;
+  return <Tooltip label={name ?? item.label} disabled={!collapsed}>{link}</Tooltip>;
 }
 
 /**

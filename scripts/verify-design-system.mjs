@@ -108,6 +108,22 @@ try {
       const controls = await page.locator('button, select, summary').evaluateAll(elements => elements.filter(el => el.getClientRects().length).map(el => ({ label: el.textContent, height: el.getBoundingClientRect().height })));
       expect(controls.filter(control => control.height < 44)).toEqual([]);
     }
+    // Side by side, each theme frame is narrower than the sidebar breakpoint,
+    // so the desktop sidebar is only exercised with one theme at a time.
+    for (const theme of ['dark', 'light']) {
+      await page.setViewportSize({ width: 1280, height: 900 });
+      await visit('componentes-appshell--combate-em-andamento', theme);
+      expect((await audit()).violations).toEqual([]);
+      await page.getByRole('button', { name: 'Recolher menu' }).focus();
+      await page.keyboard.press('Enter');
+      await expect(page.getByRole('button', { name: 'Expandir menu' })).toBeFocused();
+      await expect(page.getByRole('link', { name: 'Combate, Rodada 3' })).toBeVisible();
+      expect((await audit()).violations).toEqual([]);
+      await page.screenshot({ path: resolve(output, `shell-${theme}-collapsed.png`) });
+      await page.keyboard.press('Enter');
+      await expect(page.getByRole('button', { name: 'Recolher menu' })).toBeFocused();
+      await page.screenshot({ path: resolve(output, `shell-${theme}-expanded.png`) });
+    }
     // System preference and reduced motion, including runtime changes.
     for (const theme of ['dark', 'light']) {
       await page.emulateMedia({ colorScheme: theme, reducedMotion: 'reduce' });
