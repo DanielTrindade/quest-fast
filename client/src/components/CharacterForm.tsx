@@ -133,7 +133,7 @@ const ATTUNED_SLOTS = ['attuned-1', 'attuned-2', 'attuned-3'] as const;
  */
 type SheetDraft = Omit<
   CharacterSheet,
-  'id' | 'campaignId' | 'ownerId' | 'ownerName' | 'hpCurrent' | 'hpTemp' | 'hitDiceSpent' | 'deathSaves' | 'heroicInspiration' | 'avatarUrl' | 'attacks'
+  'id' | 'campaignId' | 'ownerId' | 'ownerName' | 'hpCurrent' | 'hpTemp' | 'hitDiceSpent' | 'deathSaves' | 'heroicInspiration' | 'conditions' | 'concentrating' | 'avatarUrl' | 'attacks'
 > & { attacks: ImportedAttack[] };
 
 function draftFromImport({ spellSlotTotals, ...imported }: ImportedSheet): SheetDraft {

@@ -270,6 +270,80 @@ test('a player sees allies in full, monsters only by health band, and no hidden 
   assert.equal(list.encounters[0]!.combatantCount, 4);
 });
 
+test('a player never learns whether a monster is concentrating, nor what a monster has left to roll', async () => {
+  const s = await setup();
+  const { path, id } = await runningEncounter(s);
+  const reminders = [{ id: 'r1', kind: 'concentration' as const, dc: 17 }];
+  s.app.db.update(combatants).set({ concentrating: true, reminders }).where(eq(combatants.id, id('Goblin 2'))).run();
+
+  const master = byName(await encounterOf(await s.master(path)), 'Goblin 2');
+  assert.equal(master.concentrating, true);
+  assert.deepEqual(master.reminders, reminders);
+
+  const view = await encounterOf(await s.player(path));
+  const goblin = byName(view, 'Goblin 2');
+  assert.equal(goblin.concentrating, false);
+  assert.deepEqual(goblin.reminders, []);
+  assert.equal(goblin.deathSaves, null);
+  assert.equal(JSON.stringify(view).includes('r1'), false);
+});
+
+test("the table sees an ally's concentration, death saves and reminders", async () => {
+  const s = await setup();
+  const { path, id } = await runningEncounter(s);
+  const reminders = [
+    { id: 'r1', kind: 'concentration' as const, dc: 12 },
+    { id: 'r2', kind: 'deathFailure' as const },
+  ];
+  s.app.db
+    .update(characters)
+    .set({ concentrating: true, hpCurrent: 0, deathSaves: { successes: 1, failures: 2 } })
+    .where(eq(characters.id, s.mira.id))
+    .run();
+  s.app.db.update(combatants).set({ reminders }).where(eq(combatants.id, id('Mira'))).run();
+
+  const mira = byName(await encounterOf(await s.player(path)), 'Mira');
+  assert.equal(mira.concentrating, true);
+  assert.deepEqual(mira.deathSaves, { successes: 1, failures: 2 });
+  assert.deepEqual(mira.reminders, reminders);
+});
+
+test('a reminder that lost its meaning on the sheet is no longer shown', async () => {
+  const s = await setup();
+  const { path, id } = await runningEncounter(s);
+  const reminders = [
+    { id: 'r1', kind: 'concentration' as const, dc: 12 },
+    { id: 'r2', kind: 'deathFailure' as const },
+  ];
+  s.app.db.update(characters).set({ concentrating: true, hpCurrent: 0 }).where(eq(characters.id, s.kaelen.id)).run();
+  s.app.db.update(combatants).set({ reminders }).where(eq(combatants.id, id('Kaelen'))).run();
+
+  // Back on their feet through the sheet, outside the combat routes.
+  await send(s.player, `${s.root}/characters/${s.kaelen.id}/state`, 'PATCH', { hpCurrent: 5 });
+  const kaelen = byName(await encounterOf(await s.master(path)), 'Kaelen');
+  assert.deepEqual(kaelen.reminders, [reminders[0]]);
+});
+
+test('a bestiary copy keeps the Constitution modifier for its concentration saves', async () => {
+  const s = await setup();
+  const ogre = (
+    await body<StatblockResponse>(
+      await send(s.master, `${s.root}/statblocks`, 'POST', {
+        ...GOBLIN,
+        name: 'Ogro',
+        abilityScores: { ...GOBLIN.abilityScores, constitution: 16 },
+      }),
+    )
+  ).statblock;
+  const encounter = await createEncounter(s);
+  const path = `${s.base}/${encounter.id}`;
+  const view = await encounterOf(await send(s.master, `${path}/combatants`, 'POST', { source: 'statblock', statblockId: ogre.id, count: 1, hp: 'average' }), 201);
+  // Survives the entry being deleted from the bestiary.
+  await send(s.master, `${s.root}/statblocks/${ogre.id}`, 'DELETE');
+  const row = s.app.db.select().from(combatants).where(eq(combatants.id, byName(view, 'Ogro').id)).get();
+  assert.equal(row?.constitutionModifier, 3);
+});
+
 test("a hidden combatant's turn reaches the player as someone else's turn", async () => {
   const s = await setup();
   const { encounter, path, id } = await runningEncounter(s);

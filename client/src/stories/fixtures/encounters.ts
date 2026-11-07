@@ -21,6 +21,8 @@ const base = {
   defeated: false,
   conditions: [],
   concentrating: false,
+  deathSaves: null,
+  reminders: [],
 } satisfies Partial<CombatantView>;
 
 function monster(id: string, name: string, initiative: number | null, hpCurrent: number, hpMax: number, band: HealthBand, extra: Partial<CombatantView> = {}): CombatantView {
@@ -55,6 +57,7 @@ const hazin: CombatantView = {
   hpCurrent: 38,
   hpTemp: 5,
   healthBand: 'wounded',
+  deathSaves: { successes: 0, failures: 0 },
 };
 
 const lyra: CombatantView = {
@@ -73,6 +76,7 @@ const lyra: CombatantView = {
   healthBand: 'unhurt',
   conditions: [{ condition: 'frightened', roundsLeft: 2 }],
   concentrating: true,
+  deathSaves: { successes: 0, failures: 0 },
 };
 
 export const masterCombatants: CombatantView[] = [

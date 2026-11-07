@@ -61,6 +61,22 @@ test('a sheet stored before combat starts with no conditions and no concentratio
   sqlite.close();
 });
 
+test('a combatant stored before reminders starts with nothing left to resolve', () => {
+  const sqlite = new Database(':memory:');
+  apply(sqlite, FILES.slice(0, -1));
+  sqlite.exec(`
+    INSERT INTO campaigns (id, name, invite_code) VALUES ('c1', 'Ecos de Phandalin', 'ABC123');
+    INSERT INTO encounters (id, campaign_id, name) VALUES ('e1', 'c1', 'Emboscada');
+    INSERT INTO combatants (id, encounter_id, source, name, ac, hp_max, hp_current) VALUES ('m1', 'e1', 'manual', 'Troll', 15, 84, 84);
+  `);
+
+  apply(sqlite, FILES.slice(-1));
+
+  const row = sqlite.prepare('SELECT reminders, death_save_round, constitution_modifier FROM combatants').get();
+  assert.deepEqual(row, { reminders: '[]', death_save_round: null, constitution_modifier: 0 });
+  sqlite.close();
+});
+
 test('a campaign holds at most one active encounter, and any number in preparation', () => {
   const sqlite = migrated();
   insertEncounter(sqlite, 'e1', 'preparing');

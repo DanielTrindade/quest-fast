@@ -178,6 +178,11 @@ export function applyHealing(state: HitPoints, amount: number, hpMax: number): H
   return { hpTemp: state.hpTemp, hpCurrent: Math.min(hpMax, state.hpCurrent + healing) };
 }
 
+/** Temporary hit points do not stack: the higher value stays. */
+export function applyTempHp(state: HitPoints, amount: number): HitPoints {
+  return { hpCurrent: state.hpCurrent, hpTemp: Math.max(state.hpTemp, Math.floor(amount)) };
+}
+
 export type SessionState = {
   hpCurrent: number;
   hitDiceSpent: number;

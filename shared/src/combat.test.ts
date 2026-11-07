@@ -1,10 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  COMBAT_LIMITS,
   CONDITIONS,
+  applyHpChange,
+  changedCharacters,
   concentrationDc,
   copyNumber,
+  damageReminders,
+  deathSaveFailure,
   deathSaveOutcome,
+  deathSaveStatus,
   hasPreviousTurn,
   healthBand,
   isActiveCondition,
@@ -12,13 +18,144 @@ import {
   isDefeated,
   nextTurn,
   numberCopies,
+  pendingReminders,
   placeCopies,
   previousTurn,
+  removeCondition,
+  setCondition,
   sortInitiative,
   tickConditions,
   turnQueue,
   type ActiveCondition,
+  type CharacterVitals,
+  type CombatReminder,
 } from './combat.ts';
+
+test('damage goes through temporary hit points and reports a fall to 0', () => {
+  const standing = { hpCurrent: 5, hpTemp: 2 };
+  assert.deepEqual(applyHpChange(standing, 'damage', 3, 10), { hitPoints: { hpCurrent: 4, hpTemp: 0 }, fell: false, rose: false });
+  assert.deepEqual(applyHpChange(standing, 'damage', 7, 10), { hitPoints: { hpCurrent: 0, hpTemp: 0 }, fell: true, rose: false });
+});
+
+test('damage on someone already at 0 is no new fall', () => {
+  assert.equal(applyHpChange({ hpCurrent: 0, hpTemp: 0 }, 'damage', 4, 10).fell, false);
+});
+
+test('healing stops at the maximum and reports coming back from 0', () => {
+  assert.deepEqual(applyHpChange({ hpCurrent: 0, hpTemp: 1 }, 'heal', 4, 10), { hitPoints: { hpCurrent: 4, hpTemp: 1 }, fell: false, rose: true });
+  assert.deepEqual(applyHpChange({ hpCurrent: 9, hpTemp: 0 }, 'heal', 4, 10), { hitPoints: { hpCurrent: 10, hpTemp: 0 }, fell: false, rose: false });
+});
+
+test('temporary hit points keep the highest value and do not stack', () => {
+  assert.equal(applyHpChange({ hpCurrent: 5, hpTemp: 3 }, 'temp', 5, 10).hitPoints.hpTemp, 5);
+  assert.equal(applyHpChange({ hpCurrent: 5, hpTemp: 8 }, 'temp', 5, 10).hitPoints.hpTemp, 8);
+});
+
+test('damage to someone concentrating asks for a save with the DC of that damage', () => {
+  const base = { hpCurrentBefore: 20, concentrating: true, source: 'character' as const };
+  assert.deepEqual(damageReminders({ ...base, amount: 8 }), [{ kind: 'concentration', dc: 10 }]);
+  assert.deepEqual(damageReminders({ ...base, amount: 40 }), [{ kind: 'concentration', dc: 20 }]);
+  assert.deepEqual(damageReminders({ ...base, concentrating: false, amount: 8 }), []);
+});
+
+test('a monster also has to keep its concentration', () => {
+  assert.deepEqual(damageReminders({ amount: 12, hpCurrentBefore: 30, concentrating: true, source: 'statblock' }), [{ kind: 'concentration', dc: 10 }]);
+});
+
+test('damage to a character already down asks for a death save failure, and only to a character', () => {
+  assert.deepEqual(damageReminders({ amount: 3, hpCurrentBefore: 0, concentrating: false, source: 'character' }), [{ kind: 'deathFailure' }]);
+  assert.deepEqual(damageReminders({ amount: 3, hpCurrentBefore: 0, concentrating: false, source: 'manual' }), []);
+  // The hit that takes a character down is not a failure yet.
+  assert.deepEqual(damageReminders({ amount: 30, hpCurrentBefore: 5, concentrating: false, source: 'character' }), []);
+});
+
+test('no damage leaves no reminder', () => {
+  assert.deepEqual(damageReminders({ amount: 0, hpCurrentBefore: 0, concentrating: true, source: 'character' }), []);
+});
+
+test('a reminder that lost its meaning is no longer pending', () => {
+  const reminders: CombatReminder[] = [
+    { id: 'c', kind: 'concentration', dc: 12 },
+    { id: 'd', kind: 'deathFailure' },
+  ];
+  assert.deepEqual(pendingReminders(reminders, { hpCurrent: 0, concentrating: true }), reminders);
+  assert.deepEqual(pendingReminders(reminders, { hpCurrent: 5, concentrating: true }), [reminders[0]]);
+  assert.deepEqual(pendingReminders(reminders, { hpCurrent: 0, concentrating: false }), [reminders[1]]);
+  assert.deepEqual(pendingReminders(reminders, { hpCurrent: 5, concentrating: false }), []);
+});
+
+test('a death save failure adds up and keeps the successes while still dying', () => {
+  assert.deepEqual(deathSaveFailure({ successes: 1, failures: 0 }, 1), { successes: 1, failures: 1 });
+  assert.deepEqual(deathSaveFailure({ successes: 1, failures: 1 }, 2), { successes: 1, failures: 3 });
+  assert.deepEqual(deathSaveFailure({ successes: 0, failures: 2 }, 2), { successes: 0, failures: 3 });
+});
+
+test('damage to a stable character starts the death saves over', () => {
+  assert.deepEqual(deathSaveFailure({ successes: 3, failures: 2 }, 1), { successes: 0, failures: 1 });
+});
+
+test('the death saves tell whether the character is dying, stable or dead', () => {
+  assert.equal(deathSaveStatus({ successes: 2, failures: 2 }), 'pending');
+  assert.equal(deathSaveStatus({ successes: 3, failures: 1 }), 'stable');
+  assert.equal(deathSaveStatus({ successes: 1, failures: 3 }), 'dead');
+});
+
+test('a condition appears once: applying it again updates level and duration', () => {
+  const first = setCondition([], { condition: 'exhaustion', level: 1 });
+  assert.deepEqual(first, [{ condition: 'exhaustion', level: 1 }]);
+  const poisoned = setCondition(first, { condition: 'poisoned', roundsLeft: 2 });
+  assert.deepEqual(setCondition(poisoned, { condition: 'exhaustion', level: 2 }), [
+    { condition: 'exhaustion', level: 2 },
+    { condition: 'poisoned', roundsLeft: 2 },
+  ]);
+});
+
+test('removing a condition keeps the others, and a missing one changes nothing', () => {
+  const conditions: ActiveCondition[] = [{ condition: 'prone' }, { condition: 'poisoned' }];
+  assert.deepEqual(removeCondition(conditions, 'prone'), [{ condition: 'poisoned' }]);
+  assert.deepEqual(removeCondition(conditions, 'stunned'), conditions);
+});
+
+test('a duration has a ceiling', () => {
+  const { max } = COMBAT_LIMITS.conditionRounds;
+  assert.equal(isActiveCondition({ condition: 'prone', roundsLeft: max }), true);
+  assert.equal(isActiveCondition({ condition: 'prone', roundsLeft: max + 1 }), false);
+});
+
+function vitals(characterId: string | null, changes: Partial<CharacterVitals> = {}): CharacterVitals {
+  return {
+    characterId,
+    hpCurrent: 10,
+    hpTemp: 0,
+    conditions: [],
+    concentrating: false,
+    deathSaves: { successes: 0, failures: 0 },
+    ...changes,
+  };
+}
+
+test('only the characters whose sheet changed are reported', () => {
+  const before = [vitals('a'), vitals('b'), vitals(null)];
+  assert.deepEqual(changedCharacters(before, before), []);
+  assert.deepEqual(changedCharacters(before, [vitals('a', { hpCurrent: 3 }), vitals('b'), vitals(null, { hpCurrent: 1 })]), ['a']);
+});
+
+test('each part of the sheet that combat shows counts as a change', () => {
+  const before = [vitals('a')];
+  for (const changes of [
+    { hpTemp: 2 },
+    { conditions: [{ condition: 'prone' as const }] },
+    { concentrating: true },
+    { deathSaves: { successes: 1, failures: 0 } },
+  ]) {
+    assert.deepEqual(changedCharacters(before, [vitals('a', changes)]), ['a']);
+  }
+});
+
+test('with nothing known yet, every character may have changed', () => {
+  assert.deepEqual(changedCharacters(undefined, [vitals('a'), vitals(null), vitals('b')]), ['a', 'b']);
+  assert.deepEqual(changedCharacters([], [vitals('a')]), ['a']);
+});
 
 test('the fifteen 2024 conditions are recognized', () => {
   assert.equal(CONDITIONS.length, 15);
