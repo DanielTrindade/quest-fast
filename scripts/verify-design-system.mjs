@@ -99,10 +99,10 @@ try {
       await visit('campanha--mestre', theme);
       await page.screenshot({ path: resolve(output, `campaign-${theme}-desktop.png`), fullPage: true });
       await page.setViewportSize({ width: 390, height: 844 });
-      await page.getByText('Navegação da campanha', { exact: true }).click();
-      await expect(page.getByRole('link', { name: 'Membros', exact: true })).toBeVisible();
+      await expect(page.getByRole('navigation', { name: 'Navegação da campanha' }).getByRole('link', { name: 'Membros', exact: true })).toBeVisible();
       await page.screenshot({ path: resolve(output, `campaign-${theme}-mobile.png`), fullPage: true });
-      await page.getByRole('combobox', { name: 'Campanha' }).selectOption('barovia');
+      await page.getByRole('button', { name: /Campanha: Ecos de Phandalin/ }).click();
+      await page.getByRole('menuitemradio', { name: /A névoa de Baróvia/ }).click();
       await expect(page.getByRole('heading', { name: 'A névoa de Baróvia' })).toBeVisible();
       await expect(page.getByText('1 na mesa')).toBeVisible();
       const controls = await page.locator('button, select, summary').evaluateAll(elements => elements.filter(el => el.getClientRects().length).map(el => ({ label: el.textContent, height: el.getBoundingClientRect().height })));

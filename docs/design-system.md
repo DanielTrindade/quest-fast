@@ -32,7 +32,7 @@ Para auditar um Storybook já aberto, defina `STORYBOOK_URL` e execute `node scr
 - `Dialog`: título e descrição obrigatórios, foco modal e retorno ao gatilho; composição shadcn/ui sobre Radix.
 - `ToastProvider` e `Toast`: notificações de sucesso, erro e informação, com fechamento manual e pausa do tempo ao interagir. Sucesso e erro tingem o toast inteiro (tokens `success-surface` e `danger-surface`, borda no tom do estado), não só o ícone, para o resultado ser lido de relance.
 - `CopyField`: usa o clipboard do navegador, confirma a cópia e orienta a seleção manual quando ela falha.
-- `AppShell`: cabeçalho, seletor de campanha, navegação desktop e navegação recolhível em telas estreitas. Os callbacks e destinos de navegação são fornecidos pelo consumidor.
+- `AppShell`: menu lateral recolhível com seletor de campanha, navegação por seção e conta; no celular, barra superior e barra de seções embaixo (veja "Menu lateral recolhível"). Os callbacks e destinos de navegação são fornecidos pelo consumidor.
 - `DiceResult`: apresenta total, decomposição, dados descartados e naturais recebidos. Não rola dados nem calcula regras 5e.
 
 ## Tokens e temas
@@ -157,3 +157,15 @@ Registro: [`history/2026-10-22-combat-and-bestiary.md`](history/2026-10-22-comba
 - **`EncounterSetup`**: origem em segmentado (Personagem, Bestiário, Manual); quantidade e PV médio ou rolado para criatura do bestiário (rolado desabilitado sem fórmula); "Entra escondido dos jogadores". Valida por campo e leva o foco ao primeiro inválido. O mesmo formulário serve para reforço.
 - **`EncounterList`**: encontros do mais novo ao mais antigo, linha inteira clicável, o ativo destacado; o mestre cria pelo nome.
 
+
+## Menu lateral recolhível (6 de novembro de 2026)
+
+O shell da campanha trocou o cabeçalho com select nativo e a coluna de links por um menu lateral com ícones, que recolhe para um trilho de 64 px. Sem token novo; dependências novas: `@radix-ui/react-dropdown-menu` e `@radix-ui/react-tooltip`.
+
+- **`AppShell`** é controlado: recebe `collapsed` e `onCollapsedChange`, e a tela guarda a escolha no navegador (`useStoredFlag`, que tolera armazenamento bloqueado). Recolhe pelo botão do rodapé do menu ou por Ctrl+B (Cmd+B no Mac). O botão expõe `aria-expanded`, `aria-controls` e `aria-keyshortcuts`. Abaixo de 760 px de contêiner não há menu lateral: uma barra fina no topo traz campanha e conta, e as seções vão para a barra inferior, ao alcance do polegar.
+- **`CampaignSwitcher`** substitui o select: marca com as iniciais da campanha (preenchida no tom de ação quando é a atual), nome e papel. Abre um menu Radix com as campanhas como opções exclusivas e "Ver todas as campanhas". O nome acessível do gatilho começa com "Campanha:".
+- **`AccountMenu`** reúne avatar, nome e Sair num menu. A lista de campanhas (`AccountBar`) usa o mesmo menu na versão compacta.
+- **`SectionNav`** aceita `icon`, `group`, `badge` e `shortLabel` em cada item. Itens seguidos do mesmo grupo ficam sob um título ("Mesa", "Administração"), que vira um filete quando o menu recolhe. Recolhido, o rótulo sai da tela mas continua no nome acessível, e uma dica (`Tooltip`) mostra o nome ao passar o mouse ou focar. A variante `bar` é a barra inferior do celular e usa `shortLabel`.
+- **Combate em andamento**: com um encontro ativo, o item Combate ganha o selo "Rodada N" no tom de sucesso; recolhido ou na barra inferior, vira um ponto. O ponto não pisca: o acabamento proíbe movimento decorativo contínuo.
+- A transição de largura do menu e a abertura dos menus ficam dentro de `prefers-reduced-motion: no-preference`.
+- **Seção ativa (`useActiveSection`)**: clicar num item fixa a seção clicada até o leitor rolar com a roda, o toque, o teclado ou a barra de rolagem. A rolagem do próprio link não dispara nenhum desses gestos, então nem os títulos por onde ela passa nem um vizinho que sobra na faixa de leitura (uma seção perto do fim não sobe até o topo) tomam o destaque. Na rolagem manual, o hook lê a posição dos títulos a cada quadro. Vence o título mais alto na faixa entre 10% e 45% da tela; títulos a menos de 32 px um do outro, lado a lado nas duas colunas, contam como empatados, e fica o que vem antes na navegação. Os títulos param abaixo da barra fixa do celular (`scroll-margin-top`), e o salto é suave quando o sistema permite movimento.

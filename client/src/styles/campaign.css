@@ -36,7 +36,6 @@
 }
 @container (max-width: 480px) {
   .campaign-heading h1 { font-size: var(--text-h1); line-height: var(--text-h1--line-height); }
-  .campaign-user { display: none; }
   /* On narrow screens each row stacks again; the shared columns do not fit
      beside the name. */
   .campaign-roster ul { display: block; }
