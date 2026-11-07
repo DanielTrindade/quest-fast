@@ -22,12 +22,41 @@ export const Falhou: Story = { args: { failed: true } };
 
 export const AbrindoDiscord: Story = { args: { startLeaving: true } };
 
+function themeRegions(canvasElement: HTMLElement) {
+  return within(canvasElement).getAllByRole('region', { name: /^Tema / }).map(region => within(region));
+}
+
 export const CliqueAbreDiscord: Story = {
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole('link', { name: 'Entrar com o Discord' }));
-    const link = canvas.getByRole('link', { name: 'Abrindo o Discord…' });
-    await expect(link).toHaveAttribute('aria-busy', 'true');
-    await expect(link).toHaveAttribute('aria-disabled', 'true');
+    for (const canvas of themeRegions(canvasElement)) {
+      await userEvent.click(canvas.getByRole('link', { name: 'Entrar com o Discord' }));
+      const link = canvas.getByRole('link', { name: 'Abrindo o Discord…' });
+      await expect(link).toHaveAttribute('aria-busy', 'true');
+      await expect(link).toHaveAttribute('aria-disabled', 'true');
+    }
+  },
+};
+
+export const AbrirEmOutraAba: Story = {
+  play: async ({ canvasElement }) => {
+    const user = userEvent.setup();
+    // Keeps the story frame from following the link; the component must not depend on it.
+    const stay = (event: Event) => event.preventDefault();
+    window.addEventListener('click', stay);
+    try {
+      for (const canvas of themeRegions(canvasElement)) {
+        const link = canvas.getByRole('link', { name: 'Entrar com o Discord' });
+        for (const key of ['Control', 'Meta', 'Shift']) {
+          await user.keyboard(`{${key}>}`);
+          await user.click(link);
+          await user.keyboard(`{/${key}}`);
+          await expect(canvas.getByRole('link', { name: 'Entrar com o Discord' })).not.toHaveAttribute('aria-busy');
+        }
+        await user.click(link);
+        await expect(canvas.getByRole('link', { name: 'Abrindo o Discord…' })).toHaveAttribute('aria-busy', 'true');
+      }
+    } finally {
+      window.removeEventListener('click', stay);
+    }
   },
 };

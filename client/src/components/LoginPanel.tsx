@@ -21,7 +21,9 @@ export function LoginPanel({ href, failed = false, leaving = false, onLeave }: L
       event.preventDefault();
       return;
     }
-    onLeave?.();
+    // A modified or non-primary activation opens Discord elsewhere; this page stays usable.
+    const opensElsewhere = event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey;
+    if (!opensElsewhere) onLeave?.();
   }
 
   return (
