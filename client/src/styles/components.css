@@ -695,3 +695,33 @@ span.qf-slots__pip { width: 24px; height: 24px; cursor: default; }
 @media (prefers-reduced-motion: reduce) {
   .qf-encounters__row, .qf-initiative__item { transition: none; }
 }
+
+/* Login: on a phone the panel sits at the bottom, within reach of the thumb. */
+.qf-login { display: flex; flex-direction: column; justify-content: flex-end; min-height: 100dvh; padding: var(--spacing-4); background: var(--color-surface); color: var(--color-text-primary); }
+.qf-login__panel { display: grid; gap: var(--spacing-6); width: 100%; min-width: 0; }
+.qf-login__brand { display: flex; align-items: center; gap: var(--spacing-3); }
+.qf-login__brand h1 { font: 600 var(--text-display)/var(--text-display--line-height) var(--font-display); letter-spacing: -0.03em; }
+.qf-login__lede { margin-top: var(--spacing-2); color: var(--color-text-secondary); text-wrap: pretty; }
+.qf-login__features { display: grid; gap: var(--spacing-3); margin: 0; padding: 0; list-style: none; }
+.qf-login__features li { display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: var(--spacing-3); align-items: start; }
+.qf-login__features strong { display: block; font-weight: 600; }
+.qf-login__features span { display: block; font-size: var(--text-small); line-height: var(--text-small--line-height); color: var(--color-text-secondary); }
+.qf-login__feature-icon { display: grid; place-items: center; width: 32px; height: 32px; color: var(--color-text-secondary); background: var(--color-surface); border: 1px solid var(--color-border-strong); border-radius: var(--radius-control); box-shadow: inset 0 2px 3px var(--color-edge-shadow); }
+.qf-login__alert { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--spacing-3); padding: var(--spacing-3); background: var(--color-danger-surface); border: 1px solid var(--color-danger); border-inline-start-width: 4px; border-radius: var(--radius-panel); }
+.qf-login__alert > svg { margin-top: 2px; color: var(--color-danger-text); }
+.qf-login__alert strong { display: block; font-weight: 600; }
+.qf-login__alert span { display: block; margin-top: var(--spacing-1); font-size: var(--text-small); line-height: var(--text-small--line-height); color: var(--color-text-secondary); }
+.qf-login__action { width: 100%; text-decoration: none; }
+.qf-login__action[aria-busy="true"] { cursor: progress; }
+.qf-login__privacy { display: flex; align-items: start; gap: var(--spacing-2); padding-top: var(--spacing-4); border-top: 1px solid var(--color-border-subtle); font-size: var(--text-small); line-height: var(--text-small--line-height); color: var(--color-text-muted); }
+.qf-login__privacy > svg { flex-shrink: 0; margin-top: 1px; }
+@media (min-width: 600px) {
+  .qf-login { justify-content: center; align-items: center; padding: var(--spacing-8); }
+  .qf-login .qf-login__panel { max-width: 448px; padding: var(--spacing-8); }
+}
+
+/* The brand is the system's diamond (death saves, loading) set in the action tone. */
+.qf-brand-mark { position: relative; display: inline-block; flex-shrink: 0; width: 28px; height: 28px; }
+.qf-brand-mark::before, .qf-brand-mark::after { content: ""; position: absolute; transform: rotate(45deg); }
+.qf-brand-mark::before { inset: 4px; border-radius: 3px; background: var(--color-accent); box-shadow: inset 0 1px 0 var(--color-action-light); }
+.qf-brand-mark::after { inset: 10px; border-radius: 1px; border: 1.5px solid var(--color-accent-fg); opacity: 0.85; }
