@@ -11,8 +11,9 @@ provedores de modelo.
 - Review automático quando o PR abre ou sai do rascunho, e re-review
   incremental a cada push.
 - Comentários inline com sugestões.
-- Aprova e faz auto-merge de PR simples; PR complexo fica para merge humano
-  (ver [Política de merge](#política-de-merge)).
+- Aprova e faz auto-merge de todo PR em que não encontra nada; PR com achado
+  ou que muda as regras do próprio bot fica para merge humano (ver
+  [Política de merge](#política-de-merge)).
 - Corrige o PR: aplica review que pede mudança, conserta CI quebrado e atende
   `@pullfrog <pedido>` em qualquer PR aberto.
 - Checagem visual com Chrome headless em mudança de frontend.
@@ -65,15 +66,22 @@ flag `--model` numa menção vale para aquela execução inteira.
 
 Duas travas, uma de julgamento e uma determinística:
 
-1. **Política de review (abaixo):** o bot só aprova PR que se encaixa em
-   "simples". Aprovação do Pullfrog liga o auto-merge nativo do GitHub, que
-   ainda espera os checks obrigatórios.
+1. **Política de review (abaixo):** o bot aprova todo PR em que não sobra
+   achado, com o CI verde. Aprovação do Pullfrog liga o auto-merge nativo do
+   GitHub, que ainda espera os checks obrigatórios. A aprovação também
+   substitui o "pedir mudanças" que o próprio bot deixou numa rodada anterior.
 2. **CODEOWNERS + ruleset:** [`.github/CODEOWNERS`](../.github/CODEOWNERS)
-   marca os caminhos sensíveis (servidor, regras 5e, banco, telas, CI,
-   instruções de agente). O ruleset da `master` exige revisão de code owner,
-   então nesses caminhos a aprovação do bot não basta, mesmo que ele erre o
-   julgamento. O merge fica com o mantenedor, que usa o bypass de admin
+   marca só o que define as regras do bot e o CI que o valida (`.github/`,
+   instruções de agente, esta página, `docs/architecture.md`, `Dockerfile`).
+   O ruleset da `master` exige revisão de code owner, então um PR que muda as
+   regras não é aprovado pelo bot que elas julgam, mesmo que ele erre o
+   julgamento. Esse merge fica com o mantenedor, que usa o bypass de admin
    quando o PR é dele mesmo (o GitHub não deixa aprovar o próprio PR).
+
+Servidor, regras 5e, banco e telas entram por auto-merge quando o review não
+encontra nada. A rede de segurança deles é o CI (testes de integração de
+RBAC, typecheck, lint, React Doctor) e o review; se um caminho voltar a
+precisar de merge humano, devolva-o ao CODEOWNERS.
 
 ## Política de review
 
@@ -90,17 +98,16 @@ Ao revisar:
    (não membro recebe 404), lógica 5e fora de shared/, rota sem teste de RBAC,
    migração editada, sintaxe TypeScript não apagável no backend, texto de UI
    fora do pt-BR, cor crua no client.
-3. Classifique o PR. Ele é SIMPLES só se cumprir todos os itens:
+3. Aprove o PR quando cumprir todos os itens, qualquer que seja o tamanho
+   ou a área (servidor, shared/, banco e telas inclusive):
+   - não sobra nenhum achado seu em aberto, nem de rodada anterior;
+   - o CI está verde;
    - não toca caminho listado em .github/CODEOWNERS;
-   - muda documentação, texto, testes, stories, estilos ou componente
-     presentacional de client/src/components/, ou é atualização
-     minor/patch do Dependabot;
-   - não adiciona dependência nem muda scripts de package.json;
-   - tem até ~200 linhas alteradas, sem contar package-lock.json;
-   - o CI está verde e não sobra nenhum achado seu em aberto.
-4. PR SIMPLES sem achados: aprove. Qualquer outro caso: não aprove; publique
-   o review como comentário (ou peça mudanças, se houver defeito) e termine
-   com "Precisa de merge humano:" seguido do motivo em uma linha.
+   - não adiciona dependência nova (atualização do Dependabot pode).
+   Sem achado, aprove: terminar só com comentário deixa o PR travado.
+4. Qualquer outro caso: não aprove; peça mudanças se houver defeito, ou
+   publique como comentário, e termine com "Precisa de merge humano:" seguido
+   do motivo em uma linha.
 5. Escreva o review em português.
 
 Quando o PR alterar client/:
@@ -215,8 +222,8 @@ npx pullfrog config set auto-merge true --yes --ack-auto-merge
 ## Limitações
 
 - Review agêntico não é determinístico. O CI, o `npm run test:design` e o
-  CODEOWNERS são a rede de segurança; a classificação "simples" é julgamento
-  do modelo.
+  CODEOWNERS são a rede de segurança; "sem achados" é julgamento do modelo,
+  e um defeito que ele não vê entra na `master` sem passar por uma pessoa.
 - A cadeia de três passos usa recursos documentados do Pullfrog (vários passos
   da action no mesmo job, `output_schema`, `model:` por passo), mas o fallback
   supõe que a falta de cota faz o passo falhar. Confira nos primeiros PRs; se

@@ -1,17 +1,13 @@
-# Caminhos que nunca entram por auto-merge: a aprovação do Pullfrog não basta
-# e o merge fica com uma pessoa. O resto do repositório não tem dono, então a
-# aprovação do bot satisfaz o ruleset. Ver docs/pullfrog.md.
+# Caminhos que nunca entram por auto-merge: são as regras que o próprio
+# Pullfrog segue e o CI que o valida, então um PR que os muda não pode ser
+# aprovado pelo bot. O resto do repositório não tem dono, e a aprovação do bot
+# satisfaz o ruleset. Ver docs/pullfrog.md.
 
-/server/                        @DanielTrindade
-/shared/                        @DanielTrindade
-/db/                            @DanielTrindade
-/scripts/                       @DanielTrindade
-/client/src/screens/            @DanielTrindade
 /.github/                       @DanielTrindade
-/Dockerfile                     @DanielTrindade
+/.claude/                       @DanielTrindade
 /AGENTS.md                      @DanielTrindade
 /CLAUDE.md                      @DanielTrindade
-/.claude/                       @DanielTrindade
 /SECURITY.md                    @DanielTrindade
+/Dockerfile                     @DanielTrindade
 /docs/architecture.md           @DanielTrindade
 /docs/pullfrog.md               @DanielTrindade
