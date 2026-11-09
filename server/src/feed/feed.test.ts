@@ -125,7 +125,7 @@ test('a player socket never receives a secret roll; the master socket does', asy
     method: 'POST',
     body: JSON.stringify({ expression: '1d20' }),
   });
-  await probe;
+  const probeEvent = await probe;
 
   const masterSecret = waitForEvent(masterSocket, (event) => event.secret);
   const { event: secret } = await body<RollResponse>(
@@ -140,7 +140,10 @@ test('a player socket never receives a secret roll; the master socket does', asy
   await delay(100);
   assert.equal(playerEvents.some((event) => event.id === secret.id), false);
   assert.equal(playerEvents.some((event) => event.secret), false);
-  assert.equal(playerEvents.some((event) => event.payload.total === secret.payload.total), false);
+  assert.equal(
+    playerEvents.some((event) => event.id !== probeEvent.id && event.payload.total === secret.payload.total),
+    false,
+  );
 });
 
 test('a non-member connection is refused and no event is delivered', async (t) => {
