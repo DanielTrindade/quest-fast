@@ -71,8 +71,10 @@ Duas travas, uma de julgamento e uma determinística:
    GitHub, que ainda espera os checks obrigatórios. A aprovação também
    substitui o "pedir mudanças" que o próprio bot deixou numa rodada anterior.
 2. **CODEOWNERS + ruleset:** [`.github/CODEOWNERS`](../.github/CODEOWNERS)
-   marca só o que define as regras do bot e o CI que o valida (`.github/`,
-   instruções de agente, esta página, `docs/architecture.md`, `Dockerfile`).
+   marca só o que define as regras do bot e o que decide se o CI fica verde:
+   `.github/`, instruções de agente, esta página, `docs/architecture.md`,
+   `Dockerfile`, `scripts/`, a config e as regras do ESLint, os `tsconfig` e
+   o loader de testes do cliente.
    O ruleset da `master` exige revisão de code owner, então um PR que muda as
    regras não é aprovado pelo bot que elas julgam, mesmo que ele erre o
    julgamento. Esse merge fica com o mantenedor, que usa o bypass de admin
@@ -82,6 +84,12 @@ Servidor, regras 5e, banco e telas entram por auto-merge quando o review não
 encontra nada. A rede de segurança deles é o CI (testes de integração de
 RBAC, typecheck, lint, React Doctor) e o review; se um caminho voltar a
 precisar de merge humano, devolva-o ao CODEOWNERS.
+
+Os `package.json` ficam fora do CODEOWNERS para o Dependabot continuar
+entrando sozinho. Por isso a política de review trava, por julgamento, a
+mudança nos `scripts` deles: é ali que `npm test`, `typecheck` e `lint` são
+definidos, e trocar um deles por um comando que só sai com sucesso deixaria
+o CI verde sem verificar nada.
 
 ## Política de review
 
@@ -103,7 +111,8 @@ Ao revisar:
    - não sobra nenhum achado seu em aberto, nem de rodada anterior;
    - o CI está verde;
    - não toca caminho listado em .github/CODEOWNERS;
-   - não adiciona dependência nova (atualização do Dependabot pode).
+   - não adiciona dependência nova (atualização do Dependabot pode);
+   - não muda o campo `scripts` de nenhum package.json.
    Sem achado, aprove: terminar só com comentário deixa o PR travado.
 4. Qualquer outro caso: não aprove; peça mudanças se houver defeito, ou
    publique como comentário, e termine com "Precisa de merge humano:" seguido

@@ -1,5 +1,6 @@
 # Caminhos que nunca entram por auto-merge: são as regras que o próprio
-# Pullfrog segue e o CI que o valida, então um PR que os muda não pode ser
+# Pullfrog segue e o que decide se o CI fica verde (workflows, scripts de
+# verificação, lint, tsconfig), então um PR que os muda não pode ser
 # aprovado pelo bot. O resto do repositório não tem dono, e a aprovação do bot
 # satisfaz o ruleset. Ver docs/pullfrog.md.
 
@@ -9,5 +10,10 @@
 /CLAUDE.md                      @DanielTrindade
 /SECURITY.md                    @DanielTrindade
 /Dockerfile                     @DanielTrindade
+/scripts/                       @DanielTrindade
+/client/eslint.config.js        @DanielTrindade
+/client/eslint-rules/           @DanielTrindade
+/client/test/resolve-ts.mjs     @DanielTrindade
+tsconfig*.json                  @DanielTrindade
 /docs/architecture.md           @DanielTrindade
 /docs/pullfrog.md               @DanielTrindade

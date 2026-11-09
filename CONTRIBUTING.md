@@ -219,9 +219,10 @@ um review pede mudança, quando o CI quebra ou quando alguém comenta
 
 Quando o review não encontra nada e o CI está verde, o bot aprova e o PR é
 mesclado sozinho. Precisa de merge humano o PR com achado em aberto, o que
-adiciona dependência e o que toca um caminho de
-[`.github/CODEOWNERS`](.github/CODEOWNERS): CI, instruções de agente e as
-regras do próprio bot. A política completa e o setup estão em
+adiciona dependência ou muda os `scripts` de um `package.json`, e o que toca
+um caminho de [`.github/CODEOWNERS`](.github/CODEOWNERS): CI, scripts de
+verificação, lint, `tsconfig`, instruções de agente e as regras do próprio
+bot. A política completa e o setup estão em
 [`docs/pullfrog.md`](docs/pullfrog.md).
 
 ## Para onde olhar
