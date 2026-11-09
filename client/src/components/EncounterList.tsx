@@ -5,6 +5,8 @@ import { Button } from './Button';
 import { EmptyState } from './EmptyState';
 import { Field } from './Field';
 import { ENCOUNTER_STATUS_LABELS } from '../lib/combat-labels';
+import { cn } from '../lib/utils';
+import { cardRow, cardRowTitle } from './sheet-styles';
 
 function detail(encounter: EncounterListItem): string {
   const combatants = encounter.combatantCount === 1 ? '1 combatente' : `${encounter.combatantCount} combatentes`;
@@ -47,10 +49,10 @@ export function EncounterList({ encounters, onOpen, onCreate, creating = false }
   };
 
   return (
-    <div className="qf-encounters">
+    <div className="grid min-w-0 gap-4">
       {onCreate && (
-        <form className="qf-encounters__create" onSubmit={submit} noValidate>
-          <Field className="qf-encounters__name" label="Nome do novo encontro" placeholder="Emboscada na estrada"
+        <form className="flex flex-wrap items-end gap-3" onSubmit={submit} noValidate>
+          <Field className="flex-[1_1_14rem]" label="Nome do novo encontro" placeholder="Emboscada na estrada"
             maxLength={ENCOUNTER_LIMITS.name} value={name} error={error} onChange={(event) => setName(event.target.value)} />
           <Button type="submit" loading={creating}><Plus size={18} aria-hidden="true" /> Preparar encontro</Button>
         </form>
@@ -58,21 +60,21 @@ export function EncounterList({ encounters, onOpen, onCreate, creating = false }
 
       {encounters.length === 0 ? (
         onCreate ? (
-          <p className="qf-encounters__none">Nenhum encontro ainda. Prepare um antes da sessão: os jogadores só o veem quando o combate começa.</p>
+          <p className="text-text-secondary">Nenhum encontro ainda. Prepare um antes da sessão: os jogadores só o veem quando o combate começa.</p>
         ) : (
           <EmptyState icon={Sword} title="Nenhum combate por aqui" description="Quando o mestre iniciar um combate, ele aparece nesta seção."
             action={null} />
         )
       ) : (
-        <ul className="qf-encounters__list" aria-label="Encontros">
+        <ul className="m-0 grid list-none gap-2 p-0 *:min-w-0" aria-label="Encontros">
           {encounters.map((encounter) => (
             <li key={encounter.id}>
-              <button type="button" className="qf-encounters__row" data-status={encounter.status} onClick={() => onOpen(encounter.id)}>
-                <span className="qf-encounters__identity">
-                  <span className="qf-encounters__title">{encounter.name}</span>
-                  <span className="qf-encounters__detail">{detail(encounter)}</span>
+              <button type="button" className={cn(cardRow, 'group data-[status=active]:border-accent-text data-[status=active]:shadow-[inset_3px_0_0_var(--color-accent-text)]')} data-status={encounter.status} onClick={() => onOpen(encounter.id)}>
+                <span className="grid min-w-0 flex-[1_1_12rem] gap-1">
+                  <span className={cardRowTitle}>{encounter.name}</span>
+                  <span className="text-small text-text-secondary">{detail(encounter)}</span>
                 </span>
-                <span className="qf-encounters__status">{ENCOUNTER_STATUS_LABELS[encounter.status]}</span>
+                <span className="text-small text-text-secondary group-data-[status=active]:font-semibold group-data-[status=active]:text-accent-text">{ENCOUNTER_STATUS_LABELS[encounter.status]}</span>
               </button>
             </li>
           ))}

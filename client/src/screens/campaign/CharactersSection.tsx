@@ -7,7 +7,7 @@ import { CharacterRow } from '../../components/CharacterRow';
 import { EmptyState } from '../../components/EmptyState';
 import { Skeleton } from '../../components/Skeleton';
 import { Surface } from '../../components/Surface';
-import { Toast } from '../../components/Toast';
+import { useNotify } from '../../hooks/use-notify';
 import { api } from '../../lib/api';
 import { CharacterFormDialog } from './CharacterFormDialog';
 import { CharacterSheetDialog } from './CharacterSheetDialog';
@@ -24,15 +24,7 @@ export function CharactersSection({
   const queryClient = useQueryClient();
   const [viewingId, setViewingId] = useState<string | null>(null);
   const [editing, setEditing] = useState<CharacterSheet | null | 'new'>(null);
-  // The toast lives here and not in the form: a successful save closes the
-  // dialog, and the notice has to outlive it. The content stays while `open`
-  // turns false so the exit animation does not show an empty toast.
-  const [notice, setNotice] = useState<{ variant: 'success' | 'error'; title: string; description: string } | null>(null);
-  const [noticeOpen, setNoticeOpen] = useState(false);
-  const notify = (next: NonNullable<typeof notice>) => {
-    setNotice(next);
-    setNoticeOpen(true);
-  };
+  const notify = useNotify();
 
   const characters = useQuery({
     queryKey: ['characters', campaignId],
@@ -158,15 +150,6 @@ export function CharactersSection({
         />
       )}
 
-      {notice && (
-        <Toast
-          open={noticeOpen}
-          onOpenChange={setNoticeOpen}
-          variant={notice.variant}
-          title={notice.title}
-          description={notice.description}
-        />
-      )}
     </section>
   );
 }

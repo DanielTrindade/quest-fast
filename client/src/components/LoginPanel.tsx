@@ -1,12 +1,18 @@
 import type { MouseEvent } from 'react';
 import { DiceFive, DiscordLogo, LockSimple, Notebook, Sword, WarningCircle } from '@phosphor-icons/react';
 import { Surface } from './Surface';
+import { Button } from './ui/button';
 
 const FEATURES = [
   { icon: Notebook, title: 'Ficha oficial de D&D 2024', detail: 'PV, dados de vida e moedas atualizados durante a sessão.' },
   { icon: DiceFive, title: 'Dados rolados no servidor', detail: 'A mesa vê cada rolagem na hora.' },
   { icon: Sword, title: 'Combate por turnos', detail: 'Iniciativa e bestiário do mestre.' },
 ];
+
+// The brand is the system's diamond (death saves, loading) set in the action tone.
+function BrandMark() {
+  return <span aria-hidden="true" className="relative inline-block size-7 shrink-0 before:absolute before:inset-1 before:rotate-45 before:rounded-[3px] before:bg-primary before:shadow-[inset_0_1px_0_var(--color-action-light)] after:absolute after:inset-2.5 after:rotate-45 after:rounded-[1px] after:border-[1.5px] after:border-primary-foreground after:opacity-85" />;
+}
 
 type LoginPanelProps = {
   href: string;
@@ -27,49 +33,45 @@ export function LoginPanel({ href, failed = false, leaving = false, onLeave }: L
   }
 
   return (
-    <main className="qf-login">
-      <Surface variant="sheet" className="qf-login__panel">
+    <main className="flex min-h-dvh flex-col justify-end bg-background p-4 text-foreground min-[600px]:items-center min-[600px]:justify-center min-[600px]:p-8">
+      <Surface variant="sheet" className="grid w-full min-w-0 gap-6 min-[600px]:max-w-md min-[600px]:p-8">
         <div>
-          <div className="qf-login__brand">
-            <span className="qf-brand-mark" aria-hidden="true" />
-            <h1>quest-fast</h1>
+          <div className="flex items-center gap-3">
+            <BrandMark />
+            <h1 className="font-display text-display font-semibold tracking-tight">quest-fast</h1>
           </div>
-          <p className="qf-login__lede">Sua mesa de D&amp;D 5e. O Discord fica com a voz.</p>
+          <p className="mt-2 text-pretty text-text-secondary">Sua mesa de D&amp;D 5e. O Discord fica com a voz.</p>
         </div>
 
-        <ul className="qf-login__features">
+        <ul className="m-0 grid list-none gap-3 p-0">
           {FEATURES.map(({ icon: Icon, title, detail }) => (
-            <li key={title}>
-              <span className="qf-login__feature-icon"><Icon size={18} aria-hidden="true" /></span>
-              <div><strong>{title}</strong><span>{detail}</span></div>
+            <li key={title} className="grid grid-cols-[32px_minmax(0,1fr)] items-start gap-3">
+              <span className="grid size-8 place-items-center rounded-control border border-border-strong bg-background text-text-secondary edge-inset"><Icon size={18} aria-hidden="true" /></span>
+              <div><strong className="block font-semibold">{title}</strong><span className="block text-small text-text-secondary">{detail}</span></div>
             </li>
           ))}
         </ul>
 
         {failed && (
-          <div role="alert" className="qf-login__alert">
-            <WarningCircle size={20} aria-hidden="true" />
+          <div role="alert" className="grid grid-cols-[auto_minmax(0,1fr)] gap-3 rounded-panel border border-s-4 border-danger bg-(--color-danger-surface) p-3">
+            <WarningCircle size={20} aria-hidden="true" className="mt-0.5 text-danger-text" />
             <div>
-              <strong>O Discord não confirmou sua entrada.</strong>
-              <span>Se você cancelou a autorização, é só tentar de novo.</span>
+              <strong className="block font-semibold">O Discord não confirmou sua entrada.</strong>
+              <span className="mt-1 block text-small text-text-secondary">Se você cancelou a autorização, é só tentar de novo.</span>
             </div>
           </div>
         )}
 
-        <a
-          href={href}
-          onClick={handleClick}
-          aria-busy={leaving || undefined}
-          aria-disabled={leaving || undefined}
-          className="qf-button qf-button--primary qf-login__action"
-        >
-          {leaving
-            ? <><span className="qf-button__loading" aria-hidden="true" />Abrindo o Discord…</>
-            : <><DiscordLogo size={18} aria-hidden="true" />Entrar com o Discord</>}
-        </a>
+        <Button asChild size="lg" className="w-full aria-busy:cursor-progress">
+          <a href={href} onClick={handleClick} aria-busy={leaving || undefined} aria-disabled={leaving || undefined}>
+            {leaving
+              ? <><span className="size-2.5 shrink-0 rotate-45 rounded-[2px] bg-current opacity-60 motion-safe:animate-pulse" aria-hidden="true" />Abrindo o Discord…</>
+              : <><DiscordLogo size={18} aria-hidden="true" />Entrar com o Discord</>}
+          </a>
+        </Button>
 
-        <p className="qf-login__privacy">
-          <LockSimple size={16} aria-hidden="true" />
+        <p className="flex items-start gap-2 border-t border-border pt-4 text-small text-text-muted">
+          <LockSimple size={16} aria-hidden="true" className="mt-px shrink-0" />
           <span>Usamos só seu nome e avatar do Discord. Não lemos servidores nem mensagens.</span>
         </p>
       </Surface>

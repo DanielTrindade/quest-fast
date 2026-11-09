@@ -43,6 +43,8 @@ import { UnreadableSheetError, readSheetPdf } from '../lib/sheet-pdf';
 import { ABILITY_LABELS, SKILL_LABELS } from '../lib/5e';
 import { ARMOR_TRAINING_LABELS, COIN_LABELS, SIZE_LABELS, circleLabel, signedBonus } from '../lib/sheet-labels';
 import { newRowId, numberValue, toAttackInputs, toFormAttacks } from '../lib/form-attacks';
+import { abilitiesGrid, checkChip, fieldset, fileButton, form, formTabs, grid2, grid3, itemCard, itemHead, legendNote, lock } from './form-styles';
+import { checkLabel } from './ui/segmented';
 
 function errorMessage(error: unknown) {
   return error instanceof ApiError ? error.message : 'Algo deu errado. Tente novamente.';
@@ -204,7 +206,7 @@ type PanelProps = {
 
 function Check({ label, checked, onChange }: { label: string; checked: boolean; onChange: (checked: boolean) => void }) {
   return (
-    <label className="qf-check">
+    <label className={checkLabel}>
       <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} />
       <span>{label}</span>
     </label>
@@ -237,10 +239,10 @@ function IdentityPanel({
   return (
     <SheetTabPanel idPrefix={idPrefix} id="identity" active={active}>
       {importer}
-      <div className="sheet-form__identity">
+      <div className="flex flex-wrap items-center gap-3">
         <Avatar name={state.name || '?'} src={avatarUrl ?? undefined} variant="character" size="lg" />
-        <div className="sheet-form__avatar-actions">
-          <label className="qf-file-button">
+        <div className="flex flex-wrap items-center gap-2">
+          <label className={fileButton}>
             <ImageSquare size={18} aria-hidden="true" />
             {state.avatarAssetId ? 'Trocar avatar' : 'Enviar avatar'}
             <input
@@ -265,10 +267,10 @@ function IdentityPanel({
         </div>
       </div>
 
-      <fieldset className="sheet-form__lock" disabled={locked}>
-      <fieldset className="sheet-form__fieldset">
+      <fieldset className={lock} disabled={locked}>
+      <fieldset className={fieldset}>
         <legend>Identidade</legend>
-        <div className="sheet-form__grid">
+        <div className={grid2}>
           <Field label="Nome do personagem" required maxLength={80} value={state.name} error={errors.name}
             onChange={(e) => { set('name', e.target.value); clearError('name'); }} />
           <Field label="Espécie" required maxLength={60} value={state.race} error={errors.race}
@@ -289,9 +291,9 @@ function IdentityPanel({
         </div>
       </fieldset>
 
-      <fieldset className="sheet-form__fieldset">
+      <fieldset className={fieldset}>
         <legend>Combate</legend>
-        <div className="sheet-form__grid sheet-form__grid--three">
+        <div className={grid3}>
           <Field label="PV máximo" required type="number" min={1} max={999} value={state.hp} error={errors.hp}
             onChange={(e) => { set('hp', e.target.value); clearError('hp'); }} />
           <Field label="Classe de armadura" required type="number" min={0} max={40} value={state.ac} error={errors.ac}
@@ -322,10 +324,10 @@ function AbilitiesPanel({ idPrefix, active, state, set, errors, clearError, rule
   const toggle = <T,>(list: readonly T[], item: T, on: boolean) => (on ? [...list, item] : list.filter((entry) => entry !== item));
   return (
     <SheetTabPanel idPrefix={idPrefix} id="abilities" active={active}>
-      <fieldset className="sheet-form__fieldset">
+      <fieldset className={fieldset}>
         <legend>Atributos</legend>
         {errors.abilityScores && <p role="alert" className="text-small text-danger-text">{errors.abilityScores}</p>}
-        <div className="sheet-form__abilities">
+        <div className={abilitiesGrid}>
           {ABILITIES.map((ability) => (
             <AbilityInput
               key={ability}
@@ -341,11 +343,11 @@ function AbilitiesPanel({ idPrefix, active, state, set, errors, clearError, rule
         </div>
       </fieldset>
 
-      <fieldset className="sheet-form__fieldset">
+      <fieldset className={fieldset}>
         <legend>Salvaguardas proficientes</legend>
-        <div className="sheet-form__saves">
+        <div className="flex flex-wrap gap-2">
           {ABILITIES.map((ability) => (
-            <label key={ability} className={state.saves.includes(ability) ? 'is-active' : ''}>
+            <label key={ability} className={checkChip}>
               <input type="checkbox" checked={state.saves.includes(ability)}
                 onChange={(event) => set('saves', toggle(state.saves, ability, event.target.checked))} />
               <span>{ABILITY_LABELS[ability]}</span>
@@ -354,14 +356,14 @@ function AbilitiesPanel({ idPrefix, active, state, set, errors, clearError, rule
         </div>
       </fieldset>
 
-      <fieldset className="sheet-form__fieldset">
+      <fieldset className={fieldset}>
         <legend>Perícias</legend>
-        <p className="sheet-form__legend-note">Nenhuma, proficiente ou especialista (dobro do bônus de proficiência).</p>
+        <p className={legendNote}>Nenhuma, proficiente ou especialista (dobro do bônus de proficiência).</p>
         {errors.expertise && <p role="alert" className="text-small text-danger-text">{errors.expertise}</p>}
-        <div className="sheet-form__skill-groups">
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,240px),1fr))] gap-4">
           {ABILITIES.filter((ability) => SKILLS_GROUPED[ability].length > 0).map((ability) => (
             <div key={ability}>
-              <p className="sheet-form__skill-group-title">{ABILITY_LABELS[ability]}</p>
+              <p className="m-0 mb-1 text-small text-text-muted">{ABILITY_LABELS[ability]}</p>
               {SKILLS_GROUPED[ability].map((skill) => (
                 <ProficiencyToggle
                   key={skill}
@@ -379,15 +381,15 @@ function AbilitiesPanel({ idPrefix, active, state, set, errors, clearError, rule
         </div>
       </fieldset>
 
-      <fieldset className="sheet-form__fieldset">
+      <fieldset className={fieldset}>
         <legend>Treinamento em equipamentos</legend>
-        <div className="sheet-form__checks" role="group" aria-label="Treinamento em armaduras">
+        <div className="flex flex-wrap gap-x-4" role="group" aria-label="Treinamento em armaduras">
           {ARMOR_TRAINING.map((kind) => (
             <Check key={kind} label={ARMOR_TRAINING_LABELS[kind]} checked={state.armorTraining.includes(kind)}
               onChange={(checked) => set('armorTraining', toggle<ArmorTraining>(state.armorTraining, kind, checked))} />
           ))}
         </div>
-        <div className="sheet-form__grid">
+        <div className={grid2}>
           <Field label="Armas" maxLength={200} value={state.weaponProficiencies} error={errors.weaponProficiencies}
             hint="Ex.: Armas Simples e Marciais"
             onChange={(e) => { set('weaponProficiencies', e.target.value); clearError('weaponProficiencies'); }} />
@@ -403,7 +405,7 @@ function AbilitiesPanel({ idPrefix, active, state, set, errors, clearError, rule
 function AttacksPanel({ idPrefix, active, state, set, errors, clearError }: PanelProps) {
   return (
     <SheetTabPanel idPrefix={idPrefix} id="attacks" active={active}>
-      <fieldset className="sheet-form__fieldset">
+      <fieldset className={fieldset}>
         <legend>Armas e truques de dano</legend>
         <AttackListEditor attacks={state.attacks} error={errors.attacks}
           onChange={(attacks) => {
@@ -413,17 +415,17 @@ function AttacksPanel({ idPrefix, active, state, set, errors, clearError }: Pane
           }} />
       </fieldset>
 
-      <fieldset className="sheet-form__fieldset">
+      <fieldset className={fieldset}>
         <legend>Características de classe</legend>
         <Field label="Uma por linha" hint="Ex.: Fúria" value={state.featuresText} error={errors.features} asTextarea
           onChange={(e) => { set('featuresText', e.target.value); clearError('features'); }} />
       </fieldset>
-      <fieldset className="sheet-form__fieldset">
+      <fieldset className={fieldset}>
         <legend>Traços de espécie</legend>
         <Field label="Um por linha" hint="Ex.: Visão no Escuro" value={state.speciesTraitsText} error={errors.speciesTraits} asTextarea
           onChange={(e) => { set('speciesTraitsText', e.target.value); clearError('speciesTraits'); }} />
       </fieldset>
-      <fieldset className="sheet-form__fieldset">
+      <fieldset className={fieldset}>
         <legend>Talentos</legend>
         <Field label="Um por linha" hint="Ex.: Robusto" value={state.featsText} error={errors.feats} asTextarea
           onChange={(e) => { set('featsText', e.target.value); clearError('feats'); }} />
@@ -439,9 +441,9 @@ function SpellsPanel({ idPrefix, active, state, set, errors, clearError }: Panel
   };
   return (
     <SheetTabPanel idPrefix={idPrefix} id="spells" active={active}>
-      <fieldset className="sheet-form__fieldset">
+      <fieldset className={fieldset}>
         <legend>Conjuração</legend>
-        <div className="sheet-form__grid">
+        <div className={grid2}>
           <SelectField label="Atributo de conjuração" value={state.spellcastingAbility}
             onChange={(value) => set('spellcastingAbility', value as Ability | '')}>
             <option value="">Não conjura</option>
@@ -453,10 +455,10 @@ function SpellsPanel({ idPrefix, active, state, set, errors, clearError }: Panel
         </div>
       </fieldset>
 
-      <fieldset className="sheet-form__fieldset">
+      <fieldset className={fieldset}>
         <legend>Espaços de magia</legend>
         {errors.spellSlotTotals && <p role="alert" className="text-small text-danger-text">{errors.spellSlotTotals}</p>}
-        <div className="sheet-form__slots">
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,112px),1fr))] gap-3">
           {SPELL_SLOT_CAPS.map((cap, circle) => {
             const total = numberValue(state.spellSlotTotals[circle] ?? '');
             return (
@@ -472,15 +474,15 @@ function SpellsPanel({ idPrefix, active, state, set, errors, clearError }: Panel
         </div>
       </fieldset>
 
-      <fieldset className="sheet-form__fieldset">
+      <fieldset className={fieldset}>
         <legend>Truques e magias preparadas</legend>
         {errors.spells && <p role="alert" className="text-small text-danger-text">{errors.spells}</p>}
-        <div className="qf-stack">
+        <div className="grid gap-3">
           {state.spells.map((spell, index) => {
             const position = index + 1;
             return (
-              <div key={spell.rowId} className="sheet-form__attack" role="group" aria-label={`Magia ${position}`}>
-                <div className="sheet-form__attack-head">
+              <div key={spell.rowId} className={itemCard} role="group" aria-label={`Magia ${position}`}>
+                <div className={itemHead}>
                   <span>Magia {position}</span>
                   <Button variant="ghost" type="button" aria-label={`Remover magia ${spell.name.trim() || position}`}
                     onClick={() => {
@@ -490,24 +492,24 @@ function SpellsPanel({ idPrefix, active, state, set, errors, clearError }: Panel
                     <Trash size={18} aria-hidden="true" />
                   </Button>
                 </div>
-                <div className="sheet-form__spell-fields">
-                  <SelectField className="sheet-form__spell-level" label="Círculo" value={spell.level}
+                <div className="flex flex-wrap items-start gap-3 [&>[data-slot=field]]:flex-[1_1_8rem]">
+                  <SelectField className="flex-[0_0_8.5rem]!" label="Círculo" value={spell.level}
                     onChange={(value) => updateSpell(index, { level: value })}>
                     {Array.from({ length: 10 }, (_, level) => <option key={level} value={level}>{circleLabel(level)}</option>)}
                   </SelectField>
-                  <Field className="sheet-form__spell-name" label="Nome" maxLength={80} value={spell.name}
+                  <Field className="flex-[3_1_14rem]!" label="Nome" maxLength={80} value={spell.name}
                     aria-invalid={Boolean(errors.spells) && spell.name.trim().length === 0}
                     onChange={(e) => updateSpell(index, { name: e.target.value })} />
                   <Field label="Tempo de conjuração" maxLength={30} value={spell.castingTime} hint="Ex.: 1 ação"
                     onChange={(e) => updateSpell(index, { castingTime: e.target.value })} />
                   <Field label="Alcance" maxLength={30} value={spell.range} hint="Ex.: 18 m"
                     onChange={(e) => updateSpell(index, { range: e.target.value })} />
-                  <div className="sheet-form__spell-flags">
+                  <div className="flex flex-[1_1_100%] flex-wrap gap-x-4">
                     <Check label="Concentração" checked={spell.concentration} onChange={(checked) => updateSpell(index, { concentration: checked })} />
                     <Check label="Ritual" checked={spell.ritual} onChange={(checked) => updateSpell(index, { ritual: checked })} />
                     <Check label="Material requerido" checked={spell.material} onChange={(checked) => updateSpell(index, { material: checked })} />
                   </div>
-                  <Field className="sheet-form__spell-notes" label="Notas" maxLength={120} value={spell.notes}
+                  <Field className="flex-[1_1_100%]!" label="Notas" maxLength={120} value={spell.notes}
                     onChange={(e) => updateSpell(index, { notes: e.target.value })} />
                 </div>
               </div>
@@ -528,7 +530,7 @@ function SpellsPanel({ idPrefix, active, state, set, errors, clearError }: Panel
 function InventoryPanel({ idPrefix, active, state, set, errors, clearError }: PanelProps) {
   return (
     <SheetTabPanel idPrefix={idPrefix} id="inventory" active={active}>
-      <fieldset className="sheet-form__fieldset">
+      <fieldset className={fieldset}>
         <legend>Personalidade</legend>
         <Field label="Aparência" maxLength={1000} value={state.appearance} error={errors.appearance} asTextarea
           onChange={(e) => { set('appearance', e.target.value); clearError('appearance'); }} />
@@ -539,12 +541,12 @@ function InventoryPanel({ idPrefix, active, state, set, errors, clearError }: Pa
           onChange={(e) => { set('languages', e.target.value); clearError('languages'); }} />
       </fieldset>
 
-      <fieldset className="sheet-form__fieldset">
+      <fieldset className={fieldset}>
         <legend>Equipamento</legend>
         <Field label="Um item por linha" value={state.equipment} error={errors.equipment} asTextarea
           onChange={(e) => { set('equipment', e.target.value); clearError('equipment'); }} />
         {errors.attunedItems && <p role="alert" className="text-small text-danger-text">{errors.attunedItems}</p>}
-        <div className="sheet-form__grid sheet-form__grid--three">
+        <div className={grid3}>
           {ATTUNED_SLOTS.map((slot, position) => (
             <Field key={slot} label={`Item sintonizado ${position + 1}`} maxLength={80} value={state.attunedItems[position] ?? ''}
               onChange={(e) => {
@@ -555,10 +557,10 @@ function InventoryPanel({ idPrefix, active, state, set, errors, clearError }: Pa
         </div>
       </fieldset>
 
-      <fieldset className="sheet-form__fieldset">
+      <fieldset className={fieldset}>
         <legend>Moedas</legend>
         {errors.coins && <p role="alert" className="text-small text-danger-text">{errors.coins}</p>}
-        <div className="sheet-form__slots">
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,112px),1fr))] gap-3">
           {COINS.map((coin) => {
             const amount = numberValue(state.coins[coin]);
             return (
@@ -764,13 +766,13 @@ export function CharacterForm({ campaignId, character, onSaved, onSaveError, onR
     <form
       ref={formRef}
       noValidate
-      className="sheet-form"
+      className={form}
       onSubmit={(event) => {
         event.preventDefault();
         submit();
       }}
     >
-      <div className="sheet-form__tabs">
+      <div className={formTabs}>
         <SheetTabs
           tabs={TABS.map((section) => ({ ...section, hasError: tabsWithErrors.has(section.id) }))}
           active={tab}
@@ -794,7 +796,7 @@ export function CharacterForm({ campaignId, character, onSaved, onSaveError, onR
         locked={importing}
       />
 
-      <fieldset className="sheet-form__lock" disabled={importing}>
+      <fieldset className={lock} disabled={importing}>
         <AbilitiesPanel {...panelProps} active={tab} rules={previewRules} />
 
         <AttacksPanel {...panelProps} active={tab} />

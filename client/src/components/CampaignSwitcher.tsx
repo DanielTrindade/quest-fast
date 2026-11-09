@@ -1,8 +1,11 @@
-import { useContext } from 'react';
-import * as Menu from '@radix-ui/react-dropdown-menu';
-import { CaretUpDown, Check, SquaresFour } from '@phosphor-icons/react';
+import { CaretUpDown, SquaresFour } from '@phosphor-icons/react';
 import type { Role } from '@quest-fast/shared';
-import { PortalContext } from '../lib/portal-context';
+import { cn } from '../lib/utils';
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuRadioGroup,
+  DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuTrigger,
+} from './ui/dropdown-menu';
+import { trigger } from './shell-styles';
 
 export type CampaignOption = { id: string; name: string; role?: Role };
 
@@ -17,52 +20,53 @@ function initials(name: string) {
 }
 
 export function CampaignMark({ name, current = false }: { name: string; current?: boolean }) {
-  return <span className={`qf-campaign-mark${current ? ' qf-campaign-mark--current' : ''}`} aria-hidden="true">
+  return <span aria-hidden="true" className={cn(
+    'inline-grid size-8 shrink-0 place-items-center rounded-control border font-display text-small leading-none font-bold',
+    current ? 'border-primary bg-primary text-primary-foreground edge-action' : 'border-border-strong bg-popover text-foreground edge-raised')}>
     {initials(name)}
   </span>;
 }
 
-export function CampaignSwitcher({ campaigns, campaignId, onCampaignChange, onShowAll, compact = false }: {
+const text = 'grid min-w-0 flex-1 group-data-compact/trigger:sr-only';
+const nameClass = 'truncate font-display font-semibold';
+
+export function CampaignSwitcher({ campaigns, campaignId, onCampaignChange, onShowAll, compact = false, className }: {
   campaigns: CampaignOption[]; campaignId: string; onCampaignChange: (id: string) => void;
-  onShowAll?: () => void; compact?: boolean;
+  onShowAll?: () => void; compact?: boolean; className?: string;
 }) {
-  const container = useContext(PortalContext);
   const current = campaigns.find(campaign => campaign.id === campaignId);
   if (!current) {
-    return <button type="button" className="qf-switcher" disabled data-compact={compact || undefined}>
-      <span className="qf-switcher__text"><span className="qf-switcher__name">Nenhuma campanha</span></span>
+    return <button type="button" className={cn(trigger, className)} disabled data-compact={compact || undefined}>
+      <span className={text}><span className={nameClass}>Nenhuma campanha</span></span>
     </button>;
   }
-  return <Menu.Root modal={false}>
-    <Menu.Trigger className="qf-switcher" data-compact={compact || undefined}>
+  return <DropdownMenu modal={false}>
+    <DropdownMenuTrigger className={cn(trigger, className)} data-compact={compact || undefined}>
       <CampaignMark name={current.name} current />
-      <span className="qf-switcher__text">
+      <span className={text}>
         <span className="sr-only">Campanha: </span>
-        <span className="qf-switcher__name">{current.name}</span>
-        {current.role && <span className="qf-switcher__role">{ROLE_LABEL[current.role]}</span>}
+        <span className={nameClass}>{current.name}</span>
+        {current.role && <span className="text-micro text-text-muted">{ROLE_LABEL[current.role]}</span>}
       </span>
-      <CaretUpDown size={16} aria-hidden="true" className="qf-switcher__caret" />
-    </Menu.Trigger>
-    <Menu.Portal container={container}>
-      <Menu.Content className="qf-menu" align="start" side={compact ? 'right' : 'bottom'} sideOffset={6} collisionPadding={8}>
-        <Menu.Label className="qf-menu__label">Trocar campanha</Menu.Label>
-        <Menu.RadioGroup value={campaignId} onValueChange={onCampaignChange}>
-          {campaigns.map(campaign => <Menu.RadioItem key={campaign.id} value={campaign.id} className="qf-menu__item">
-            <CampaignMark name={campaign.name} current={campaign.id === campaignId} />
-            <span className="qf-menu__text">
-              <span>{campaign.name}</span>
-              {campaign.role && <span className="qf-menu__hint">{ROLE_LABEL[campaign.role]}</span>}
-            </span>
-            <Menu.ItemIndicator className="qf-menu__check"><Check size={16} aria-hidden="true" /></Menu.ItemIndicator>
-          </Menu.RadioItem>)}
-        </Menu.RadioGroup>
-        {onShowAll && <>
-          <Menu.Separator className="qf-menu__separator" />
-          <Menu.Item className="qf-menu__item" onSelect={onShowAll}>
-            <SquaresFour size={20} aria-hidden="true" />Ver todas as campanhas
-          </Menu.Item>
-        </>}
-      </Menu.Content>
-    </Menu.Portal>
-  </Menu.Root>;
+      <CaretUpDown size={16} aria-hidden="true" className="shrink-0 text-text-muted group-data-compact/trigger:hidden" />
+    </DropdownMenuTrigger>
+    <DropdownMenuContent align="start" side={compact ? 'right' : 'bottom'} collisionPadding={8}>
+      <DropdownMenuLabel>Trocar campanha</DropdownMenuLabel>
+      <DropdownMenuRadioGroup value={campaignId} onValueChange={onCampaignChange}>
+        {campaigns.map(campaign => <DropdownMenuRadioItem key={campaign.id} value={campaign.id}>
+          <CampaignMark name={campaign.name} current={campaign.id === campaignId} />
+          <span className="grid min-w-0 flex-1 [overflow-wrap:anywhere]">
+            <span>{campaign.name}</span>
+            {campaign.role && <span className="text-micro text-text-muted">{ROLE_LABEL[campaign.role]}</span>}
+          </span>
+        </DropdownMenuRadioItem>)}
+      </DropdownMenuRadioGroup>
+      {onShowAll && <>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onSelect={onShowAll}>
+          <SquaresFour size={20} aria-hidden="true" />Ver todas as campanhas
+        </DropdownMenuItem>
+      </>}
+    </DropdownMenuContent>
+  </DropdownMenu>;
 }

@@ -1,0 +1,2 @@
+// The campaign switcher and the account menu open from the same kind of row.
+export const trigger = 'group/trigger flex min-h-12 w-full min-w-0 cursor-pointer items-center gap-3 rounded-control bg-transparent px-2 py-1 text-start whitespace-nowrap text-foreground transition-[background-color] duration-(--duration-quick) ease-settle hover:not-disabled:bg-card data-[state=open]:bg-card data-compact:justify-center disabled:cursor-default disabled:text-text-muted';

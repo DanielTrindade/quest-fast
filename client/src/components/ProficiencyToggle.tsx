@@ -2,6 +2,8 @@ import { useId } from 'react';
 import type { ProficiencyLevel } from '@quest-fast/shared';
 import { PROFICIENCY_LABELS } from '../lib/sheet-labels';
 import { ProficiencyMarker } from './ProficiencyMarker';
+import { cn } from '../lib/utils';
+import { segmentedGroup, segmentedRadio } from './ui/segmented';
 
 const LEVELS: ProficiencyLevel[] = ['none', 'proficient', 'expert'];
 
@@ -16,14 +18,14 @@ export function ProficiencyToggle({ label, detail, value, onChange, disabled = f
 }) {
   const id = useId();
   return (
-    <div className="qf-prof-toggle" role="radiogroup" aria-labelledby={`${id}-label`}>
-      <span className="qf-prof-toggle__label" id={`${id}-label`}>
+    <div className="flex min-w-0 items-center justify-between gap-2 py-0.5" role="radiogroup" aria-labelledby={`${id}-label`}>
+      <span className="grid min-w-0 text-small [overflow-wrap:anywhere]" id={`${id}-label`}>
         {label}
-        {detail && <span className="qf-prof-toggle__detail">{detail}</span>}
+        {detail && <span className="font-mono text-micro text-text-secondary tabular-nums">{detail}</span>}
       </span>
-      <span className="qf-prof-toggle__options">
+      <span className={cn(segmentedGroup, 'shrink-0 flex-nowrap gap-0.5 p-0.5')}>
         {LEVELS.map((level) => (
-          <label key={level} className={value === level ? 'is-active' : ''} title={PROFICIENCY_LABELS[level]}>
+          <label key={level} className={cn(segmentedRadio, 'size-9 min-h-9 px-0')} title={PROFICIENCY_LABELS[level]}>
             <input type="radio" name={id} value={level} checked={value === level} disabled={disabled}
               aria-label={PROFICIENCY_LABELS[level]} onChange={() => onChange(level)} />
             <ProficiencyMarker level={level} withText={false} />

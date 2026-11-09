@@ -5,7 +5,7 @@ import { PROFICIENCY_LABELS } from '../lib/sheet-labels';
 /** Empty circle, filled circle or filled diamond, spelled out for screen readers. */
 export function ProficiencyMarker({ level, withText = true }: { level: ProficiencyLevel; withText?: boolean }) {
   return (
-    <span className="qf-marker" data-level={level}>
+    <span data-level={level} className="inline-flex shrink-0 text-text-muted data-[level=expert]:text-accent-text data-[level=proficient]:text-accent-text">
       {level === 'expert'
         ? <Diamond size={14} weight="fill" aria-hidden="true" />
         : <Circle size={14} weight={level === 'proficient' ? 'fill' : 'regular'} aria-hidden="true" />}

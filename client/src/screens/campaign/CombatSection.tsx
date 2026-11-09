@@ -7,7 +7,7 @@ import { Button } from '../../components/Button';
 import { EncounterList } from '../../components/EncounterList';
 import { Skeleton } from '../../components/Skeleton';
 import { Surface } from '../../components/Surface';
-import { Toast } from '../../components/Toast';
+import { useNotify } from '../../hooks/use-notify';
 import { ApiError, api } from '../../lib/api';
 import { encounterQuery, encountersQuery, isDeletedEncounter, isMissingEncounter, mergeEncounter } from '../../lib/combat-cache';
 import { EncounterPanel } from './EncounterPanel';
@@ -145,7 +145,8 @@ export function CombatSection({ campaignId, isMaster, currentUserId }: {
   currentUserId: string;
 }) {
   const queryClient = useQueryClient();
-  const [notice, setNotice] = useState<string | null>(null);
+  const notify = useNotify();
+  const setNotice = (title: string) => notify({ variant: 'success', title });
   const [createError, setCreateError] = useState<string | null>(null);
 
   const encounters = useQuery(encountersQuery(campaignId));
@@ -205,14 +206,6 @@ export function CombatSection({ campaignId, isMaster, currentUserId }: {
 
       {isMaster && <Bestiary campaignId={campaignId} onNotice={setNotice} />}
 
-      <Toast
-        open={notice !== null}
-        onOpenChange={(open) => {
-          if (!open) setNotice(null);
-        }}
-        variant="success"
-        title={notice ?? ''}
-      />
     </section>
   );
 }

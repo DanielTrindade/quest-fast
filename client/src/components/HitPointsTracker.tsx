@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import { applyDamage, applyHealing, type HitPoints } from '@quest-fast/shared';
 import { Button } from './Button';
+import { trackerLabel, trackerPanel } from './sheet-styles';
+import { cn } from '../lib/utils';
+import { Input } from './ui/input';
 
 /**
  * Current, temporary and maximum hit points. The owner types an amount and
@@ -24,30 +27,30 @@ export function HitPointsTracker({ hpCurrent, hpTemp, hpMax, editable = false, p
   };
 
   return (
-    <section className="qf-hp" aria-label="Pontos de vida" data-down={hpCurrent === 0 || undefined}>
-      <div className="qf-hp__values">
-        <p className="qf-hp__current">
-          <span className="qf-hp__label">PV atual</span>
-          <span className="qf-hp__number">
-            <strong>{hpCurrent}</strong>
-            <span className="qf-hp__max">
+    <section data-slot="hit-points" className={trackerPanel} aria-label="Pontos de vida" data-down={hpCurrent === 0 || undefined}>
+      <div className="flex flex-wrap items-end gap-4">
+        <p className="m-0 grid">
+          <span className={trackerLabel}>PV atual</span>
+          <span className="flex items-baseline gap-1">
+            <strong className={cn('font-mono text-display font-semibold tracking-[-0.04em] tabular-nums', hpCurrent === 0 && 'text-danger-text')}>{hpCurrent}</strong>
+            <span className="font-mono text-text-secondary tabular-nums">
               <span aria-hidden="true">/ </span>
               <span className="sr-only">de </span>
               {hpMax}
             </span>
           </span>
         </p>
-        <p className="qf-hp__temp">
-          <span className="qf-hp__label">Temporários</span>
-          <strong>{hpTemp}</strong>
+        <p className="m-0 grid">
+          <span className={trackerLabel}>Temporários</span>
+          <strong className="font-mono text-h1 font-medium tabular-nums">{hpTemp}</strong>
         </p>
       </div>
-      {hpCurrent === 0 && <p className="qf-hp__down">Caído: role as salvaguardas contra a morte.</p>}
+      {hpCurrent === 0 && <p className="m-0 text-small text-danger-text">Caído: role as salvaguardas contra a morte.</p>}
       {editable && (
-        <div className="qf-hp__controls">
-          <label className="qf-hp__amount">
+        <div className="flex flex-wrap items-end gap-2 [&>[data-slot=button]]:flex-auto">
+          <label className="grid flex-[0_0_6rem] gap-1 text-small text-text-secondary">
             Quantidade
-            <input className="qf-input" type="number" min={1} max={999} inputMode="numeric" value={amount}
+            <Input type="number" min={1} max={999} inputMode="numeric" value={amount}
               disabled={pending} onChange={(event) => setAmount(event.target.value)} />
           </label>
           <Button variant="secondary" disabled={!valid || pending}

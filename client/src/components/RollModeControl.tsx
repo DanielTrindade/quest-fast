@@ -1,5 +1,6 @@
 import type { RollMode } from '@quest-fast/shared';
 import { ROLL_MODE_LABELS } from '../lib/5e';
+import { segmentedGroup, segmentedRadio } from './ui/segmented';
 
 const MODES: RollMode[] = ['normal', 'advantage', 'disadvantage'];
 
@@ -12,9 +13,9 @@ export function RollModeControl({ value, onChange, disabled = false, name = 'mod
   label?: string;
 }) {
   return (
-    <fieldset className="qf-segmented" aria-label={label} disabled={disabled}>
+    <fieldset className={segmentedGroup} aria-label={label} disabled={disabled}>
       {MODES.map((mode) => (
-        <label key={mode} className={value === mode ? 'is-active' : ''}>
+        <label key={mode} className={segmentedRadio}>
           <input
             type="radio"
             name={name}

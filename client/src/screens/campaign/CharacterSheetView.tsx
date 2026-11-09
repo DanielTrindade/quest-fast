@@ -83,10 +83,10 @@ type SheetRoll = (request: Omit<LinkedRollRequest, 'mode'>) => void;
 
 function SheetHead({ character, isOwner }: { character: CharacterSheet; isOwner: boolean }) {
   return (
-    <div className="sheet-head">
+    <div className="flex items-center gap-3 max-[479px]:flex-wrap">
       <Avatar name={character.name} src={character.avatarUrl ?? undefined} variant="character" size="lg" />
-      <div className="sheet-head__meta">
-        <p className="sheet-head__owner">{isOwner ? 'Seu personagem' : `Ficha de ${character.ownerName}`}</p>
+      <div className="grid min-w-0 flex-[1_1_280px] gap-1 text-text-secondary">
+        <p className="text-small text-text-secondary">{isOwner ? 'Seu personagem' : `Ficha de ${character.ownerName}`}</p>
         <SheetIdentity backgroundName={character.background} species={character.race} className={character.class}
           subclass={character.subclass} level={character.level} experience={character.experience} />
       </div>
@@ -107,11 +107,11 @@ function CombatTrackers({
   onChange: (state: CharacterStateInput) => void;
 }) {
   return (
-    <div className="sheet-combat">
-      <p className="sheet-ac">
-        <span className="sheet-ac__label">Classe de armadura</span>
+    <div className="flex flex-wrap gap-2 *:flex-[1_1_160px] [&>[data-slot=hit-points]]:flex-[2_1_300px]">
+      <p className="grid flex-[0_1_112px]! content-center justify-items-center gap-0.5 rounded-panel border border-border-strong bg-background p-3 text-center [&_strong]:font-mono [&_strong]:text-display [&_strong]:font-semibold [&_strong]:tabular-nums">
+        <span className="text-small text-text-secondary">Classe de armadura</span>
         <strong>{character.ac}</strong>
-        <span className="sheet-ac__shield" data-active={character.shield || undefined}>
+        <span className="text-micro text-text-muted data-active:font-semibold data-active:text-accent-text" data-active={character.shield || undefined}>
           {character.shield ? 'Com escudo' : 'Sem escudo'}
         </span>
       </p>
@@ -149,8 +149,8 @@ function CharacterTab({
         size={character.size} passivePerception={passivePerception(character)} disabled={rolling}
         onRollInitiative={canRoll ? () => roll({ kind: 'initiative' }) : undefined} />
 
-      <h3 className="sheet-subheading">Atributos, salvaguardas e perícias</h3>
-      <div className="sheet-abilities">
+      <h3 className="mt-2 font-display text-h2 font-semibold">Atributos, salvaguardas e perícias</h3>
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,max(240px,calc((100%_-_2*var(--spacing-3))/3))),1fr))] gap-3 max-[479px]:grid-cols-1">
         {ABILITIES.map((ability) => (
           <AbilityBlock
             key={ability}
@@ -174,9 +174,9 @@ function CharacterTab({
         ))}
       </div>
 
-      <h3 className="sheet-subheading">Armas e truques de dano</h3>
+      <h3 className="mt-2 font-display text-h2 font-semibold">Armas e truques de dano</h3>
       {character.attacks.length > 0 ? (
-        <ul className="sheet-attacks">
+        <ul className="m-0 grid list-none gap-2 p-0 *:min-w-0">
           {contentKeys(character.attacks).map(({ item: attack, key }, index) => (
             <li key={key}>
               {/* A save DC is rolled by the target: no attack roll to offer. */}
@@ -189,13 +189,13 @@ function CharacterTab({
         <p className="qf-sheet-empty">Nenhum ataque registrado.</p>
       )}
 
-      <div className="sheet-traits">
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,220px),1fr))] gap-4">
         <TraitList title="Características de classe" items={character.features} emptyText="Nenhuma característica registrada." />
         <TraitList title="Traços de espécie" items={character.speciesTraits} emptyText="Nenhum traço registrado." />
         <TraitList title="Talentos" items={character.feats} emptyText="Nenhum talento registrado." />
       </div>
 
-      <h3 className="sheet-subheading">Treinamento em equipamentos e proficiências</h3>
+      <h3 className="mt-2 font-display text-h2 font-semibold">Treinamento em equipamentos e proficiências</h3>
       <EquipmentTraining armorTraining={character.armorTraining} weapons={character.weaponProficiencies}
         tools={character.toolProficiencies} />
     </SheetTabPanel>
@@ -235,10 +235,10 @@ function SpellsTab({
       ) : (
         <p className="qf-sheet-empty">Sem atributo de conjuração: este personagem não conjura magias.</p>
       )}
-      <h3 className="sheet-subheading">Espaços de magia</h3>
+      <h3 className="mt-2 font-display text-h2 font-semibold">Espaços de magia</h3>
       <SpellSlots slots={character.spellSlots} editable={editable} pending={pending}
         onChange={(spellSlotsSpent) => onChange({ spellSlotsSpent })} />
-      <h3 className="sheet-subheading">Truques e magias preparadas</h3>
+      <h3 className="mt-2 font-display text-h2 font-semibold">Truques e magias preparadas</h3>
       <SpellList spells={character.spells} />
     </SheetTabPanel>
   );
@@ -261,7 +261,7 @@ function InventoryTab({
 }) {
   return (
     <SheetTabPanel idPrefix={idPrefix} id="inventory" active={active}>
-      <dl className="sheet-facts">
+      <dl className="m-0 grid grid-cols-[repeat(auto-fit,minmax(min(100%,200px),1fr))] gap-3 [&_dd]:mt-1 [&_dd]:[overflow-wrap:anywhere] [&_dt]:text-small [&_dt]:text-text-secondary">
         <div>
           <dt>Alinhamento</dt>
           <dd>{character.alignment || <span className="qf-sheet-empty">Não informado</span>}</dd>
@@ -271,30 +271,30 @@ function InventoryTab({
           <dd>{character.languages || <span className="qf-sheet-empty">Não informados</span>}</dd>
         </div>
       </dl>
-      <section className="sheet-block">
-        <h3 className="sheet-subheading">Aparência</h3>
+      <section className="grid min-w-0 gap-2">
+        <h3 className="mt-2 font-display text-h2 font-semibold">Aparência</h3>
         {character.appearance
-          ? <p className="sheet-text">{character.appearance}</p>
+          ? <p className="m-0 whitespace-pre-wrap [overflow-wrap:anywhere]">{character.appearance}</p>
           : <p className="qf-sheet-empty">Sem descrição de aparência.</p>}
       </section>
-      <section className="sheet-block">
-        <h3 className="sheet-subheading">História e personalidade</h3>
+      <section className="grid min-w-0 gap-2">
+        <h3 className="mt-2 font-display text-h2 font-semibold">História e personalidade</h3>
         {character.description
-          ? <p className="sheet-text">{character.description}</p>
+          ? <p className="m-0 whitespace-pre-wrap [overflow-wrap:anywhere]">{character.description}</p>
           : <p className="qf-sheet-empty">Sem história registrada.</p>}
       </section>
-      <section className="sheet-block">
-        <h3 className="sheet-subheading">Equipamento</h3>
+      <section className="grid min-w-0 gap-2">
+        <h3 className="mt-2 font-display text-h2 font-semibold">Equipamento</h3>
         {character.equipment
-          ? <p className="sheet-text">{character.equipment}</p>
+          ? <p className="m-0 whitespace-pre-wrap [overflow-wrap:anywhere]">{character.equipment}</p>
           : <p className="qf-sheet-empty">Nenhum equipamento registrado.</p>}
       </section>
-      <section className="sheet-block">
-        <h3 className="sheet-subheading">Itens mágicos sintonizados</h3>
+      <section className="grid min-w-0 gap-2">
+        <h3 className="mt-2 font-display text-h2 font-semibold">Itens mágicos sintonizados</h3>
         <AttunedItems items={character.attunedItems} />
       </section>
-      <section className="sheet-block">
-        <h3 className="sheet-subheading">Moedas</h3>
+      <section className="grid min-w-0 gap-2">
+        <h3 className="mt-2 font-display text-h2 font-semibold">Moedas</h3>
         {/* Remounted when the saved coins change, which resets the draft. */}
         <CoinPurse key={JSON.stringify(character.coins)} coins={character.coins} editable={editable}
           pending={pending} onSave={(coins) => onChange({ coins })} />
@@ -316,7 +316,7 @@ function RollResult({
   lastRoll: RollPayload | null;
 }) {
   return (
-    <div className="sheet-roll" aria-live="polite">
+    <div className="sticky bottom-[calc(var(--qf-dialog-pad)*-1)] z-1 -mx-(--qf-dialog-pad) mt-4 -mb-(--qf-dialog-pad) grid gap-2 border-t border-border bg-popover px-(--qf-dialog-pad) py-4" aria-live="polite">
       {rolling && <Skeleton shape="panel" aria-label="Rolando…" />}
 
       {rollError && !rolling && (
@@ -351,16 +351,16 @@ function DeleteConfirmation({
   onConfirm: () => void;
 }) {
   return (
-    <div className="sheet-confirm" role="group" aria-label={`Confirmar exclusão de ${character.name}`}>
-      <p className="sheet-confirm__question">
+    <div className="mt-4 grid gap-2 rounded-panel border border-danger-text bg-card p-4" role="group" aria-label={`Confirmar exclusão de ${character.name}`}>
+      <p className="m-0 flex items-center gap-2 font-semibold text-danger-text">
         <Warning size={18} weight="fill" aria-hidden="true" />
         Excluir {character.name}?
       </p>
-      <p className="sheet-confirm__detail">
+      <p className="m-0 text-small text-text-secondary">
         A ficha sai da mesa para todo mundo e não há como recuperá-la. As rolagens já
         registradas permanecem no histórico da sessão.
       </p>
-      <div className="qf-dialog__actions">
+      <div className="mt-2 flex flex-wrap justify-end gap-2">
         <Button variant="secondary" onClick={onCancel}>
           Manter ficha
         </Button>
@@ -435,8 +435,8 @@ export function CharacterSheetView({
   const liveTabProps = { ...tabProps, editable: canChangeState, pending: stateSaving, onChange: change };
 
   return (
-    <div className="sheet">
-      <Surface variant="sheet" className="sheet">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-4 max-[479px]:p-3">
+      <Surface variant="sheet" className="grid grid-cols-[minmax(0,1fr)] gap-4 max-[479px]:p-3">
         <SheetHead character={character} isOwner={isOwner} />
 
         <CombatTrackers character={character} editable={canChangeState} pending={stateSaving} onChange={change} />
@@ -448,14 +448,14 @@ export function CharacterSheetView({
         )}
 
         {!isOwner && (
-          <p className="sheet-readonly">
+          <p className="m-0 rounded-control border border-dashed border-input bg-card px-3 py-2 text-small text-text-secondary">
             Consulta: só {character.ownerName} edita e rola por esta ficha.
           </p>
         )}
 
         {canRoll && (
-          <div className="sheet-mode">
-            <span className="sheet-mode__label">Modo da rolagem</span>
+          <div className="flex flex-wrap items-center gap-3 rounded-control border border-border bg-card p-3">
+            <span className="text-small text-text-secondary">Modo da rolagem</span>
             <RollModeControl value={mode} onChange={setMode} disabled={rolling} />
           </div>
         )}

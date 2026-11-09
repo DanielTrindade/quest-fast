@@ -82,24 +82,26 @@ export function FeedFollow({ children, ids, hasMore, onLoadMore, loadingMore = f
   };
 
   return (
-    <div className="qf-feed-follow">
+    <div className="grid min-w-0">
       {hasMore ? (
-        <div className="qf-feed-follow__loadmore">
+        <div className="mb-3 grid justify-items-center gap-2 text-center">
           <Button variant="secondary" loading={loadingMore} onClick={onLoadMore}>
             {loadMoreError ? 'Tentar novamente' : 'Ver mais'}
           </Button>
           {loadMoreError && <p role="alert" className="text-small text-danger-text">{loadMoreError}</p>}
         </div>
       ) : (
-        <p className="qf-feed-follow__start">Início do histórico</p>
+        <p className="mb-2 text-center text-micro text-text-muted">Início do histórico</p>
       )}
-      <div className="qf-feed-follow__viewport" ref={viewportRef}>
+      {/* Older pages are re-anchored here, so the browser's own scroll anchoring
+          would move the reader twice; relative clips sr-only text to the scroller. */}
+      <div ref={viewportRef} className="relative grid min-w-0 [overflow-anchor:none] overscroll-contain @min-[760px]:max-h-[480px] @min-[760px]:overflow-y-auto">
         {children}
-        <div className="qf-feed-follow__end" ref={endRef} aria-hidden="true" />
+        <div ref={endRef} aria-hidden="true" className="pointer-events-none -mt-8 h-8" />
       </div>
-      <div className="qf-feed-follow__notice" aria-live="polite">
+      <div aria-live="polite" className="sticky bottom-4 grid justify-items-center not-empty:pt-3">
         {unseen > 0 && (
-          <button type="button" className="qf-feed-follow__pill" onClick={jumpToEnd}>
+          <button type="button" data-slot="feed-pill" onClick={jumpToEnd} className="inline-flex min-h-10 cursor-pointer items-center gap-1 justify-self-center rounded-full border border-input bg-popover px-3 py-1 text-small text-accent-text elevation-popover transition-[border-color,transform] duration-(--duration-quick) ease-settle animate-in fade-in-0 slide-in-from-bottom-2 hover:border-border-strong motion-safe:active:scale-[0.97]">
             <ArrowDown size={14} aria-hidden="true" />
             {unseen}{anchorLost && '+'} {unseen === 1 && !anchorLost ? 'novo resultado' : 'novos resultados'}
           </button>

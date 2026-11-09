@@ -5,6 +5,7 @@ import { Field } from './Field';
 import { SelectField } from './SelectField';
 import { ABILITY_LABELS } from '../lib/5e';
 import { emptyFormAttack, numberValue, type FormAttack } from '../lib/form-attacks';
+import { attackFields, itemCard, itemHead, wideField } from './form-styles';
 
 const MAX_BONUS = CHARACTER_LIMITS.attackBonus;
 const SAVE_DC = CHARACTER_LIMITS.saveDc;
@@ -27,22 +28,22 @@ export function AttackListEditor({ attacks, onChange, error, notesHint = 'Ex.: P
   return (
     <>
       {error && <p role="alert" className="text-small text-danger-text">{error}</p>}
-      <div className="qf-stack">
+      <div className="grid gap-3">
         {attacks.map((attack, index) => {
           const position = index + 1;
           const bonus = numberValue(attack.bonus);
           const dc = numberValue(attack.dc);
           return (
-            <div key={attack.rowId} className="sheet-form__attack" role="group" aria-label={`Ataque ${position}`}>
-              <div className="sheet-form__attack-head">
+            <div key={attack.rowId} className={itemCard} role="group" aria-label={`Ataque ${position}`}>
+              <div className={itemHead}>
                 <span>Ataque {position}</span>
                 <Button variant="ghost" type="button" aria-label={`Remover ataque ${attack.name.trim() || position}`}
                   onClick={() => onChange(attacks.filter((_, i) => i !== index))}>
                   <Trash size={18} aria-hidden="true" />
                 </Button>
               </div>
-              <div className="sheet-form__attack-fields">
-                <Field className="sheet-form__attack-name" label="Nome" value={attack.name}
+              <div className={attackFields}>
+                <Field className={wideField} label="Nome" value={attack.name}
                   aria-invalid={Boolean(error) && attack.name.trim().length === 0}
                   onChange={(e) => update(index, { name: e.target.value })} />
                 <SelectField label="Bônus Atq/CD" value={attack.kind}
@@ -74,7 +75,7 @@ export function AttackListEditor({ attacks, onChange, error, notesHint = 'Ex.: P
                   onChange={(e) => update(index, { damage: e.target.value })} />
                 <Field label="Tipo de dano" maxLength={CHARACTER_LIMITS.damageType} value={attack.damageType} hint="Ex.: Cortante"
                   onChange={(e) => update(index, { damageType: e.target.value })} />
-                <Field className="sheet-form__attack-name" label="Notas" maxLength={CHARACTER_LIMITS.attackNotes} value={attack.notes}
+                <Field className={wideField} label="Notas" maxLength={CHARACTER_LIMITS.attackNotes} value={attack.notes}
                   hint={notesHint}
                   onChange={(e) => update(index, { notes: e.target.value })} />
               </div>

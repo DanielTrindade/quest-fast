@@ -33,7 +33,6 @@
   font-size: var(--text-micro);
 }
 .theme-frame__panel { padding: var(--spacing-6); }
-.theme-frame .qf-toast-viewport { position: sticky; margin-top: var(--spacing-4); margin-left: auto; max-width: 100%; }
 @media (min-width: 1100px) {
   .theme-grid[data-comparison="true"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
@@ -41,3 +40,9 @@
   .theme-grid { padding: var(--spacing-2); gap: var(--spacing-2); }
   .theme-frame__header, .theme-frame__panel { padding: var(--spacing-4); }
 }
+/* Each theme frame keeps its own toaster in its own corner; fixed, the two
+   would stack on the same viewport corner and cover each other. */
+.theme-frame [data-sonner-toaster] { position: absolute; }
+/* Sonner stretches the phone toaster with width: 100% plus side offsets; that
+   only stays inside a fixed viewport, not inside a frame. */
+@media (max-width: 600px) { .theme-frame [data-sonner-toaster] { width: auto; } }

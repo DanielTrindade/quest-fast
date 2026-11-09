@@ -3,6 +3,7 @@ import { Check, Minus, Plus } from '@phosphor-icons/react';
 import { Button } from '../components/Button';
 import { Field } from '../components/Field';
 import { Surface } from '../components/Surface';
+import { Skeleton } from '../components/ui/skeleton';
 import './foundations.css';
 
 const COLOR_GROUPS = [
@@ -200,7 +201,7 @@ export function Foundations({ section = 'all' }: FoundationsProps) {
           <Surface role="region" aria-busy="true" aria-label="Carregando anotações">
             <h3>Carregando anotações</h3>
             <div className="skeleton-specimen" aria-hidden="true">
-              <div className="qf-skeleton" /><div className="qf-skeleton" /><div className="qf-skeleton" />
+              <Skeleton /><Skeleton className="w-4/5" /><Skeleton className="w-3/5" />
             </div>
             <p className="foundations__description">O espaço do conteúdo fica reservado.</p>
           </Surface>

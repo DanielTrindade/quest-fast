@@ -25,15 +25,17 @@ function rollAction(payload: RollPayload): string {
   return `rolou ${payload.expression}`;
 }
 
+const combat = 'm-0 flex items-start gap-2 text-foreground [overflow-wrap:anywhere] [&>svg]:mt-0.5 [&>svg]:shrink-0 [&>svg]:text-accent-text';
+
 /** Who wrote the event, when, and whether the table may see it. */
 function FeedMeta({ event }: { event: SessionEvent }) {
   return (
-    <p className="feed-meta">
+    <p className="flex [&+[data-slot=dice]]:mt-2 flex-wrap items-center gap-2 text-small text-text-muted">
       <span>{event.userName}</span>
       <span aria-hidden="true">·</span>
       <time>{formatTime(event.createdAt)}</time>
       {event.secret && (
-        <span className="feed-secret-tag">
+        <span className="inline-flex items-center gap-1 rounded-control border border-dashed border-input px-2 py-px text-text-secondary">
           <EyeSlash size={14} weight="regular" aria-hidden="true" /> Secreta
         </span>
       )}
@@ -62,7 +64,7 @@ function CombatEventCard({ event }: { event: CombatSessionEvent }) {
     return (
       <>
         <FeedMeta event={event} />
-        <p className="qf-feed__combat">
+        <p className={combat}>
           <Sword size={16} aria-hidden="true" />
           <span>Combate iniciado: <strong>{event.payload.encounterName}</strong></span>
         </p>
@@ -73,7 +75,7 @@ function CombatEventCard({ event }: { event: CombatSessionEvent }) {
   return (
     <>
       <FeedMeta event={event} />
-      <p className="qf-feed__combat">
+      <p className={combat}>
         <FlagCheckered size={16} aria-hidden="true" />
         <span>
           Combate encerrado: <strong>{encounterName}</strong>, {rounds} {rounds === 1 ? 'round' : 'rounds'}.
@@ -94,8 +96,8 @@ function UnknownEventCard({ event }: { event: UnknownSessionEvent }) {
   return (
     <>
       <FeedMeta event={event} />
-      <p className="qf-feed__unknown-body">
-        <Info size={14} aria-hidden="true" />
+      <p className="m-0 flex items-center gap-2 text-small text-text-secondary">
+        <Info size={14} aria-hidden="true" className="shrink-0 text-text-muted" />
         <span>Novo tipo de evento: {event.type}</span>
       </p>
     </>
@@ -119,5 +121,5 @@ export function FeedEventCard({ event }: { event: SessionEvent }) {
     : isCombatSessionEvent(event)
       ? <CombatEventCard event={event} />
       : <UnknownEventCard event={event as UnknownSessionEvent} />;
-  return event.secret ? <div className="qf-feed__secret">{content}</div> : <>{content}</>;
+  return event.secret ? <div className="-mx-3 rounded-control border border-dashed border-input bg-surface-secret px-3 py-2">{content}</div> : <>{content}</>;
 }

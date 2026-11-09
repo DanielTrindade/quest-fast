@@ -16,16 +16,16 @@ type AttackCardProps = {
  */
 export function AttackCard(props: AttackCardProps) {
   const { name, damage, damageType = '', notes = '', onRoll, disabled = false } = props;
-  return <div className="qf-attack">
-    <div className="qf-attack__description">
-      <p className="qf-attack__name"><Sword size={18} aria-hidden="true" />{name}</p>
-      <dl className="qf-attack__stats">
+  return <div className="flex flex-wrap items-center justify-between gap-3 rounded-control border border-border bg-card p-3">
+    <div className="min-w-0 flex-[1_1_160px] [overflow-wrap:anywhere]">
+      <p className="flex items-center gap-2 font-semibold"><Sword size={18} aria-hidden="true" className="shrink-0 text-text-secondary" />{name}</p>
+      <dl className="mt-2 flex flex-wrap gap-x-4 gap-y-2 *:min-w-0 [&_dd]:font-mono [&_dd]:tabular-nums [&_dt]:text-micro [&_dt]:text-text-secondary">
         {props.kind === 'save'
           ? <div><dt>Resistência</dt><dd>{ABILITY_LABELS[props.saveAbility]} — CD {props.dc}</dd></div>
           : <div><dt>Acerto</dt><dd>{props.bonus >= 0 ? '+' : '−'}{Math.abs(props.bonus)}</dd></div>}
-        <div><dt>Dano e tipo</dt><dd>{damage}{damageType && <span className="qf-attack__type"> {damageType}</span>}</dd></div>
+        <div><dt>Dano e tipo</dt><dd>{damage}{damageType && <span className="font-sans text-text-secondary"> {damageType}</span>}</dd></div>
       </dl>
-      {notes && <p className="qf-attack__notes">{notes}</p>}
+      {notes && <p className="mt-1 text-small text-text-secondary [overflow-wrap:anywhere]">{notes}</p>}
     </div>
     {onRoll && props.kind !== 'save' && <Button variant="secondary" disabled={disabled} onClick={onRoll} aria-label={`Rolar ataque de ${name}`}>
       <DiceFive size={18} aria-hidden="true" />Rolar ataque
