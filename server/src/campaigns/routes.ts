@@ -2,32 +2,14 @@ import { randomUUID } from 'node:crypto';
 import { and, desc, eq, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { campaignBans, campaignMembers, campaigns, users, type Db } from '@quest-fast/db';
-import { generateInviteCode, normalizeInviteCode } from '@quest-fast/shared';
+import { normalizeInviteCode } from '@quest-fast/shared';
 import type { Context } from '../context.ts';
 import { banRoutes, isBanned } from './bans.ts';
+import { withUniqueCode } from './unique-code.ts';
 import { requireAuth, requireCampaignRole } from '../middleware.ts';
 
 const NAME_LIMIT = 80;
 const DESCRIPTION_LIMIT = 500;
-
-function isUniqueViolation(error: unknown): boolean {
-  return error instanceof Error && error.message.includes('UNIQUE');
-}
-
-/**
- * The code is unique by index in the database. A collision is unlikely, but
- * the retry keeps the write deterministic instead of erroring at the master.
- */
-function withUniqueCode<T>(attempt: (code: string) => T): T {
-  for (let tries = 0; tries < 5; tries++) {
-    try {
-      return attempt(generateInviteCode());
-    } catch (error) {
-      if (!isUniqueViolation(error) || tries === 4) throw error;
-    }
-  }
-  throw new Error('Could not generate a unique invite code.');
-}
 
 /**
  * The campaign and its master membership are one write: a failure while adding

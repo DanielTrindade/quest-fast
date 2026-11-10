@@ -95,6 +95,12 @@ test('only the master rotates the invite', async () => {
   assert.equal(byOutsider.status, 404);
 });
 
+test('rotating the invite requires a session', async () => {
+  const { a, campaign } = await setup();
+  const response = await a.app.request(`/api/campaigns/${campaign.id}/invite`, { method: 'POST' });
+  assert.equal(response.status, 401);
+});
+
 test('rotating invalidates the old code and keeps the members', async () => {
   const { a, master, player, outsider, campaign, join } = await setup();
   await join(player, campaign.inviteCode);
@@ -104,6 +110,9 @@ test('rotating invalidates the old code and keeps the members', async () => {
   const { inviteCode } = await body<{ inviteCode: string }>(rotated);
   assert.notEqual(inviteCode, campaign.inviteCode);
 
+  const fresh = await a.app.request(`/api/invites/${inviteCode}`);
+  assert.equal(fresh.status, 200);
+  assert.equal((await body<InvitePreview>(fresh)).code, inviteCode);
   assert.equal((await a.app.request(`/api/invites/${campaign.inviteCode}`)).status, 404);
   assert.equal((await join(outsider, campaign.inviteCode)).status, 404);
   assert.equal((await join(outsider, inviteCode)).status, 201);

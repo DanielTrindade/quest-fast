@@ -31,7 +31,7 @@ export function inviteRoutes() {
       code: invite.code,
       campaignName: invite.campaignName,
       master: { name: invite.masterName, avatarUrl: invite.masterAvatarUrl },
-      playerCount: Number(invite.playerCount),
+      playerCount: invite.playerCount,
       viewer: status,
       ...(status === 'member' ? { campaignId: invite.campaignId } : {}),
     };

@@ -22,7 +22,7 @@ export function findInvite(db: Db, rawCode: string): InviteRecord | undefined {
       campaignName: campaigns.name,
       masterName: users.name,
       masterAvatarUrl: users.avatarUrl,
-      playerCount: sql<number>`(select count(*) from ${campaignMembers} as players where players.campaign_id = ${campaigns.id} and players.role = 'player')`,
+      playerCount: sql<number>`(select count(*) from ${campaignMembers} as players where players.campaign_id = ${campaigns.id} and players.role = 'player')`.mapWith(Number),
     })
     .from(campaigns)
     .innerJoin(campaignMembers, and(eq(campaignMembers.campaignId, campaigns.id), eq(campaignMembers.role, 'master')))
