@@ -1,5 +1,7 @@
 import type { MouseEvent } from 'react';
-import { DiceFive, DiscordLogo, LockSimple, Notebook, Sword, WarningCircle } from '@phosphor-icons/react';
+import { DiceFive, DiscordLogo, LockSimple, Notebook, Sword } from '@phosphor-icons/react';
+import { AuthFailedAlert } from './AuthFailedAlert';
+import { BrandMark } from './BrandMark';
 import { Surface } from './Surface';
 import { Button } from './ui/button';
 
@@ -8,11 +10,6 @@ const FEATURES = [
   { icon: DiceFive, title: 'Dados rolados no servidor', detail: 'A mesa vê cada rolagem na hora.' },
   { icon: Sword, title: 'Combate por turnos', detail: 'Iniciativa e bestiário do mestre.' },
 ];
-
-// The brand is the system's diamond (death saves, loading) set in the action tone.
-function BrandMark() {
-  return <span aria-hidden="true" className="relative inline-block size-7 shrink-0 before:absolute before:inset-1 before:rotate-45 before:rounded-[3px] before:bg-primary before:shadow-[inset_0_1px_0_var(--color-action-light)] after:absolute after:inset-2.5 after:rotate-45 after:rounded-[1px] after:border-[1.5px] after:border-primary-foreground after:opacity-85" />;
-}
 
 type LoginPanelProps = {
   href: string;
@@ -52,15 +49,7 @@ export function LoginPanel({ href, failed = false, leaving = false, onLeave }: L
           ))}
         </ul>
 
-        {failed && (
-          <div role="alert" className="grid grid-cols-[auto_minmax(0,1fr)] gap-3 rounded-panel border border-s-4 border-danger bg-(--color-danger-surface) p-3">
-            <WarningCircle size={20} aria-hidden="true" className="mt-0.5 text-danger-text" />
-            <div>
-              <strong className="block font-semibold">O Discord não confirmou sua entrada.</strong>
-              <span className="mt-1 block text-small text-text-secondary">Se você cancelou a autorização, é só tentar de novo.</span>
-            </div>
-          </div>
-        )}
+        {failed && <AuthFailedAlert />}
 
         <Button asChild size="lg" className="w-full aria-busy:cursor-progress">
           <a href={href} onClick={handleClick} aria-busy={leaving || undefined} aria-disabled={leaving || undefined}>
