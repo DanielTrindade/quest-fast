@@ -35,7 +35,7 @@ export const GastarEspaco: Story = {
       const pip = within(region).getByRole('button', { name: 'Gastar espaço 2 do 2º círculo' });
       await userEvent.click(pip);
       await expect(pip).toHaveAttribute('aria-pressed', 'true');
-      await expect(within(region).getByText('1 de 3 livres')).toBeVisible();
+      await expect(within(region).getByText('1 livre de 3')).toBeVisible();
     }
   },
 };

@@ -58,8 +58,6 @@ const meta = {
   title: 'Laboratório/Dados extremos',
   component: AppLab,
   parameters: { dataToggle: true },
-  // The real screens use fixed ids (`members-title`), so one theme frame at a time.
-  globals: { theme: 'dark' },
   beforeEach: installApiMock,
   render: (args, { globals }) => {
     const data: DataState = DATA_STATES.includes(globals.data) ? globals.data : 'demo';
@@ -71,6 +69,16 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Campanhas: Story = { args: { role: 'master', path: '/campaigns' } };
-export const MesaDoMestre: Story = { name: 'Mesa do mestre', args: { role: 'master', path: `/campaigns/${CAMPAIGN_ID}` } };
-export const MesaDoJogador: Story = { name: 'Mesa do jogador', args: { role: 'player', path: `/campaigns/${CAMPAIGN_ID}` } };
+// The real screens use fixed ids (`members-title`): each story renders one theme frame.
+const dark = { theme: 'dark' };
+const light = { theme: 'light' };
+const campaigns = { role: 'master', path: '/campaigns' } as const;
+const master = { role: 'master', path: `/campaigns/${CAMPAIGN_ID}` } as const;
+const player = { role: 'player', path: `/campaigns/${CAMPAIGN_ID}` } as const;
+
+export const Campanhas: Story = { args: campaigns, globals: dark };
+export const CampanhasClaro: Story = { name: 'Campanhas (claro)', args: campaigns, globals: light };
+export const MesaDoMestre: Story = { name: 'Mesa do mestre', args: master, globals: dark };
+export const MesaDoMestreClaro: Story = { name: 'Mesa do mestre (claro)', args: master, globals: light };
+export const MesaDoJogador: Story = { name: 'Mesa do jogador', args: player, globals: dark };
+export const MesaDoJogadorClaro: Story = { name: 'Mesa do jogador (claro)', args: player, globals: light };

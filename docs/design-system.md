@@ -200,7 +200,7 @@ O Storybook inteiro roda sobre shadcn/ui. Os primitivos ficam em `client/src/com
 
 ## Dados extremos (10 de novembro de 2026)
 
-O laboratório ganhou a seção **Laboratório → Dados extremos**: as telas reais (`Campanhas`, mesa do mestre e mesa do jogador) rodam com o router e o TanStack Query de verdade, e só o `fetch` de `/api/*` é respondido por fixtures (`client/src/stories/fixtures/app.ts`). O seletor fixo no rodapé, também na toolbar como **Dados**, troca entre **Demo**, **Pior caso**, **Vazio**, **Um** e **Muitos**, e fica salvo na URL (`globals=data:worst`). O pior caso usa pessoas e limites reais: nomes do Discord com 32 caracteres sem espaço, emoji, bandeira, árabe e vietnamita, textos no limite do schema, moedas em 999.999, as 15 condições, 60 combatentes e 200 criaturas. As telas reais usam IDs fixos, então essas stories mostram um tema por vez.
+O laboratório ganhou a seção **Laboratório → Dados extremos**: as telas reais (`Campanhas`, mesa do mestre e mesa do jogador) rodam com o router e o TanStack Query de verdade, e só o `fetch` de `/api/*` é respondido por fixtures (`client/src/stories/fixtures/app.ts`). O seletor fixo no rodapé, também na toolbar como **Dados**, troca entre **Demo**, **Pior caso**, **Vazio**, **Um** e **Muitos**, e fica salvo na URL (`globals=data:worst`). O pior caso usa pessoas e limites reais: nomes do Discord com 32 caracteres sem espaço, emoji, bandeira, árabe e vietnamita, textos no limite do schema, moedas em 999.999, as 15 condições, 60 combatentes e 200 criaturas. As telas reais usam IDs fixos, então cada story mostra um tema só, com uma variante "(claro)" para cada tela.
 
 O que a rodada corrigiu:
 
@@ -211,5 +211,5 @@ O que a rodada corrigiu:
 - **Perícias:** quebram por palavra, com hifenização, em vez de no meio ("Prestidigitaçã/o").
 - **Barra do celular:** "Personagens" vira "Fichas" e os itens perderam o padding lateral, para "Combate" e "Membros" caberem em 320 px.
 - **Retrato do personagem:** o recorte privilegia o topo (`object-[50%_20%]`), para o rosto de um retrato de corpo inteiro aparecer.
-- **Plurais:** "1 criatura", "1 de 1 livre".
+- **Plurais:** "1 criatura"; os espaços de magia concordam com os livres, "1 livre de 3".
 - **Cópias numeradas:** a numeração encurta o nome para caber no limite de 80 caracteres (`numberCopies` em `shared/`).
