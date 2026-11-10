@@ -333,11 +333,16 @@ function copyName(creature: string, n: number): string {
  * Which copy of `creature` a name is: the plain name is copy 1, `Goblin 3` is
  * copy 3, anything else is not a copy (`null`). Only the creature's own name
  * tells a number apart from the name itself: `Construto 7` is copy 7 of
- * `Construto`, but copy 1 of `Construto 7`.
+ * `Construto`, but copy 1 of `Construto 7`. A long name is a copy both with
+ * the whole name, as stored before copies were cut to the limit, and cut.
  */
 export function copyNumber(name: string, creature: string): number | null {
   if (name === creature) return 1;
-  const suffix = /\s(\d+)$/.exec(name);
+  if (name.startsWith(`${creature} `)) {
+    const suffix = name.slice(creature.length + 1);
+    return /^\d+$/.test(suffix) ? Number(suffix) : null;
+  }
+  const suffix = / (\d+)$/.exec(name);
   if (!suffix) return null;
   const n = Number(suffix[1]);
   return copyName(creature, n) === name ? n : null;
@@ -369,8 +374,15 @@ export function placeCopies(
   if (hidden) return { names: numberCopies(name, count, allNames), renamed: [] };
 
   const names = numberCopies(name, count, existing.filter((entry) => !entry.hidden).map((entry) => entry.name));
+  // By number, not text: a copy stored whole and one cut to the limit can be the same copy.
+  const numbered = (copy: string) => (copy === name ? null : copyNumber(copy, name));
   const taken = new Set(names);
-  const displaced = existing.filter((entry) => entry.hidden && entry.renamable && taken.has(entry.name));
+  const takenNumbers = new Set(names.map(numbered).filter((n) => n !== null));
+  const displaced = existing.filter((entry) => {
+    if (!entry.hidden || !entry.renamable) return false;
+    const n = numbered(entry.name);
+    return taken.has(entry.name) || (n !== null && takenNumbers.has(n));
+  });
   const fresh = numberCopies(name, displaced.length, [...allNames, ...names]);
   return { names, renamed: displaced.map((entry, index) => ({ id: entry.id, name: fresh[index]! })) };
 }
