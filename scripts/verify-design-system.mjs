@@ -41,13 +41,15 @@ try {
     const boxes = [...document.querySelectorAll('#storybook-root *')].filter(el => {
       const style = getComputedStyle(el);
       return parseFloat(style.borderLeftWidth) > 0 && parseFloat(style.borderRightWidth) > 0 && style.overflowX === 'visible'
-        && style.display !== 'contents' && el.getClientRects().length;
+        && style.display !== 'contents' && el.checkVisibility();
     });
     for (const box of boxes) {
       const outer = box.getBoundingClientRect();
       for (const child of box.querySelectorAll('*')) {
         const style = getComputedStyle(child);
-        if (['absolute', 'fixed', 'sticky'].includes(style.position) || !child.getClientRects().length) continue;
+        // Closed <details> content still reports client rects in Chrome, so
+        // only what is actually rendered counts as escaping.
+        if (['absolute', 'fixed', 'sticky'].includes(style.position) || !child.checkVisibility()) continue;
         if (child.closest('[data-slot="dialog-content"], [data-slot="dropdown-menu-content"], [data-slot="tooltip-content"], [data-sonner-toaster]') !== box.closest('[data-slot="dialog-content"], [data-slot="dropdown-menu-content"], [data-slot="tooltip-content"], [data-sonner-toaster]')) continue;
         const inner = child.getBoundingClientRect();
         if (inner.right > outer.right + 1 || inner.left < outer.left - 1) {
@@ -83,6 +85,18 @@ try {
         // The page can stay inside the viewport while a child pokes out of its
         // own card, so every bordered box must hold its in-flow content.
         expect(await page.evaluate(escapes), `${story.id} @${width}px`).toEqual([]);
+        const closed = await page.evaluate(() => {
+          const details = [...document.querySelectorAll('#storybook-root details:not([open])')];
+          details.forEach(el => { el.open = true; el.dataset.auditOpened = ''; });
+          return details.length;
+        });
+        if (closed) {
+          expect(await page.evaluate(escapes), `${story.id} @${width}px com details aberto`).toEqual([]);
+          await page.evaluate(() => document.querySelectorAll('#storybook-root details[data-audit-opened]').forEach(el => {
+            el.open = false;
+            delete el.dataset.auditOpened;
+          }));
+        }
       }
       results.push({ story: story.id, passed: true, themes: ['dark', 'light'], widths: [320, 390, 768, 1280] });
       console.log(`PASS ${story.id}`);
