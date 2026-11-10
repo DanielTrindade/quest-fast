@@ -13,6 +13,7 @@ import { encounterQuery, encountersQuery, isDeletedEncounter, isMissingEncounter
 import { EncounterPanel } from './EncounterPanel';
 import { StatblockDialog } from './StatblockDialog';
 import { StatblockFormDialog } from './StatblockFormDialog';
+import { sectionHeading, stack } from '../../components/layout-styles';
 
 /**
  * The fight in progress; once it ends, the one that was being followed, so
@@ -56,7 +57,7 @@ function useOpenEncounter(campaignId: string, list: EncounterListItem[], isMaste
 
 function Loading({ label }: { label: string }) {
   return (
-    <div className="qf-stack" role="region" aria-label={label} aria-busy="true">
+    <div className={stack} role="region" aria-label={label} aria-busy="true">
       <Skeleton width="40%" />
       <Skeleton shape="panel" />
     </div>
@@ -65,7 +66,7 @@ function Loading({ label }: { label: string }) {
 
 function LoadError({ message, onRetry }: { message: string; onRetry: () => void }) {
   return (
-    <div className="qf-stack">
+    <div className={stack}>
       <p role="alert" className="text-body text-danger-text">{message}</p>
       <div>
         <Button variant="secondary" onClick={onRetry}>Tentar novamente</Button>
@@ -89,9 +90,9 @@ function Bestiary({ campaignId, onNotice }: { campaignId: string; onNotice: (not
 
   return (
     <Surface>
-      <h3 className="campaign-combat__title">
+      <h3 className="mb-4 flex flex-wrap items-baseline justify-between gap-2 font-display text-h2 font-semibold">
         Bestiário
-        {statblocks.isSuccess && <span className="campaign-combat__count">{statblocks.data.statblocks.length} criaturas</span>}
+        {statblocks.isSuccess && <span className="font-sans text-small font-normal text-text-secondary">{statblocks.data.statblocks.length} criaturas</span>}
       </h3>
 
       {statblocks.isPending && <Loading label="Carregando bestiário" />}
@@ -164,8 +165,8 @@ export function CombatSection({ campaignId, isMaster, currentUserId }: {
   });
 
   return (
-    <section className="campaign-combat" aria-labelledby="combat-title">
-      <div className="campaign-section-heading">
+    <section className="grid min-w-0 gap-3" aria-labelledby="combat-title">
+      <div className={sectionHeading}>
         <h2 id="combat-title">
           <Skull size={20} aria-hidden="true" /> Combate
         </h2>
@@ -191,8 +192,8 @@ export function CombatSection({ campaignId, isMaster, currentUserId }: {
         )}
 
         {encounters.isSuccess && !openId && (
-          <div className="qf-stack">
-            <h3 className="campaign-combat__title">Encontros</h3>
+          <div className={stack}>
+            <h3 className="mb-4 flex flex-wrap items-baseline justify-between gap-2 font-display text-h2 font-semibold">Encontros</h3>
             <EncounterList
               encounters={list}
               onOpen={setChosenId}

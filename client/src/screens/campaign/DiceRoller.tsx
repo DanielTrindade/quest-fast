@@ -11,6 +11,7 @@ import { Surface } from '../../components/Surface';
 import { ApiError, api } from '../../lib/api';
 import { mergeFeedEvent } from '../../lib/feed-cache';
 import { checkLabel } from '../../components/ui/segmented';
+import { sectionHeading, stack } from '../../components/layout-styles';
 
 function errorMessage(error: unknown) {
   return error instanceof ApiError ? error.message : 'Algo deu errado. Tente novamente.';
@@ -37,8 +38,8 @@ export function DiceRoller({ campaignId, isMaster }: { campaignId: string; isMas
   });
 
   return (
-    <section className="dice-panel" aria-labelledby="dice-title">
-      <div className="campaign-section-heading">
+    <section data-slot="dice-panel" aria-labelledby="dice-title">
+      <div className={sectionHeading}>
         <h2 id="dice-title">
           <DiceFive size={20} weight="duotone" aria-hidden="true" /> Dados
         </h2>
@@ -46,7 +47,7 @@ export function DiceRoller({ campaignId, isMaster }: { campaignId: string; isMas
 
       <Surface>
         <form
-          className="qf-stack"
+          className={stack}
           onSubmit={(event) => {
             event.preventDefault();
             if (parsed) roll.mutate();
@@ -94,7 +95,7 @@ export function DiceRoller({ campaignId, isMaster }: { campaignId: string; isMas
         </form>
 
         {roll.isSuccess && (
-          <div className="qf-dice-result">
+          <div className="mt-4 border-t border-border">
             <DiceResult
               label={`${roll.data.event.userName} rolou ${roll.data.event.payload.expression}`}
               total={roll.data.event.payload.total}

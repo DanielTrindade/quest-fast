@@ -2,11 +2,12 @@ import { useState } from 'react';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { expect, userEvent, within } from 'storybook/test';
 import { QuickDice } from '../components/QuickDice';
+import { stack } from '../components/layout-styles';
 
 function Example({ lastExpression = null, disabled = false }: { lastExpression?: string | null; disabled?: boolean }) {
   const [expression, setExpression] = useState('');
   return (
-    <div className="qf-stack" style={{ maxWidth: 340 }}>
+    <div className={stack} style={{ maxWidth: 340 }}>
       <QuickDice onPick={setExpression} lastExpression={lastExpression} disabled={disabled} />
       <p aria-live="polite" className="text-small text-text-secondary">
         Expressão: {expression || '—'}

@@ -20,7 +20,7 @@ export function CopyField({ value, label = 'Código de convite', copy = text => 
       setFeedback(current => current?.value === value ? { value, state: 'error' } : current);
     }
   }
-  return <div className="qf-copy-field grid min-w-0 gap-2">
+  return <div className="grid min-w-0 gap-2">
     <Label htmlFor={id}>{label}</Label>
     <div className="flex flex-wrap gap-2">
       <Input className="w-0 flex-[1_1_120px] font-mono font-semibold tracking-[0.16em] tabular-nums" id={id} value={value} readOnly onFocus={event => event.currentTarget.select()} aria-describedby={`${id}-status`} />

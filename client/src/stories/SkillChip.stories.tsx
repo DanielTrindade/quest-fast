@@ -2,13 +2,14 @@ import { useState } from 'react';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { expect, userEvent, within } from 'storybook/test';
 import { SkillChip } from '../components/SkillChip';
+import { stack } from '../components/layout-styles';
 
 function Example({ trained = true, rollable = false, disabled = false }: {
   trained?: boolean; rollable?: boolean; disabled?: boolean;
 }) {
   const [rolled, setRolled] = useState(false);
   return (
-    <div className="qf-stack" style={{ maxWidth: 300 }}>
+    <div className={stack} style={{ maxWidth: 300 }}>
       <SkillChip label="Furtividade" bonus={6} trained={trained}
         onRoll={rollable ? () => setRolled(true) : undefined} disabled={disabled} />
       <p className="text-small text-text-secondary" aria-live="polite">

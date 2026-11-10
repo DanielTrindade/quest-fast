@@ -155,7 +155,7 @@ src/
   components/      componentes presentacionais do design system
   hooks/           useCampaignSocket, useActiveSection
   lib/             cliente da API, cache do feed, rótulos 5e, formatação
-  styles/          tokens (index.css), componentes (components.css), telas
+  styles/          tokens (index.css) e relevo dos primitivos (ui.css)
   stories/         Storybook: catálogo e fonte de verdade da interface
 ```
 

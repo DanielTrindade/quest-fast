@@ -12,6 +12,8 @@ import { Skeleton } from '../components/Skeleton';
 import { Surface } from '../components/Surface';
 import { ApiError, api } from '../lib/api';
 import { formatDate } from '../lib/format';
+import { dialogActions, eyebrow, page, stack } from '../components/layout-styles';
+import { cn } from '../lib/utils';
 
 /** Visible copy stays in Portuguese — it is what the table reads. */
 function errorMessage(error: unknown) {
@@ -52,7 +54,7 @@ function CreateCampaign() {
       description="Você será o mestre desta campanha e receberá o código para convidar a mesa."
     >
       <form
-        className="qf-stack"
+        className={stack}
         onSubmit={(event) => {
           event.preventDefault();
           create.mutate();
@@ -74,7 +76,7 @@ function CreateCampaign() {
           onChange={(e) => setDescription(e.target.value)}
           maxLength={500}
         />
-        <div className="qf-dialog__actions">
+        <div className={dialogActions}>
           <Button variant="secondary" onClick={() => setOpen(false)}>
             Cancelar
           </Button>
@@ -123,7 +125,7 @@ function JoinByCode() {
       description="Peça o código ao mestre da mesa."
     >
       <form
-        className="qf-stack"
+        className={stack}
         onSubmit={(event) => {
           event.preventDefault();
           join.mutate();
@@ -147,7 +149,7 @@ function JoinByCode() {
           required
           autoFocus
         />
-        <div className="qf-dialog__actions">
+        <div className={dialogActions}>
           <Button variant="secondary" onClick={() => setOpen(false)}>
             Cancelar
           </Button>
@@ -164,10 +166,10 @@ export function Campaigns() {
   const campaigns = useQuery({ queryKey: ['campaigns'], queryFn: api.campaigns });
 
   return (
-    <main className="qf-page mx-auto w-full max-w-3xl p-4 sm:p-8">
-      <header className="campaign-heading">
+    <main data-slot="page" className={cn(page, 'mx-auto w-full max-w-3xl p-4 sm:p-8')}>
+      <header className="mb-8 flex flex-wrap items-center justify-between gap-6 max-[479px]:gap-4 [&_h1]:mt-2 [&_h1]:font-display [&_h1]:text-display [&_h1]:font-semibold [&_h1]:tracking-[-0.04em] @max-[480px]:[&_h1]:text-h1">
         <div>
-          <p className="campaign-eyebrow">Suas mesas</p>
+          <p className={eyebrow}>Suas mesas</p>
           <h1>Campanhas</h1>
         </div>
         <div className="flex flex-wrap gap-3">
@@ -177,7 +179,7 @@ export function Campaigns() {
       </header>
 
       {campaigns.isPending && (
-        <Surface className="qf-stack" aria-busy="true" aria-label="Carregando campanhas">
+        <Surface className={stack} aria-busy="true" aria-label="Carregando campanhas">
           {[0, 1, 2].map((row) => (
             <Skeleton key={row} shape="panel" />
           ))}
@@ -208,7 +210,7 @@ export function Campaigns() {
       )}
 
       {campaigns.isSuccess && campaigns.data.campaigns.length > 0 && (
-        <ul className="qf-stack list-none p-0">
+        <ul className={cn(stack, 'list-none p-0')}>
           {campaigns.data.campaigns.map((campaign) => (
             <li key={campaign.id}>
               {/* The whole card is the target: a link inside a surface makes
@@ -216,17 +218,17 @@ export function Campaigns() {
               <Link
                 to="/campaigns/$campaignId"
                 params={{ campaignId: campaign.id }}
-                className="campaign-card"
+                className="grid min-w-0 gap-1 rounded-panel border border-border bg-card p-4 text-foreground no-underline edge-raised transition-[background-color,border-color,transform] duration-(--duration-quick) ease-settle hover:border-border-strong hover:bg-muted motion-safe:active:scale-[0.99]"
               >
-                <span className="campaign-card__head">
-                  <span className="campaign-card__name">{campaign.name}</span>
+                <span className="flex min-w-0 flex-wrap items-center justify-between gap-2">
+                  <span className="font-display text-h2 font-semibold [overflow-wrap:anywhere]">{campaign.name}</span>
                   {/* Role and Badge share the same vocabulary, so no mapping. */}
                   <Badge role={campaign.role} />
                 </span>
                 {campaign.description && (
-                  <span className="campaign-card__description">{campaign.description}</span>
+                  <span className="line-clamp-2 text-small text-text-secondary">{campaign.description}</span>
                 )}
-                <span className="campaign-card__date">Entrou em {formatDate(campaign.joinedAt)}</span>
+                <span className="text-micro text-text-muted">Entrou em {formatDate(campaign.joinedAt)}</span>
               </Link>
             </li>
           ))}

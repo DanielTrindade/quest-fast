@@ -13,7 +13,7 @@ export function CharacterRow({ character, isMine, onOpen }: {
 }) {
   return (
     <li>
-      <button type="button" onClick={onOpen} className="flex min-h-14 w-full min-w-0 cursor-pointer flex-wrap items-center gap-3 rounded-control bg-transparent px-2 py-3 text-start text-foreground transition-[background-color] duration-(--duration-quick) ease-settle hover:bg-muted">
+      <button type="button" data-slot="character-row" onClick={onOpen} className="flex min-h-14 w-full min-w-0 cursor-pointer flex-wrap items-center gap-3 rounded-control bg-transparent px-2 py-3 text-start text-foreground transition-[background-color] duration-(--duration-quick) ease-settle hover:bg-muted">
         <Avatar name={character.name} src={character.avatarUrl ?? undefined} variant="character" size="md" />
         <span className="grid min-w-0 flex-[1_1_140px] gap-0.5">
           <span className="flex min-w-0 flex-wrap items-baseline gap-2">

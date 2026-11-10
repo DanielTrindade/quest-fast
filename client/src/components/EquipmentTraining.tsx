@@ -1,6 +1,7 @@
 import { CheckSquare, Square } from '@phosphor-icons/react';
 import { ARMOR_TRAINING, type ArmorTraining } from '@quest-fast/shared';
 import { ARMOR_TRAINING_LABELS } from '../lib/sheet-labels';
+import { sheetEmpty } from './layout-styles';
 
 /** "Treinamento em equipamentos e proficiências" of the official sheet. */
 export function EquipmentTraining({ armorTraining, weapons, tools }: {
@@ -25,11 +26,11 @@ export function EquipmentTraining({ armorTraining, weapons, tools }: {
       <dl className="m-0 grid grid-cols-[repeat(auto-fit,minmax(min(100%,200px),1fr))] gap-3 [&_dd]:mt-1 [&_dd]:[overflow-wrap:anywhere] [&_dt]:text-small [&_dt]:text-text-secondary">
         <div>
           <dt>Armas</dt>
-          <dd>{weapons || <span className="qf-sheet-empty">Nenhuma informada</span>}</dd>
+          <dd>{weapons || <span className={sheetEmpty}>Nenhuma informada</span>}</dd>
         </div>
         <div>
           <dt>Ferramentas</dt>
-          <dd>{tools || <span className="qf-sheet-empty">Nenhuma informada</span>}</dd>
+          <dd>{tools || <span className={sheetEmpty}>Nenhuma informada</span>}</dd>
         </div>
       </dl>
     </div>

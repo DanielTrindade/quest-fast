@@ -1,7 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import type { CombatSessionEvent, RollSessionEvent, SessionEvent, UnknownSessionEvent } from '@quest-fast/shared';
 import { FeedEventCard } from '../components/FeedEventCard';
-import '../styles/campaign.css';
 
 const roll: RollSessionEvent = {
   id: 'e1',
@@ -82,7 +81,7 @@ const combatEnded: CombatSessionEvent = {
 
 function Frame({ event }: { event: SessionEvent }) {
   return (
-    <ol className="feed-list" style={{ maxWidth: 420 }}>
+    <ol className="m-0 list-none p-0 [&>li]:py-3 [&>li+li]:border-t [&>li+li]:border-border" style={{ maxWidth: 420 }}>
       <li><FeedEventCard event={event} /></li>
     </ol>
   );

@@ -4,7 +4,6 @@ import { expect, userEvent, within } from 'storybook/test';
 import type { CharacterSheet, CharacterStateInput } from '@quest-fast/shared';
 import { CharacterSheetView } from '../screens/campaign/CharacterSheetView';
 import { hazinDan, lyraVentoclaro } from './fixtures/characters';
-import '../styles/campaign.css';
 
 const noop = () => {};
 const handlers = {

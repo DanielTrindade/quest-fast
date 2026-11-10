@@ -44,9 +44,10 @@ Guia para agentes de IA neste repositório. As regras são as mesmas do
   movimento reduzido) e só depois é integrado a `client/src/screens/`.
 - `client/src/components/` é presentacional (props, sem fetch); `screens/`
   liga com a API via TanStack Query.
-- Tokens em `client/src/styles/index.css` e `components.css`; decisões em
-  [`docs/design-system.md`](docs/design-system.md). O lint proíbe cor crua e
-  a paleta padrão do Tailwind.
+- Tokens em `client/src/styles/index.css` (relevo em `ui.css`); decisões em
+  [`docs/design-system.md`](docs/design-system.md). Componentes usam os
+  primitivos shadcn de `components/ui/` e utilitários Tailwind, não CSS
+  próprio. O lint proíbe cor crua e a paleta padrão do Tailwind.
 
 ## Skills do projeto
 

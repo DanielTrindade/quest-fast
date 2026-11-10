@@ -45,6 +45,7 @@ import { Surface } from '../../components/Surface';
 import { TraitList } from '../../components/TraitList';
 import { contentKeys } from '../../lib/content-keys';
 import { ABILITY_ABBREVIATIONS, ABILITY_LABELS, SKILL_LABELS } from '../../lib/5e';
+import { dialogActions, sheetEmpty } from '../../components/layout-styles';
 
 /** The skills printed under each ability, alphabetical as on the sheet. */
 const SKILLS_BY_ABILITY = ABILITIES.reduce<Record<Ability, Skill[]>>(
@@ -186,7 +187,7 @@ function CharacterTab({
           ))}
         </ul>
       ) : (
-        <p className="qf-sheet-empty">Nenhum ataque registrado.</p>
+        <p className={sheetEmpty}>Nenhum ataque registrado.</p>
       )}
 
       <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,220px),1fr))] gap-4">
@@ -233,7 +234,7 @@ function SpellsTab({
           saveDc={saveDc} attackBonus={spellAttack} disabled={rolling}
           onRollAttack={canRoll ? () => roll({ kind: 'spellAttack' }) : undefined} />
       ) : (
-        <p className="qf-sheet-empty">Sem atributo de conjuração: este personagem não conjura magias.</p>
+        <p className={sheetEmpty}>Sem atributo de conjuração: este personagem não conjura magias.</p>
       )}
       <h3 className="mt-2 font-display text-h2 font-semibold">Espaços de magia</h3>
       <SpellSlots slots={character.spellSlots} editable={editable} pending={pending}
@@ -264,30 +265,30 @@ function InventoryTab({
       <dl className="m-0 grid grid-cols-[repeat(auto-fit,minmax(min(100%,200px),1fr))] gap-3 [&_dd]:mt-1 [&_dd]:[overflow-wrap:anywhere] [&_dt]:text-small [&_dt]:text-text-secondary">
         <div>
           <dt>Alinhamento</dt>
-          <dd>{character.alignment || <span className="qf-sheet-empty">Não informado</span>}</dd>
+          <dd>{character.alignment || <span className={sheetEmpty}>Não informado</span>}</dd>
         </div>
         <div>
           <dt>Idiomas</dt>
-          <dd>{character.languages || <span className="qf-sheet-empty">Não informados</span>}</dd>
+          <dd>{character.languages || <span className={sheetEmpty}>Não informados</span>}</dd>
         </div>
       </dl>
       <section className="grid min-w-0 gap-2">
         <h3 className="mt-2 font-display text-h2 font-semibold">Aparência</h3>
         {character.appearance
           ? <p className="m-0 whitespace-pre-wrap [overflow-wrap:anywhere]">{character.appearance}</p>
-          : <p className="qf-sheet-empty">Sem descrição de aparência.</p>}
+          : <p className={sheetEmpty}>Sem descrição de aparência.</p>}
       </section>
       <section className="grid min-w-0 gap-2">
         <h3 className="mt-2 font-display text-h2 font-semibold">História e personalidade</h3>
         {character.description
           ? <p className="m-0 whitespace-pre-wrap [overflow-wrap:anywhere]">{character.description}</p>
-          : <p className="qf-sheet-empty">Sem história registrada.</p>}
+          : <p className={sheetEmpty}>Sem história registrada.</p>}
       </section>
       <section className="grid min-w-0 gap-2">
         <h3 className="mt-2 font-display text-h2 font-semibold">Equipamento</h3>
         {character.equipment
           ? <p className="m-0 whitespace-pre-wrap [overflow-wrap:anywhere]">{character.equipment}</p>
-          : <p className="qf-sheet-empty">Nenhum equipamento registrado.</p>}
+          : <p className={sheetEmpty}>Nenhum equipamento registrado.</p>}
       </section>
       <section className="grid min-w-0 gap-2">
         <h3 className="mt-2 font-display text-h2 font-semibold">Itens mágicos sintonizados</h3>
@@ -474,7 +475,7 @@ export function CharacterSheetView({
         )}
 
         {(canEdit || canDelete) && !confirmingDelete && (
-          <div className="qf-dialog__actions">
+          <div className={dialogActions}>
             {canEdit && (
               <Button variant="secondary" onClick={onEdit}>
                 <PencilSimple size={18} aria-hidden="true" />

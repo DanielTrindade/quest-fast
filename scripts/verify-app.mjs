@@ -70,11 +70,11 @@ try {
   // 4) The new campaign opens, with members and the invite code for the master.
   await page.getByText(uniqueName).click();
   await page.getByRole('heading', { name: 'Membros' }).waitFor({ timeout: 15000 });
-  const members = await page.locator('.campaign-member-name').allTextContents();
+  const members = await page.locator('[data-slot="member-name"]').allTextContents();
   if (members.length !== 1) throw new Error(`campanha nova deveria ter 1 membro, tem ${members.length}`);
   ok(`campanha abre com o mestre como único membro (${members[0]})`);
 
-  const inviteCode = await page.locator('.qf-copyfield input, input[readonly]').first().inputValue();
+  const inviteCode = await page.locator('input[readonly]').first().inputValue();
   if (!/^[A-Z2-9]{6}$/.test(inviteCode)) throw new Error(`código de convite inesperado: ${inviteCode}`);
   ok('código de convite visível ao mestre');
 
