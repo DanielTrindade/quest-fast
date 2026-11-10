@@ -212,3 +212,7 @@ export const api = {
 
 /** Login leaves the SPA: Discord answers the server, not the client. */
 export const LOGIN_PATH = '/api/auth/discord';
+
+export function loginHref(next?: string): string {
+  return next ? `${LOGIN_PATH}?next=${encodeURIComponent(next)}` : LOGIN_PATH;
+}

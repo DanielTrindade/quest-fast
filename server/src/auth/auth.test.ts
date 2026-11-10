@@ -141,3 +141,49 @@ test('the Discord avatar becomes a URL, and a missing hash becomes null', () => 
   assert.equal(buildAvatarUrl('123', 'a_animated'), 'https://cdn.discordapp.com/avatars/123/a_animated.gif');
   assert.equal(buildAvatarUrl('123', null), null);
 });
+
+function nextCookie(response: Response) {
+  const raw = response.headers.getSetCookie().find((c) => c.startsWith('qf_oauth_next='));
+  const pair = raw?.split(';')[0];
+  return pair === 'qf_oauth_next=' ? undefined : pair;
+}
+
+async function callbackAfter(a: ReturnType<typeof app>, next: string, query: (state: string) => string) {
+  const start = await a.app.request(`/api/auth/discord?next=${encodeURIComponent(next)}`);
+  const state = stateCookie(start);
+  const next_ = nextCookie(start);
+  const cookie = [`qf_oauth_state=${state}`, next_].filter(Boolean).join('; ');
+  return a.app.request(`/api/auth/discord/callback?${query(state)}`, { headers: { cookie } });
+}
+
+test('a successful login returns to the validated next path', async () => {
+  const a = app();
+  const callback = await callbackAfter(a, '/invite/AB?join=1', (s) => `code=code-lia&state=${s}`);
+  assert.equal(callback.headers.get('location'), '/invite/AB?join=1');
+  assert.ok(callback.headers.getSetCookie().some((c) => c.startsWith('qf_oauth_next=;')));
+});
+
+test('an external next is ignored and login lands on the campaign listing', async () => {
+  const a = app();
+  const start = await a.app.request('/api/auth/discord?next=//evil.com');
+  assert.equal(nextCookie(start), undefined);
+  const callback = await callbackAfter(a, '//evil.com', (s) => `code=code-lia&state=${s}`);
+  assert.equal(callback.headers.get('location'), '/campaigns');
+});
+
+test('a tampered next cookie is revalidated in the callback', async () => {
+  const a = app();
+  const start = await a.app.request('/api/auth/discord');
+  const state = stateCookie(start);
+  const callback = await a.app.request(`/api/auth/discord/callback?code=code-lia&state=${state}`, {
+    headers: { cookie: `qf_oauth_state=${state}; qf_oauth_next=${encodeURIComponent('//evil.com')}` },
+  });
+  assert.equal(callback.headers.get('location'), '/campaigns');
+});
+
+test('a Discord refusal returns to the invite with the error flag', async () => {
+  const a = app();
+  const callback = await callbackAfter(a, '/invite/AB?join=1', (s) => `error=access_denied&state=${s}`);
+  assert.equal(callback.headers.get('location'), '/invite/AB?join=1&error=discord');
+  assert.ok(callback.headers.getSetCookie().some((c) => c.startsWith('qf_oauth_next=;')));
+});
