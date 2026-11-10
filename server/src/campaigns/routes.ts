@@ -10,33 +10,43 @@ import { requireAuth, requireCampaignRole } from '../middleware.ts';
 const NAME_LIMIT = 80;
 const DESCRIPTION_LIMIT = 500;
 
+function isUniqueViolation(error: unknown): boolean {
+  return error instanceof Error && error.message.includes('UNIQUE');
+}
+
 /**
  * The code is unique by index in the database. A collision is unlikely, but
- * the retry keeps creation deterministic instead of erroring at the master.
+ * the retry keeps the write deterministic instead of erroring at the master.
+ */
+function withUniqueCode<T>(attempt: (code: string) => T): T {
+  for (let tries = 0; tries < 5; tries++) {
+    try {
+      return attempt(generateInviteCode());
+    } catch (error) {
+      if (!isUniqueViolation(error) || tries === 4) throw error;
+    }
+  }
+  throw new Error('Could not generate a unique invite code.');
+}
+
+/**
  * The campaign and its master membership are one write: a failure while adding
  * the member must not leave a masterless campaign behind.
  */
 function createCampaignWithCode(db: Db, name: string, description: string, creatorId: string) {
-  for (let attempt = 0; attempt < 5; attempt++) {
-    const code = generateInviteCode();
-    try {
-      return db.transaction((tx) => {
-        const campaign = tx
-          .insert(campaigns)
-          .values({ id: randomUUID(), name, description, inviteCode: code })
-          .returning()
-          .get();
-        tx.insert(campaignMembers)
-          .values({ id: randomUUID(), campaignId: campaign.id, userId: creatorId, role: 'master' })
-          .run();
-        return campaign;
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : '';
-      if (!message.includes('UNIQUE') || attempt === 4) throw error;
-    }
-  }
-  throw new Error('Could not generate a unique invite code.');
+  return withUniqueCode((code) =>
+    db.transaction((tx) => {
+      const campaign = tx
+        .insert(campaigns)
+        .values({ id: randomUUID(), name, description, inviteCode: code })
+        .returning()
+        .get();
+      tx.insert(campaignMembers)
+        .values({ id: randomUUID(), campaignId: campaign.id, userId: creatorId, role: 'master' })
+        .run();
+      return campaign;
+    }),
+  );
 }
 
 function validText(value: unknown, limit: number): string | undefined {
@@ -132,6 +142,15 @@ export function campaignRoutes() {
       // The code only exists in the master's response.
       ...(c.var.role === 'master' ? { inviteCode: campaign.inviteCode } : {}),
     });
+  });
+
+  routes.post('/:campaignId/invite', requireCampaignRole('master'), (c) => {
+    const { db } = c.var.deps;
+    const inviteCode = withUniqueCode((code) => {
+      db.update(campaigns).set({ inviteCode: code }).where(eq(campaigns.id, c.var.campaignId)).run();
+      return code;
+    });
+    return c.json({ inviteCode });
   });
 
   routes.get('/:campaignId/members', requireCampaignRole(), (c) => {

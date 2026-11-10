@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { authRoutes } from './auth/routes.ts';
+import { inviteRoutes } from './invites/routes.ts';
 import { campaignRoutes } from './campaigns/routes.ts';
 import { assetRoutes } from './assets/routes.ts';
 import { characterRoutes } from './characters/routes.ts';
@@ -33,6 +34,7 @@ export function createApp({ serveClient = true, ...deps }: AppOptions) {
     return c.json({ user: { id, name, avatarUrl } });
   });
 
+  app.route('/api/invites', inviteRoutes());
   app.route('/api/campaigns', campaignRoutes());
   app.route('/api/campaigns/:campaignId/characters', characterRoutes());
   app.route('/api/campaigns/:campaignId/assets', assetRoutes());

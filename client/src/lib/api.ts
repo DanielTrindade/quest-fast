@@ -10,6 +10,7 @@ import type {
   CombatantInput,
   CombatantPatch,
   CreatedCampaign,
+  InvitePreview,
   EncounterListResponse,
   EncounterResponse,
   FeedResponse,
@@ -92,6 +93,11 @@ export const api = {
     }),
 
   campaign: (id: string) => request<CampaignDetail>(`/api/campaigns/${id}`),
+  invite: (code: string) => request<InvitePreview>(`/api/invites/${encodeURIComponent(code)}`),
+
+  rotateInvite: (campaignId: string) =>
+    request<{ inviteCode: string }>(`/api/campaigns/${campaignId}/invite`, { method: 'POST' }),
+
   members: (id: string) => request<MembersResponse>(`/api/campaigns/${id}/members`),
 
   leaveCampaign: (id: string) => request<void>(`/api/campaigns/${id}/members/me`, { method: 'DELETE' }),

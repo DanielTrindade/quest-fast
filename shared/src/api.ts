@@ -42,6 +42,17 @@ export type CampaignJoin = {
   role: Role;
 };
 
+export type InviteViewer = 'anonymous' | 'guest' | 'member' | 'blocked';
+
+export type InvitePreview = {
+  code: string;
+  campaignName: string;
+  master: { name: string; avatarUrl: string | null };
+  playerCount: number;
+  viewer: InviteViewer;
+  campaignId?: string;
+};
+
 export type CampaignMember = {
   id: string;
   userId: string;

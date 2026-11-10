@@ -17,6 +17,15 @@ export const requireAuth = createMiddleware<Context>(async (c, next) => {
   await next();
 });
 
+/** Public routes that tweak their answer for a logged-in viewer; never 401. */
+export const optionalAuth = createMiddleware<Context>(async (c, next) => {
+  const { db } = c.var.deps;
+  const sessionId = getCookie(c, SESSION_COOKIE);
+  const viewer = sessionId ? sessionUser(db, sessionId) : undefined;
+  if (viewer) c.set('viewer', viewer);
+  await next();
+});
+
 /**
  * Resolves the role from `CampaignMember`. A non-member gets 404, not 403:
  * confirming the campaign exists is already a leak to a non-member.

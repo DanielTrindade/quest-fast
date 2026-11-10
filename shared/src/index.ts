@@ -205,6 +205,8 @@ export type {
   CampaignDetail,
   CreatedCampaign,
   CampaignJoin,
+  InvitePreview,
+  InviteViewer,
   CampaignMember,
   CampaignsResponse,
   MembersResponse,
