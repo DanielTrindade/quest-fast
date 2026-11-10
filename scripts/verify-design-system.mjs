@@ -96,15 +96,16 @@ try {
         await page.setViewportSize({ width, height: 900 });
         await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
         // The page can stay inside the viewport while a child pokes out of its
-        // own card, so every bordered box must hold its in-flow content.
-        expect(await page.evaluate(escapes), `${story.id} @${width}px`).toEqual([]);
+        // own card, so every bordered box must hold its in-flow content. Polled
+        // because the resize relayout can still be settling on the first read.
+        await expect.poll(() => page.evaluate(escapes), { message: `${story.id} @${width}px` }).toEqual([]);
         const closed = await page.evaluate(() => {
           const details = [...document.querySelectorAll('#storybook-root details:not([open])')];
           details.forEach(el => { el.open = true; el.dataset.auditOpened = ''; });
           return details.length;
         });
         if (closed) {
-          expect(await page.evaluate(escapes), `${story.id} @${width}px com details aberto`).toEqual([]);
+          await expect.poll(() => page.evaluate(escapes), { message: `${story.id} @${width}px com details aberto` }).toEqual([]);
           await page.evaluate(() => document.querySelectorAll('#storybook-root details[data-audit-opened]').forEach(el => {
             el.open = false;
             delete el.dataset.auditOpened;
