@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import type { CreatedCampaign } from '@quest-fast/shared';
 import { asUser, body, createTestApp, signIn } from '../testing.ts';
 import { Resvg } from '@resvg/resvg-js';
-import { fetchAvatar, renderInviteCard } from './card.ts';
+import { createCardProvider, fetchAvatar, renderInviteCard } from './card.ts';
 
 const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 
@@ -118,4 +118,43 @@ test('the card route serves a PNG for a valid code and 404 otherwise', async () 
   assert.notEqual(rotated.inviteCode, campaign.inviteCode);
   assert.equal((await a.app.request(`/api/invites/${campaign.inviteCode}/card.png`)).status, 404);
   assert.equal((await a.app.request(`/api/invites/${rotated.inviteCode}/card.png`)).status, 200);
+});
+
+test('concurrent requests for the same card share one avatar download and one render', async () => {
+  let downloads = 0;
+  let renders = 0;
+  const provider = createCardProvider({
+    fetchAvatar: async () => {
+      downloads += 1;
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      return undefined;
+    },
+    renderCard: async () => {
+      renders += 1;
+      return new Uint8Array([1]);
+    },
+  });
+  const source = { campaignName: 'Ecos', masterName: 'Lia', masterAvatarUrl: 'https://cdn.discordapp.com/a.png' };
+  const results = await Promise.all([provider.get('v1', source), provider.get('v1', source), provider.get('v1', source)]);
+  assert.equal(downloads, 1);
+  assert.equal(renders, 1);
+  assert.equal(results[0], results[2]);
+  await provider.get('v1', source);
+  assert.equal(renders, 1);
+});
+
+test('a failed render is not cached', async () => {
+  let renders = 0;
+  const provider = createCardProvider({
+    fetchAvatar: async () => undefined,
+    renderCard: async () => {
+      renders += 1;
+      if (renders === 1) throw new Error('boom');
+      return new Uint8Array([1]);
+    },
+  });
+  const source = { campaignName: 'Ecos', masterName: 'Lia', masterAvatarUrl: null };
+  await assert.rejects(provider.get('v1', source));
+  await provider.get('v1', source);
+  assert.equal(renders, 2);
 });

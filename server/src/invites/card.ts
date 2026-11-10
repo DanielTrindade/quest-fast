@@ -275,3 +275,44 @@ export async function fetchAvatar(
     return undefined;
   }
 }
+
+const CARD_CACHE_LIMIT = 200;
+
+type CardSource = { campaignName: string; masterName: string; masterAvatarUrl: string | null };
+
+export function createCardProvider(
+  deps: {
+    fetchAvatar?: typeof fetchAvatar;
+    renderCard?: typeof renderInviteCard;
+  } = {},
+) {
+  const download = deps.fetchAvatar ?? fetchAvatar;
+  const render = deps.renderCard ?? renderInviteCard;
+  const cache = new Map<string, Uint8Array>();
+  const rendering = new Map<string, Promise<Uint8Array>>();
+
+  return {
+    async get(version: string, source: CardSource): Promise<Uint8Array> {
+      const cached = cache.get(version);
+      if (cached) return cached;
+
+      let pending = rendering.get(version);
+      if (!pending) {
+        pending = (async () =>
+          render({
+            campaignName: source.campaignName,
+            masterName: source.masterName,
+            avatar: await download(source.masterAvatarUrl),
+          }))().finally(() => rendering.delete(version));
+        rendering.set(version, pending);
+      }
+
+      const png = await pending;
+      if (!cache.has(version)) {
+        if (cache.size >= CARD_CACHE_LIMIT) cache.delete(cache.keys().next().value!);
+        cache.set(version, png);
+      }
+      return png;
+    },
+  };
+}
