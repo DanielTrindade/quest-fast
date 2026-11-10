@@ -2,22 +2,35 @@ import { chromium, expect } from '@playwright/test';
 import { mkdirSync, writeFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { spawn } from 'node:child_process';
+import { createServer } from 'node:net';
 
 const root = resolve(import.meta.dirname, '..');
 const output = resolve(root, 'test-results/design-system');
 mkdirSync(output, { recursive: true });
-const base = process.env.STORYBOOK_URL || 'http://localhost:6007';
+// A fixed port let a second concurrent run silently audit the first run's build.
+const port = process.env.STORYBOOK_URL ? null : await new Promise((done, fail) => {
+  const probe = createServer().once('error', fail).listen(0, '127.0.0.1', () => {
+    const { port } = probe.address();
+    probe.close(() => done(port));
+  });
+});
+const base = process.env.STORYBOOK_URL || `http://127.0.0.1:${port}`;
 const filter = process.argv[2] || '';
 let server;
 let browser;
 const results = [];
 try {
   if (!process.env.STORYBOOK_URL) {
-    server = spawn(process.execPath, [resolve(root, 'node_modules/vite/bin/vite.js'), 'preview', '--outDir', 'storybook-static', '--port', '6007', '--strictPort'], {
+    server = spawn(process.execPath, [resolve(root, 'node_modules/vite/bin/vite.js'), 'preview', '--outDir', 'storybook-static', '--host', '127.0.0.1', '--port', String(port), '--strictPort'], {
       cwd: resolve(root, 'client'), windowsHide: true, stdio: 'pipe',
     });
     server.stderr.on('data', data => process.stderr.write(data));
-    await expect.poll(async () => { try { return (await fetch(`${base}/index.json`)).ok; } catch { return false; } }, { timeout: 30000 }).toBe(true);
+    const exited = new Promise((_, fail) => server.once('exit', code => fail(new Error(`O servidor do Storybook encerrou antes de responder (código ${code}).`))));
+    exited.catch(() => {});
+    await Promise.race([
+      exited,
+      expect.poll(async () => { try { return (await fetch(`${base}/index.json`)).ok; } catch { return false; } }, { timeout: 30000 }).toBe(true),
+    ]);
   }
   const channel = process.env.PLAYWRIGHT_CHANNEL || (existsSync('C:/Program Files/Google/Chrome/Application/chrome.exe') ? 'chrome' : undefined);
   browser = await chromium.launch({ channel, headless: true });

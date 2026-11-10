@@ -20,7 +20,7 @@ npm run build
 npm run test:design
 ```
 
-`test:design` constrói o Storybook, serve o resultado localmente na porta 6007 e executa Playwright com axe-core. O Chrome instalado no Windows é usado quando disponível; em outros ambientes, instale Chromium com `npx playwright install chromium`. É possível selecionar um canal instalado com `PLAYWRIGHT_CHANNEL`.
+`test:design` constrói o Storybook, serve o resultado localmente numa porta livre (assim duas execuções simultâneas não se cruzam) e executa Playwright com axe-core. O Chrome instalado no Windows é usado quando disponível; em outros ambientes, instale Chromium com `npx playwright install chromium`. É possível selecionar um canal instalado com `PLAYWRIGHT_CHANNEL`.
 
 Para auditar um Storybook já aberto, defina `STORYBOOK_URL` e execute `node scripts/verify-design-system.mjs`. Um argumento opcional filtra o ID da story. O argumento `--specs` executa apenas os cenários adicionais de teclado, clipboard, temas e movimento. Resultados e capturas ficam em `test-results/design-system/`, fora do versionamento.
 
