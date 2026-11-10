@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { CreatedCampaign } from '@quest-fast/shared';
 import { asUser, body, createTestApp, signIn } from '../testing.ts';
+import { Resvg } from '@resvg/resvg-js';
 import { fetchAvatar, renderInviteCard } from './card.ts';
 
 const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
@@ -19,6 +20,49 @@ test('renders a 1200x630 PNG for a very long name without avatar', async () => {
   });
   assert.deepEqual([...png.slice(0, 8)], PNG_SIGNATURE);
   assert.deepEqual(dimensions(png), { width: 1200, height: 630 });
+});
+
+function tinyPng(): Uint8Array {
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8"><rect width="8" height="8" fill="#c33"/></svg>';
+  return new Resvg(svg).render().asPng();
+}
+
+test('renders a PNG with a valid avatar', async () => {
+  const png = await renderInviteCard({ campaignName: 'Ecos', masterName: 'Lia Martins', avatar: tinyPng() });
+  assert.deepEqual([...png.slice(0, 8)], PNG_SIGNATURE);
+  assert.deepEqual(dimensions(png), { width: 1200, height: 630 });
+});
+
+test('a corrupt avatar falls back to initials instead of failing', async () => {
+  const png = await renderInviteCard({
+    campaignName: 'Ecos',
+    masterName: 'Lia Martins',
+    avatar: new Uint8Array([...PNG_SIGNATURE, 1, 2, 3]),
+  });
+  assert.deepEqual([...png.slice(0, 8)], PNG_SIGNATURE);
+  assert.deepEqual(dimensions(png), { width: 1200, height: 630 });
+});
+
+test('fetchAvatar rejects a png content-type whose bytes are not an image', async () => {
+  const fetchImpl = (async () =>
+    new Response(new Uint8Array([1, 2, 3, 4]), { headers: { 'content-type': 'image/png' } })) as typeof fetch;
+  assert.equal(await fetchAvatar('https://cdn.discordapp.com/a.png', fetchImpl), undefined);
+});
+
+test('fetchAvatar stops reading a chunked body over the limit', async () => {
+  const chunk = new Uint8Array(256 * 1024);
+  chunk.set(PNG_SIGNATURE);
+  let sent = 0;
+  const body = new ReadableStream<Uint8Array>({
+    pull(controller) {
+      controller.enqueue(chunk);
+      sent += 1;
+      if (sent > 100) controller.close();
+    },
+  });
+  const fetchImpl = (async () => new Response(body, { headers: { 'content-type': 'image/png' } })) as typeof fetch;
+  assert.equal(await fetchAvatar('https://cdn.discordapp.com/a.png', fetchImpl), undefined);
+  assert.ok(sent < 10);
 });
 
 test('fetchAvatar returns undefined when the request fails', async () => {
@@ -43,7 +87,7 @@ test('fetchAvatar refuses hosts other than the Discord CDN without fetching', as
 test('fetchAvatar accepts a small png and rejects oversized or non-png bodies', async () => {
   const url = 'https://cdn.discordapp.com/avatars/1/a.png';
   const respond = (bytes: number, type: string) =>
-    (async () => new Response(new Uint8Array(bytes), { headers: { 'content-type': type } })) as typeof fetch;
+    (async () => new Response(Uint8Array.from({ length: bytes }, (_, i) => PNG_SIGNATURE[i] ?? 0), { headers: { 'content-type': type } })) as typeof fetch;
   assert.equal((await fetchAvatar(url, respond(10, 'image/png')))?.byteLength, 10);
   assert.equal(await fetchAvatar(url, respond(2 * 1024 * 1024, 'image/png')), undefined);
   assert.equal(await fetchAvatar(url, respond(10, 'text/html')), undefined);

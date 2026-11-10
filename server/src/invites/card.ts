@@ -14,6 +14,7 @@ const ACCENT = '#3b6fe0';
 const HEX_POINTS = '156,0 312,78 312,234 156,312 0,234 0,78';
 
 type Node = { type: string; props: Record<string, unknown> };
+type CardInput = { campaignName: string; masterName: string; avatar: Uint8Array | undefined };
 type Fonts = Parameters<typeof satori>[1]['fonts'];
 
 const FONT_DIR = join(import.meta.dirname, '../../assets/fonts');
@@ -42,8 +43,17 @@ function el(type: string, props: Record<string, unknown>): Node {
   return { type, props };
 }
 
-function imageMime(bytes: Uint8Array): string {
-  return bytes[0] === 0x89 && bytes[1] === 0x50 ? 'image/png' : 'image/jpeg';
+const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+const JPEG_SIGNATURE = [0xff, 0xd8, 0xff];
+
+function startsWith(bytes: Uint8Array, signature: number[]): boolean {
+  return signature.every((byte, index) => bytes[index] === byte);
+}
+
+function imageMime(bytes: Uint8Array): string | undefined {
+  if (startsWith(bytes, PNG_SIGNATURE)) return 'image/png';
+  if (startsWith(bytes, JPEG_SIGNATURE)) return 'image/jpeg';
+  return undefined;
 }
 
 function hexagon(): Node {
@@ -75,8 +85,9 @@ function hexagon(): Node {
 
 function avatarNode(name: string, avatar: Uint8Array | undefined): Node {
   const box = { position: 'absolute', left: 66, top: 66, width: 180, height: 180, borderRadius: '50%' };
-  if (avatar) {
-    const src = `data:${imageMime(avatar)};base64,${Buffer.from(avatar).toString('base64')}`;
+  const mime = avatar && imageMime(avatar);
+  if (avatar && mime) {
+    const src = `data:${mime};base64,${Buffer.from(avatar).toString('base64')}`;
     return el('img', { src, width: 180, height: 180, style: { ...box, objectFit: 'cover' } });
   }
   return el('div', {
@@ -95,7 +106,7 @@ function avatarNode(name: string, avatar: Uint8Array | undefined): Node {
   });
 }
 
-function cardTree(input: { campaignName: string; masterName: string; avatar: Uint8Array | undefined }): Node {
+function cardTree(input: CardInput): Node {
   return el('div', {
     style: {
       display: 'flex',
@@ -210,17 +221,40 @@ function cardTree(input: { campaignName: string; masterName: string; avatar: Uin
   });
 }
 
-export async function renderInviteCard(input: {
-  campaignName: string;
-  masterName: string;
-  avatar: Uint8Array | undefined;
-}): Promise<Uint8Array> {
+async function renderPng(input: CardInput): Promise<Uint8Array> {
   const svg = await satori(cardTree(input) as Parameters<typeof satori>[0], {
     width: WIDTH,
     height: HEIGHT,
     fonts: await loadFonts(),
   });
   return new Resvg(svg, { fitTo: { mode: 'width', value: WIDTH } }).render().asPng();
+}
+
+export async function renderInviteCard(input: CardInput): Promise<Uint8Array> {
+  if (!input.avatar) return renderPng(input);
+  try {
+    return await renderPng(input);
+  } catch {
+    return renderPng({ ...input, avatar: undefined });
+  }
+}
+
+async function readLimited(response: Response): Promise<Uint8Array | undefined> {
+  if (!response.body) return undefined;
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > AVATAR_LIMIT_BYTES) {
+      await reader.cancel();
+      return undefined;
+    }
+    chunks.push(value);
+  }
+  return Buffer.concat(chunks);
 }
 
 export async function fetchAvatar(
@@ -235,8 +269,8 @@ export async function fetchAvatar(
     if (type !== 'image/png' && type !== 'image/jpeg') return undefined;
     const declared = Number(response.headers.get('content-length'));
     if (declared > AVATAR_LIMIT_BYTES) return undefined;
-    const bytes = new Uint8Array(await response.arrayBuffer());
-    return bytes.byteLength > AVATAR_LIMIT_BYTES ? undefined : bytes;
+    const bytes = await readLimited(response);
+    return bytes && imageMime(bytes) ? bytes : undefined;
   } catch {
     return undefined;
   }

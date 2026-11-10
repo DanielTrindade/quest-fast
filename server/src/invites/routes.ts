@@ -14,6 +14,7 @@ const CARD_CACHE_LIMIT = 200;
 export function inviteRoutes() {
   const routes = new Hono<Context>();
   const cardCache = new Map<string, Uint8Array>();
+  const rendering = new Map<string, Promise<Uint8Array>>();
 
   routes.get('/:code/card.png', async (c) => {
     const invite = findInvite(c.var.deps.db, c.req.param('code'));
@@ -22,13 +23,20 @@ export function inviteRoutes() {
     const version = cardVersion(invite);
     let png = cardCache.get(version);
     if (!png) {
-      png = await renderInviteCard({
-        campaignName: invite.campaignName,
-        masterName: invite.masterName,
-        avatar: await fetchAvatar(invite.masterAvatarUrl),
-      });
-      if (cardCache.size >= CARD_CACHE_LIMIT) cardCache.delete(cardCache.keys().next().value!);
-      cardCache.set(version, png);
+      let pending = rendering.get(version);
+      if (!pending) {
+        pending = renderInviteCard({
+          campaignName: invite.campaignName,
+          masterName: invite.masterName,
+          avatar: await fetchAvatar(invite.masterAvatarUrl),
+        }).finally(() => rendering.delete(version));
+        rendering.set(version, pending);
+      }
+      png = await pending;
+      if (!cardCache.has(version)) {
+        if (cardCache.size >= CARD_CACHE_LIMIT) cardCache.delete(cardCache.keys().next().value!);
+        cardCache.set(version, png);
+      }
     }
     return c.body(png as Uint8Array<ArrayBuffer>, 200, {
       'Content-Type': 'image/png',
