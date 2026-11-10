@@ -10,6 +10,7 @@ import { Surface } from '../../components/Surface';
 import { TurnBar, type TurnAction } from '../../components/TurnBar';
 import { ApiError, api } from '../../lib/api';
 import { encounterQuery, mergeEncounter, removeEncounter } from '../../lib/combat-cache';
+import { stack } from '../../components/layout-styles';
 
 function errorMessage(error: unknown) {
   return error instanceof ApiError ? error.message : 'Algo deu errado. Tente novamente.';
@@ -53,7 +54,7 @@ function Summary({ summary }: { summary: EncounterSummaryView }) {
   const rounds = `${summary.rounds} ${summary.rounds === 1 ? 'round' : 'rounds'}`;
   const defeated = summary.defeated.length > 0 ? `Derrotados: ${summary.defeated.join(', ')}.` : 'Nenhum derrotado.';
   return (
-    <Surface variant="base" className="qf-encounter-panel__summary">
+    <Surface variant="base" className="[&_p]:m-0">
       <p>Encerrado após {rounds}. {defeated}</p>
     </Surface>
   );
@@ -74,8 +75,8 @@ function SetupPanel({ campaignId, encounter, onAdd, pending }: {
     .map(({ id, name, ownerName }) => ({ id, name, ownerName }));
 
   return (
-    <Surface className="qf-encounter-panel__setup">
-      <h4 className="qf-encounter-panel__subtitle">{encounter.status === 'preparing' ? 'Adicionar combatentes' : 'Reforços'}</h4>
+    <Surface className="grid gap-3">
+      <h4 className="m-0 font-display text-h2 font-semibold">{encounter.status === 'preparing' ? 'Adicionar combatentes' : 'Reforços'}</h4>
       {characters.isPending || statblocks.isPending ? (
         <Skeleton shape="panel" />
       ) : (
@@ -89,9 +90,9 @@ function SetupPanel({ campaignId, encounter, onAdd, pending }: {
 function DeleteEncounter({ name, pending, onDelete }: { name: string; pending: boolean; onDelete: () => void }) {
   const [confirming, setConfirming] = useState(false);
   return (
-    <div className="qf-encounter-panel__danger">
+    <div className="flex flex-wrap gap-2">
       {confirming ? (
-        <span role="group" aria-label={`Excluir ${name}?`} className="qf-encounter-panel__confirm">
+        <span role="group" aria-label={`Excluir ${name}?`} className="flex flex-wrap gap-2">
           <Button variant="danger" loading={pending} onClick={onDelete}>Excluir {name}</Button>
           <Button variant="ghost" onClick={() => setConfirming(false)}>Manter</Button>
         </span>
@@ -186,7 +187,7 @@ export function EncounterPanel({ campaignId, encounterId, isMaster, currentUserI
 
   if (query.isPending) {
     return (
-      <div className="qf-stack" role="region" aria-label="Carregando encontro" aria-busy="true">
+      <div className={stack} role="region" aria-label="Carregando encontro" aria-busy="true">
         <Skeleton width="40%" />
         <Skeleton shape="panel" />
       </div>
@@ -194,9 +195,9 @@ export function EncounterPanel({ campaignId, encounterId, isMaster, currentUserI
   }
   if (!encounter) {
     return (
-      <div className="qf-stack">
+      <div className={stack}>
         <p role="alert" className="text-body text-danger-text">{errorMessage(query.error)}</p>
-        <div className="qf-encounter-panel__toolbar">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
           <BackButton onBack={onBack} />
           <Button variant="secondary" onClick={() => query.refetch()}>Tentar novamente</Button>
         </div>
@@ -209,13 +210,13 @@ export function EncounterPanel({ campaignId, encounterId, isMaster, currentUserI
   const path = [campaignId, encounterId] as const;
 
   return (
-    <div className="qf-encounter-panel">
-      <div className="qf-encounter-panel__toolbar">
+    <div className="grid min-w-0 gap-4">
+      <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
         <BackButton onBack={onBack} />
-        <h3 className="qf-encounter-panel__title">{encounter.name}</h3>
+        <h3 className="m-0 min-w-0 font-display text-h1 font-semibold [overflow-wrap:anywhere]">{encounter.name}</h3>
       </div>
 
-      <div className="qf-encounter-panel__bar">
+      <div className="sticky top-2 z-2">
         <TurnBar
           status={encounter.status}
           round={encounter.round}

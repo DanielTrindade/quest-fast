@@ -4,11 +4,12 @@ import type { RollMode } from '@quest-fast/shared';
 import { expect, userEvent, within } from 'storybook/test';
 import { RollModeControl } from '../components/RollModeControl';
 import { ROLL_MODE_LABELS } from '../lib/5e';
+import { stack } from '../components/layout-styles';
 
 function Example({ initial = 'normal', disabled = false }: { initial?: RollMode; disabled?: boolean }) {
   const [mode, setMode] = useState<RollMode>(initial);
   return (
-    <div className="qf-stack" style={{ maxWidth: 320 }}>
+    <div className={stack} style={{ maxWidth: 320 }}>
       <RollModeControl value={mode} onChange={setMode} disabled={disabled} />
       <p className="text-small text-text-secondary" aria-live="polite">Modo: {ROLL_MODE_LABELS[mode]}</p>
     </div>

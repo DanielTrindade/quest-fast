@@ -35,7 +35,7 @@ function FeedMeta({ event }: { event: SessionEvent }) {
       <span aria-hidden="true">·</span>
       <time>{formatTime(event.createdAt)}</time>
       {event.secret && (
-        <span className="inline-flex items-center gap-1 rounded-control border border-dashed border-input px-2 py-px text-text-secondary">
+        <span data-slot="secret-tag" className="inline-flex items-center gap-1 rounded-control border border-dashed border-input px-2 py-px text-text-secondary">
           <EyeSlash size={14} weight="regular" aria-hidden="true" /> Secreta
         </span>
       )}

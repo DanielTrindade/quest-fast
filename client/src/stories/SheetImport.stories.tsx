@@ -1,7 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { expect, fn, within } from 'storybook/test';
 import { SheetImport } from '../components/SheetImport';
-import '../styles/campaign.css';
 
 const meta = {
   title: 'Componentes/SheetImport',

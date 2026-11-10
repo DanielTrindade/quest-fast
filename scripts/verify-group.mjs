@@ -96,9 +96,9 @@ async function openUser(who, session) {
   return { context, page };
 }
 
-const feedRows = (page) => page.locator('.feed-list > li');
+const feedRows = (page) => page.locator('[data-slot="feed-list"] > li');
 const feedCount = async (page) => feedRows(page).count();
-const characterCount = async (page) => page.locator('.characters-list > li').count();
+const characterCount = async (page) => page.locator('[data-slot="characters-list"] > li').count();
 const waitForCount = (page, selector, min, label, timeout = 15000) =>
   page
     .waitForFunction(({ selector, min }) => document.querySelectorAll(selector).length >= min, { selector, min }, { timeout })
@@ -116,7 +116,7 @@ try {
 
   for (const [who, { page }] of Object.entries({ master: master, rafael: rafael, ana: ana })) {
     await page.getByRole('heading', { name: 'Personagens' }).waitFor({ timeout: 15000 });
-    await page.locator('.feed-status[data-status="connected"]').waitFor({ timeout: 15000 });
+    await page.locator('[data-slot="feed-status"][data-status="connected"]').waitFor({ timeout: 15000 });
     ok(`${who} abre a campanha com o feed ao vivo`);
   }
 
@@ -144,14 +144,14 @@ try {
   await rafael.page.getByLabel('Expressão de dados').fill('1d20+5');
   await rafael.page.getByRole('button', { name: 'Rolar' }).click();
   for (const [who, { page }] of Object.entries({ master: master, rafael: rafael, ana: ana })) {
-    await waitForCount(page, '.feed-list > li', before[who] + 1, `${who} recebe a rolagem ao vivo`, 10000);
+    await waitForCount(page, '[data-slot="feed-list"] > li', before[who] + 1, `${who} recebe a rolagem ao vivo`, 10000);
     await page.getByText('1d20+5').first().waitFor({ timeout: 10000 });
   }
   ok('a rolagem de Rafael chega ao vivo para mestre, Rafael e Ana');
 
   // 5) O evento da rolagem atualiza a mesa: a ficha nova aparece para todos.
   for (const [who, { page }] of Object.entries({ master: master, rafael: rafael, ana: ana })) {
-    await waitForCount(page, '.characters-list > li', 3, `${who} vê a ficha nova`, 10000);
+    await waitForCount(page, '[data-slot="characters-list"] > li', 3, `${who} vê a ficha nova`, 10000);
   }
   ok('mestre e jogadores veem a ficha de Kaelen sem recarregar');
 
@@ -161,7 +161,7 @@ try {
   await master.page.getByLabel('Expressão de dados').fill('1d20');
   await master.page.getByLabel(/Rolar em segredo/).check();
   await master.page.getByRole('button', { name: 'Rolar' }).click();
-  await master.page.locator('.feed-secret-tag').first().waitFor({ timeout: 10000 });
+  await master.page.locator('[data-slot="secret-tag"]').first().waitFor({ timeout: 10000 });
   await new Promise((resolve) => setTimeout(resolve, 900));
   if ((await feedCount(rafael.page)) !== rafaelBefore) throw new Error('Rafael recebeu a rolagem secreta no feed');
   if ((await feedCount(ana.page)) !== anaBefore) throw new Error('Ana recebeu a rolagem secreta no feed');
@@ -169,7 +169,7 @@ try {
   ok('a rolagem secreta do mestre não chega aos jogadores');
 
   // 7) Rolagem linkada à ficha: identifica o personagem na mesa.
-  await rafael.page.locator('.character-row').filter({ hasText: 'Kaelen' }).click();
+  await rafael.page.locator('[data-slot="character-row"]').filter({ hasText: 'Kaelen' }).click();
   const sheet = rafael.page.getByRole('dialog');
   await sheet.waitFor({ timeout: 10000 });
   const beforeLinked = {};
@@ -178,7 +178,7 @@ try {
   }
   await sheet.getByRole('button', { name: 'Teste' }).first().click();
   for (const [who, { page }] of Object.entries({ master: master, rafael: rafael, ana: ana })) {
-    await waitForCount(page, '.feed-list > li', beforeLinked[who] + 1, `${who} recebe a rolagem linkada`, 10000);
+    await waitForCount(page, '[data-slot="feed-list"] > li', beforeLinked[who] + 1, `${who} recebe a rolagem linkada`, 10000);
     await page.getByText('teste de Força').first().waitFor({ timeout: 10000 });
   }
   ok('a rolagem linkada à ficha de Kaelen aparece para a mesa identificando o personagem');
@@ -187,7 +187,7 @@ try {
   //    o mestre consulta a ficha de Kaelen sem receber "Editar".
   await rafael.page.keyboard.press('Escape');
   await rafael.page.getByRole('dialog').waitFor({ state: 'detached', timeout: 10000 });
-  await master.page.locator('.character-row').filter({ hasText: 'Kaelen' }).click();
+  await master.page.locator('[data-slot="character-row"]').filter({ hasText: 'Kaelen' }).click();
   const masterSheet = master.page.getByRole('dialog');
   await masterSheet.waitFor({ timeout: 10000 });
   if ((await masterSheet.getByRole('button', { name: 'Editar' }).count()) !== 0) {
@@ -201,14 +201,14 @@ try {
   await masterSheet.getByText('Excluir Kaelen?').waitFor({ timeout: 5000 });
   await masterSheet.getByRole('button', { name: 'Manter ficha' }).click();
   await masterSheet.getByRole('button', { name: 'Excluir', exact: true }).waitFor({ timeout: 5000 });
-  if ((await master.page.locator('.character-row').filter({ hasText: 'Kaelen' }).count()) !== 1) {
+  if ((await master.page.locator('[data-slot="character-row"]').filter({ hasText: 'Kaelen' }).count()) !== 1) {
     throw new Error('a ficha sumiu depois de cancelar a exclusão');
   }
   await master.page.keyboard.press('Escape');
   ok('excluir personagem exige confirmação e desistir preserva a ficha');
 
   // 10) Consulta e edição ocupam a mesma camada, sem empilhar diálogos.
-  await rafael.page.locator('.character-row').filter({ hasText: 'Kaelen' }).click();
+  await rafael.page.locator('[data-slot="character-row"]').filter({ hasText: 'Kaelen' }).click();
   await rafael.page.getByRole('dialog').waitFor({ timeout: 10000 });
   await rafael.page.getByRole('dialog').getByRole('button', { name: 'Editar' }).click();
   await rafael.page.getByRole('heading', { name: 'Editar Kaelen' }).waitFor({ timeout: 10000 });
@@ -247,8 +247,8 @@ try {
 
   // 13) No celular o jogo vem antes da administração da campanha.
   await rafael.page.setViewportSize({ width: 390, height: 844 });
-  const dicePanel = await rafael.page.locator('.dice-panel').boundingBox();
-  const admin = await rafael.page.locator('.campaign-admin').boundingBox();
+  const dicePanel = await rafael.page.locator('[data-slot="dice-panel"]').boundingBox();
+  const admin = await rafael.page.locator('[data-slot="campaign-admin"]').boundingBox();
   if (!dicePanel || !admin) throw new Error('painel de dados ou administração não encontrados em 390px');
   if (dicePanel.y >= admin.y) {
     throw new Error(`em 390px os dados (y=${Math.round(dicePanel.y)}) ainda vêm depois da administração (y=${Math.round(admin.y)})`);

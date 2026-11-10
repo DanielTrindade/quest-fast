@@ -7,6 +7,7 @@ import { Skeleton } from '../../components/Skeleton';
 import { ApiError, api } from '../../lib/api';
 import { mergeFeedEvent } from '../../lib/feed-cache';
 import { CharacterSheetView } from './CharacterSheetView';
+import { dialogSheet, stack } from '../../components/layout-styles';
 
 function errorMessage(error: unknown) {
   return error instanceof ApiError ? error.message : 'Algo deu errado. Tente novamente.';
@@ -74,7 +75,7 @@ export function CharacterSheetDialog({
 
   return (
     <Dialog
-      className="qf-dialog--sheet"
+      className={dialogSheet}
       open={open}
       onOpenChange={(next) => {
         onOpenChange(next);
@@ -92,7 +93,7 @@ export function CharacterSheetDialog({
       }
     >
       {sheet.isPending && (
-        <div className="qf-stack" aria-busy="true" aria-label="Carregando ficha">
+        <div className={stack} aria-busy="true" aria-label="Carregando ficha">
           <Skeleton shape="line" width="60%" />
           <Skeleton shape="panel" />
           <Skeleton shape="panel" />
@@ -100,7 +101,7 @@ export function CharacterSheetDialog({
       )}
 
       {sheet.isError && (
-        <div className="qf-stack">
+        <div className={stack}>
           <p role="alert" className="text-body text-danger-text">
             {errorMessage(sheet.error)}
           </p>

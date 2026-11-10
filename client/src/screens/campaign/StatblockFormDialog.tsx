@@ -4,6 +4,7 @@ import type { Statblock, StatblockInput } from '@quest-fast/shared';
 import { Dialog } from '../../components/Dialog';
 import { StatblockForm, type StatblockFormHandle } from '../../components/StatblockForm';
 import { ApiError, api } from '../../lib/api';
+import { dialogWide } from '../../components/layout-styles';
 
 function errorMessage(error: unknown) {
   return error instanceof ApiError ? error.message : 'Algo deu errado. Tente novamente.';
@@ -32,7 +33,7 @@ export function StatblockFormDialog({ campaignId, statblock, onClose, onSaved }:
       onOpenChange={(next) => {
         if (!next) formRef.current?.requestClose();
       }}
-      className="qf-dialog--wide"
+      className={dialogWide}
       title={statblock ? `Editar ${statblock.name}` : 'Nova criatura'}
       description="Cadastre uma vez e use quantas cópias quiser nos encontros. Só você vê o bestiário."
     >

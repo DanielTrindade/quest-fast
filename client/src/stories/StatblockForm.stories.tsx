@@ -3,7 +3,7 @@ import type { Meta, StoryObj } from '@storybook/react-vite';
 import { expect, fn, userEvent, within } from 'storybook/test';
 import { StatblockForm } from '../components/StatblockForm';
 import { goblin, npcSheetImport, wyrmDasCinzas } from './fixtures/statblocks';
-import '../styles/campaign.css';
+import { page } from '../components/layout-styles';
 
 const pdf = new File(['%PDF-1.7'], 'Ficha_Capita_Brisa.pdf', { type: 'application/pdf' });
 
@@ -22,7 +22,7 @@ const meta = {
   title: 'Componentes/StatblockForm',
   component: StatblockForm,
   args: { statblock: null, onSubmit: fn(), onRequestClose: fn() },
-  decorators: [(Story) => <div className="qf-page" style={frameStyle}><Story /></div>],
+  decorators: [(Story) => <div data-slot="page" className={page} style={frameStyle}><Story /></div>],
 } satisfies Meta<typeof StatblockForm>;
 export default meta;
 type Story = StoryObj<typeof meta>;
@@ -53,7 +53,7 @@ export const EnvioValido: Story = {
       expect.objectContaining({ name: 'Kobold', hpAverage: 5, hpFormula: '2d6-2' }),
     );
     // Typing scrolled the frame below the importer; the audit reads it from the top.
-    region.querySelector('.qf-page')?.scrollTo(0, 0);
+    region.querySelector('[data-slot="page"]')?.scrollTo(0, 0);
   },
 };
 
@@ -129,7 +129,7 @@ export const ImportacaoNpc: Story = {
       // The blank bonus is marked before any submit.
       await expect(form.getByRole('group', { name: 'Ataque 2' }).querySelector('[aria-invalid="true"]')).not.toBeNull();
 
-      region.querySelector('.qf-page')?.scrollTo(0, 0);
+      region.querySelector('[data-slot="page"]')?.scrollTo(0, 0);
     }
   },
 };

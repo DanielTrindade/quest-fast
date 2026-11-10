@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowLeft, Users } from '@phosphor-icons/react';
+import { ArrowLeft, CaretRight, Users } from '@phosphor-icons/react';
 import { useMutation, useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
 import { Link, useNavigate } from '@tanstack/react-router';
 import type { CampaignDetail, CampaignMember, MembersResponse } from '@quest-fast/shared';
@@ -14,12 +14,15 @@ import { Surface } from '../components/Surface';
 import { useNotify } from '../hooks/use-notify';
 import { ApiError, api } from '../lib/api';
 import { formatDate } from '../lib/format';
-import '../styles/campaign.css';
 import { CharactersSection } from './campaign/CharactersSection';
 import { CombatSection } from './campaign/CombatSection';
 import { encountersQuery } from '../lib/combat-cache';
 import { DiceRoller } from './campaign/DiceRoller';
 import { SessionFeed } from './campaign/SessionFeed';
+import { dialogActions, eyebrow, memberRow, page, sectionHeading, stack } from '../components/layout-styles';
+import { cn } from '../lib/utils';
+
+const rosterRow = 'col-span-full grid grid-cols-subgrid @max-[480px]:grid-cols-[40px_minmax(0,1fr)] [&>[data-slot=badge]]:col-start-3 [&>[data-slot=badge]]:justify-self-start [&>button]:col-start-4 [&>button]:justify-self-start @max-[480px]:[&>[data-slot=badge]]:col-start-2 @max-[480px]:[&>button]:col-start-2';
 
 /** Visible copy stays in Portuguese — it is what the table reads. */
 function errorMessage(error: unknown) {
@@ -61,7 +64,7 @@ function RemoveMember({
           {errorMessage(remove.error)}
         </p>
       )}
-      <div className="qf-dialog__actions">
+      <div className={dialogActions}>
         <Button variant="secondary" onClick={() => setOpen(false)}>
           Cancelar
         </Button>
@@ -99,7 +102,7 @@ function LeaveCampaign({ campaignId }: { campaignId: string }) {
           {errorMessage(leave.error)}
         </p>
       )}
-      <div className="qf-dialog__actions">
+      <div className={dialogActions}>
         <Button variant="secondary" onClick={() => setOpen(false)}>
           Ficar
         </Button>
@@ -130,28 +133,29 @@ function MembersPanel({
   onRemoved: () => void;
 }) {
   return (
-    <div className="campaign-admin">
+    <div data-slot="campaign-admin" className="min-w-0 [grid-area:admin]">
       <details
-        className="campaign-admin__panel"
+        className="group/admin"
         open={open}
         onToggle={(event) => onToggle(event.currentTarget.open)}
       >
-        <summary className="campaign-section-heading">
+        <summary className={cn(sectionHeading, 'mb-0 cursor-pointer list-none rounded-control group-open/admin:mb-4 [&::-webkit-details-marker]:hidden')}>
           <h2 id="members-title">
             <Users size={20} aria-hidden="true" />
             Membros e convite
+            <CaretRight size={14} aria-hidden="true" className="text-text-muted transition-transform duration-(--duration-quick) ease-settle group-open/admin:rotate-90" />
           </h2>
           <span>{members.isSuccess ? `${members.data.members.length} na mesa` : 'Carregando…'}</span>
         </summary>
 
-        <section className="campaign-members" aria-labelledby="members-title">
-          <Surface className="campaign-roster">
+        <section className="grid min-w-0 gap-4" aria-labelledby="members-title">
+          <Surface className="py-0">
             {members.isPending && (
-              <div className="qf-stack" role="region" aria-label="Carregando membros" aria-busy="true">
+              <div className={stack} role="region" aria-label="Carregando membros" aria-busy="true">
                 {[0, 1, 2].map((row) => (
-                  <div key={row} className="qf-member">
+                  <div key={row} className={memberRow}>
                     <Skeleton shape="avatar" />
-                    <div className="qf-stack">
+                    <div className={stack}>
                       <Skeleton width="60%" />
                       <Skeleton width="80%" />
                     </div>
@@ -161,7 +165,7 @@ function MembersPanel({
             )}
 
             {members.isError && (
-              <div className="qf-stack">
+              <div className={stack}>
                 <p role="alert" className="text-body text-danger-text">
                   {errorMessage(members.error)}
                 </p>
@@ -174,13 +178,15 @@ function MembersPanel({
             )}
 
             {members.isSuccess && (
-              <ul>
+              // The master's row has no action: shared columns keep the role badge
+              // in its own column instead of sliding into the button's slot.
+              <ul className="m-0 grid list-none grid-cols-[auto_minmax(0,1fr)_auto_auto] gap-x-3 p-0 @max-[480px]:block">
                 {members.data.members.map((member) => (
-                  <li key={member.id} className="qf-member">
+                  <li key={member.id} className={cn(memberRow, rosterRow)}>
                     <Avatar name={member.name} src={member.avatarUrl ?? undefined} />
-                    <div className="campaign-member-info">
-                      <span className="campaign-member-name">{member.name}</span>
-                      <span className="campaign-member-date">Entrou em {formatDate(member.joinedAt)}</span>
+                    <div className="grid min-w-0 flex-[1_1_120px] gap-1">
+                      <span data-slot="member-name" className="font-medium">{member.name}</span>
+                      <span className="text-small text-text-muted">Entrou em {formatDate(member.joinedAt)}</span>
                     </div>
                     {/* Role and Badge share the same vocabulary, so no mapping. */}
                     <Badge role={member.role} />
@@ -204,8 +210,8 @@ function MembersPanel({
 
           {/* The code only reaches the master; the API omits it for a player. */}
           {campaign?.inviteCode && (
-            <Surface className="campaign-invite">
-              <p className="campaign-eyebrow">Convite</p>
+            <Surface className="min-w-0">
+              <p className={eyebrow}>Convite</p>
               <p className="mt-1 mb-3 text-small text-text-secondary">
                 Quem tiver este código entra na campanha como jogador.
               </p>
@@ -213,7 +219,7 @@ function MembersPanel({
             </Surface>
           )}
 
-          <p className="campaign-footnote">
+          <p className="mt-3 text-small text-text-muted">
             {isMaster
               ? 'Você é o mestre desta campanha e gerencia quem participa.'
               : 'O mestre gerencia os convites e os membros desta campanha.'}
@@ -253,8 +259,8 @@ export function Campaign({ campaignId }: { campaignId: string }) {
 
   if (campaign.isError) {
     return (
-      <main className="qf-page campaign-page">
-        <Link to="/campaigns" className="campaign-back">
+      <main data-slot="page" className={cn(page, 'mx-auto w-full max-w-[1400px]')}>
+        <Link to="/campaigns" className="inline-flex min-h-8 items-center gap-1 text-small text-text-secondary no-underline transition-colors duration-(--duration-quick) hover:text-foreground">
           <ArrowLeft size={16} aria-hidden="true" /> Suas campanhas
         </Link>
         <Surface>
@@ -270,23 +276,23 @@ export function Campaign({ campaignId }: { campaignId: string }) {
   const tableIsEmpty = members.isSuccess && members.data.members.length <= 1;
 
   return (
-    <main className="qf-page campaign-page">
-      <header className="campaign-heading">
+    <main data-slot="page" className={cn(page, 'mx-auto w-full max-w-[1400px]')}>
+      <header className="mb-8 flex flex-wrap items-center justify-between gap-6 max-[479px]:gap-4 [&_h1]:mt-2 [&_h1]:font-display [&_h1]:text-display [&_h1]:font-semibold [&_h1]:tracking-[-0.04em] @max-[480px]:[&_h1]:text-h1">
         <div className="min-w-0">
-          <Link to="/campaigns" className="campaign-back">
+          <Link to="/campaigns" className="inline-flex min-h-8 items-center gap-1 text-small text-text-secondary no-underline transition-colors duration-(--duration-quick) hover:text-foreground">
             <ArrowLeft size={16} aria-hidden="true" />
             Suas campanhas
           </Link>
           <h1>{campaign.data?.name ?? 'Carregando…'}</h1>
-          {campaign.data?.description && <p className="campaign-description">{campaign.data.description}</p>}
+          {campaign.data?.description && <p className="mt-2 text-text-secondary">{campaign.data.description}</p>}
         </div>
         {!campaign.isPending && !isMaster && <LeaveCampaign campaignId={campaignId} />}
       </header>
 
       {/* Order matters more than columns here: on a phone the table (dice and
           session) has to come before the administration of the campaign. */}
-      <div className="campaign-layout">
-        <div className="campaign-main">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-6 [grid-template-areas:'characters'_'table'_'admin'] @min-[1000px]:grid-cols-[minmax(0,1fr)_320px] @min-[1000px]:grid-rows-[auto_1fr] @min-[1000px]:items-start @min-[1000px]:[grid-template-areas:'characters_table'_'admin_table']">
+        <div className="grid min-w-0 gap-8 [grid-area:characters]">
           <CharactersSection
             campaignId={campaignId}
             currentUserId={me.data?.user.id ?? ''}
@@ -299,7 +305,7 @@ export function Campaign({ campaignId }: { campaignId: string }) {
           )}
         </div>
 
-        <aside className="campaign-aside" aria-label="Mesa">
+        <aside className="grid min-w-0 content-start gap-6 [grid-area:table]" aria-label="Mesa">
           <DiceRoller campaignId={campaignId} isMaster={isMaster} />
           <SessionFeed campaignId={campaignId} />
         </aside>

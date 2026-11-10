@@ -4,7 +4,7 @@ import type { RollSessionEvent } from '@quest-fast/shared';
 import { Button } from '../components/Button';
 import { FeedFollow } from '../components/FeedFollow';
 import { FeedEventCard } from '../components/FeedEventCard';
-import '../styles/campaign.css';
+import { page, stack } from '../components/layout-styles';
 
 const PAGE = 6;
 
@@ -44,11 +44,11 @@ function Live({ count = 20, older = 0 }: { count?: number; older?: number }) {
   );
   return (
     // The page container turns on the desktop height cap, as in the campaign.
-    <div className="qf-page">
-      <div className="qf-stack" style={{ maxWidth: 420 }}>
+    <div data-slot="page" className={page}>
+      <div className={stack} style={{ maxWidth: 420 }}>
         <FeedFollow ids={events.map((event) => event.id)} hasMore={oldest > 0}
           onLoadMore={() => setOldest((value) => Math.max(0, value - PAGE))}>
-          <ol className="feed-list">
+          <ol className="m-0 list-none p-0 [&>li]:py-3 [&>li+li]:border-t [&>li+li]:border-border">
             {events.map((event) => (
               <li key={event.id}><FeedEventCard event={event} /></li>
             ))}

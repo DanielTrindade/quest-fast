@@ -5,7 +5,7 @@ import { fn, expect, userEvent, within } from 'storybook/test';
 import { sheetFromOfficialPdf } from '@quest-fast/shared';
 import { CharacterForm } from '../components/CharacterForm';
 import { hazinDan, lyraVentoclaro } from './fixtures/characters';
-import '../styles/campaign.css';
+import { page } from '../components/layout-styles';
 
 const pdf = new File(['%PDF-1.7'], 'Ficha_Hazin_Dan.pdf', { type: 'application/pdf' });
 
@@ -49,7 +49,7 @@ const queryClient = new QueryClient();
 function Frame(props: ComponentProps<typeof CharacterForm>) {
   return (
     <QueryClientProvider client={queryClient}>
-      <div className="qf-page" style={frameStyle}>
+      <div data-slot="page" className={page} style={frameStyle}>
         <CharacterForm {...props} />
       </div>
     </QueryClientProvider>
@@ -133,7 +133,7 @@ export const ErroEmOutraAba: Story = {
 
       // Focus scrolled the frame to the coins; content left under the sticky
       // footer makes the contrast audit inconclusive, so end at the top.
-      region.querySelector('.qf-page')?.scrollTo(0, 0);
+      region.querySelector('[data-slot="page"]')?.scrollTo(0, 0);
     }
   },
 };
@@ -161,7 +161,7 @@ export const Ataques: Story = {
 
       // Typing scrolled the frame; content left under the sticky footer makes
       // the contrast audit inconclusive, so the story ends where it started.
-      region.querySelector('.qf-page')?.scrollTo(0, 0);
+      region.querySelector('[data-slot="page"]')?.scrollTo(0, 0);
     }
   },
 };
@@ -203,7 +203,7 @@ export const ImportacaoParcial: Story = {
       await expect(canvas.getByLabelText('Ajuste de iniciativa')).toHaveValue(12);
       await expect(canvas.getByLabelText('Ajuste de iniciativa')).toHaveAttribute('aria-invalid', 'true');
 
-      region.querySelector('.qf-page')?.scrollTo(0, 0);
+      region.querySelector('[data-slot="page"]')?.scrollTo(0, 0);
     }
   },
 };
@@ -224,7 +224,7 @@ export const AtaqueComCd: Story = {
       await userEvent.selectOptions(attack.getByLabelText('Atributo da resistência'), 'dexterity');
       await expect(attack.getByLabelText('Atributo da resistência')).toHaveValue('dexterity');
 
-      region.querySelector('.qf-page')?.scrollTo(0, 0);
+      region.querySelector('[data-slot="page"]')?.scrollTo(0, 0);
     }
   },
 };

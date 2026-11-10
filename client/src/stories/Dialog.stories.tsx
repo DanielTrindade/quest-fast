@@ -4,6 +4,7 @@ import { expect, userEvent, within, waitFor } from 'storybook/test';
 import { Dialog } from '../components/Dialog';
 import { Button } from '../components/Button';
 import { Field } from '../components/Field';
+import { dialogActions } from '../components/layout-styles';
 
 function Example() {
   const [open, setOpen] = useState(false);
@@ -11,7 +12,7 @@ function Example() {
     description="Dê um nome à campanha. Você poderá convidar sua mesa em seguida." open={open} onOpenChange={setOpen}>
     <form onSubmit={event => { event.preventDefault(); setOpen(false); }}>
       <Field label="Nome da campanha" required placeholder="Ex.: Ecos de Phandalin" />
-      <div className="qf-dialog__actions"><Button variant="secondary" onClick={() => setOpen(false)}>Cancelar</Button><Button type="submit">Criar campanha</Button></div>
+      <div className={dialogActions}><Button variant="secondary" onClick={() => setOpen(false)}>Cancelar</Button><Button type="submit">Criar campanha</Button></div>
     </form>
   </Dialog>;
 }

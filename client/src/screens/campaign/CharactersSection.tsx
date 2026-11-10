@@ -11,6 +11,7 @@ import { useNotify } from '../../hooks/use-notify';
 import { api } from '../../lib/api';
 import { CharacterFormDialog } from './CharacterFormDialog';
 import { CharacterSheetDialog } from './CharacterSheetDialog';
+import { memberRow, sectionHeading, stack } from '../../components/layout-styles';
 
 export function CharactersSection({
   campaignId,
@@ -37,8 +38,8 @@ export function CharactersSection({
   };
 
   return (
-    <section className="campaign-characters" aria-labelledby="characters-title">
-      <div className="campaign-section-heading">
+    <section aria-labelledby="characters-title">
+      <div className={sectionHeading}>
         <h2 id="characters-title">
           <Sword size={20} aria-hidden="true" /> Personagens
         </h2>
@@ -51,13 +52,13 @@ export function CharactersSection({
         </div>
       </div>
 
-      <Surface className="characters-surface">
+      <Surface className="py-0">
         {characters.isPending && (
-          <div className="qf-stack" role="region" aria-label="Carregando personagens" aria-busy="true">
+          <div className={stack} role="region" aria-label="Carregando personagens" aria-busy="true">
             {[0, 1].map((row) => (
-              <div key={row} className="qf-member">
+              <div key={row} className={memberRow}>
                 <Skeleton shape="avatar" />
-                <div className="qf-stack">
+                <div className={stack}>
                   <Skeleton width="50%" />
                   <Skeleton width="70%" />
                 </div>
@@ -67,7 +68,7 @@ export function CharactersSection({
         )}
 
         {characters.isError && (
-          <div className="qf-stack">
+          <div className={stack}>
             <p role="alert" className="text-body text-danger-text">
               Não foi possível carregar os personagens.
             </p>
@@ -94,7 +95,7 @@ export function CharactersSection({
         )}
 
         {characters.isSuccess && characters.data.characters.length > 0 && (
-          <ul className="characters-list">
+          <ul data-slot="characters-list" className="m-0 list-none p-0 [&>li+li]:border-t [&>li+li]:border-border">
             {characters.data.characters.map((character) => (
               <CharacterRow
                 key={character.id}

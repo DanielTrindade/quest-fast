@@ -8,6 +8,7 @@ import { Skeleton } from '../../components/Skeleton';
 import { Surface } from '../../components/Surface';
 import { useCampaignSocket } from '../../hooks/useCampaignSocket';
 import { ApiError, api } from '../../lib/api';
+import { sectionHeading, stack } from '../../components/layout-styles';
 
 function errorMessage(error: unknown) {
   return error instanceof ApiError ? error.message : 'Não foi possível carregar eventos anteriores.';
@@ -36,17 +37,17 @@ export function SessionFeed({ campaignId }: { campaignId: string }) {
   const nextCursor = feed.data?.nextCursor ?? null;
 
   return (
-    <section className="feed-panel" aria-labelledby="feed-title">
-      <div className="campaign-section-heading">
+    <section className="grid min-w-0 gap-2" aria-labelledby="feed-title">
+      <div className={sectionHeading}>
         <h2 id="feed-title">Sessão</h2>
-        <span className="feed-status" data-status={status} aria-live="polite">
+        <span data-slot="feed-status" className="data-[status=connected]:text-success-text" data-status={status} aria-live="polite">
           {status === 'connected' ? 'ao vivo' : status === 'connecting' ? 'conectando' : 'reconectando'}
         </span>
       </div>
 
-      <Surface className="feed-surface">
+      <Surface className="py-0">
         {feed.isPending && (
-          <div className="qf-stack" aria-busy="true" aria-label="Carregando a sessão">
+          <div className={stack} aria-busy="true" aria-label="Carregando a sessão">
             {[0, 1, 2].map((row) => (
               <Skeleton key={row} shape="line" width="80%" />
             ))}
@@ -76,7 +77,7 @@ export function SessionFeed({ campaignId }: { campaignId: string }) {
             loadingMore={loadMore.isPending}
             loadMoreError={loadMore.isError ? errorMessage(loadMore.error) : null}
           >
-            <ol className="feed-list">
+            <ol data-slot="feed-list" className="m-0 list-none p-0 [&>li]:py-3 [&>li+li]:border-t [&>li+li]:border-border">
               {events.map((event) => (
                 <li key={event.id}>
                   <FeedEventCard event={event} />

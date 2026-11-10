@@ -7,6 +7,7 @@ import { Dialog } from '../../components/Dialog';
 import { Skeleton } from '../../components/Skeleton';
 import { StatblockCard } from '../../components/StatblockCard';
 import { ApiError, api } from '../../lib/api';
+import { dialogSheet, stack } from '../../components/layout-styles';
 
 function errorMessage(error: unknown) {
   return error instanceof ApiError ? error.message : 'Algo deu errado. Tente novamente.';
@@ -37,7 +38,7 @@ export function StatblockDialog({ campaignId, statblockId, onClose, onEdit, onDe
 
   return (
     <Dialog
-      className="qf-dialog--sheet"
+      className={dialogSheet}
       open
       onOpenChange={(next) => {
         if (!next) onClose();
@@ -46,14 +47,14 @@ export function StatblockDialog({ campaignId, statblockId, onClose, onEdit, onDe
       description="Só você vê o bestiário. Os encontros copiam estes valores, então editar aqui não muda um combate em andamento."
     >
       {entry.isPending && (
-        <div className="qf-stack" aria-busy="true" aria-label="Carregando criatura">
+        <div className={stack} aria-busy="true" aria-label="Carregando criatura">
           <Skeleton shape="line" width="60%" />
           <Skeleton shape="panel" />
         </div>
       )}
 
       {entry.isError && (
-        <div className="qf-stack">
+        <div className={stack}>
           <p role="alert" className="text-body text-danger-text">{errorMessage(entry.error)}</p>
           <div>
             <Button variant="secondary" onClick={() => entry.refetch()}>Tentar novamente</Button>
@@ -62,7 +63,7 @@ export function StatblockDialog({ campaignId, statblockId, onClose, onEdit, onDe
       )}
 
       {statblock && (
-        <div className="qf-stack">
+        <div className={stack}>
           <StatblockCard
             statblock={statblock}
             actions={!confirmingDelete && (

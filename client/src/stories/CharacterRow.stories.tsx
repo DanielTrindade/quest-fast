@@ -2,7 +2,6 @@ import type { Meta, StoryObj } from '@storybook/react-vite';
 import { fn } from 'storybook/test';
 import type { CharacterSummary } from '@quest-fast/shared';
 import { CharacterRow } from '../components/CharacterRow';
-import '../styles/campaign.css';
 
 const base: CharacterSummary = {
   id: 'hazin',
@@ -37,7 +36,7 @@ const another: CharacterSummary = {
 
 function List({ rows, mine = 'hazin' }: { rows: CharacterSummary[]; mine?: string }) {
   return (
-    <ul className="characters-list" style={{ maxWidth: 520 }}>
+    <ul className="m-0 list-none p-0 [&>li+li]:border-t [&>li+li]:border-border" style={{ maxWidth: 520 }}>
       {rows.map((character) => (
         <CharacterRow key={character.id} character={character} isMine={character.id === mine} onOpen={fn()} />
       ))}

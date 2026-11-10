@@ -2,6 +2,7 @@ import type { Spell } from '@quest-fast/shared';
 import { contentKeys } from '../lib/content-keys';
 import { circleLabel } from '../lib/sheet-labels';
 import { sheetItem } from './sheet-styles';
+import { sheetEmpty } from './layout-styles';
 
 const TAGS = [
   { key: 'concentration', short: 'C', label: 'Concentração' },
@@ -11,7 +12,7 @@ const TAGS = [
 
 /** "Truques e magias preparadas", grouped by circle, cantrips first. */
 export function SpellList({ spells }: { spells: readonly Spell[] }) {
-  if (spells.length === 0) return <p className="qf-sheet-empty">Nenhuma magia preparada.</p>;
+  if (spells.length === 0) return <p className={sheetEmpty}>Nenhuma magia preparada.</p>;
 
   const levels = [...new Set(spells.map((spell) => spell.level))].sort((a, b) => a - b);
   return (

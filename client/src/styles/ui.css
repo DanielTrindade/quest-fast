@@ -11,3 +11,7 @@
   [data-slot="dialog-overlay"], [data-slot="dialog-content"], [data-slot="dropdown-menu-content"],
   [data-slot="tooltip-content"], [data-slot="toast"], [data-slot="feed-pill"] { animation-name: none !important; }
 }
+
+@media (prefers-reduced-motion: no-preference) {
+  html:has([data-slot="shell"]) { scroll-behavior: smooth; }
+}
