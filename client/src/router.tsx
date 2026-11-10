@@ -4,6 +4,7 @@ import {
   createRoute,
   createRouter,
   redirect,
+  type RouterHistory,
 } from '@tanstack/react-router';
 import type { QueryClient } from '@tanstack/react-query';
 import { Toaster } from './components/Toast';
@@ -96,9 +97,10 @@ const routeTree = rootRoute.addChildren([
   authenticatedRoute.addChildren([campaignsRoute, campaignRoute]),
 ]);
 
-export function createAppRouter(queryClient: QueryClient) {
+export function createAppRouter(queryClient: QueryClient, history?: RouterHistory) {
   return createRouter({
     routeTree,
+    history,
     context: { queryClient },
     defaultPreload: 'intent',
   });

@@ -1,5 +1,6 @@
 import { CaretUpDown, SquaresFour } from '@phosphor-icons/react';
 import type { Role } from '@quest-fast/shared';
+import { initials } from '../lib/initials';
 import { cn } from '../lib/utils';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuRadioGroup,
@@ -12,18 +13,13 @@ export type CampaignOption = { id: string; name: string; role?: Role };
 const ROLE_LABEL: Record<Role, string> = { master: 'Mestre', player: 'Jogador' };
 
 // Short connectives ("de", "da", "e") make poor initials.
-function initials(name: string) {
-  const words = name.trim().split(/\s+/u).filter(Boolean);
-  const meaningful = words.filter(word => word.length > 2 || /^\p{Lu}/u.test(word));
-  const letters = (meaningful.length ? meaningful : words).map(word => [...word][0]);
-  return (letters.length > 1 ? [letters[0], letters.at(-1)] : letters).join('').toLocaleUpperCase('pt-BR') || '?';
-}
+const connective = (word: string) => word.length <= 2 && !/^\p{Lu}/u.test(word);
 
 export function CampaignMark({ name, current = false }: { name: string; current?: boolean }) {
   return <span aria-hidden="true" className={cn(
     'inline-grid size-8 shrink-0 place-items-center rounded-control border font-display text-small leading-none font-bold',
     current ? 'border-primary bg-primary text-primary-foreground edge-action' : 'border-border-strong bg-popover text-foreground edge-raised')}>
-    {initials(name)}
+    {initials(name, connective)}
   </span>;
 }
 

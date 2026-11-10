@@ -1,3 +1,4 @@
+import { initials } from '../lib/initials';
 import { cn } from '../lib/utils';
 import { Skeleton } from './Skeleton';
 import { Avatar as Root, AvatarFallback, AvatarImage } from './ui/avatar';
@@ -11,16 +12,15 @@ export function Avatar({ name, src, loading = false, variant = 'user', size = 's
   name: string; src?: string; loading?: boolean;
   variant?: 'user' | 'character'; size?: 'sm' | 'md' | 'lg';
 }) {
-  const initials = name.trim().split(/\s+/u).filter(Boolean).map(part => [...part][0]);
   const className = cn(SIZE[size], variant === 'character' && CHARACTER);
   if (loading) return <span className={cn('inline-flex shrink-0 overflow-hidden rounded-full', SIZE[size])}>
     <Skeleton shape="avatar" label={`Carregando avatar de ${name}`} />
   </span>;
   return <Root className={className}>
-    <AvatarImage src={src} alt={name} className={variant === 'character' ? 'rounded-full' : undefined} />
+    <AvatarImage src={src} alt={name} className={variant === 'character' ? 'rounded-full object-[50%_20%]' : undefined} />
     <AvatarFallback role="img" aria-label={name}
       className={variant === 'character' ? 'rounded-full bg-muted font-display text-accent-text' : undefined}>
-      {(initials.length > 1 ? [initials[0], initials.at(-1)] : initials).join('').toLocaleUpperCase('pt-BR') || '?'}
+      {initials(name)}
     </AvatarFallback>
   </Root>;
 }

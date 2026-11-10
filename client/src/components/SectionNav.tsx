@@ -27,7 +27,7 @@ function groupItems(items: NavItem[]) {
 const dot = 'after:absolute after:top-2 after:left-[calc(50%+var(--spacing-1))] after:size-2 after:rounded-full after:bg-success-text after:shadow-[0_0_0_2px_var(--color-surface-secret)] after:content-[""]';
 
 const link = 'relative flex min-h-11 items-center gap-3 rounded-control px-3 whitespace-nowrap text-text-secondary no-underline transition-[background-color,color] duration-(--duration-quick) ease-settle hover:bg-card hover:text-foreground [&[aria-current]]:bg-card [&[aria-current]]:font-semibold [&[aria-current]]:text-foreground [&[aria-current]]:shadow-[inset_0_1px_0_var(--color-edge-light)] [&[aria-current]]:[&>svg]:text-accent-text';
-const barLink = 'min-h-13 min-w-0 flex-[1_1_0] flex-col justify-center gap-1 p-1 text-micro text-text-muted [&[aria-current]]:bg-transparent [&[aria-current]]:text-accent-text [&[aria-current]]:shadow-none';
+const barLink = 'min-h-13 min-w-0 flex-[1_1_0] flex-col justify-center gap-1 px-0 py-1 text-micro text-text-muted [&[aria-current]]:bg-transparent [&[aria-current]]:text-accent-text [&[aria-current]]:shadow-none';
 const badgeClass = 'ml-auto inline-flex items-center gap-1 font-mono text-micro font-semibold text-success-text before:size-1.5 before:rounded-full before:bg-success-text before:content-[""]';
 
 function navClasses(item: NavItem, bar: boolean, collapsed: boolean) {

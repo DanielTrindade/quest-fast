@@ -197,3 +197,19 @@ O Storybook inteiro roda sobre shadcn/ui. Os primitivos ficam em `client/src/com
 - **`cn`:** o `tailwind-merge` conhece a escala tipográfica (`text-small`, `text-body`…). Sem isso, ele tratava `text-small` como cor e descartava a cor do texto.
 - **Telas:** `screens/` também usa só utilitários; `campaign.css` e `components.css` foram removidos. O layout compartilhado fica em `components/layout-styles.ts` (página, pilha, títulos de seção, linhas de membro, larguras de diálogo). Elementos que os scripts de ponta a ponta procuram têm `data-slot` estável (`member-name`, `campaign-admin`, `feed-list`, `feed-status`, `secret-tag`, `characters-list`, `character-row`, `dice-panel`), nunca uma classe de estilo.
 - **Fica em CSS:** só `foundations.css`, que estiliza a página de documentação dos tokens.
+
+## Dados extremos (10 de novembro de 2026)
+
+O laboratório ganhou a seção **Laboratório → Dados extremos**: as telas reais (`Campanhas`, mesa do mestre e mesa do jogador) rodam com o router e o TanStack Query de verdade, e só o `fetch` de `/api/*` é respondido por fixtures (`client/src/stories/fixtures/app.ts`). O seletor fixo no rodapé, também na toolbar como **Dados**, troca entre **Demo**, **Pior caso**, **Vazio**, **Um** e **Muitos**, e fica salvo na URL (`globals=data:worst`). O pior caso usa pessoas e limites reais: nomes do Discord com 32 caracteres sem espaço, emoji, bandeira, árabe e vietnamita, textos no limite do schema, moedas em 999.999, as 15 condições, 60 combatentes e 200 criaturas. As telas reais usam IDs fixos, então cada story mostra um tema só, com uma variante "(claro)" para cada tela.
+
+O que a rodada corrigiu:
+
+- **Números não quebram:** moedas e PV/CA da lista de personagens ficam numa linha (`whitespace-nowrap`). O grid de moedas passou a `auto-fit` com mínimo de 88 px, em vez de 5/3 colunas fixas.
+- **Fórmula de PV do statblock:** vai para a própria linha e só quebra depois de um `+`, sem invadir a coluna de iniciativa.
+- **Feed com data:** um evento de outro dia mostra "ontem, 18:47" ou "20 out., 18:47" (`formatEventTime`); só os de hoje mostram apenas a hora.
+- **Iniciais:** vêm de palavras que começam com letra, contadas por grafema (`lib/initials.ts`), então emoji, bandeira e número não viram meia inicial. Escritas sem maiúsculas (árabe, CJK) usam uma letra só.
+- **Perícias:** quebram por palavra, com hifenização, em vez de no meio ("Prestidigitaçã/o").
+- **Barra do celular:** "Personagens" vira "Fichas" e os itens perderam o padding lateral, para "Combate" e "Membros" caberem em 320 px.
+- **Retrato do personagem:** o recorte privilegia o topo (`object-[50%_20%]`), para o rosto de um retrato de corpo inteiro aparecer.
+- **Plurais:** "1 criatura"; os espaços de magia concordam com os livres, "1 livre de 3".
+- **Cópias numeradas:** a numeração encurta o nome para caber no limite de 80 caracteres (`numberCopies` em `shared/`).

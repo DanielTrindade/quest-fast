@@ -16,9 +16,22 @@ export function formatDate(iso: string): string {
 
 const TIME_PARTS = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
-/** "21:47" — enough to follow the order of a session. */
-export function formatTime(iso: string): string {
+function dayKey(date: Date) {
+  return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+}
+
+/**
+ * When a feed event happened. Today reads "21:47"; an older page of the
+ * history must not pass for tonight, so it carries "ontem" or the date.
+ */
+export function formatEventTime(iso: string, now: Date = new Date()): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return '—';
-  return TIME_PARTS.format(date);
+  const time = TIME_PARTS.format(date);
+  if (dayKey(date) === dayKey(now)) return time;
+  const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+  if (dayKey(date) === dayKey(yesterday)) return `ontem, ${time}`;
+  const parts = Object.fromEntries(DATE_PARTS.formatToParts(date).map((part) => [part.type, part.value]));
+  const day = `${parts.day} ${parts.month}`;
+  return `${date.getFullYear() === now.getFullYear() ? day : `${day} ${parts.year}`}, ${time}`;
 }

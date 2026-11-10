@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   COMBAT_LIMITS,
   CONDITIONS,
+  STATBLOCK_LIMITS,
   applyHpChange,
   changedCharacters,
   concentrationDc,
@@ -331,6 +332,25 @@ test('copies of a creature are numbered, continuing what is already there', () =
   assert.deepEqual(numberCopies('Goblin', 1, ['Goblin']), ['Goblin 2']);
   assert.deepEqual(numberCopies('Goblin', 1, ['Goblin Chefe']), ['Goblin']);
   assert.deepEqual(numberCopies('Goblin', 0, []), []);
+
+  const long = 'Guardião Esquecido das Catacumbas Submersas de Vel’Tharon, Senhor das Marés Fria';
+  assert.equal(long.length, STATBLOCK_LIMITS.name);
+  const [eleventh, twelfth] = numberCopies(long, 2, [`${long.slice(0, 77)} 10`]);
+  assert.equal(eleventh, `${long.slice(0, 77)} 11`);
+  assert.ok(twelfth!.length <= STATBLOCK_LIMITS.name);
+  assert.equal(copyNumber(twelfth!, long), 12);
+
+  // Copies stored with the whole name, before the cut, still count.
+  const legacy = [`${long} 1`, `${long} 2`];
+  assert.equal(copyNumber(legacy[1]!, long), 2);
+  assert.deepEqual(numberCopies(long, 1, legacy), [`${long.slice(0, 78)} 3`]);
+  assert.equal(copyNumber(`${long.slice(0, 70)} 4`, long), null);
+  const revealed = placeCopies(long, 1, false, [
+    { id: 'a', name: legacy[0]!, hidden: false, renamable: true },
+    { id: 'b', name: legacy[1]!, hidden: true, renamable: true },
+  ]);
+  assert.deepEqual(revealed.names, [`${long.slice(0, 78)} 2`]);
+  assert.deepEqual(revealed.renamed, [{ id: 'b', name: `${long.slice(0, 78)} 3` }]);
 });
 
 test('a copy number is read against the creature name, never guessed from the name alone', () => {

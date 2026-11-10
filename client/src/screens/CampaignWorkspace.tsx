@@ -10,7 +10,7 @@ import { useSignOut } from '../hooks/useSignOut';
 import { Campaign } from './Campaign';
 
 const NAVIGATION: NavItem[] = [
-  { id: 'characters', label: 'Personagens', href: '#characters-title', icon: Users, group: 'Mesa' },
+  { id: 'characters', label: 'Personagens', shortLabel: 'Fichas', href: '#characters-title', icon: Users, group: 'Mesa' },
   { id: 'combat', label: 'Combate', href: '#combat-title', icon: Sword, group: 'Mesa' },
   { id: 'dice', label: 'Dados', href: '#dice-title', icon: DiceFive, group: 'Mesa' },
   // Fragmento de navegação; "#feed" não é uma cor hexadecimal.
