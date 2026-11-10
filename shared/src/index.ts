@@ -208,4 +208,6 @@ export type {
   CampaignMember,
   CampaignsResponse,
   MembersResponse,
+  CampaignBan,
+  BansResponse,
 } from './api.ts';

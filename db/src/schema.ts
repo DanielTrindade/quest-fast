@@ -99,6 +99,21 @@ export const campaignMembers = sqliteTable(
 /** Row types. The API-facing shapes live in `@quest-fast/shared`. */
 export type UserRow = typeof users.$inferSelect;
 export type NewUserRow = typeof users.$inferInsert;
+export const campaignBans = sqliteTable(
+  'campaign_bans',
+  {
+    id: text('id').primaryKey(),
+    campaignId: text('campaign_id')
+      .notNull()
+      .references(() => campaigns.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(now),
+  },
+  (table) => [uniqueIndex('campaign_bans_campaign_user_idx').on(table.campaignId, table.userId)],
+);
+
 export type SessionRow = typeof sessions.$inferSelect;
 export type CampaignRow = typeof campaigns.$inferSelect;
 export type CampaignMemberRow = typeof campaignMembers.$inferSelect;

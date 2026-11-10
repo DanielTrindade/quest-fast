@@ -1,9 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { and, desc, eq, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
-import { campaignMembers, campaigns, users, type Db } from '@quest-fast/db';
+import { campaignBans, campaignMembers, campaigns, users, type Db } from '@quest-fast/db';
 import { generateInviteCode, normalizeInviteCode } from '@quest-fast/shared';
 import type { Context } from '../context.ts';
+import { banRoutes, isBanned } from './bans.ts';
 import { requireAuth, requireCampaignRole } from '../middleware.ts';
 
 const NAME_LIMIT = 80;
@@ -100,6 +101,10 @@ export function campaignRoutes() {
     const campaign = db.select().from(campaigns).where(eq(campaigns.inviteCode, code)).get();
     if (!campaign) return c.json({ error: 'Código de convite inválido.' }, 404);
 
+    if (isBanned(db, campaign.id, c.var.user.id)) {
+      return c.json({ error: 'Você não pode entrar nesta mesa. Fale com quem te chamou.' }, 403);
+    }
+
     const alreadyMember = db
       .select({ role: campaignMembers.role })
       .from(campaignMembers)
@@ -179,11 +184,19 @@ export function campaignRoutes() {
     if (!target) return c.json({ error: 'Membro não encontrado.' }, 404);
     if (target.role === 'master') return c.json({ error: 'O mestre não pode ser removido.' }, 409);
 
-    db.delete(campaignMembers).where(eq(campaignMembers.id, target.id)).run();
+    db.transaction((tx) => {
+      tx.delete(campaignMembers).where(eq(campaignMembers.id, target.id)).run();
+      tx.insert(campaignBans)
+        .values({ id: randomUUID(), campaignId: c.var.campaignId, userId: target.userId })
+        .onConflictDoNothing()
+        .run();
+    });
     // The membership is gone; an open socket must not keep the room.
     c.var.deps.hub.kick(c.var.campaignId, target.userId);
     return c.body(null, 204);
   });
+
+  routes.route('/', banRoutes());
 
   return routes;
 }

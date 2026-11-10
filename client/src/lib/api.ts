@@ -18,6 +18,7 @@ import type {
   LinkedRollRequest,
   MeResponse,
   MembersResponse,
+  BansResponse,
   RollResponse,
   StatblockInput,
   StatblockListResponse,
@@ -97,6 +98,11 @@ export const api = {
 
   removeMember: (campaignId: string, memberId: string) =>
     request<void>(`/api/campaigns/${campaignId}/members/${memberId}`, { method: 'DELETE' }),
+
+  bans: (campaignId: string) => request<BansResponse>(`/api/campaigns/${campaignId}/bans`),
+
+  unban: (campaignId: string, userId: string) =>
+    request<void>(`/api/campaigns/${campaignId}/bans/${userId}`, { method: 'DELETE' }),
 
   characters: (campaignId: string) => request<CharacterListResponse>(`/api/campaigns/${campaignId}/characters`),
   character: (campaignId: string, characterId: string) =>

@@ -51,9 +51,17 @@ export type CampaignMember = {
   joinedAt: string;
 };
 
+export type CampaignBan = {
+  userId: string;
+  name: string;
+  avatarUrl: string | null;
+  bannedAt: string;
+};
+
 export type MeResponse = { user: PublicUser };
 export type CampaignsResponse = { campaigns: CampaignSummary[] };
 export type MembersResponse = { members: CampaignMember[] };
+export type BansResponse = { bans: CampaignBan[] };
 
 // --- Phase 1: characters, assets, dice and the session feed -----------------
 
