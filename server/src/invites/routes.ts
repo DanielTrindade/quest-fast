@@ -5,10 +5,36 @@ import type { InvitePreview } from '@quest-fast/shared';
 import type { Context } from '../context.ts';
 import { isBanned } from '../campaigns/bans.ts';
 import { optionalAuth } from '../middleware.ts';
+import { fetchAvatar, renderInviteCard } from './card.ts';
 import { findInvite } from './invite-lookup.ts';
+import { cardVersion } from './meta.ts';
+
+const CARD_CACHE_LIMIT = 200;
 
 export function inviteRoutes() {
   const routes = new Hono<Context>();
+  const cardCache = new Map<string, Uint8Array>();
+
+  routes.get('/:code/card.png', async (c) => {
+    const invite = findInvite(c.var.deps.db, c.req.param('code'));
+    if (!invite) return c.json({ error: 'Convite inválido.' }, 404);
+
+    const version = cardVersion(invite);
+    let png = cardCache.get(version);
+    if (!png) {
+      png = await renderInviteCard({
+        campaignName: invite.campaignName,
+        masterName: invite.masterName,
+        avatar: await fetchAvatar(invite.masterAvatarUrl),
+      });
+      if (cardCache.size >= CARD_CACHE_LIMIT) cardCache.delete(cardCache.keys().next().value!);
+      cardCache.set(version, png);
+    }
+    return c.body(png as Uint8Array<ArrayBuffer>, 200, {
+      'Content-Type': 'image/png',
+      'Cache-Control': 'public, max-age=86400',
+    });
+  });
 
   routes.get('/:code', optionalAuth, (c) => {
     const { db } = c.var.deps;
