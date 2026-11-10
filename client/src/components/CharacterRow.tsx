@@ -3,7 +3,7 @@ import type { CharacterSummary } from '@quest-fast/shared';
 import { Avatar } from './Avatar';
 import { Badge } from './ui/badge';
 
-const stat = 'inline-flex items-center gap-1 rounded-control border border-border bg-card px-2 py-1 font-mono text-small text-text-secondary tabular-nums data-down:border-danger-text data-down:text-danger-text [&>svg]:text-text-muted';
+const stat = 'inline-flex items-center gap-1 whitespace-nowrap [overflow-wrap:normal] rounded-control border border-border bg-card px-2 py-1 font-mono text-small text-text-secondary tabular-nums data-down:border-danger-text data-down:text-danger-text [&>svg]:text-text-muted';
 
 /** One row of the campaign roster: identity, class/level and the public HP/CA. */
 export function CharacterRow({ character, isMine, onOpen }: {

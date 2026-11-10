@@ -4,7 +4,7 @@ import { COIN_LABELS } from '../lib/sheet-labels';
 import { Button } from './Button';
 import { Input } from './ui/input';
 
-const coinGrid = 'm-0 grid grid-cols-5 gap-2 max-[479px]:grid-cols-3';
+const coinGrid = 'm-0 grid grid-cols-[repeat(auto-fit,minmax(min(100%,88px),1fr))] gap-2';
 const coinCell = 'grid min-w-0 justify-items-center gap-1 rounded-control border border-border bg-background p-2 text-center';
 const coinLabel = 'font-mono text-small font-semibold text-text-secondary';
 
@@ -35,7 +35,7 @@ export function CoinPurse({ coins, editable = false, pending = false, onSave }: 
             <dt className={coinLabel}>
               <abbr title={COIN_LABELS[coin].name} className="no-underline">{COIN_LABELS[coin].short}</abbr>
             </dt>
-            <dd className="m-0 font-mono font-semibold tabular-nums [overflow-wrap:anywhere]">{coins[coin].toLocaleString('pt-BR')}</dd>
+            <dd className="m-0 font-mono font-semibold whitespace-nowrap tabular-nums">{coins[coin].toLocaleString('pt-BR')}</dd>
           </div>
         ))}
       </dl>

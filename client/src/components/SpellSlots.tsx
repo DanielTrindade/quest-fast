@@ -29,7 +29,7 @@ export function SpellSlots({ slots, editable = false, pending = false, onChange 
         <li key={level} className={sheetItem}>
           <span className="flex flex-wrap justify-between gap-x-2 gap-y-1 text-small">
             <span>{circleLabel(level)}</span>
-            <span className="font-mono text-text-secondary tabular-nums">{total - spent} de {total} livres</span>
+            <span className="font-mono text-text-secondary tabular-nums">{total - spent} de {total} {total - spent === 1 ? 'livre' : 'livres'}</span>
           </span>
           <span className="flex flex-wrap gap-1">
             {Array.from({ length: total }, (_, index) => {

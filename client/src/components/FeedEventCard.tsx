@@ -1,7 +1,7 @@
 import { EyeSlash, FlagCheckered, Info, Sword } from '@phosphor-icons/react';
 import type { CombatSessionEvent, RollPayload, RollSessionEvent, SessionEvent, UnknownSessionEvent } from '@quest-fast/shared';
 import { ABILITY_LABELS, SKILL_LABELS } from '../lib/5e';
-import { formatTime } from '../lib/format';
+import { formatEventTime } from '../lib/format';
 import { DiceResult } from './DiceResult';
 
 function rollSummary(payload: RollPayload): string {
@@ -33,7 +33,7 @@ function FeedMeta({ event }: { event: SessionEvent }) {
     <p className="flex [&+[data-slot=dice]]:mt-2 flex-wrap items-center gap-2 text-small text-text-muted">
       <span>{event.userName}</span>
       <span aria-hidden="true">·</span>
-      <time>{formatTime(event.createdAt)}</time>
+      <time dateTime={event.createdAt}>{formatEventTime(event.createdAt)}</time>
       {event.secret && (
         <span data-slot="secret-tag" className="inline-flex items-center gap-1 rounded-control border border-dashed border-input px-2 py-px text-text-secondary">
           <EyeSlash size={14} weight="regular" aria-hidden="true" /> Secreta

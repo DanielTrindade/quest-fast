@@ -19,7 +19,7 @@ export function ProficiencyToggle({ label, detail, value, onChange, disabled = f
   const id = useId();
   return (
     <div className="flex min-w-0 items-center justify-between gap-2 py-0.5" role="radiogroup" aria-labelledby={`${id}-label`}>
-      <span className="grid min-w-0 text-small [overflow-wrap:anywhere]" id={`${id}-label`}>
+      <span className="grid min-w-0 text-small [overflow-wrap:break-word] hyphens-auto" id={`${id}-label`}>
         {label}
         {detail && <span className="font-mono text-micro text-text-secondary tabular-nums">{detail}</span>}
       </span>

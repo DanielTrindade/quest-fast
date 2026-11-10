@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   COMBAT_LIMITS,
   CONDITIONS,
+  STATBLOCK_LIMITS,
   applyHpChange,
   changedCharacters,
   concentrationDc,
@@ -331,6 +332,13 @@ test('copies of a creature are numbered, continuing what is already there', () =
   assert.deepEqual(numberCopies('Goblin', 1, ['Goblin']), ['Goblin 2']);
   assert.deepEqual(numberCopies('Goblin', 1, ['Goblin Chefe']), ['Goblin']);
   assert.deepEqual(numberCopies('Goblin', 0, []), []);
+
+  const long = 'Guardião Esquecido das Catacumbas Submersas de Vel’Tharon, Senhor das Marés Fria';
+  assert.equal(long.length, STATBLOCK_LIMITS.name);
+  const [eleventh, twelfth] = numberCopies(long, 2, [`${long.slice(0, 77)} 10`]);
+  assert.equal(eleventh, `${long.slice(0, 77)} 11`);
+  assert.ok(twelfth!.length <= STATBLOCK_LIMITS.name);
+  assert.equal(copyNumber(twelfth!, long), 12);
 });
 
 test('a copy number is read against the creature name, never guessed from the name alone', () => {

@@ -92,7 +92,7 @@ function Bestiary({ campaignId, onNotice }: { campaignId: string; onNotice: (not
     <Surface>
       <h3 className="mb-4 flex flex-wrap items-baseline justify-between gap-2 font-display text-h2 font-semibold">
         Bestiário
-        {statblocks.isSuccess && <span className="font-sans text-small font-normal text-text-secondary">{statblocks.data.statblocks.length} criaturas</span>}
+        {statblocks.isSuccess && <span className="font-sans text-small font-normal text-text-secondary">{statblocks.data.statblocks.length === 1 ? '1 criatura' : `${statblocks.data.statblocks.length} criaturas`}</span>}
       </h3>
 
       {statblocks.isPending && <Loading label="Carregando bestiário" />}

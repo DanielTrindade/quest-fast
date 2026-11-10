@@ -22,7 +22,7 @@ export function SkillChip({ label, bonus, trained = false, onRoll, disabled = fa
     trained ? 'border-input' : 'border-border');
   const content = (
     <>
-      <span className="inline-flex min-w-0 items-center gap-2 [overflow-wrap:anywhere]">
+      <span className="inline-flex min-w-0 items-center gap-2 [overflow-wrap:break-word] hyphens-auto">
         {label}
         {trained && <span className="sr-only">, treinada</span>}
       </span>

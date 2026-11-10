@@ -22,7 +22,7 @@ function Row({ marker, bonus, label, strong = false, rollLabel, onRoll, disabled
     <>
       <ProficiencyMarker level={marker} withText={!onRoll} />
       <span className="min-w-[2.5ch] text-end font-mono text-text-secondary tabular-nums">{signedBonus(bonus)}</span>
-      <span className="min-w-0 flex-1 [overflow-wrap:anywhere] group-data-strong/row:font-semibold">{label}</span>
+      <span className="min-w-0 flex-1 [overflow-wrap:break-word] hyphens-auto group-data-strong/row:font-semibold">{label}</span>
     </>
   );
   return (

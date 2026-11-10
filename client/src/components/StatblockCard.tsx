@@ -54,7 +54,7 @@ export function StatblockCard({ statblock, actions }: { statblock: StatblockView
           <dt>PV</dt>
           <dd>
             {hpAverage}
-            {hpFormula && <span className={aside}>({hpFormula})</span>}
+            {hpFormula && <span className={`${aside} basis-full [overflow-wrap:anywhere]`}>({contentKeys(hpFormula.split('+')).map(({ item: term, key }, index) => <span key={key} className="inline-block">{index > 0 && '+'}{term}</span>)})</span>}
           </dd>
         </div>
         <div>

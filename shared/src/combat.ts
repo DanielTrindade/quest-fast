@@ -284,9 +284,10 @@ function sameVitals(a: CharacterVitals, b: CharacterVitals): boolean {
  */
 export function changedCharacters(before: readonly CharacterVitals[] | undefined, after: readonly CharacterVitals[]): string[] {
   const ids: string[] = [];
+  const earlier = new Map(before?.map((candidate) => [candidate.characterId, candidate]));
   for (const vitals of after) {
     if (!vitals.characterId) continue;
-    const known = before?.find((candidate) => candidate.characterId === vitals.characterId);
+    const known = earlier.get(vitals.characterId);
     if (!known || !sameVitals(known, vitals)) ids.push(vitals.characterId);
   }
   return ids;
@@ -319,7 +320,13 @@ export function numberCopies(name: string, count: number, existingNames: readonl
   let highest = 0;
   for (const existing of existingNames) highest = Math.max(highest, copyNumber(existing, name) ?? 0);
   if (count === 1 && highest === 0) return [name];
-  return Array.from({ length: count }, (_, index) => `${name} ${highest + index + 1}`);
+  return Array.from({ length: count }, (_, index) => copyName(name, highest + index + 1));
+}
+
+/** Copy `n` of a creature, its name shortened so the number still fits the name limit. */
+function copyName(creature: string, n: number): string {
+  const suffix = ` ${n}`;
+  return `${creature.slice(0, STATBLOCK_LIMITS.name - suffix.length).trimEnd()}${suffix}`;
 }
 
 /**
@@ -330,9 +337,10 @@ export function numberCopies(name: string, count: number, existingNames: readonl
  */
 export function copyNumber(name: string, creature: string): number | null {
   if (name === creature) return 1;
-  if (!name.startsWith(`${creature} `)) return null;
-  const suffix = name.slice(creature.length + 1);
-  return /^\d+$/.test(suffix) ? Number(suffix) : null;
+  const suffix = /\s(\d+)$/.exec(name);
+  if (!suffix) return null;
+  const n = Number(suffix[1]);
+  return copyName(creature, n) === name ? n : null;
 }
 
 export type CopyEntry = {
