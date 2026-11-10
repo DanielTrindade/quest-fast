@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { initials } from '../src/lib/initials.ts';
+import { initials } from './initials.ts';
 
 test('first and last lettered word', () => {
   assert.equal(initials('Aleksandra Wiśniewska-Kowalczyk'), 'AW');
