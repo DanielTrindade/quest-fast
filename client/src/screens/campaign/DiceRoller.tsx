@@ -10,6 +10,7 @@ import { RollModeControl } from '../../components/RollModeControl';
 import { Surface } from '../../components/Surface';
 import { ApiError, api } from '../../lib/api';
 import { mergeFeedEvent } from '../../lib/feed-cache';
+import { checkLabel } from '../../components/ui/segmented';
 
 function errorMessage(error: unknown) {
   return error instanceof ApiError ? error.message : 'Algo deu errado. Tente novamente.';
@@ -75,7 +76,7 @@ export function DiceRoller({ campaignId, isMaster }: { campaignId: string; isMas
           <RollModeControl value={mode} onChange={setMode} disabled={roll.isPending} />
 
           {isMaster && (
-            <label className="qf-check">
+            <label className={checkLabel}>
               <input
                 type="checkbox"
                 checked={secret}

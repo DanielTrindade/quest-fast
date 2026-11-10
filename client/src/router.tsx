@@ -6,7 +6,7 @@ import {
   redirect,
 } from '@tanstack/react-router';
 import type { QueryClient } from '@tanstack/react-query';
-import { ToastProvider } from './components/Toast';
+import { Toaster } from './components/Toast';
 import { ApiError, api } from './lib/api';
 import { AccountBar } from './screens/AccountBar';
 import { CampaignWorkspace } from './screens/CampaignWorkspace';
@@ -19,9 +19,10 @@ const meQuery = { queryKey: ['me'], queryFn: api.me };
 
 const rootRoute = createRootRouteWithContext<RouterContext>()({
   component: () => (
-    <ToastProvider>
+    <>
       <Outlet />
-    </ToastProvider>
+      <Toaster />
+    </>
   ),
 });
 

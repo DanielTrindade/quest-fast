@@ -1,17 +1,19 @@
-import { useState } from 'react';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { expect, userEvent, within, waitFor } from 'storybook/test';
-import { Toast, ToastProvider } from '../components/Toast';
 import { Button } from '../components/Button';
+import { useNotify } from '../hooks/use-notify';
+
+const COPY = {
+  success: { title: 'Campanha criada', description: 'Agora você pode convidar sua mesa.' },
+  error: { title: 'Não foi possível salvar', description: 'Verifique a conexão e tente novamente.' },
+  info: { title: 'Convite atualizado', description: 'Compartilhe o novo código com os jogadores.' },
+};
 
 function Example({ variant = 'success' }: { variant?: 'success' | 'error' | 'info' }) {
-  const [open, setOpen] = useState(false);
-  return <ToastProvider><Button onClick={() => setOpen(true)}>Mostrar notificação</Button>
-    <Toast open={open} onOpenChange={setOpen} variant={variant}
-      title={{ success: 'Campanha criada', error: 'Não foi possível salvar', info: 'Convite atualizado' }[variant]}
-      description={{ success: 'Agora você pode convidar sua mesa.', error: 'Verifique a conexão e tente novamente.', info: 'Compartilhe o novo código com os jogadores.' }[variant]} />
-  </ToastProvider>;
+  const notify = useNotify();
+  return <Button onClick={() => notify({ variant, ...COPY[variant] })}>Mostrar notificação</Button>;
 }
+
 const meta = { title: 'Componentes/Toast', component: Example, args: { variant: 'success' },
   play: async ({ canvasElement }) => {
     for (const region of within(canvasElement).getAllByRole('region', { name: /^Tema / })) {

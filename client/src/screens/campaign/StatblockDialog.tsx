@@ -78,18 +78,18 @@ export function StatblockDialog({ campaignId, statblockId, onClose, onEdit, onDe
           />
 
           {confirmingDelete && (
-            <div className="sheet-confirm" role="group" aria-label={`Confirmar exclusão de ${statblock.name}`}>
-              <p className="sheet-confirm__question">
+            <div className="mt-4 grid gap-2 rounded-panel border border-danger-text bg-card p-4" role="group" aria-label={`Confirmar exclusão de ${statblock.name}`}>
+              <p className="m-0 flex items-center gap-2 font-semibold text-danger-text">
                 <Warning size={18} weight="fill" aria-hidden="true" />
                 Excluir {statblock.name} do bestiário?
               </p>
-              <p className="sheet-confirm__detail">
+              <p className="m-0 text-small text-text-secondary">
                 Não há como recuperar a criatura. Combatentes já criados a partir dela continuam nos encontros.
               </p>
               {remove.isError && (
                 <p role="alert" className="text-small text-danger-text">{errorMessage(remove.error)}</p>
               )}
-              <div className="qf-dialog__actions">
+              <div className="mt-2 flex flex-wrap justify-end gap-2">
                 <Button variant="secondary" onClick={() => setConfirmingDelete(false)}>Manter criatura</Button>
                 <Button variant="danger" loading={remove.isPending} onClick={() => remove.mutate()}>
                   <Trash size={18} aria-hidden="true" />

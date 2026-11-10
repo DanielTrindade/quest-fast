@@ -1,7 +1,10 @@
 import { useId, type ReactNode } from 'react';
+import { cn } from '../lib/utils';
+import { Label } from './ui/label';
+import { NativeSelect } from './ui/native-select';
 
 /** A native select with the field styling, for short fixed lists. */
-export function SelectField({ label, value, onChange, className = '', invalid = false, children }: {
+export function SelectField({ label, value, onChange, className, invalid = false, children }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
@@ -11,12 +14,12 @@ export function SelectField({ label, value, onChange, className = '', invalid = 
 }) {
   const id = useId();
   return (
-    <div className={`qf-field ${className}`}>
-      <label htmlFor={id}>{label}</label>
-      <select id={id} className="qf-input" value={value} aria-invalid={invalid || undefined}
+    <div data-slot="field" className={cn('grid min-w-0 content-start gap-2', className)}>
+      <Label htmlFor={id}>{label}</Label>
+      <NativeSelect id={id} value={value} aria-invalid={invalid || undefined}
         onChange={(event) => onChange(event.target.value)}>
         {children}
-      </select>
+      </NativeSelect>
     </div>
   );
 }

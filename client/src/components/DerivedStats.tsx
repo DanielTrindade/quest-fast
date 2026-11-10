@@ -1,6 +1,7 @@
 import { DiceFive } from '@phosphor-icons/react';
 import type { Size } from '@quest-fast/shared';
 import { SIZE_LABELS, formatSpeed, signedBonus } from '../lib/sheet-labels';
+import { statGrid, statRoll, statTile, statValue } from './sheet-styles';
 
 /** The row under the header of the official sheet. Values come derived. */
 export function DerivedStats({ proficiency, initiative, speed, size, passivePerception, onRollInitiative, disabled = false }: {
@@ -13,16 +14,16 @@ export function DerivedStats({ proficiency, initiative, speed, size, passivePerc
   disabled?: boolean;
 }) {
   return (
-    <dl className="qf-derived">
-      <div className="qf-derived__stat">
+    <dl className={statGrid}>
+      <div className={statTile}>
         <dt>Bônus de proficiência</dt>
-        <dd>{signedBonus(proficiency)}</dd>
+        <dd className={statValue}>{signedBonus(proficiency)}</dd>
       </div>
-      <div className="qf-derived__stat">
+      <div className={statTile}>
         <dt>Iniciativa</dt>
-        <dd>
+        <dd className={statValue}>
           {onRollInitiative ? (
-            <button type="button" className="qf-derived__roll" disabled={disabled} onClick={onRollInitiative}
+            <button type="button" className={statRoll} disabled={disabled} onClick={onRollInitiative}
               aria-label={`Rolar iniciativa (${signedBonus(initiative)})`}>
               {signedBonus(initiative)}
               <DiceFive size={16} aria-hidden="true" />
@@ -32,17 +33,17 @@ export function DerivedStats({ proficiency, initiative, speed, size, passivePerc
           )}
         </dd>
       </div>
-      <div className="qf-derived__stat">
+      <div className={statTile}>
         <dt>Deslocamento</dt>
-        <dd>{formatSpeed(speed)}</dd>
+        <dd className={statValue}>{formatSpeed(speed)}</dd>
       </div>
-      <div className="qf-derived__stat">
+      <div className={statTile}>
         <dt>Tamanho</dt>
-        <dd>{SIZE_LABELS[size]}</dd>
+        <dd className={statValue}>{SIZE_LABELS[size]}</dd>
       </div>
-      <div className="qf-derived__stat">
+      <div className={statTile}>
         <dt>Percepção passiva</dt>
-        <dd>{passivePerception}</dd>
+        <dd className={statValue}>{passivePerception}</dd>
       </div>
     </dl>
   );

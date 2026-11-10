@@ -1,5 +1,7 @@
 import { useId } from 'react';
 import { CheckCircle, FilePdf, Warning } from '@phosphor-icons/react';
+import { cn } from '../lib/utils';
+import { fileButton } from './form-styles';
 
 export type SheetImportStatus =
   | { kind: 'idle' }
@@ -12,6 +14,9 @@ export type SheetImportStatus =
  * creature from an NPC written on the same sheet. Presentational: the reading
  * happens in the consumer, which reports back through `status`.
  */
+const hint = 'm-0 text-small text-text-secondary';
+const statusLine = 'm-0 flex items-start gap-2 text-small [&>svg]:mt-px [&>svg]:flex-none';
+
 export function SheetImport({
   status,
   onPick,
@@ -25,13 +30,13 @@ export function SheetImport({
 }) {
   const titleId = useId();
   return (
-    <section className="sheet-import" aria-labelledby={titleId}>
-      <div className="sheet-import__intro">
-        <h3 id={titleId} className="sheet-import__title">{title}</h3>
-        <p className="sheet-import__hint">{description}</p>
+    <section aria-labelledby={titleId} className="grid justify-items-start gap-3 rounded-panel border border-dashed border-border-strong bg-card p-4">
+      <div className="grid gap-1">
+        <h3 id={titleId} className="m-0 text-body font-semibold">{title}</h3>
+        <p className={hint}>{description}</p>
       </div>
 
-      <label className="qf-file-button" aria-disabled={status.kind === 'reading' || undefined}>
+      <label className={fileButton} aria-disabled={status.kind === 'reading' || undefined}>
         <FilePdf size={18} aria-hidden="true" />
         {status.kind === 'done' ? 'Importar outro PDF' : 'Importar PDF'}
         <input
@@ -47,26 +52,26 @@ export function SheetImport({
         />
       </label>
 
-      <div className="sheet-import__status" aria-live="polite">
-        {status.kind === 'reading' && <p className="sheet-import__hint">Importando ficha…</p>}
+      <div className="grid gap-2 empty:hidden" aria-live="polite">
+        {status.kind === 'reading' && <p className={hint}>Importando ficha…</p>}
         {/* Complete and partial imports read differently: a partial one must
             not look done. Nothing is created yet in either case. */}
         {status.kind === 'done' && (
           <>
             {status.warnings.length === 0 ? (
-              <p className="sheet-import__done">
+              <p className={cn(statusLine, 'text-success-text')}>
                 <CheckCircle size={18} weight="fill" aria-hidden="true" />
                 Ficha importada. Revise os dados antes de criar.
               </p>
             ) : (
-              <p className="sheet-import__partial">
+              <p className={cn(statusLine, 'font-semibold text-accent-text')}>
                 <Warning size={18} weight="fill" aria-hidden="true" />
                 Ficha importada com pontos para revisar. Confira os itens abaixo antes de criar.
               </p>
             )}
-            <p className="sheet-import__hint">Arquivo: {status.fileName}</p>
+            <p className={hint}>Arquivo: {status.fileName}</p>
             {status.warnings.length > 0 && (
-              <ul className="sheet-import__warnings" aria-label="Pontos para revisar">
+              <ul aria-label="Pontos para revisar" className="m-0 grid list-none gap-1 p-0 text-small text-text-secondary [&>li]:flex [&>li]:items-start [&>li]:gap-2 [&>li]:[overflow-wrap:anywhere] [&_svg]:mt-px [&_svg]:flex-none">
                 {status.warnings.map((warning) => (
                   <li key={warning}>
                     <Warning size={16} aria-hidden="true" />
@@ -79,7 +84,7 @@ export function SheetImport({
         )}
       </div>
       {status.kind === 'error' && (
-        <p role="alert" className="sheet-import__error">
+        <p role="alert" className="m-0 text-small text-danger-text">
           {status.message}
         </p>
       )}

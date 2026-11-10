@@ -1,6 +1,7 @@
 import type { Spell } from '@quest-fast/shared';
 import { contentKeys } from '../lib/content-keys';
 import { circleLabel } from '../lib/sheet-labels';
+import { sheetItem } from './sheet-styles';
 
 const TAGS = [
   { key: 'concentration', short: 'C', label: 'Concentração' },
@@ -14,18 +15,18 @@ export function SpellList({ spells }: { spells: readonly Spell[] }) {
 
   const levels = [...new Set(spells.map((spell) => spell.level))].sort((a, b) => a - b);
   return (
-    <div className="qf-spells">
+    <div className="grid gap-4">
       {levels.map((level) => (
-        <section key={level} className="qf-spells__group">
-          <h4>{level === 0 ? 'Truques' : circleLabel(level)}</h4>
-          <ul className="qf-spells__list">
+        <section key={level} className="grid gap-2">
+          <h4 className="m-0 text-small font-semibold text-text-secondary">{level === 0 ? 'Truques' : circleLabel(level)}</h4>
+          <ul className="m-0 grid list-none gap-1 p-0">
             {contentKeys(spells.filter((spell) => spell.level === level)).map(({ item: spell, key }) => (
-              <li key={key} className="qf-spell">
-                <span className="qf-spell__head">
-                  <span className="qf-spell__name">{spell.name}</span>
-                  <span className="qf-spell__tags">
+              <li key={key} className={sheetItem}>
+                <span className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                  <span className="font-semibold [overflow-wrap:anywhere]">{spell.name}</span>
+                  <span className="inline-flex gap-1">
                     {TAGS.filter((tag) => spell[tag.key]).map((tag) => (
-                      <abbr key={tag.key} className="qf-spell__tag" title={tag.label}>
+                      <abbr key={tag.key} title={tag.label} className="inline-grid h-6 min-w-6 place-items-center rounded-control border border-input px-1 font-mono text-micro leading-none font-semibold text-text-secondary no-underline">
                         <span aria-hidden="true">{tag.short}</span>
                         <span className="sr-only">{tag.label}</span>
                       </abbr>
@@ -33,7 +34,7 @@ export function SpellList({ spells }: { spells: readonly Spell[] }) {
                   </span>
                 </span>
                 {(spell.castingTime || spell.range) && (
-                  <dl className="qf-spell__meta">
+                  <dl className="m-0 flex flex-wrap gap-x-4 gap-y-1 text-small [&_dd]:ml-1 [&_dd]:inline [&_dd]:text-text-secondary [&_dt]:inline [&_dt]:text-text-muted">
                     {spell.castingTime && (
                       <div>
                         <dt>Tempo</dt>
@@ -48,7 +49,7 @@ export function SpellList({ spells }: { spells: readonly Spell[] }) {
                     )}
                   </dl>
                 )}
-                {spell.notes && <p className="qf-spell__notes">{spell.notes}</p>}
+                {spell.notes && <p className="m-0 text-small [overflow-wrap:anywhere]">{spell.notes}</p>}
               </li>
             ))}
           </ul>

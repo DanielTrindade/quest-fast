@@ -52,7 +52,7 @@ function InitiativeActions({ missingInitiative, monstersWithoutInitiative, pendi
         <Play size={18} aria-hidden="true" /> Começar round 1
       </Button>
       {missingInitiative > 0 && (
-        <p id={missingId} className="qf-turn-bar__hint">
+        <p id={missingId} className="m-0 basis-full text-small text-text-secondary">
           {missingInitiative === 1 ? 'Falta a iniciativa de 1 combatente.' : `Falta a iniciativa de ${missingInitiative} combatentes.`}
         </p>
       )}
@@ -78,7 +78,7 @@ function RoundActions({ canGoBack, pending, onAction }: ActionProps & { canGoBac
       <Button loading={pending === 'next'} disabled={busy} onClick={() => onAction('next')}>
         Próximo turno <ArrowRight size={18} aria-hidden="true" />
       </Button>
-      {!canGoBack && <p id={noPreviousId} className="qf-turn-bar__hint">Ainda não há turno anterior.</p>}
+      {!canGoBack && <p id={noPreviousId} className="m-0 basis-full text-small text-text-secondary">Ainda não há turno anterior.</p>}
     </>
   );
 }
@@ -94,7 +94,7 @@ function EndCombat({ pending, onAction }: ActionProps) {
     );
   }
   return (
-    <span className="qf-turn-bar__confirm" role="group" aria-label="Encerrar o combate?">
+    <span className="flex flex-wrap items-center gap-2" role="group" aria-label="Encerrar o combate?">
       <Button variant="danger" loading={pending === 'end'} disabled={pending !== null} onClick={() => onAction('end')}>
         Encerrar e registrar resumo
       </Button>
@@ -169,17 +169,17 @@ export function TurnBar({
   const yourTurn = playing && ownTurn;
 
   return (
-    <div className={yourTurn ? 'qf-turn-bar is-own-turn' : 'qf-turn-bar'}>
-      <div className="qf-turn-bar__status">
-        <p className="qf-turn-bar__round">{playing ? `Round ${round}` : ENCOUNTER_STATUS_LABELS[status]}</p>
+    <div data-own-turn={yourTurn || undefined} className="group flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-3 rounded-panel border border-border-strong bg-popover px-4 py-3 edge-raised transition-[border-color,box-shadow] duration-(--duration-settle) ease-settle data-own-turn:border-accent-text data-own-turn:shadow-[inset_0_-3px_0_var(--color-accent-text),inset_0_1px_0_var(--color-edge-light)]">
+      <div className="grid min-w-0 flex-[1_1_12rem] gap-1">
+        <p className="m-0 font-mono text-small tracking-[0.04em] text-text-secondary uppercase">{playing ? `Round ${round}` : ENCOUNTER_STATUS_LABELS[status]}</p>
         {/* Announced on every change of turn. */}
-        <p className="qf-turn-bar__turn" role="status" aria-live="polite">
+        <p className="m-0 flex items-center gap-2 font-display text-h2 font-semibold [overflow-wrap:anywhere] group-data-own-turn:text-accent-text" role="status" aria-live="polite">
           {yourTurn && <Sword size={18} aria-hidden="true" />}
           {turnMessage({ status, round, activeName, activeHidden, ownTurn })}
         </p>
       </div>
 
-      <div className="qf-turn-bar__actions">
+      <div className="flex flex-wrap items-center gap-2">
         {master ? (
           <MasterActions status={status} round={round} canGoBack={canGoBack} missingInitiative={missingInitiative}
             monstersWithoutInitiative={monstersWithoutInitiative} pending={pending} onAction={onAction} />

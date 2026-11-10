@@ -1,5 +1,8 @@
 import { useId, type InputHTMLAttributes, type TextareaHTMLAttributes } from 'react';
-import { Input } from './Input';
+import { cn } from '../lib/utils';
+import { Input } from './ui/input';
+import { Label } from './ui/label';
+import { Textarea } from './ui/textarea';
 
 // `children` is omitted on purpose: Field renders its own control, and a
 // void element cannot take children. Without this the compiler accepts
@@ -13,20 +16,20 @@ type FieldProps = Omit<InputHTMLAttributes<HTMLInputElement>, 'children'> & {
   asTextarea?: boolean;
 };
 
-export function Field({ label, hint, error, id, className = '', asTextarea = false,
+export function Field({ label, hint, error, id, className, asTextarea = false,
   'aria-describedby': describedBy, 'aria-invalid': invalid, ...props }: FieldProps) {
   const generatedId = useId();
   const inputId = id ?? generatedId;
   const descriptions = [describedBy, hint && `${inputId}-hint`, error && `${inputId}-error`]
     .filter(Boolean).join(' ') || undefined;
-  return <div className={`qf-field ${className}`}>
-    <label htmlFor={inputId}>{label}{props.required && <span aria-hidden="true"> *</span>}</label>
+  return <div data-slot="field" className={cn('grid min-w-0 content-start gap-2', className)}>
+    <Label htmlFor={inputId}>{label}{props.required && <span aria-hidden="true" className="text-text-muted">*</span>}</Label>
     {asTextarea
-      ? <textarea {...(props as TextareaHTMLAttributes<HTMLTextAreaElement>)} id={inputId}
-          className="qf-input" rows={3} aria-invalid={error ? true : invalid} aria-describedby={descriptions} />
+      ? <Textarea {...(props as TextareaHTMLAttributes<HTMLTextAreaElement>)} id={inputId}
+          rows={3} aria-invalid={error ? true : invalid} aria-describedby={descriptions} />
       : <Input {...props} id={inputId} aria-invalid={error ? true : invalid}
           aria-describedby={descriptions} />}
-    {hint && <p id={`${inputId}-hint`} className="qf-field__hint">{hint}</p>}
-    {error && <p id={`${inputId}-error`} className="qf-field__error">{error}</p>}
+    {hint && <p id={`${inputId}-hint`} className="text-small text-text-muted">{hint}</p>}
+    {error && <p id={`${inputId}-error`} className="text-small text-danger-text">{error}</p>}
   </div>;
 }

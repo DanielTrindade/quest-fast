@@ -20,7 +20,7 @@ npm run build
 npm run test:design
 ```
 
-`test:design` constrói o Storybook, serve o resultado localmente na porta 6007 e executa Playwright com axe-core. O Chrome instalado no Windows é usado quando disponível; em outros ambientes, instale Chromium com `npx playwright install chromium`. É possível selecionar um canal instalado com `PLAYWRIGHT_CHANNEL`.
+`test:design` constrói o Storybook, serve o resultado localmente numa porta livre (assim duas execuções simultâneas não se cruzam) e executa Playwright com axe-core. O Chrome instalado no Windows é usado quando disponível; em outros ambientes, instale Chromium com `npx playwright install chromium`. É possível selecionar um canal instalado com `PLAYWRIGHT_CHANNEL`.
 
 Para auditar um Storybook já aberto, defina `STORYBOOK_URL` e execute `node scripts/verify-design-system.mjs`. Um argumento opcional filtra o ID da story. O argumento `--specs` executa apenas os cenários adicionais de teclado, clipboard, temas e movimento. Resultados e capturas ficam em `test-results/design-system/`, fora do versionamento.
 
@@ -29,8 +29,8 @@ Para auditar um Storybook já aberto, defina `STORYBOOK_URL` e execute `node scr
 - `Button`, `Field` e `Input`: ações e campos com rótulos, descrições e estados de erro.
 - `Surface`: base, elevada, sobreposta e secreta. A variante secreta inclui borda tracejada, EyeSlash e rótulo; o consumidor continua responsável pela autorização dos dados.
 - `Avatar`, `Badge`, `Skeleton` e `EmptyState`: identidade, papel, espera e orientação para preencher uma tela vazia.
-- `Dialog`: título e descrição obrigatórios, foco modal e retorno ao gatilho; composição shadcn/ui sobre Radix.
-- `ToastProvider` e `Toast`: notificações de sucesso, erro e informação, com fechamento manual e pausa do tempo ao interagir. Sucesso e erro tingem o toast inteiro (tokens `success-surface` e `danger-surface`, borda no tom do estado), não só o ícone, para o resultado ser lido de relance.
+- `Dialog`: título e descrição obrigatórios, foco modal e retorno ao gatilho; composição shadcn/ui sobre Radix (`components/ui/dialog.tsx`).
+- `Toaster`, `ToastCard` e `useNotify()` (Sonner): notificações de sucesso, erro e informação, com fechamento manual e pausa do tempo ao passar o mouse. Sucesso e erro tingem o toast inteiro (tokens `success-surface` e `danger-surface`, borda no tom do estado), não só o ícone, para o resultado ser lido de relance.
 - `CopyField`: usa o clipboard do navegador, confirma a cópia e orienta a seleção manual quando ela falha.
 - `AppShell`: menu lateral recolhível com seletor de campanha, navegação por seção e conta; no celular, barra superior e barra de seções embaixo (veja "Menu lateral recolhível"). Os callbacks e destinos de navegação são fornecidos pelo consumidor.
 - `DiceResult`: apresenta total, decomposição, dados descartados e naturais recebidos. Não rola dados nem calcula regras 5e.
@@ -47,7 +47,7 @@ Space Grotesk, Geist e Geist Mono são servidas de `public/fonts`, com `font-dis
 
 ## Garantias verificadas pelo script
 
-O script carrega todas as stories, aguarda sua execução e verifica acessibilidade, IDs duplicados e overflow em 320, 390, 768 e 1280px. Os cenários adicionais cobrem:
+O script carrega todas as stories, aguarda sua execução e verifica acessibilidade, IDs duplicados e overflow em 320, 390, 768 e 1280px. Além da rolagem da página, nenhum conteúdo pode sair de uma caixa com borda (card, painel, linha): um filho vazando do próprio card não aparece na largura da página. Os cenários adicionais cobrem:
 
 - Foco preso no diálogo, Escape, retorno ao gatilho e foco visível.
 - Contraste do diálogo aberto e herança de tema no portal.
@@ -183,3 +183,16 @@ O login era um card simples no meio de uma tela vazia, sem nada que lembrasse a 
 - **Saída.** O botão continua sendo um link, porque quem responde o Discord é o servidor. Ao clicar, mostra "Abrindo o Discord…" com o losango de carregamento e ignora novos cliques. Voltar do Discord pelo navegador restaura a página do cache; o evento `pageshow` desfaz o estado de saída.
 - **Celular.** Abaixo de 600 px o painel fica preso embaixo da tela, ao alcance do polegar. Acima disso, centraliza com 448 px de largura.
 - **Privacidade.** O texto diz o que o escopo `identify` permite: nome e avatar, sem servidores nem mensagens. Se o escopo mudar, o texto muda junto.
+
+## Migração para shadcn/ui (9 de novembro de 2026)
+
+O Storybook inteiro roda sobre shadcn/ui. Os primitivos ficam em `client/src/components/ui/` e têm um catálogo próprio na seção **Primitivos**. Os componentes de `client/src/components/` mantiveram as APIs, mas por dentro passaram a compor esses primitivos e a usar utilitários Tailwind, em vez de classes `qf-*` em CSS. Por isso, as telas do produto pegaram o visual novo sem mudar de código. A identidade visual continua a mesma: cores, fontes, raios e escala de movimento não mudaram.
+
+- **Primitivos:** `button`, `badge`, `card`, `input`, `textarea`, `native-select`, `label`, `separator`, `skeleton`, `avatar`, `tabs`, `dropdown-menu`, `tooltip` e `dialog`, no formato do registro (CVA, `data-slot`, `asChild` via Radix Slot). Os componentes com portal usam o `PortalContext`.
+- **Toasts com Sonner:** um `<Toaster />` na raiz (`router.tsx`) e `useNotify()` (`hooks/use-notify.tsx`) para disparar. O toast é *headless* (`toast.custom`) e usa o nosso `ToastCard`: o Sonner cuida da posição, do empilhamento, dos timers e do gesto de arrastar, e o visual é nosso. No laboratório, cada quadro de tema tem o próprio Toaster (`ToasterContext` com o `toasterId`), assim o toast herda o tema do quadro em que foi disparado.
+- **Tokens:** nenhuma cor nova. Um bloco `@theme inline` em `index.css` dá aos tokens os nomes do shadcn (`background`, `primary`, `muted`, `popover`, `border`, `input`, `ring`…). É `inline` para o utilitário ler o token de origem no próprio elemento; um alias em `:root` congelaria o tema da raiz dentro de `data-preview-theme`. **Não existe o `accent` do shadcn:** aqui `accent` é o azul de ação, e o hover dos primitivos usa `muted`. Ao copiar um componente do registro, troque `bg-accent`/`text-accent-foreground` por `bg-muted`/`text-foreground`.
+- **Relevo:** `styles/ui.css` define `edge-raised`, `edge-action`, `edge-inset`, `elevation-popover` e `elevation-dialog`. O mesmo arquivo garante movimento reduzido nos elementos animados: a ordem das variantes faria `data-[state]:animate-in` ganhar de uma classe `motion-reduce`.
+- **Classes compartilhadas:** padrões que se repetem viraram constantes de classes, não CSS: `ui/segmented.ts` (rádios, abas e checkboxes num trilho só), `sheet-styles.ts` (contadores, blocos de valores e linhas clicáveis), `form-styles.ts` (editores em diálogo) e `shell-styles.ts` (gatilhos do menu lateral). Ajustes de layout dependentes de contexto usam `data-slot` (`[data-slot="field"]`, `[data-slot="hit-points"]`…), nunca a classe interna de outro componente.
+- **Movimento (Emil Kowalski):** botões e linhas clicáveis encolhem ao pressionar (0,97, só com `motion-safe`). Menus e tooltips crescem a partir do gatilho e começam em 96–97% do tamanho. O diálogo fica centrado. A saída é mais curta que a entrada. Um tooltip aberto logo depois de outro aparece sem animação. Os marcadores de salvaguardas e de espaços de magia mudam de estado com transição curta. O aviso de novos resultados no feed entra de baixo.
+- **`cn`:** o `tailwind-merge` conhece a escala tipográfica (`text-small`, `text-body`…). Sem isso, ele tratava `text-small` como cor e descartava a cor do texto.
+- **Fica em CSS:** `campaign.css` guarda só o layout das telas do produto (`screens/`), que ainda não foram reescritas; `foundations.css` estiliza a página de documentação dos tokens. A ficha (`CharacterSheetView`) e o `StatblockDialog` já usam utilitários.

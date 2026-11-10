@@ -11,7 +11,7 @@ import { Dialog } from '../components/Dialog';
 import { EmptyState } from '../components/EmptyState';
 import { Skeleton } from '../components/Skeleton';
 import { Surface } from '../components/Surface';
-import { Toast } from '../components/Toast';
+import { useNotify } from '../hooks/use-notify';
 import { ApiError, api } from '../lib/api';
 import { formatDate } from '../lib/format';
 import '../styles/campaign.css';
@@ -226,7 +226,7 @@ function MembersPanel({
 
 export function Campaign({ campaignId }: { campaignId: string }) {
   const queryClient = useQueryClient();
-  const [removed, setRemoved] = useState(false);
+  const notify = useNotify();
   // `null` means "not decided by hand yet": an empty table opens the panel,
   // because the invite is the whole point until someone joins.
   const [adminOpen, setAdminOpen] = useState<boolean | null>(null);
@@ -247,7 +247,7 @@ export function Campaign({ campaignId }: { campaignId: string }) {
   const encounters = useQuery(encountersQuery(campaignId));
 
   const onRemoved = () => {
-    setRemoved(true);
+    notify({ variant: 'success', title: 'Jogador removido', description: 'A lista de membros foi atualizada.' });
     queryClient.invalidateQueries({ queryKey: ['members', campaignId] });
   };
 
@@ -315,13 +315,6 @@ export function Campaign({ campaignId }: { campaignId: string }) {
         />
       </div>
 
-      <Toast
-        open={removed}
-        onOpenChange={setRemoved}
-        variant="success"
-        title="Jogador removido"
-        description="A lista de membros foi atualizada."
-      />
     </main>
   );
 }

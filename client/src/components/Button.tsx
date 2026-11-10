@@ -1,15 +1,16 @@
 import type { ButtonHTMLAttributes } from 'react';
+import { Button as UIButton } from './ui/button';
 
 type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: 'primary' | 'secondary' | 'ghost' | 'danger';
   loading?: boolean;
 };
 
-export function Button({ variant = 'primary', loading = false, disabled,
-  type = 'button', className = '', children, ...props }: ButtonProps) {
-  return <button {...props} type={type} disabled={disabled || loading}
-    aria-busy={loading || undefined} className={`qf-button qf-button--${variant} ${className}`}>
-    {loading && <span className="qf-button__loading" aria-hidden="true" />}
+const VARIANT = { primary: 'default', secondary: 'secondary', ghost: 'ghost', danger: 'destructive' } as const;
+
+export function Button({ variant = 'primary', loading = false, disabled, children, ...props }: ButtonProps) {
+  return <UIButton {...props} variant={VARIANT[variant]} disabled={disabled || loading} aria-busy={loading || undefined}>
+    {loading && <span className="size-2.5 shrink-0 rotate-45 rounded-[2px] bg-current opacity-60 motion-safe:animate-pulse" aria-hidden="true" />}
     {children}
-  </button>;
+  </UIButton>;
 }

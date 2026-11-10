@@ -2,22 +2,35 @@ import { chromium, expect } from '@playwright/test';
 import { mkdirSync, writeFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { spawn } from 'node:child_process';
+import { createServer } from 'node:net';
 
 const root = resolve(import.meta.dirname, '..');
 const output = resolve(root, 'test-results/design-system');
 mkdirSync(output, { recursive: true });
-const base = process.env.STORYBOOK_URL || 'http://localhost:6007';
+// A fixed port let a second concurrent run silently audit the first run's build.
+const port = process.env.STORYBOOK_URL ? null : await new Promise((done, fail) => {
+  const probe = createServer().once('error', fail).listen(0, '127.0.0.1', () => {
+    const { port } = probe.address();
+    probe.close(() => done(port));
+  });
+});
+const base = process.env.STORYBOOK_URL || `http://127.0.0.1:${port}`;
 const filter = process.argv[2] || '';
 let server;
 let browser;
 const results = [];
 try {
   if (!process.env.STORYBOOK_URL) {
-    server = spawn(process.execPath, [resolve(root, 'node_modules/vite/bin/vite.js'), 'preview', '--outDir', 'storybook-static', '--port', '6007', '--strictPort'], {
+    server = spawn(process.execPath, [resolve(root, 'node_modules/vite/bin/vite.js'), 'preview', '--outDir', 'storybook-static', '--host', '127.0.0.1', '--port', String(port), '--strictPort'], {
       cwd: resolve(root, 'client'), windowsHide: true, stdio: 'pipe',
     });
     server.stderr.on('data', data => process.stderr.write(data));
-    await expect.poll(async () => { try { return (await fetch(`${base}/index.json`)).ok; } catch { return false; } }, { timeout: 30000 }).toBe(true);
+    const exited = new Promise((_, fail) => server.once('exit', code => fail(new Error(`O servidor do Storybook encerrou antes de responder (código ${code}).`))));
+    exited.catch(() => {});
+    await Promise.race([
+      exited,
+      expect.poll(async () => { try { return (await fetch(`${base}/index.json`)).ok; } catch { return false; } }, { timeout: 30000 }).toBe(true),
+    ]);
   }
   const channel = process.env.PLAYWRIGHT_CHANNEL || (existsSync('C:/Program Files/Google/Chrome/Application/chrome.exe') ? 'chrome' : undefined);
   browser = await chromium.launch({ channel, headless: true });
@@ -35,6 +48,30 @@ try {
     const phases = await page.evaluate(() => window.__STORYBOOK_PREVIEW__.storyRenders.map(render => render.phase));
     expect(phases).not.toContain('errored');
     expect(errors).toEqual([]);
+  }
+  function escapes() {
+    const found = [];
+    const boxes = [...document.querySelectorAll('#storybook-root *')].filter(el => {
+      const style = getComputedStyle(el);
+      return parseFloat(style.borderLeftWidth) > 0 && parseFloat(style.borderRightWidth) > 0 && style.overflowX === 'visible'
+        && style.display !== 'contents' && el.checkVisibility();
+    });
+    for (const box of boxes) {
+      const outer = box.getBoundingClientRect();
+      for (const child of box.querySelectorAll('*')) {
+        const style = getComputedStyle(child);
+        // Closed <details> content still reports client rects in Chrome, so
+        // only what is actually rendered counts as escaping.
+        if (['absolute', 'fixed', 'sticky'].includes(style.position) || !child.checkVisibility()) continue;
+        if (child.closest('[data-slot="dialog-content"], [data-slot="dropdown-menu-content"], [data-slot="tooltip-content"], [data-sonner-toaster]') !== box.closest('[data-slot="dialog-content"], [data-slot="dropdown-menu-content"], [data-slot="tooltip-content"], [data-sonner-toaster]')) continue;
+        const inner = child.getBoundingClientRect();
+        if (inner.right > outer.right + 1 || inner.left < outer.left - 1) {
+          found.push(`${child.tagName.toLowerCase()}.${String(child.className).slice(0, 40)} sai de ${box.tagName.toLowerCase()}.${String(box.className).slice(0, 40)}`);
+          break;
+        }
+      }
+    }
+    return found.slice(0, 5);
   }
   async function audit() {
     await page.addScriptTag({ path: resolve(root, 'node_modules/axe-core/axe.min.js') });
@@ -58,6 +95,22 @@ try {
       for (const width of [320, 390, 768, 1280]) {
         await page.setViewportSize({ width, height: 900 });
         await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+        // The page can stay inside the viewport while a child pokes out of its
+        // own card, so every bordered box must hold its in-flow content. Polled
+        // because the resize relayout can still be settling on the first read.
+        await expect.poll(() => page.evaluate(escapes), { message: `${story.id} @${width}px` }).toEqual([]);
+        const closed = await page.evaluate(() => {
+          const details = [...document.querySelectorAll('#storybook-root details:not([open])')];
+          details.forEach(el => { el.open = true; el.dataset.auditOpened = ''; });
+          return details.length;
+        });
+        if (closed) {
+          await expect.poll(() => page.evaluate(escapes), { message: `${story.id} @${width}px com details aberto` }).toEqual([]);
+          await page.evaluate(() => document.querySelectorAll('#storybook-root details[data-audit-opened]').forEach(el => {
+            el.open = false;
+            delete el.dataset.auditOpened;
+          }));
+        }
       }
       results.push({ story: story.id, passed: true, themes: ['dark', 'light'], widths: [320, 390, 768, 1280] });
       console.log(`PASS ${story.id}`);
@@ -129,12 +182,12 @@ try {
       await page.emulateMedia({ colorScheme: theme, reducedMotion: 'reduce' });
       await visit('foundations--default', 'system');
       await expect(page.locator('.theme-frame')).toHaveAttribute('data-preview-theme', theme);
-      expect(await page.locator('.qf-skeleton').evaluateAll(elements => elements.every(el => getComputedStyle(el).animationName === 'none'))).toBe(true);
+      expect(await page.locator('[data-slot="skeleton"]').evaluateAll(elements => elements.every(el => getComputedStyle(el).animationName === 'none'))).toBe(true);
       const themeCheck = await page.evaluate(theme => {
         const frame = document.querySelector('.theme-frame');
         frame.removeAttribute('data-preview-theme');
         document.documentElement.dataset.theme = theme;
-        const surface = document.querySelector('.qf-surface');
+        const surface = document.querySelector('[data-slot="surface"]');
         surface.dataset.theme = theme === 'dark' ? 'light' : 'dark';
         const read = () => getComputedStyle(surface).getPropertyValue('--color-text-primary').trim();
         const manual = read();
@@ -146,13 +199,13 @@ try {
     }
     for (const id of ['componentes-diceresult--natural-20', 'componentes-diceresult--natural-1', 'componentes-diceresult--vantagem', 'componentes-diceresult--desvantagem']) {
       await visit(id);
-      await expect(page.locator('.qf-dice__total').first()).toHaveAttribute('data-reduced-motion', 'true');
-      await expect(page.locator('.qf-dice__total').first()).toHaveCSS('transform', 'none');
+      await expect(page.locator('[data-slot="dice-total"]').first()).toHaveAttribute('data-reduced-motion', 'true');
+      await expect(page.locator('[data-slot="dice-total"]').first()).toHaveCSS('transform', 'none');
     }
     await page.emulateMedia({ reducedMotion: 'no-preference' });
     await visit('componentes-diceresult--natural-20');
-    await expect(page.locator('.qf-dice__total').first()).toHaveAttribute('data-reduced-motion', 'false');
-    await expect(page.locator('.qf-dice__total').first()).toHaveCSS('transform', 'none');
+    await expect(page.locator('[data-slot="dice-total"]').first()).toHaveAttribute('data-reduced-motion', 'false');
+    await expect(page.locator('[data-slot="dice-total"]').first()).toHaveCSS('transform', 'none');
     await page.screenshot({ path: resolve(output, 'dice-result.png'), fullPage: true });
     results.push({ story: 'interactions-and-specs', passed: true });
   }

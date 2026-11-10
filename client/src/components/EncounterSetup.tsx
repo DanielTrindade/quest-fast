@@ -13,6 +13,7 @@ import { Button } from './Button';
 import { Field } from './Field';
 import { SelectField } from './SelectField';
 import { SIZE_LABELS } from '../lib/sheet-labels';
+import { checkLabel, segmentedGroup, segmentedRadio } from './ui/segmented';
 
 type Source = CombatantInput['source'];
 type Errors = Record<string, string>;
@@ -62,9 +63,9 @@ function Segmented<T extends string>({ label, name, value, options, onChange }: 
   onChange: (value: T) => void;
 }) {
   return (
-    <fieldset className="qf-segmented" aria-label={label}>
+    <fieldset className={segmentedGroup} aria-label={label}>
       {options.map((option) => (
-        <label key={option.value} className={value === option.value ? 'is-active' : ''}>
+        <label key={option.value} className={segmentedRadio}>
           <input type="radio" name={name} value={option.value} checked={value === option.value}
             disabled={option.disabled} onChange={() => onChange(option.value)} />
           <span>{option.label}</span>
@@ -80,7 +81,7 @@ function CharacterFields({ characters, chosen, onChoose }: {
   onChoose: (id: string) => void;
 }) {
   if (characters.length === 0) {
-    return <p className="qf-encounter-setup__note">Todos os personagens da campanha já estão no encontro.</p>;
+    return <p className="m-0 text-text-secondary">Todos os personagens da campanha já estão no encontro.</p>;
   }
   return (
     <div data-field="character">
@@ -105,12 +106,12 @@ function StatblockFields({ statblocks, chosen, onChoose, count, onCount, hpMode,
   groupName: string;
 }) {
   if (!chosen) {
-    return <p className="qf-encounter-setup__note">O bestiário está vazio. Cadastre uma criatura para usar quantas cópias quiser.</p>;
+    return <p className="m-0 text-text-secondary">O bestiário está vazio. Cadastre uma criatura para usar quantas cópias quiser.</p>;
   }
   const canRoll = !!chosen.hpFormula;
   return (
-    <div className="qf-encounter-setup__grid">
-      <div data-field="statblock" className="qf-encounter-setup__wide">
+    <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,9rem),1fr))] gap-3">
+      <div data-field="statblock" className="col-span-full grid min-w-0 gap-2">
         <SelectField label="Criatura" value={chosen.id} onChange={onChoose}>
           {statblocks.map((statblock) => (
             <option key={statblock.id} value={statblock.id}>{statblock.name} (CA {statblock.ac}, PV {statblock.hpAverage})</option>
@@ -121,8 +122,8 @@ function StatblockFields({ statblocks, chosen, onChoose, count, onCount, hpMode,
         <Field label="Quantidade" type="number" inputMode="numeric" min={1} max={ENCOUNTER_LIMITS.copies} value={count}
           error={error} onChange={(event) => onCount(event.target.value)} />
       </div>
-      <div className="qf-encounter-setup__wide">
-        <p className="qf-encounter-setup__label" aria-hidden="true">Pontos de vida de cada cópia</p>
+      <div className="col-span-full grid min-w-0 gap-2">
+        <p className="m-0 text-small text-text-secondary" aria-hidden="true">Pontos de vida de cada cópia</p>
         <Segmented label="Pontos de vida de cada cópia" name={groupName} value={canRoll ? hpMode : 'average'} onChange={onHpMode}
           options={[
             { value: 'average', label: `Média (${chosen.hpAverage})` },
@@ -140,8 +141,8 @@ function ManualFields({ draft, onChange, errors }: { draft: ManualDraft; onChang
     onChange: (event: { target: { value: string } }) => onChange({ ...draft, [key]: event.target.value }),
   });
   return (
-    <div className="qf-encounter-setup__grid">
-      <div data-field="name" className="qf-encounter-setup__wide">
+    <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,9rem),1fr))] gap-3">
+      <div data-field="name" className="col-span-full grid min-w-0 gap-2">
         <Field label="Nome" required maxLength={S.name} {...field('name')} />
       </div>
       <div data-field="ac"><Field label="CA" required type="number" inputMode="numeric" {...field('ac')} /></div>
@@ -223,7 +224,7 @@ export function EncounterSetup({ characters, statblocks, onAdd, pending = false,
   };
 
   return (
-    <form className="qf-encounter-setup" onSubmit={submit} noValidate aria-label={reinforcement ? 'Adicionar reforço' : 'Adicionar combatente'}>
+    <form className="grid min-w-0 gap-4" onSubmit={submit} noValidate aria-label={reinforcement ? 'Adicionar reforço' : 'Adicionar combatente'}>
       <Segmented label="Origem do combatente" name={`${uid}-source`} value={source} onChange={setSource}
         options={(['character', 'statblock', 'manual'] as Source[]).map((value) => ({ value, label: SOURCE_LABELS[value] }))} />
 
@@ -234,8 +235,8 @@ export function EncounterSetup({ characters, statblocks, onAdd, pending = false,
       )}
       {source === 'manual' && <ManualFields draft={manual} onChange={setManual} errors={errors} />}
 
-      <div className="qf-encounter-setup__footer">
-        <label className="qf-check">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <label className={checkLabel}>
           <input type="checkbox" checked={hidden} onChange={(event) => setHidden(event.target.checked)} />
           Entra escondido dos jogadores
         </label>

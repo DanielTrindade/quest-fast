@@ -1,4 +1,6 @@
 import { Sparkle } from '@phosphor-icons/react';
+import { trackerLabel, trackerPanel } from './sheet-styles';
+import { Button } from './ui/button';
 
 /** Heroic inspiration: the owner toggles it; everyone else reads it. */
 export function HeroicInspiration({ active, editable = false, pending = false, onChange }: {
@@ -8,16 +10,16 @@ export function HeroicInspiration({ active, editable = false, pending = false, o
   onChange?: (active: boolean) => void;
 }) {
   return (
-    <section className="qf-inspiration" aria-label="Inspiração heroica">
-      <p className="qf-counter__label">Inspiração heroica</p>
+    <section className={trackerPanel} aria-label="Inspiração heroica">
+      <p className={trackerLabel}>Inspiração heroica</p>
       {editable ? (
-        <button type="button" className="qf-inspiration__toggle" aria-pressed={active} disabled={pending}
-          onClick={() => onChange?.(!active)}>
+        <Button variant="secondary" aria-pressed={active} disabled={pending} onClick={() => onChange?.(!active)}
+          className="w-fit max-w-full whitespace-normal aria-pressed:border-accent-text aria-pressed:font-semibold aria-pressed:text-accent-text">
           <Sparkle size={18} weight={active ? 'fill' : 'regular'} aria-hidden="true" />
           {active ? 'Inspirado' : 'Sem inspiração'}
-        </button>
+        </Button>
       ) : (
-        <p className="qf-inspiration__state" data-active={active || undefined}>
+        <p data-active={active || undefined} className="m-0 inline-flex items-center gap-2 text-text-secondary data-active:font-semibold data-active:text-accent-text">
           <Sparkle size={18} weight={active ? 'fill' : 'regular'} aria-hidden="true" />
           {active ? 'Inspirado' : 'Sem inspiração'}
         </p>

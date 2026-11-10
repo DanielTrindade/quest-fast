@@ -1,4 +1,5 @@
 import type { Icon } from '@phosphor-icons/react';
+import { cn } from '../lib/utils';
 import { Tooltip, TooltipProvider } from './Tooltip';
 
 export type NavItem = {
@@ -22,19 +23,36 @@ function groupItems(items: NavItem[]) {
   return groups;
 }
 
+// Where the label is gone (collapsed rail, phone bar), the live badge shrinks to a dot on the icon.
+const dot = 'after:absolute after:top-2 after:left-[calc(50%+var(--spacing-1))] after:size-2 after:rounded-full after:bg-success-text after:shadow-[0_0_0_2px_var(--color-surface-secret)] after:content-[""]';
+
+const link = 'relative flex min-h-11 items-center gap-3 rounded-control px-3 whitespace-nowrap text-text-secondary no-underline transition-[background-color,color] duration-(--duration-quick) ease-settle hover:bg-card hover:text-foreground [&[aria-current]]:bg-card [&[aria-current]]:font-semibold [&[aria-current]]:text-foreground [&[aria-current]]:shadow-[inset_0_1px_0_var(--color-edge-light)] [&[aria-current]]:[&>svg]:text-accent-text';
+const barLink = 'min-h-13 min-w-0 flex-[1_1_0] flex-col justify-center gap-1 p-1 text-micro text-text-muted [&[aria-current]]:bg-transparent [&[aria-current]]:text-accent-text [&[aria-current]]:shadow-none';
+const badgeClass = 'ml-auto inline-flex items-center gap-1 font-mono text-micro font-semibold text-success-text before:size-1.5 before:rounded-full before:bg-success-text before:content-[""]';
+
+function navClasses(item: NavItem, bar: boolean, collapsed: boolean) {
+  const iconOnly = bar || collapsed;
+  return {
+    link: cn(link, bar && barLink, collapsed && 'justify-center px-0', item.badge && iconOnly && dot),
+    label: cn('min-w-0 truncate', bar && 'max-w-full', collapsed && 'sr-only'),
+    badge: cn(badgeClass, iconOnly && 'sr-only'),
+    text: bar ? item.shortLabel ?? item.label : item.label,
+  };
+}
+
 function NavLink({ item, active, variant, collapsed }: {
   item: NavItem; active: boolean; variant: 'list' | 'bar'; collapsed: boolean;
 }) {
   const Glyph = item.icon;
-  const label = variant === 'bar' ? item.shortLabel ?? item.label : item.label;
+  const classes = navClasses(item, variant === 'bar', collapsed);
   // The items are sections of one page, so "location", not "page".
   const name = item.badge ? `${item.label}, ${item.badge}` : undefined;
-  const link = <a href={item.href} className="qf-section-nav__item" aria-current={active ? 'location' : undefined} aria-label={name}>
+  const anchor = <a href={item.href} aria-current={active ? 'location' : undefined} aria-label={name} className={classes.link}>
     {Glyph && <Glyph size={20} aria-hidden="true" weight={active ? 'fill' : 'regular'} />}
-    <span className="qf-section-nav__label">{label}</span>
-    {item.badge && <span className="qf-section-nav__badge">{item.badge}</span>}
+    <span className={classes.label}>{classes.text}</span>
+    {item.badge && <span className={classes.badge}>{item.badge}</span>}
   </a>;
-  return <Tooltip label={name ?? item.label} disabled={!collapsed}>{link}</Tooltip>;
+  return <Tooltip label={name ?? item.label} disabled={!collapsed}>{anchor}</Tooltip>;
 }
 
 /**
@@ -42,7 +60,7 @@ function NavLink({ item, active, variant, collapsed }: {
  * The active id is provided by the consumer (see useActiveSection); the nav
  * stays presentational so it works in the shell and in the catalog.
  */
-export function SectionNav({ items, activeItem, ariaLabel, className = '', variant = 'list', collapsed = false }: {
+export function SectionNav({ items, activeItem, ariaLabel, className, variant = 'list', collapsed = false }: {
   items: NavItem[];
   activeItem: string;
   ariaLabel: string;
@@ -50,14 +68,16 @@ export function SectionNav({ items, activeItem, ariaLabel, className = '', varia
   variant?: 'list' | 'bar';
   collapsed?: boolean;
 }) {
-  const groups = variant === 'bar' ? [{ label: undefined, items }] : groupItems(items);
+  const bar = variant === 'bar';
+  const groups = bar ? [{ label: undefined, items }] : groupItems(items);
   return (
     <TooltipProvider delayDuration={200}>
-      <nav className={`qf-section-nav qf-section-nav--${variant} ${className}`} aria-label={ariaLabel}
-        data-collapsed={collapsed || undefined}>
+      <nav aria-label={ariaLabel} data-collapsed={collapsed || undefined}
+        className={cn(bar ? 'flex flex-1' : 'mt-2 grid content-start gap-1', className)}>
         {groups.map((group) => (
-          <div key={group.items[0].id} className="qf-section-nav__group">
-            {group.label && <span className="qf-section-nav__heading" aria-hidden="true">{group.label}</span>}
+          <div key={group.items[0].id} className={bar ? 'flex flex-1' : 'grid content-start gap-1 not-first:mt-3'}>
+            {group.label && <span aria-hidden="true" className={cn('overflow-hidden px-3 text-micro whitespace-nowrap text-text-muted',
+              collapsed && 'mx-2 h-px bg-border p-0 text-transparent')}>{group.label}</span>}
             {group.items.map((item) => (
               <NavLink key={item.id} item={item} active={activeItem === item.id} variant={variant} collapsed={collapsed} />
             ))}

@@ -1,18 +1,18 @@
 import type { ReactElement, ReactNode } from 'react';
-import * as UI from './ui/dialog';
+import { Dialog as Root, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
 
-export function Dialog({ trigger, title, description, children, open, onOpenChange, className = '' }: {
+export function Dialog({ trigger, title, description, children, open, onOpenChange, className }: {
   trigger?: ReactElement; title: string; description: string; children: ReactNode;
   open?: boolean; onOpenChange?: (open: boolean) => void; className?: string;
 }) {
-  return <UI.Dialog open={open} onOpenChange={onOpenChange}>
-    {trigger && <UI.DialogTrigger asChild>{trigger}</UI.DialogTrigger>}
-    <UI.DialogContent className={className}>
-      <header className="qf-dialog__header">
-        <UI.DialogTitle>{title}</UI.DialogTitle>
-        <UI.DialogDescription>{description}</UI.DialogDescription>
-      </header>
-      {children}
-    </UI.DialogContent>
-  </UI.Dialog>;
+  return <Root open={open} onOpenChange={onOpenChange}>
+    {trigger && <DialogTrigger asChild>{trigger}</DialogTrigger>}
+    <DialogContent className={className}>
+      <DialogHeader>
+        <DialogTitle>{title}</DialogTitle>
+        <DialogDescription>{description}</DialogDescription>
+      </DialogHeader>
+      <div className="min-w-0">{children}</div>
+    </DialogContent>
+  </Root>;
 }

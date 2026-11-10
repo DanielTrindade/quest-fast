@@ -1,6 +1,8 @@
 import { useSyncExternalStore, type ReactNode } from 'react';
 import { Moon, Sun } from '@phosphor-icons/react';
 import { PortalScope } from '../src/components/PortalScope';
+import { Toaster } from '../src/components/Toast';
+import { ToasterContext } from '../src/lib/toaster-context';
 
 function subscribe(onChange: () => void) {
   const query = window.matchMedia('(prefers-color-scheme: light)');
@@ -27,7 +29,7 @@ export function ThemePreview({ mode, children }: { mode: string; children: React
             <span>{theme === 'dark' ? 'Escuro' : 'Claro'}</span>
             <span className="theme-frame__hint">{mode === 'system' ? 'Preferência do sistema' : 'quest-fast'}</span>
           </div>
-          <div className="theme-frame__panel"><PortalScope>{children}</PortalScope></div>
+          <div className="theme-frame__panel"><ToasterContext.Provider value={theme}><PortalScope>{children}</PortalScope><Toaster id={theme} /></ToasterContext.Provider></div>
         </section>
       ))}
     </main>

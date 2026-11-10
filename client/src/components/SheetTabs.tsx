@@ -1,5 +1,7 @@
 import { useRef, type KeyboardEvent, type ReactNode } from 'react';
 import { WarningCircle } from '@phosphor-icons/react';
+import { cn } from '../lib/utils';
+import { segmentedGroup, segmentedTab } from './ui/segmented';
 
 export type SheetTab = { id: string; label: string; hasError?: boolean };
 
@@ -12,7 +14,7 @@ function ids(prefix: string, id: string) {
  * End move and select; only the selected tab is in the tab order. `idPrefix`
  * must be unique per instance (use `useId`), since a page can show two sheets.
  */
-export function SheetTabs({ tabs, active, onChange, idPrefix, label, className = '' }: {
+export function SheetTabs({ tabs, active, onChange, idPrefix, label, className }: {
   tabs: readonly SheetTab[];
   active: string;
   onChange: (id: string) => void;
@@ -34,7 +36,7 @@ export function SheetTabs({ tabs, active, onChange, idPrefix, label, className =
   };
 
   return (
-    <div className={`qf-tabs ${className}`} role="tablist" aria-label={label}>
+    <div data-slot="tabs-list" className={cn(segmentedGroup, className)} role="tablist" aria-label={label}>
       {tabs.map((tab, index) => {
         const selected = tab.id === active;
         const { tab: tabId, panel } = ids(idPrefix, tab.id);
@@ -50,13 +52,13 @@ export function SheetTabs({ tabs, active, onChange, idPrefix, label, className =
             aria-controls={panel}
             aria-selected={selected}
             tabIndex={selected ? 0 : -1}
-            className="qf-tabs__tab"
+            className={segmentedTab}
             onClick={() => onChange(tab.id)}
             onKeyDown={(event) => onKeyDown(event, index)}
           >
             {tab.label}
             {tab.hasError && (
-              <span className="qf-tabs__error">
+              <span className="inline-flex text-danger-text">
                 <WarningCircle size={14} weight="fill" aria-hidden="true" />
                 <span className="sr-only"> (contém erro)</span>
               </span>
@@ -77,7 +79,7 @@ export function SheetTabPanel({ idPrefix, id, active, children }: {
 }) {
   const { tab, panel } = ids(idPrefix, id);
   return (
-    <div role="tabpanel" id={panel} aria-labelledby={tab} hidden={active !== id} className="qf-tabpanel">
+    <div role="tabpanel" id={panel} aria-labelledby={tab} hidden={active !== id} data-slot="tab-panel" className="grid min-w-0 gap-4">
       {children}
     </div>
   );

@@ -1,5 +1,6 @@
 import { abilityModifier, type Ability } from '@quest-fast/shared';
 import { ABILITY_LABELS, signed } from '../lib/5e';
+import { Input } from './ui/input';
 
 /** An ability score typed as text, with its modifier following what is typed. */
 export function AbilityInput({ ability, value, invalid, onChange }: {
@@ -10,10 +11,11 @@ export function AbilityInput({ ability, value, invalid, onChange }: {
 }) {
   const modifier = abilityModifier(Number(value));
   return (
-    <div className="qf-ability-input">
-      <label>
+    <div className="grid grid-cols-[1fr_auto] items-center gap-2 rounded-panel border border-border-strong bg-card p-3 edge-raised">
+      <label className="grid gap-1 text-small">
         <span>{ABILITY_LABELS[ability]}</span>
-        <input
+        <Input
+          className="bg-background"
           type="number"
           min={1}
           max={30}
@@ -24,7 +26,7 @@ export function AbilityInput({ ability, value, invalid, onChange }: {
           onChange={(event) => onChange(event.target.value)}
         />
       </label>
-      <output aria-hidden="true">{modifier === undefined ? '?' : signed(modifier)}</output>
+      <output aria-hidden="true" className="min-w-8 font-mono text-h2 tabular-nums">{modifier === undefined ? '?' : signed(modifier)}</output>
     </div>
   );
 }

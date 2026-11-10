@@ -1,4 +1,5 @@
 import { ClockCounterClockwise } from '@phosphor-icons/react';
+import { Button } from './ui/button';
 
 const PRESETS = [4, 6, 8, 10, 12, 20, 100] as const;
 
@@ -13,18 +14,18 @@ export function QuickDice({ onPick, lastExpression, disabled = false }: {
   disabled?: boolean;
 }) {
   return (
-    <div className="qf-quickdice" role="group" aria-label="Atalhos de dados">
+    <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Atalhos de dados">
       {PRESETS.map((sides) => (
-        <button key={sides} type="button" className="qf-quickdice__die" disabled={disabled}
+        <Button key={sides} variant="secondary" size="sm" className="min-h-10 min-w-11 px-2 font-mono font-semibold" disabled={disabled}
           onClick={() => onPick(`1d${sides}`)} aria-label={`Usar 1d${sides}`}>
           d{sides}
-        </button>
+        </Button>
       ))}
-      <button type="button" className="qf-quickdice__repeat" disabled={disabled || !lastExpression}
+      <Button variant="ghost" size="sm" className="ml-auto min-h-10 border-dashed border-input" disabled={disabled || !lastExpression}
         onClick={() => lastExpression && onPick(lastExpression)}>
         <ClockCounterClockwise size={16} aria-hidden="true" />
-        {lastExpression ? <>Repetir <span className="qf-quickdice__last">{lastExpression}</span></> : 'Repetir última'}
-      </button>
+        {lastExpression ? <>Repetir <span className="font-mono tabular-nums">{lastExpression}</span></> : 'Repetir última'}
+      </Button>
     </div>
   );
 }
