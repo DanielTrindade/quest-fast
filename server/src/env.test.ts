@@ -65,3 +65,15 @@ test('a public URL with a query or fragment is refused, since the path would lan
     assert.throws(() => readEnv({ ...DISCORD, ...R2, R2_PUBLIC_URL: url }), /Invalid R2_PUBLIC_URL/, url);
   }
 });
+
+test('appUrl defaults to the origin of the Discord redirect', () => {
+  assert.equal(readEnv(DISCORD).appUrl, 'http://localhost:3000');
+  assert.equal(readEnv({ ...DISCORD, APP_URL: ' https://quest.example ' }).appUrl, 'https://quest.example');
+});
+
+test('an APP_URL with a trailing slash, query or no http(s) scheme is refused', () => {
+  for (const url of ['https://x.com/', 'https://x.com?a=1', 'https://x.com#a', 'x.com', 'ftp://x.com']) {
+    assert.throws(() => readEnv({ ...DISCORD, APP_URL: url }), (error) =>
+      error instanceof InvalidEnv && /Invalid APP_URL/.test(error.message), url);
+  }
+});

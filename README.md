@@ -118,6 +118,7 @@ a Redirect URI.
 | `DISCORD_CLIENT_ID` | sim | Client ID da aplicação no Discord |
 | `DISCORD_CLIENT_SECRET` | sim | Client Secret da aplicação |
 | `DISCORD_REDIRECT_URI` | sim | Precisa ser idêntica à cadastrada no Discord |
+| `APP_URL` | não | Endereço público sem barra final, usado nos links absolutos da prévia do convite (padrão: origem de `DISCORD_REDIRECT_URI`) |
 | `PORT` | não | Porta do processo (padrão `3000`) |
 | `DB_FILE` | não | Arquivo SQLite, relativo à raiz (padrão `quest-fast.db`) |
 | `CLIENT_DIR` | não | Build do SPA, relativo à raiz (padrão `client/dist`) |
