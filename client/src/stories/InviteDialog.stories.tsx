@@ -1,6 +1,6 @@
 import type { ComponentProps } from 'react';
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { expect, userEvent, within } from 'storybook/test';
+import { expect, fn, userEvent, waitFor, within } from 'storybook/test';
 import { InviteDialog } from '../components/InviteDialog';
 import { Dialog, DialogContent } from '../components/ui/dialog';
 
@@ -29,6 +29,35 @@ export const ConfirmandoTroca: Story = {
       await expect(canvas.queryByText('O link atual vai parar de funcionar')).not.toBeInTheDocument();
       await userEvent.click(canvas.getByRole('button', { name: 'Gerar novo link' }));
     }
+  },
+};
+
+export const FocoNaConfirmacao: Story = {
+  name: 'Foco na confirmação',
+  play: async ({ canvasElement }) => {
+    for (const region of within(canvasElement).getAllByRole('region', { name: /^Tema / })) {
+      const canvas = within(region);
+      await userEvent.click(canvas.getByRole('button', { name: 'Gerar novo link' }));
+      const confirm = canvas.getByRole('button', { name: 'Gerar novo link' });
+      await waitFor(() => expect(confirm).toHaveFocus());
+      await expect(confirm).toHaveAccessibleDescription('O link atual vai parar de funcionar');
+      await userEvent.click(canvas.getByRole('button', { name: 'Cancelar' }));
+      await waitFor(() => expect(canvas.getByRole('button', { name: 'Gerar novo link' })).toHaveFocus());
+      await expect(canvas.queryByText('O link atual vai parar de funcionar')).not.toBeInTheDocument();
+    }
+  },
+};
+
+export const ConfirmaTroca: Story = {
+  name: 'Confirma a troca',
+  args: { onRotate: fn() },
+  play: async ({ canvasElement, args }) => {
+    for (const region of within(canvasElement).getAllByRole('region', { name: /^Tema / })) {
+      const canvas = within(region);
+      await userEvent.click(canvas.getByRole('button', { name: 'Gerar novo link' }));
+      await userEvent.click(canvas.getByRole('button', { name: 'Gerar novo link' }));
+    }
+    await expect(args.onRotate).toHaveBeenCalledTimes(2);
   },
 };
 

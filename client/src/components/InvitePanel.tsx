@@ -36,7 +36,7 @@ function InviteSkeleton() {
 function InviteCard({ invite }: { invite: InviteSummary }) {
   return <div className="grid min-w-0 gap-4">
     <p className="text-small font-semibold tracking-wide text-accent-text uppercase">Convite para a mesa</p>
-    <h2 className="font-display text-display font-semibold tracking-tight text-balance [overflow-wrap:anywhere]">{invite.campaignName}</h2>
+    <h1 className="font-display text-display font-semibold tracking-tight text-balance [overflow-wrap:anywhere]">{invite.campaignName}</h1>
     <div className="flex min-w-0 items-center gap-3">
       <Avatar name={invite.master.name} src={invite.master.avatarUrl ?? undefined} />
       <p className="min-w-0 text-text-secondary [overflow-wrap:anywhere]"><strong className="font-semibold text-foreground">{invite.master.name}</strong> está reunindo o grupo</p>
@@ -55,10 +55,14 @@ export function InvitePanel({ state, invite, loginHref, campaignsHref, failed = 
           <p className="font-display text-body font-semibold tracking-tight">quest-fast</p>
         </div>
 
-        {state === 'loading' && <InviteSkeleton />}
+        {state === 'loading' && <><h1 className="sr-only">Convite para a mesa</h1><InviteSkeleton /></>}
         {!unavailable && state !== 'loading' && invite && <InviteCard invite={invite} />}
-        {state === 'blocked' && <p role="alert" className="text-pretty">Você não pode entrar nesta mesa. Fale com quem te chamou.</p>}
-        {state === 'invalid' && <p role="alert" className="text-pretty">Este convite não vale mais. Peça um link novo para quem te chamou.</p>}
+        {unavailable && <div className="grid gap-3">
+          <h1 className="font-display text-display font-semibold tracking-tight">Convite para a mesa</h1>
+          <p className="text-pretty">{state === 'blocked'
+            ? 'Você não pode entrar nesta mesa. Fale com quem te chamou.'
+            : 'Este convite não vale mais. Peça um link novo para quem te chamou.'}</p>
+        </div>}
 
         {failed && state === 'anonymous' && <AuthFailedAlert />}
 

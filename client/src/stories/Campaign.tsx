@@ -20,6 +20,10 @@ const initialMembers = [
   { id: 'ana', name: 'Ana Beatriz', role: 'player' as const, joined: '03 set. 2026' },
   { id: 'pedro', name: 'Pedro Alves', role: 'player' as const, joined: '04 set. 2026' },
 ];
+const nextCode = (current: string) => {
+  const digits = (Number(current.replace(/\D/g, '')) + 1) % 100;
+  return `MESA${String(digits).padStart(2, '0')}`;
+};
 const campaigns = [{ id: 'phandalin', name: 'Ecos de Phandalin' }, { id: 'barovia', name: 'A névoa de Baróvia' }];
 
 export function Campaign({ role = 'master', loading = false, empty = false }: {
@@ -43,7 +47,7 @@ export function Campaign({ role = 'master', loading = false, empty = false }: {
   const code = codes[campaign];
   const inviteDialog = <DialogContent>
     <InviteDialog link={`https://questfast.app/invite/${code}`} code={code} campaignName={selected.name}
-      onRotate={() => setCodes(current => ({ ...current, [campaign]: `MESA${Math.floor(10 + Math.random() * 90)}` }))} />
+      onRotate={() => setCodes(current => ({ ...current, [campaign]: nextCode(current[campaign]) }))} />
   </DialogContent>;
   return <TooltipProvider>
     <AppShell campaigns={campaigns.map(item => ({ ...item, role }))} campaignId={campaign} onCampaignChange={changeCampaign}
