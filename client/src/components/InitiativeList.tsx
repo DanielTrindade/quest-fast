@@ -1,9 +1,20 @@
-import { useId, useState, type FormEvent } from 'react';
-import { ArrowDown, ArrowUp, DiceFive, DotsThree, Eye, EyeSlash, Skull, Trash } from '@phosphor-icons/react';
-import { ENCOUNTER_LIMITS, type CombatantView } from '@quest-fast/shared';
+import { useId, useState, type FormEvent, type ReactNode } from 'react';
+import { ArrowDown, ArrowUp, Brain, DiceFive, DotsThree, Eye, EyeSlash, Heartbeat, Skull, Trash } from '@phosphor-icons/react';
+import {
+  ENCOUNTER_LIMITS,
+  type ActiveCondition,
+  type CombatantView,
+  type Condition,
+  type HpOperation,
+} from '@quest-fast/shared';
 import { Button } from './Button';
+import { ConditionPicker } from './ConditionPicker';
+import { DeathSaveTracker } from './DeathSaveTracker';
+import { HealthBand } from './HealthBand';
+import { HpAdjuster } from './HpAdjuster';
 import { Input } from './Input';
-import { HEALTH_BAND_LABELS, conditionLabel, tiedWith } from '../lib/combat-labels';
+import { ReminderList } from './ReminderList';
+import { conditionLabel, tiedWith } from '../lib/combat-labels';
 
 export type InitiativeActions = {
   /** Rolls on the server; the list only asks. */
@@ -12,6 +23,15 @@ export type InitiativeActions = {
   onToggleHidden?: (combatantId: string, hidden: boolean) => void;
   onRemove?: (combatantId: string) => void;
   onMoveTie?: (combatantId: string, direction: 'up' | 'down') => void;
+  /** During the fight: the master on anyone, a player on their own character. */
+  onHitPoints?: (combatantId: string, operation: HpOperation, amount: number) => void;
+  onApplyCondition?: (combatantId: string, condition: ActiveCondition) => void;
+  onRemoveCondition?: (combatantId: string, condition: Condition) => void;
+  onConcentration?: (combatantId: string, concentrating: boolean) => void;
+  onDeathSave?: (combatantId: string) => void;
+  onRecordFailure?: (combatantId: string, failures: 1 | 2, reminderId: string) => void;
+  onConcentrationSave?: (combatantId: string, reminderId: string) => void;
+  onDismissReminder?: (combatantId: string, reminderId: string) => void;
 };
 
 type RowProps = InitiativeActions & {
@@ -56,15 +76,23 @@ function Tags({ combatant, active, own }: { combatant: CombatantView; active: bo
           <Skull size={14} aria-hidden="true" /> Derrotado
         </span>
       )}
+      {combatant.concentrating && (
+        <span>
+          <Brain size={14} aria-hidden="true" /> Concentrando
+        </span>
+      )}
       {!combatant.hasInitiative && <span>Aguardando iniciativa</span>}
     </p>
   );
 }
 
+/** A character at 0 hit points: still in the queue, making death saves. */
+function down(combatant: CombatantView): boolean {
+  return combatant.deathSaves !== null && combatant.hpCurrent === 0;
+}
+
 function Vitals({ combatant }: { combatant: CombatantView }) {
-  if (combatant.hpCurrent === null || combatant.hpMax === null) {
-    return <p data-band={combatant.healthBand} className="m-0 text-small font-semibold text-text-secondary data-[band=bloodied]:text-danger-text data-[band=defeated]:text-danger-text">{HEALTH_BAND_LABELS[combatant.healthBand]}</p>;
-  }
+  if (combatant.hpCurrent === null || combatant.hpMax === null) return <HealthBand band={combatant.healthBand} />;
   return (
     <dl className="m-0 flex gap-4 *:grid *:min-w-10 *:justify-items-end [&_dd]:m-0 [&_dd]:font-mono [&_dd]:tabular-nums [&_dt]:text-micro [&_dt]:text-text-secondary">
       <div>
@@ -165,11 +193,15 @@ function Adjust({ combatant, busy, onRoll, onAssign, onToggleHidden, onRemove }:
   );
 }
 
-/** The master's controls: setting initiative while it is missing, ties, then "Ajustar". */
-function MasterActions({ combatant, busy, tie, onMoveTie, ...actions }: InitiativeActions & {
+/**
+ * The master's controls on one line: setting initiative while it is missing,
+ * ties, the fight panel, then "Ajustar". An opened panel takes the whole line.
+ */
+function MasterActions({ combatant, busy, tie, fight, onMoveTie, ...actions }: InitiativeActions & {
   combatant: CombatantView;
   busy: boolean;
   tie: { up: boolean; down: boolean };
+  fight: ReactNode;
 }) {
   const { onRoll, onAssign } = actions;
   const missing = !combatant.hasInitiative;
@@ -191,14 +223,95 @@ function MasterActions({ combatant, busy, tie, onMoveTie, ...actions }: Initiati
           <ArrowDown size={18} aria-hidden="true" /> Depois<span className="sr-only"> no empate: {combatant.name}</span>
         </Button>
       )}
+      {fight}
       <Adjust combatant={combatant} busy={busy} {...actions} />
     </div>
   );
 }
 
+/**
+ * Hit points, concentration and conditions, folded like "Ajustar". A
+ * player's own character opens unfolded: it is the card they act on.
+ */
+function FightPanel({ combatant, busy, startOpen, onHitPoints, onConcentration, onApplyCondition, onRemoveCondition }: InitiativeActions & {
+  combatant: CombatantView;
+  busy: boolean;
+  startOpen: boolean;
+}) {
+  const { id, name } = combatant;
+  if (!onHitPoints && !onConcentration && !(onApplyCondition && onRemoveCondition)) return null;
+  return (
+    <details open={startOpen} className="group/fight min-w-0 open:basis-full">
+      <summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-1 rounded-control px-3 font-semibold text-accent-text transition-[background-color] duration-(--duration-quick) hover:bg-muted [&::-webkit-details-marker]:hidden">
+        <Heartbeat size={18} aria-hidden="true" /> PV e condições<span className="sr-only"> de {name}</span>
+      </summary>
+      <div className="grid min-w-0 gap-4 pt-2">
+        {onHitPoints && (
+          <HpAdjuster name={name} pending={busy}
+            full={combatant.hpCurrent !== null && combatant.hpMax !== null && combatant.hpCurrent >= combatant.hpMax}
+            onApply={(operation, amount) => onHitPoints(id, operation, amount)} />
+        )}
+        {onConcentration && (
+          <div>
+            <Button variant="ghost" aria-pressed={combatant.concentrating} disabled={busy}
+              onClick={() => onConcentration(id, !combatant.concentrating)}>
+              <Brain size={18} aria-hidden="true" />
+              {combatant.concentrating ? 'Encerrar concentração' : 'Marcar concentração'}
+              <span className="sr-only"> de {name}</span>
+            </Button>
+          </div>
+        )}
+        {onApplyCondition && onRemoveCondition && (
+          <ConditionPicker name={name} conditions={combatant.conditions} pending={busy}
+            onApply={(condition) => onApplyCondition(id, condition)} onRemove={(condition) => onRemoveCondition(id, condition)} />
+        )}
+      </div>
+    </details>
+  );
+}
+
+function ConditionChips({ combatant }: { combatant: CombatantView }) {
+  if (combatant.conditions.length === 0) return null;
+  return (
+    <ul className="m-0 flex list-none flex-wrap gap-1 p-0" aria-label={`Condições de ${combatant.name}`}>
+      {combatant.conditions.map((condition) => <li key={condition.condition} className="rounded-control border border-input bg-background px-2 py-0.5 text-small text-foreground">{conditionLabel(condition)}</li>)}
+    </ul>
+  );
+}
+
+/**
+ * What the table has to resolve on this combatant: the death saves of a
+ * character down, and the reminders a hit left. Everyone sees them; only who
+ * acts on the combatant gets the buttons.
+ */
+function Pending({ combatant, acts, canRoll, busy, onDeathSave, onConcentrationSave, onRecordFailure, onDismissReminder }: InitiativeActions & {
+  combatant: CombatantView;
+  acts: boolean;
+  /** The master, or the player on their own turn; the server checks it again. */
+  canRoll: boolean;
+  busy: boolean;
+}) {
+  const { id, name } = combatant;
+  const when = <T,>(handler: T | undefined) => (acts ? handler : undefined);
+  const rollSave = when(onConcentrationSave);
+  const recordFailure = when(onRecordFailure);
+  const dismiss = when(onDismissReminder);
+  return (
+    <>
+      {down(combatant) && (
+        <DeathSaveTracker name={name} deathSaves={combatant.deathSaves!} pending={busy}
+          canRoll={canRoll} onRoll={onDeathSave && (() => onDeathSave(id))} />
+      )}
+      <ReminderList name={name} reminders={combatant.reminders} pending={busy}
+        onRollSave={rollSave && ((reminderId) => rollSave(id, reminderId))}
+        onRecordFailure={recordFailure && ((reminderId, failures) => recordFailure(id, failures, reminderId))}
+        onDismiss={dismiss && ((reminderId) => dismiss(id, reminderId))} />
+    </>
+  );
+}
+
 function InitiativeRow({ combatant, active, own, master, editable, busy, tie, ...actions }: RowProps) {
-  // A player rolls their own initiative, once.
-  const playerRolls = !master && editable && own && !combatant.hasInitiative && !!actions.onRoll;
+  const acts = editable && (master || own);
 
   return (
     <li aria-current={active ? 'step' : undefined} data-defeated={combatant.defeated || undefined} data-hidden={combatant.hidden || undefined}
@@ -212,13 +325,26 @@ function InitiativeRow({ combatant, active, own, master, editable, busy, tie, ..
         <Vitals combatant={combatant} />
       </div>
 
-      {combatant.conditions.length > 0 && (
-        <ul className="m-0 flex list-none flex-wrap gap-1 p-0" aria-label={`Condições de ${combatant.name}`}>
-          {combatant.conditions.map((condition) => <li key={condition.condition} className="rounded-control border border-input bg-background px-2 py-0.5 text-small text-foreground">{conditionLabel(condition)}</li>)}
-        </ul>
-      )}
+      {/* Whoever acts sees the conditions inside the panel, each removable. */}
+      {!(acts && actions.onApplyCondition && actions.onRemoveCondition) && <ConditionChips combatant={combatant} />}
+      <Pending combatant={combatant} acts={acts} canRoll={acts && (master || active)} busy={busy} {...actions} />
 
-      {master && editable && <MasterActions combatant={combatant} busy={busy} tie={tie} {...actions} />}
+      <RowActions combatant={combatant} own={own} master={master} editable={editable} busy={busy} tie={tie} {...actions} />
+    </li>
+  );
+}
+
+/** What this viewer may do on the combatant: the master's line, or a player's own controls. */
+function RowActions({ combatant, own, master, editable, busy, tie, ...actions }: Omit<RowProps, 'active'>) {
+  // The master acts on anyone; a player only on their own character.
+  const acts = editable && (master || own);
+  const fight = acts ? <FightPanel combatant={combatant} busy={busy} startOpen={own && !master} {...actions} /> : null;
+  if (master && editable) return <MasterActions combatant={combatant} busy={busy} tie={tie} fight={fight} {...actions} />;
+  // A player rolls their own initiative, once.
+  const playerRolls = acts && !combatant.hasInitiative && !!actions.onRoll;
+  return (
+    <>
+      {fight}
       {playerRolls && (
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="secondary" disabled={busy} onClick={() => actions.onRoll!(combatant.id)}>
@@ -226,7 +352,7 @@ function InitiativeRow({ combatant, active, own, master, editable, busy, tie, ..
           </Button>
         </div>
       )}
-    </li>
+    </>
   );
 }
 

@@ -98,6 +98,29 @@ export const playerCombatants: CombatantView[] = masterCombatants
       : { ...combatant, initiative: null, ac: null, hpMax: null, hpCurrent: null, hpTemp: null, dexModifier: null, tieOrder: null },
   );
 
+/**
+ * Round 3, Hazin's turn: he went down (one success, one failure) and took a
+ * hit since, so a failure waits to be marked. Lyra is concentrating and owes
+ * a Constitution save.
+ */
+function downed(combatant: CombatantView): CombatantView {
+  if (combatant.id === 'c-hazin') {
+    return {
+      ...combatant,
+      hpCurrent: 0,
+      hpTemp: 0,
+      healthBand: 'defeated',
+      deathSaves: { successes: 1, failures: 1 },
+      reminders: [{ id: 'r-hazin', kind: 'deathFailure' }],
+    };
+  }
+  if (combatant.id === 'c-lyra') return { ...combatant, reminders: [{ id: 'r-lyra', kind: 'concentration', dc: 12 }] };
+  return combatant;
+}
+
+export const downedMaster: CombatantView[] = masterCombatants.map(downed);
+export const downedPlayer: CombatantView[] = playerCombatants.map(downed);
+
 /** Round 0: the goblins rolled, the characters still have to. */
 export const awaitingInitiative: CombatantView[] = [
   monster('g1', 'Goblin 1', 18, 7, 7, 'unhurt'),

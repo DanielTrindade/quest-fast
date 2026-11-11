@@ -5,6 +5,8 @@ import {
   MASTER_ID,
   PLAYER_ID,
   awaitingInitiative,
+  downedMaster,
+  downedPlayer,
   masterCombatants,
   playerCombatants,
   tiedCombatants,
@@ -166,5 +168,99 @@ export const NomesLongosRemovendo: Story = {
     await openAdjust(region, name);
     await userEvent.click(within(region).getByRole('button', { name: `Remover ${name}` }));
     await expect(within(region).getByRole('group', { name: `Remover ${name}?` })).toBeVisible();
+  },
+};
+
+const fightActions = {
+  onHitPoints: fn(),
+  onApplyCondition: fn(),
+  onRemoveCondition: fn(),
+  onConcentration: fn(),
+  onDeathSave: fn(),
+  onRecordFailure: fn(),
+  onConcentrationSave: fn(),
+  onDismissReminder: fn(),
+};
+
+/** Unfolds a combatant's "PV e condições" panel. */
+async function openFight(region: HTMLElement, name: string) {
+  const summary = [...region.querySelectorAll('summary')].find((element) => element.textContent?.trim() === `PV e condições de ${name}`);
+  await expect(summary).toBeDefined();
+  await userEvent.click(summary!);
+}
+
+/** The master acts on anyone: damage, conditions, concentration and pending saves. */
+export const MestreEmCombate: Story = {
+  name: 'Mestre: PV e condições',
+  args: { combatants: downedMaster, activeCombatantId: 'c-hazin', ...fightActions },
+  play: async ({ canvasElement, args }) => {
+    const [region] = within(canvasElement).getAllByRole('region', { name: /^Tema / });
+    const list = within(region);
+    await openFight(region, 'Goblin 2');
+    await userEvent.type(within(list.getByRole('group', { name: 'Pontos de vida de Goblin 2' })).getByLabelText('Quantidade'), '4');
+    await userEvent.click(list.getByRole('button', { name: 'Dano em Goblin 2' }));
+    await expect(args.onHitPoints).toHaveBeenCalledWith('g2', 'damage', 4);
+    await userEvent.click(list.getByRole('button', { name: 'Remover Caído de Goblin 2' }));
+    await expect(args.onRemoveCondition).toHaveBeenCalledWith('g2', 'prone');
+
+    await userEvent.click(list.getByRole('button', { name: 'Rolar salvaguarda de Lyra Ventoclaro' }));
+    await expect(args.onConcentrationSave).toHaveBeenCalledWith('c-lyra', 'r-lyra');
+    await userEvent.click(list.getByRole('button', { name: 'Duas falhas para Hazin Dan' }));
+    await expect(args.onRecordFailure).toHaveBeenCalledWith('c-hazin', 2, 'r-hazin');
+  },
+};
+
+/** Hazin's player, down on his own turn: his card opens, and the roll is his. */
+export const JogadorCaidoNaVez: Story = {
+  name: 'Jogador: caído na própria vez',
+  args: { combatants: downedPlayer, activeCombatantId: 'c-hazin', viewerId: PLAYER_ID, master: false, ...fightActions },
+  play: async ({ canvasElement, args }) => {
+    const [region] = within(canvasElement).getAllByRole('region', { name: /^Tema / });
+    const list = within(region);
+    await expect(list.getByText('Morrendo', { selector: 'p' })).toBeVisible();
+    await userEvent.click(list.getByRole('button', { name: 'Teste contra a morte de Hazin Dan' }));
+    await expect(args.onDeathSave).toHaveBeenCalledWith('c-hazin');
+    // His own panel starts open; nobody else's is offered to him.
+    await expect(list.getByRole('group', { name: 'Pontos de vida de Hazin Dan' })).toBeVisible();
+    await expect(list.queryByRole('group', { name: 'Pontos de vida de Lyra Ventoclaro' })).toBeNull();
+    // Lyra's pending save is the table's news, not his to roll.
+    await expect(list.getByText(/CD 12/)).toBeVisible();
+    await expect(list.queryByRole('button', { name: 'Rolar salvaguarda de Lyra Ventoclaro' })).toBeNull();
+  },
+};
+
+/** Down, but someone else's turn: the saves show, the roll waits. */
+export const JogadorCaidoForaDaVez: Story = {
+  name: 'Jogador: caído fora da vez',
+  args: { ...JogadorCaidoNaVez.args, activeCombatantId: 'g2' },
+  play: async ({ canvasElement }) => {
+    const [region] = within(canvasElement).getAllByRole('region', { name: /^Tema / });
+    await expect(within(region).queryByRole('button', { name: /Teste contra a morte/ })).toBeNull();
+  },
+};
+
+export const NomesLongosEmCombate: Story = {
+  name: 'Nomes longos, PV e condições',
+  args: {
+    ...fightActions,
+    combatants: downedMaster.map((combatant) => ({
+      ...combatant,
+      name: `${combatant.name}, ${LONG_SUFFIX}`,
+      conditions: combatant.id === 'g2' ? [{ condition: 'exhaustion', level: 6, roundsLeft: 100 }, { condition: 'incapacitated', roundsLeft: 99 }, { condition: 'restrained' }] : combatant.conditions,
+    })),
+  },
+  play: async ({ canvasElement }) => {
+    const [region] = within(canvasElement).getAllByRole('region', { name: /^Tema / });
+    await openFight(region, `Goblin 2, ${LONG_SUFFIX}`);
+  },
+};
+
+/** Applying without removing: the panel offers no picker, so the chips stay on the card. */
+export const SoAplicarCondicao: Story = {
+  name: 'Mestre: aplicar sem remover condição',
+  args: { combatants: downedMaster, activeCombatantId: 'c-hazin', onApplyCondition: fn() },
+  play: async ({ canvasElement }) => {
+    const [region] = within(canvasElement).getAllByRole('region', { name: /^Tema / });
+    await expect(within(region!).getByRole('list', { name: 'Condições de Goblin 2' })).toBeVisible();
   },
 };
