@@ -25,8 +25,15 @@ test('a player reads the same events as a band, without numbers', () => {
 
 test('a character who goes down is said to fall', () => {
   assert.equal(
-    combatEventText({ ...kaelen, kind: 'combat.damage', amount: 30, hpCurrent: 0, hpMax: 24, band: 'defeated' }),
+    combatEventText({ ...kaelen, kind: 'combat.damage', amount: 30, hpCurrent: 0, hpMax: 24, band: 'defeated', fell: true }),
     'Kaelen sofreu 30 de dano e caiu (0/24).',
+  );
+});
+
+test('damage to a character already down is no new fall', () => {
+  assert.equal(
+    combatEventText({ ...kaelen, kind: 'combat.damage', amount: 5, hpCurrent: 0, hpMax: 24, band: 'defeated' }),
+    'Kaelen sofreu 5 de dano (0/24).',
   );
 });
 

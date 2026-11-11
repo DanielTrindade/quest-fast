@@ -29,11 +29,12 @@ function counts({ successes, failures }: DeathSaves): string {
  * The numbers come only when the server left them in: the master always,
  * a player only for a character. Without them, the band says it.
  */
-function hitPointsText({ kind, name, source, amount, hpCurrent, hpMax, band }: CombatHitPointsPayload): string {
+function hitPointsText({ kind, name, amount, hpCurrent, hpMax, band, fell }: CombatHitPointsPayload): string {
   if (amount === undefined) return `${name} ${kind === 'combat.defeated' ? 'foi derrotado' : BAND_PHRASE[band]}.`;
   if (kind === 'combat.heal') return `${name} recuperou ${amount} PV (${hpCurrent}/${hpMax}).`;
   if (kind === 'combat.defeated') return `${name} sofreu ${amount} de dano e foi derrotado.`;
-  if (source === 'character' && hpCurrent === 0) return `${name} sofreu ${amount} de dano e caiu (${hpCurrent}/${hpMax}).`;
+  // The server marks the hit that took the character down; one already down does not fall again.
+  if (fell) return `${name} sofreu ${amount} de dano e caiu (${hpCurrent}/${hpMax}).`;
   return `${name} sofreu ${amount} de dano (${hpCurrent}/${hpMax}).`;
 }
 

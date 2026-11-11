@@ -593,6 +593,7 @@ function changeHitPoints(mutation: Mutation, combatant: LoadedCombatant, body: R
     hpCurrent: hitPoints.hpCurrent,
     hpMax: combatant.hpMax,
     band: healthBand(hitPoints.hpCurrent, combatant.hpMax),
+    ...(fell && combatant.row.source === 'character' ? { fell: true as const } : {}),
   });
 }
 

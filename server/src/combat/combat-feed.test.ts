@@ -85,6 +85,20 @@ test("a character's hit points stay open to the table, and healing is told too",
   assert.deepEqual(heal?.payload.kind === 'combat.heal' && [heal.payload.name, heal.payload.amount, heal.payload.hpCurrent], ['Mira', 1, 23]);
 });
 
+test('only the hit that takes a character down is told as a fall', async () => {
+  const { s, at } = await fight();
+  await send(s.master, at('Kaelen', '/hp'), 'POST', { operation: 'damage', amount: 24 });
+  await send(s.master, at('Kaelen', '/hp'), 'POST', { operation: 'damage', amount: 5 });
+
+  const falls = combatEvents(await feed(s, s.player), 'combat.damage').map((event) =>
+    event.payload.kind === 'combat.damage' ? [event.payload.amount, event.payload.hpCurrent, event.payload.fell] : null,
+  );
+  assert.deepEqual(falls, [
+    [24, 0, true],
+    [5, 0, undefined],
+  ]);
+});
+
 test('temporary hit points and concentration stay out of the feed', async () => {
   const { s, at } = await fight();
   const before = (await feed(s, s.master)).length;

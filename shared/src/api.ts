@@ -569,6 +569,11 @@ export type CombatHitPointsPayload = CombatantRef & {
   hpCurrent?: number;
   hpMax?: number;
   band: HealthBand;
+  /**
+   * Only the hit that took a character from standing to 0. The final hit
+   * points cannot tell it: damage to one already down leaves 0 too.
+   */
+  fell?: true;
 };
 
 export type CombatConditionPayload = CombatantRef & {
