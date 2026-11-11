@@ -33,11 +33,11 @@ function loadFonts(): Promise<Fonts> {
       read('geist-latin-ext-600-normal.woff'),
     ]).then(([display, displayExt, regular, regularExt, semibold, semiboldExt]): Fonts => [
       { name: 'Space Grotesk', data: display, weight: 700, style: 'normal' },
-      { name: 'Space Grotesk', data: displayExt, weight: 700, style: 'normal' },
+      { name: 'Space Grotesk Ext', data: displayExt, weight: 700, style: 'normal' },
       { name: 'Geist', data: regular, weight: 400, style: 'normal' },
-      { name: 'Geist', data: regularExt, weight: 400, style: 'normal' },
+      { name: 'Geist Ext', data: regularExt, weight: 400, style: 'normal' },
       { name: 'Geist', data: semibold, weight: 600, style: 'normal' },
-      { name: 'Geist', data: semiboldExt, weight: 600, style: 'normal' },
+      { name: 'Geist Ext', data: semiboldExt, weight: 600, style: 'normal' },
     ]);
     fonts.catch(() => {
       fonts = undefined;
@@ -46,10 +46,12 @@ function loadFonts(): Promise<Fonts> {
   return fonts;
 }
 
+const DISPLAY_FAMILY = 'Space Grotesk, Space Grotesk Ext';
+const TEXT_FAMILY = 'Geist, Geist Ext';
+
 const DRAWABLE_RANGES: [number, number][] = [
   [0x20, 0x7e],
-  [0xa0, 0x24f],
-  [0x1e00, 0x1eff],
+  [0xa0, 0x17f],
   [0x2010, 0x2027],
   [0x2030, 0x203a],
   [0x20ac, 0x20ac],
@@ -130,7 +132,7 @@ function avatarNode(name: string, avatar: Uint8Array | undefined): Node {
       justifyContent: 'center',
       backgroundImage: 'linear-gradient(135deg, #5865f2, #3b6fe0)',
       color: '#ffffff',
-      fontFamily: 'Space Grotesk',
+      fontFamily: DISPLAY_FAMILY,
       fontWeight: 700,
       fontSize: 72,
     },
@@ -147,7 +149,7 @@ function cardTree(input: CardInput): Node {
       height: HEIGHT,
       backgroundColor: SURFACE,
       color: '#edeff3',
-      fontFamily: 'Geist',
+      fontFamily: TEXT_FAMILY,
       overflow: 'hidden',
     },
     children: [
@@ -193,7 +195,7 @@ function cardTree(input: CardInput): Node {
               el('div', {
                 style: {
                   display: 'block',
-                  fontFamily: 'Space Grotesk',
+                  fontFamily: DISPLAY_FAMILY,
                   fontWeight: 700,
                   fontSize: 84,
                   lineHeight: 1.02,
@@ -230,7 +232,7 @@ function cardTree(input: CardInput): Node {
                   display: 'flex',
                   alignItems: 'center',
                   gap: 12,
-                  fontFamily: 'Space Grotesk',
+                  fontFamily: DISPLAY_FAMILY,
                   fontWeight: 700,
                   fontSize: 29,
                   color: '#8e939e',

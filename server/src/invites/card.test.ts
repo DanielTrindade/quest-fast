@@ -196,3 +196,13 @@ test('the card cache is keyed by code and version', async () => {
   assert.notEqual(first[0], second[0]);
   assert.equal(renders, 2);
 });
+
+test('sanitizeCardText keeps Latin-1 and Latin Extended-A and drops the rest', () => {
+  assert.equal(sanitizeCardText('Łukasz Paweł', 'Mestre'), 'Łukasz Paweł');
+  assert.equal(sanitizeCardText('Łódź Đorđe', 'Mesa sem nome'), 'Łódź Đorđe');
+  assert.equal(sanitizeCardText('Việt ǅ', 'Mesa sem nome'), 'Vit');
+});
+
+test('cardInitials draws Latin Extended-A letters', () => {
+  assert.equal(cardInitials('Łukasz Paweł'), 'ŁP');
+});
