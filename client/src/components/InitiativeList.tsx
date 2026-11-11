@@ -326,7 +326,7 @@ function InitiativeRow({ combatant, active, own, master, editable, busy, tie, ..
       </div>
 
       {/* Whoever acts sees the conditions inside the panel, each removable. */}
-      {!(acts && actions.onApplyCondition) && <ConditionChips combatant={combatant} />}
+      {!(acts && actions.onApplyCondition && actions.onRemoveCondition) && <ConditionChips combatant={combatant} />}
       <Pending combatant={combatant} acts={acts} canRoll={acts && (master || active)} busy={busy} {...actions} />
 
       <RowActions combatant={combatant} own={own} master={master} editable={editable} busy={busy} tie={tie} {...actions} />

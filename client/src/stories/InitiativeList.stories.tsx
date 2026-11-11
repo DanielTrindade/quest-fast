@@ -254,3 +254,13 @@ export const NomesLongosEmCombate: Story = {
     await openFight(region, `Goblin 2, ${LONG_SUFFIX}`);
   },
 };
+
+/** Applying without removing: the panel offers no picker, so the chips stay on the card. */
+export const SoAplicarCondicao: Story = {
+  name: 'Mestre: aplicar sem remover condição',
+  args: { combatants: downedMaster, activeCombatantId: 'c-hazin', onApplyCondition: fn() },
+  play: async ({ canvasElement }) => {
+    const [region] = within(canvasElement).getAllByRole('region', { name: /^Tema / });
+    await expect(within(region!).getByRole('list', { name: 'Condições de Goblin 2' })).toBeVisible();
+  },
+};
