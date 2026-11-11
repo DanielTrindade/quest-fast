@@ -15,7 +15,7 @@ type InviteDialogProps = {
   rotateError?: string;
 };
 
-function RotateArea({ code, onRotate, rotating, rotateError }: Pick<InviteDialogProps, 'code' | 'onRotate' | 'rotating' | 'rotateError'>) {
+function RotateArea({ code, onRotate, rotating = false, rotateError }: Pick<InviteDialogProps, 'code' | 'onRotate' | 'rotating' | 'rotateError'>) {
   const [confirming, setConfirming] = useState(false);
   const [seenCode, setSeenCode] = useState(code);
   if (seenCode !== code) {
@@ -32,6 +32,9 @@ function RotateArea({ code, onRotate, rotating, rotateError }: Pick<InviteDialog
     else if (wasConfirming.current) triggerRef.current?.focus();
     wasConfirming.current = showConfirm;
   }, [showConfirm]);
+  useEffect(() => {
+    if (rotateError) confirmRef.current?.focus();
+  }, [rotateError]);
   return <div className="grid gap-3 border-t border-border pt-4">
     {showConfirm
       ? <div className="grid gap-3">
