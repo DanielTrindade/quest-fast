@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import type { Handler } from 'hono';
 import { invitePath, invitePreviewText } from '@quest-fast/shared';
 import type { Context } from '../context.ts';
+import { originKey, type AttemptLimiter } from './attempt-limiter.ts';
 import { findInvite, type InviteRecord } from './invite-lookup.ts';
 
 type MetaInput =
@@ -52,13 +53,23 @@ function injectTags(html: string, tags: string): string {
   return html.replace('</head>', () => `${tags}\n  </head>`);
 }
 
-export function invitePageHandler(): Handler<Context> {
+export function invitePageHandler(attempts: AttemptLimiter): Handler<Context> {
   // Read once per process: a rebuild of the client needs a server restart.
   let template: string | undefined;
   return async (c) => {
     const { db, env } = c.var.deps;
     template ??= await readFile(join(env.clientDir, 'index.html'), 'utf8');
-    const record = findInvite(db, c.req.param('code') ?? '');
+    const origin = [originKey(c)];
+    const wait = attempts.retryAfter(origin);
+    // A blocked origin still gets the SPA, with the generic tags and no
+    // lookup; the page then shows the API's 429.
+    const record = wait ? undefined : findInvite(db, c.req.param('code') ?? '');
+    if (wait) {
+      c.status(429);
+      c.header('Retry-After', String(wait));
+    } else if (!record) {
+      attempts.fail(origin);
+    }
     const tags = record
       ? inviteMetaTags({
           appUrl: env.appUrl,

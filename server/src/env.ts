@@ -24,6 +24,8 @@ export type Env = {
   appUrl: string;
   /** `Secure` cookies require HTTPS; off for local development. */
   secureCookie: boolean;
+  /** Read the client address from X-Forwarded-For; only behind a reverse proxy. */
+  trustProxy: boolean;
 };
 
 export class InvalidEnv extends Error {}
@@ -101,5 +103,6 @@ export function readEnv(source: NodeJS.ProcessEnv = process.env): Env {
     appUrl: readAppUrl(source, discordRedirectUri),
     secureCookie:
       (source.COOKIE_SECURE ?? (source.NODE_ENV === 'production' ? 'true' : 'false')) === 'true',
+    trustProxy: source.TRUST_PROXY?.trim() === 'true',
   };
 }

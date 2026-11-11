@@ -209,6 +209,14 @@ digitado de uma vez.
   cartão são unificadas. O avatar do mestre só é baixado de
   `cdn.discordapp.com`, com timeout de 2 s e limite de 1 MB; se falhar, o
   cartão usa as iniciais.
+- As três rotas acima e o `POST /api/campaigns/join` dividem um limite de
+  tentativas (`invites/attempt-limiter.ts`): 20 códigos inexistentes em 10
+  minutos por endereço e, no `join`, também por usuário. Estourado o limite, a
+  origem recebe 429 com `Retry-After` mesmo para um código válido, e a busca
+  nem é feita. A janela deslizante fica em memória, por processo. O endereço é
+  o do socket; `X-Forwarded-For` só vale com `TRUST_PROXY=true`, que supõe o
+  app alcançável só pelo proxy. Endereços IPv6 dividem o limite por prefixo
+  `/64`, porque um único cliente costuma dispor do prefixo inteiro.
 - O login guarda o destino em `?next=` no cookie `qf_oauth_next`, validado na
   ida e na volta (`safeReturnPath`); em caso de falha, volta à página do
   convite.

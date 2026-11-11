@@ -130,6 +130,7 @@ a Redirect URI.
 | `R2_BUCKET` | com `r2` | Nome do bucket |
 | `R2_PUBLIC_URL` | com `r2` | URL pública do bucket, como `https://cdn.seu-dominio` |
 | `COOKIE_SECURE` | não | `true` atrás de HTTPS; cookies `Secure` não valem em HTTP |
+| `TRUST_PROXY` | não | `true` atrás de proxy reverso: o limite de tentativas do convite lê o visitante em `X-Forwarded-For`. Exige que o app só seja alcançável pelo proxy |
 
 ## Testar a prévia do convite com túnel
 
@@ -161,12 +162,13 @@ Um processo, um artefato, sem orquestração.
 ```sh
 docker build -t quest-fast .
 docker run -d --name quest-fast \
-  -p 3000:3000 \
+  -p 127.0.0.1:3000:3000 \
   -v quest-fast-dados:/dados \
   -e DISCORD_CLIENT_ID=... \
   -e DISCORD_CLIENT_SECRET=... \
   -e DISCORD_REDIRECT_URI=https://seu-dominio/api/auth/discord/callback \
   -e COOKIE_SECURE=true \
+  -e TRUST_PROXY=true \
   quest-fast
 ```
 
@@ -174,7 +176,17 @@ As migrações são aplicadas na subida do container. O banco e os uploads ficam
 em `/dados`, num volume: **backup é copiar esse diretório**.
 
 Coloque um proxy reverso com HTTPS na frente. Sem HTTPS, `COOKIE_SECURE=true`
-impede o login; sem `Secure`, o cookie de sessão trafega em claro.
+impede o login; sem `Secure`, o cookie de sessão trafega em claro. Com o proxy
+na frente, mantenha `TRUST_PROXY=true`: sem isso, todo visitante chega com o
+endereço do proxy e divide o mesmo limite de tentativas do convite. O proxy
+precisa acrescentar o endereço do visitante ao `X-Forwarded-For` (o padrão no
+Caddy e no `proxy_add_x_forwarded_for` do nginx).
+
+`TRUST_PROXY=true` só é seguro se o app for alcançável **apenas** pelo proxy:
+quem chega direto na porta 3000 escolhe o próprio `X-Forwarded-For` e ganha um
+limite novo a cada requisição. Por isso o exemplo publica a porta só em
+`127.0.0.1`, para um proxy no mesmo host. Com o proxy em outro container, não
+publique a porta: ponha os dois na mesma rede do Docker.
 
 ### Avatares no Cloudflare R2 (opcional)
 
