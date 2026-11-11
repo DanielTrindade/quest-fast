@@ -39,15 +39,58 @@ try {
   const stories = Object.values(index.entries).filter(entry => entry.type === 'story' && entry.id.includes(filter));
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
+  // A failing play leaves the render phase at "finished", and storyFinished
+  // reports "error" even for stories without a play, so the only reliable
+  // signal is the channel event. The trap subscribes before any story runs.
+  await page.addInitScript(() => {
+    window.__storyFailures = [];
+    let channel;
+    Object.defineProperty(window, '__STORYBOOK_ADDONS_CHANNEL__', {
+      configurable: true,
+      get: () => channel,
+      set(value) {
+        channel = value;
+        for (const event of ['playFunctionThrewException', 'storyErrored', 'storyThrewException']) {
+          value.on(event, error => window.__storyFailures.push({
+            event,
+            // Testing Library appends the whole DOM to its messages.
+            message: String(error?.message ?? error?.description ?? error?.title ?? error).replace(/\u001b\[\d+m/g, '').split('\n\nIgnored nodes:')[0].slice(0, 600),
+          }));
+        }
+      },
+    });
+  });
+  class StoryFailure extends Error {
+    constructor(failures) {
+      super(`${failures.map(failure => `${failure.event}: ${failure.message}`).join('; ')}`);
+      this.failures = failures;
+    }
+  }
   async function visit(id, theme = 'both') {
     errors.length = 0;
     await page.goto(`${base}/iframe.html?id=${id}&viewMode=story&globals=theme:${theme}`);
+    const settled = () => window.__storyFailures?.length > 0
+      || window.__STORYBOOK_PREVIEW__?.storyRenders?.some(render => ['completed', 'finished', 'errored'].includes(render.phase));
+    await page.waitForFunction(settled, undefined, { timeout: 30000 });
+    const failures = await page.evaluate(() => window.__storyFailures);
+    if (failures.length > 0) throw new StoryFailure(failures);
     await page.locator('.theme-frame__panel').first().waitFor({ timeout: 30000 });
-    await page.waitForFunction(() => window.__STORYBOOK_PREVIEW__?.storyRenders?.some(render => ['completed', 'finished', 'errored'].includes(render.phase)), undefined, { timeout: 30000 });
     await page.evaluate(() => document.fonts.ready);
     const phases = await page.evaluate(() => window.__STORYBOOK_PREVIEW__.storyRenders.map(render => render.phase));
     expect(phases).not.toContain('errored');
     expect(errors).toEqual([]);
+  }
+  const CONTROLS = { 'expects-play-failure': ['playFunctionThrewException'], 'expects-render-failure': ['storyErrored', 'storyThrewException'] };
+  // Negative controls: stories that fail on purpose. If the verifier lets one
+  // through, it has gone blind again and the whole run fails.
+  async function control(story, expected) {
+    try {
+      await visit(story.id);
+    } catch (error) {
+      if (error.failures?.some(failure => expected.includes(failure.event))) return;
+      throw error;
+    }
+    throw new Error(`${story.id}: o controle negativo não reprovou; o verificador deixou de enxergar ${expected.join(' ou ')}.`);
   }
   function escapes() {
     const found = [];
@@ -82,6 +125,13 @@ try {
   }
   for (const story of stories) {
     try {
+      const expected = Object.entries(CONTROLS).find(([tag]) => story.tags?.includes(tag))?.[1];
+      if (expected) {
+        await control(story, expected);
+        results.push({ story: story.id, passed: true, control: true });
+        console.log(`PASS ${story.id} (controle negativo reprovou como esperado)`);
+        continue;
+      }
       await visit(story.id);
       const a11y = await audit();
       expect(a11y.violations, story.id).toEqual([]);
