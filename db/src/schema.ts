@@ -96,9 +96,6 @@ export const campaignMembers = sqliteTable(
   ],
 );
 
-/** Row types. The API-facing shapes live in `@quest-fast/shared`. */
-export type UserRow = typeof users.$inferSelect;
-export type NewUserRow = typeof users.$inferInsert;
 export const campaignBans = sqliteTable(
   'campaign_bans',
   {
@@ -114,6 +111,9 @@ export const campaignBans = sqliteTable(
   (table) => [uniqueIndex('campaign_bans_campaign_user_idx').on(table.campaignId, table.userId)],
 );
 
+/** Row types. The API-facing shapes live in `@quest-fast/shared`. */
+export type UserRow = typeof users.$inferSelect;
+export type NewUserRow = typeof users.$inferInsert;
 export type SessionRow = typeof sessions.$inferSelect;
 export type CampaignRow = typeof campaigns.$inferSelect;
 export type CampaignMemberRow = typeof campaignMembers.$inferSelect;
