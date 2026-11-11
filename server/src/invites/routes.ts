@@ -17,7 +17,7 @@ export function inviteRoutes() {
     const invite = findInvite(c.var.deps.db, c.req.param('code'));
     if (!invite) return c.json({ error: 'Convite inválido.' }, 404);
 
-    const png = await cards.get(cardVersion(invite), invite);
+    const png = await cards.get(invite.code, cardVersion(invite), invite);
     return c.body(png as Uint8Array<ArrayBuffer>, 200, {
       'Content-Type': 'image/png',
       'Cache-Control': 'public, max-age=86400',

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import type { CreatedCampaign } from '@quest-fast/shared';
 import { asUser, body, createTestApp, signIn } from '../testing.ts';
 import { Resvg } from '@resvg/resvg-js';
-import { createCardProvider, fetchAvatar, renderInviteCard } from './card.ts';
+import { cardInitials, createCardProvider, fetchAvatar, renderInviteCard, sanitizeCardText } from './card.ts';
 
 const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 
@@ -135,11 +135,11 @@ test('concurrent requests for the same card share one avatar download and one re
     },
   });
   const source = { campaignName: 'Ecos', masterName: 'Lia', masterAvatarUrl: 'https://cdn.discordapp.com/a.png' };
-  const results = await Promise.all([provider.get('v1', source), provider.get('v1', source), provider.get('v1', source)]);
+  const results = await Promise.all([provider.get('ABC123', 'v1', source), provider.get('ABC123', 'v1', source), provider.get('ABC123', 'v1', source)]);
   assert.equal(downloads, 1);
   assert.equal(renders, 1);
   assert.equal(results[0], results[2]);
-  await provider.get('v1', source);
+  await provider.get('ABC123', 'v1', source);
   assert.equal(renders, 1);
 });
 
@@ -154,7 +154,45 @@ test('a failed render is not cached', async () => {
     },
   });
   const source = { campaignName: 'Ecos', masterName: 'Lia', masterAvatarUrl: null };
-  await assert.rejects(provider.get('v1', source));
-  await provider.get('v1', source);
+  await assert.rejects(provider.get('ABC123', 'v1', source));
+  await provider.get('ABC123', 'v1', source);
+  assert.equal(renders, 2);
+});
+
+test('sanitizeCardText drops glyphs the fonts cannot draw and keeps Latin text', () => {
+  assert.equal(sanitizeCardText('Mesa 🐉 do Dragão', 'Mesa sem nome'), 'Mesa do Dragão');
+  assert.equal(sanitizeCardText('Wiśniewska 🎲', 'Mestre'), 'Wiśniewska');
+  assert.equal(sanitizeCardText('🐉🎲', 'Mesa sem nome'), 'Mesa sem nome');
+  assert.equal(sanitizeCardText('田中太郎', 'Mestre'), 'Mestre');
+  assert.equal(sanitizeCardText('  Ecos   de	Fogo  ', 'Mesa sem nome'), 'Ecos de Fogo');
+  assert.equal(sanitizeCardText('Ordem – “Alfa”', 'Mesa sem nome'), 'Ordem – “Alfa”');
+});
+
+test('cardInitials stays inside the drawable set', () => {
+  assert.equal(cardInitials('Lia Martins'), 'LM');
+  assert.equal(cardInitials('Mestre'), 'M');
+});
+
+test('renders valid PNGs for emoji, Latin Extended and CJK names', async () => {
+  for (const [campaignName, masterName] of [
+    ['Mesa 🐉 do Dragão', 'Wiśniewska 🎲'],
+    ['🐉', '田中太郎'],
+  ]) {
+    const png = await renderInviteCard({ campaignName, masterName, avatar: undefined });
+    assert.deepEqual([...png.slice(0, 8)], PNG_SIGNATURE);
+    assert.deepEqual(dimensions(png), { width: 1200, height: 630 });
+  }
+});
+
+test('the card cache is keyed by code and version', async () => {
+  let renders = 0;
+  const provider = createCardProvider({
+    fetchAvatar: async () => undefined,
+    renderCard: async () => new Uint8Array([++renders]),
+  });
+  const source = { campaignName: 'Ecos', masterName: 'Lia', masterAvatarUrl: null };
+  const first = await provider.get('AAAAAA', 'v1', source);
+  const second = await provider.get('BBBBBB', 'v1', source);
+  assert.notEqual(first[0], second[0]);
   assert.equal(renders, 2);
 });

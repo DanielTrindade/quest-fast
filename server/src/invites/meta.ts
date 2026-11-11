@@ -53,6 +53,7 @@ function injectTags(html: string, tags: string): string {
 }
 
 export function invitePageHandler(): Handler<Context> {
+  // Read once per process: a rebuild of the client needs a server restart.
   let template: string | undefined;
   return async (c) => {
     const { db, env } = c.var.deps;

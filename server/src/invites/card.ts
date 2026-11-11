@@ -23,20 +23,52 @@ let fonts: Promise<Fonts> | undefined;
 
 function loadFonts(): Promise<Fonts> {
   if (!fonts) {
+    const read = (file: string) => readFile(join(FONT_DIR, file));
     fonts = Promise.all([
-      readFile(join(FONT_DIR, 'space-grotesk-latin-700-normal.woff')),
-      readFile(join(FONT_DIR, 'geist-latin-400-normal.woff')),
-      readFile(join(FONT_DIR, 'geist-latin-600-normal.woff')),
-    ]).then(([display, regular, semibold]): Fonts => [
+      read('space-grotesk-latin-700-normal.woff'),
+      read('space-grotesk-latin-ext-700-normal.woff'),
+      read('geist-latin-400-normal.woff'),
+      read('geist-latin-ext-400-normal.woff'),
+      read('geist-latin-600-normal.woff'),
+      read('geist-latin-ext-600-normal.woff'),
+    ]).then(([display, displayExt, regular, regularExt, semibold, semiboldExt]): Fonts => [
       { name: 'Space Grotesk', data: display, weight: 700, style: 'normal' },
+      { name: 'Space Grotesk', data: displayExt, weight: 700, style: 'normal' },
       { name: 'Geist', data: regular, weight: 400, style: 'normal' },
+      { name: 'Geist', data: regularExt, weight: 400, style: 'normal' },
       { name: 'Geist', data: semibold, weight: 600, style: 'normal' },
+      { name: 'Geist', data: semiboldExt, weight: 600, style: 'normal' },
     ]);
     fonts.catch(() => {
       fonts = undefined;
     });
   }
   return fonts;
+}
+
+const DRAWABLE_RANGES: [number, number][] = [
+  [0x20, 0x7e],
+  [0xa0, 0x24f],
+  [0x1e00, 0x1eff],
+  [0x2010, 0x2027],
+  [0x2030, 0x203a],
+  [0x20ac, 0x20ac],
+  [0x2122, 0x2122],
+];
+
+function drawable(char: string): boolean {
+  const code = char.codePointAt(0)!;
+  return DRAWABLE_RANGES.some(([from, to]) => code >= from && code <= to);
+}
+
+export function sanitizeCardText(text: string, fallback: string): string {
+  const clean = [...text.replace(/\s+/gu, ' ')].filter(drawable).join('').replace(/\s+/gu, ' ').trim();
+  return clean || fallback;
+}
+
+export function cardInitials(masterName: string): string {
+  const result = initials(masterName);
+  return [...result].every(drawable) ? result : '?';
 }
 
 function el(type: string, props: Record<string, unknown>): Node {
@@ -102,7 +134,7 @@ function avatarNode(name: string, avatar: Uint8Array | undefined): Node {
       fontWeight: 700,
       fontSize: 72,
     },
-    children: initials(name),
+    children: cardInitials(name),
   });
 }
 
@@ -221,7 +253,12 @@ function cardTree(input: CardInput): Node {
   });
 }
 
-async function renderPng(input: CardInput): Promise<Uint8Array> {
+async function renderPng(raw: CardInput): Promise<Uint8Array> {
+  const input = {
+    ...raw,
+    campaignName: sanitizeCardText(raw.campaignName, 'Mesa sem nome'),
+    masterName: sanitizeCardText(raw.masterName, 'Mestre'),
+  };
   const svg = await satori(cardTree(input) as Parameters<typeof satori>[0], {
     width: WIDTH,
     height: HEIGHT,
@@ -292,25 +329,26 @@ export function createCardProvider(
   const rendering = new Map<string, Promise<Uint8Array>>();
 
   return {
-    async get(version: string, source: CardSource): Promise<Uint8Array> {
-      const cached = cache.get(version);
+    async get(code: string, version: string, source: CardSource): Promise<Uint8Array> {
+      const key = `${code}:${version}`;
+      const cached = cache.get(key);
       if (cached) return cached;
 
-      let pending = rendering.get(version);
+      let pending = rendering.get(key);
       if (!pending) {
         pending = (async () =>
           render({
             campaignName: source.campaignName,
             masterName: source.masterName,
             avatar: await download(source.masterAvatarUrl),
-          }))().finally(() => rendering.delete(version));
-        rendering.set(version, pending);
+          }))().finally(() => rendering.delete(key));
+        rendering.set(key, pending);
       }
 
       const png = await pending;
-      if (!cache.has(version)) {
+      if (!cache.has(key)) {
         if (cache.size >= CARD_CACHE_LIMIT) cache.delete(cache.keys().next().value!);
-        cache.set(version, png);
+        cache.set(key, png);
       }
       return png;
     },
