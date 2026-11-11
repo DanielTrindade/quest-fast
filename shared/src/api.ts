@@ -230,6 +230,9 @@ export type CharacterStateInput = {
   /** Nine spent counts, 1st to 9th circle. */
   spellSlotsSpent?: number[];
   coins?: Coins;
+  /** The whole list. The sheet sets no duration: one already counting in a fight is kept. */
+  conditions?: ActiveCondition[];
+  concentrating?: boolean;
 };
 
 export type CharacterSummary = {
@@ -292,6 +295,8 @@ export type RollPayload = {
   ability?: Ability;
   /** Only for `rollKind: 'skill'`: which skill was tested. */
   skill?: Skill;
+  /** Only for a Constitution save that keeps concentration: the DC it had to beat. */
+  concentrationDc?: number;
 };
 
 export type SessionEvent = RollSessionEvent | CombatSessionEvent | UnknownSessionEvent;

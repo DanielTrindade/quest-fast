@@ -13,6 +13,7 @@ import {
   fitStateToSheet,
   initiative,
   isAbility,
+  isActiveCondition,
   isArmorTraining,
   isHitDie,
   isRollMode,
@@ -25,6 +26,7 @@ import {
   skillBonus,
   spellAttackBonus,
   type Ability,
+  type ActiveCondition,
   type ArmorTraining,
   type Attack,
   type CharacterSheet,
@@ -43,7 +45,7 @@ import type { AssetStore } from '../assets/store.ts';
 import type { Context } from '../context.ts';
 import { requireAuth, requireCampaignRole } from '../middleware.ts';
 import { recordRollEvent } from '../events/feed.ts';
-import { deleteCharacter, publishCharacterEncounters } from '../combat/routes.ts';
+import { deleteCharacter, publishCharacterEncounters, settleCharacterReminders } from '../combat/routes.ts';
 import { boundedInteger, fail, isInputError, parseAttack, shortText, withInput } from '../validation.ts';
 
 function uniqueStrings<T>(values: T[]): T[] {
@@ -430,7 +432,7 @@ function toSummary(row: {
   };
 }
 
-function characterSelect(db: Db, campaignId: string, characterId: string) {
+function characterSelect(db: Pick<Db, 'select'>, campaignId: string, characterId: string) {
   return db
     .select({ character: characters, ownerName: users.name, avatarPath: assets.path })
     .from(characters)
@@ -478,6 +480,20 @@ function parseDeathSaves(value: unknown): DeathSaves | undefined {
   return { successes, failures };
 }
 
+/**
+ * The whole list of conditions, each once. Durations count rounds of a fight,
+ * so the sheet sets none and keeps the one a fight already gave.
+ */
+function parseConditions(value: unknown, stored: readonly ActiveCondition[]): ActiveCondition[] | undefined {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value) || !value.every(isActiveCondition)) fail('Condições inválidas.');
+  if (new Set(value.map(({ condition }) => condition)).size !== value.length) fail('Cada condição aparece uma vez só.');
+  return value.map(({ condition, level }) => {
+    const roundsLeft = stored.find((active) => active.condition === condition)?.roundsLeft;
+    return { condition, ...(level === undefined ? {} : { level }), ...(roundsLeft === undefined ? {} : { roundsLeft }) };
+  });
+}
+
 /** The session state, bounded by the sheet it belongs to. */
 function parseStateInput(body: unknown, sheet: CharacterSheet) {
   const source = typeof body === 'object' && body !== null ? (body as Record<string, unknown>) : {};
@@ -489,7 +505,13 @@ function parseStateInput(body: unknown, sheet: CharacterSheet) {
     heroicInspiration: optionalBoolean(source.heroicInspiration, 'Inspiração heroica'),
     coins: parseCoins(source.coins),
     spellSlots: undefined as CharacterSheet['spellSlots'] | undefined,
+    conditions: parseConditions(source.conditions, sheet.conditions),
+    concentrating: optionalBoolean(source.concentrating, 'Concentração'),
   };
+  // Back on their feet, a character starts the death saves over.
+  if (state.hpCurrent !== undefined && state.hpCurrent > 0 && sheet.hpCurrent === 0 && state.deathSaves === undefined) {
+    state.deathSaves = { successes: 0, failures: 0 };
+  }
   if (source.spellSlotsSpent !== undefined) {
     const spent = source.spellSlotsSpent;
     if (
@@ -503,7 +525,7 @@ function parseStateInput(body: unknown, sheet: CharacterSheet) {
   }
   const changes = Object.fromEntries(Object.entries(state).filter(([, value]) => value !== undefined));
   if (Object.keys(changes).length === 0) fail('Nada para atualizar.');
-  return changes as Partial<Pick<CharacterRow, 'hpCurrent' | 'hpTemp' | 'hitDiceSpent' | 'deathSaves' | 'heroicInspiration' | 'coins' | 'spellSlots'>>;
+  return changes as Partial<Pick<CharacterRow, 'hpCurrent' | 'hpTemp' | 'hitDiceSpent' | 'deathSaves' | 'heroicInspiration' | 'coins' | 'spellSlots' | 'conditions' | 'concentrating'>>;
 }
 
 /** Runs a handler whose parsing throws `InputError`, answering 422 with its message. */
@@ -617,19 +639,28 @@ export function characterRoutes() {
       return c.json({ error: 'Apenas o dono da ficha pode alterar o estado do personagem.' }, 403);
     }
 
-    const sheet = toSheet(row, c.var.deps.assets);
+    const characterId = row.character.id;
     const body = await c.req.json().catch(() => ({}));
-    const result = await withInput(() => {
-      const changes = parseStateInput(body, sheet);
-      db.update(characters)
-        .set({ ...changes, updatedAt: new Date() })
-        .where(and(eq(characters.id, sheet.id), eq(characters.campaignId, c.var.campaignId)))
-        .run();
-    });
+    // A fight may have changed the sheet while the body arrived: read, decide
+    // and write again with nothing in between.
+    const result = await withInput(() =>
+      db.transaction((tx) => {
+        const current = characterSelect(tx, c.var.campaignId, characterId);
+        if (!current) return false;
+        const changes = parseStateInput(body, toSheet(current, c.var.deps.assets));
+        tx.update(characters)
+          .set({ ...changes, updatedAt: new Date() })
+          .where(and(eq(characters.id, characterId), eq(characters.campaignId, c.var.campaignId)))
+          .run();
+        settleCharacterReminders(tx, characterId);
+        return true;
+      }),
+    );
     if (isInputError(result)) return c.json({ error: result.inputError }, 422);
-    publishCharacterEncounters(c.var.deps, c.var.campaignId, sheet.id);
+    if (!result) return c.json({ error: 'Personagem não encontrado.' }, 404);
+    publishCharacterEncounters(c.var.deps, c.var.campaignId, characterId);
 
-    const updated = characterSelect(db, c.var.campaignId, sheet.id)!;
+    const updated = characterSelect(db, c.var.campaignId, characterId)!;
     return c.json({ character: toSheet(updated, c.var.deps.assets) });
   });
 
