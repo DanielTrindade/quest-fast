@@ -26,7 +26,7 @@ async function appWithRemovedPlayer() {
 
   const { members } = await body<MembersResponse>(await master(`/api/campaigns/${campaign.id}/members`));
   const target = members.find((member) => member.name === 'Rafael Costa')!;
-  return { master, player, outsider, campaign, target, join };
+  return { a, master, player, outsider, campaign, target, join };
 }
 
 async function removeTarget() {
@@ -67,9 +67,18 @@ test('the master lists the banned players', async () => {
   assert.equal(typeof bans[0]?.bannedAt, 'string');
 });
 
-test('only the master can list bans; non-members get 404', async () => {
-  const { outsider, campaign } = await removeTarget();
+test('a non-member gets 404 listing or releasing bans', async () => {
+  const { outsider, campaign, target } = await removeTarget();
   assert.equal((await outsider(`/api/campaigns/${campaign.id}/bans`)).status, 404);
+  assert.equal(
+    (await outsider(`/api/campaigns/${campaign.id}/bans/${target.userId}`, { method: 'DELETE' })).status,
+    404,
+  );
+});
+
+test('listing bans requires authentication', async () => {
+  const { a, campaign } = await removeTarget();
+  assert.equal((await a.app.request(`/api/campaigns/${campaign.id}/bans`)).status, 401);
 });
 
 test('a player cannot list or release bans', async () => {
