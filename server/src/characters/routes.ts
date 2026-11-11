@@ -45,7 +45,7 @@ import type { AssetStore } from '../assets/store.ts';
 import type { Context } from '../context.ts';
 import { requireAuth, requireCampaignRole } from '../middleware.ts';
 import { recordRollEvent } from '../events/feed.ts';
-import { deleteCharacter, publishCharacterEncounters } from '../combat/routes.ts';
+import { deleteCharacter, publishCharacterEncounters, settleCharacterReminders } from '../combat/routes.ts';
 import { boundedInteger, fail, isInputError, parseAttack, shortText, withInput } from '../validation.ts';
 
 function uniqueStrings<T>(values: T[]): T[] {
@@ -432,7 +432,7 @@ function toSummary(row: {
   };
 }
 
-function characterSelect(db: Db, campaignId: string, characterId: string) {
+function characterSelect(db: Pick<Db, 'select'>, campaignId: string, characterId: string) {
   return db
     .select({ character: characters, ownerName: users.name, avatarPath: assets.path })
     .from(characters)
@@ -639,19 +639,28 @@ export function characterRoutes() {
       return c.json({ error: 'Apenas o dono da ficha pode alterar o estado do personagem.' }, 403);
     }
 
-    const sheet = toSheet(row, c.var.deps.assets);
+    const characterId = row.character.id;
     const body = await c.req.json().catch(() => ({}));
-    const result = await withInput(() => {
-      const changes = parseStateInput(body, sheet);
-      db.update(characters)
-        .set({ ...changes, updatedAt: new Date() })
-        .where(and(eq(characters.id, sheet.id), eq(characters.campaignId, c.var.campaignId)))
-        .run();
-    });
+    // A fight may have changed the sheet while the body arrived: read, decide
+    // and write again with nothing in between.
+    const result = await withInput(() =>
+      db.transaction((tx) => {
+        const current = characterSelect(tx, c.var.campaignId, characterId);
+        if (!current) return false;
+        const changes = parseStateInput(body, toSheet(current, c.var.deps.assets));
+        tx.update(characters)
+          .set({ ...changes, updatedAt: new Date() })
+          .where(and(eq(characters.id, characterId), eq(characters.campaignId, c.var.campaignId)))
+          .run();
+        settleCharacterReminders(tx, characterId);
+        return true;
+      }),
+    );
     if (isInputError(result)) return c.json({ error: result.inputError }, 422);
-    publishCharacterEncounters(c.var.deps, c.var.campaignId, sheet.id);
+    if (!result) return c.json({ error: 'Personagem não encontrado.' }, 404);
+    publishCharacterEncounters(c.var.deps, c.var.campaignId, characterId);
 
-    const updated = characterSelect(db, c.var.campaignId, sheet.id)!;
+    const updated = characterSelect(db, c.var.campaignId, characterId)!;
     return c.json({ character: toSheet(updated, c.var.deps.assets) });
   });
 

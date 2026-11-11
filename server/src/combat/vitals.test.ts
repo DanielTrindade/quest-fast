@@ -345,6 +345,83 @@ test('getting back up through the sheet clears the death saves, unless the reque
   assert.deepEqual(sheet.deathSaves, { successes: 2, failures: 0 });
 });
 
+test('a concentration let go through the sheet takes its pending save with it, for good', async () => {
+  const { s, at } = await fight();
+  const state = `${s.root}/characters/${s.kaelen.id}/state`;
+  await send(s.player, at('Kaelen', '/concentration'), 'PUT', { concentrating: true });
+  const [reminder] = byName(await encounterOf(await hp(s.master, at('Kaelen', '/hp'), 'damage', 4)), 'Kaelen').reminders;
+
+  await send(s.player, state, 'PATCH', { concentrating: false });
+  await send(s.player, state, 'PATCH', { concentrating: true });
+
+  const view = await encounterOf(await s.master(at('Kaelen').replace(/\/combatants\/.*/, '')));
+  assert.deepEqual(byName(view, 'Kaelen').reminders, []);
+  assert.equal((await send(s.player, at('Kaelen', '/concentration-save'), 'POST', { reminderId: reminder!.id })).status, 404);
+});
+
+test('getting back up through the sheet takes the pending death failure with it, for good', async () => {
+  const { s, at } = await downed();
+  const state = `${s.root}/characters/${s.kaelen.id}/state`;
+  const [reminder] = byName(await encounterOf(await hp(s.master, at('Kaelen', '/hp'), 'damage', 3)), 'Kaelen').reminders;
+
+  await send(s.player, state, 'PATCH', { hpCurrent: 4 });
+  await send(s.player, state, 'PATCH', { hpCurrent: 0 });
+
+  const failure = await send(s.player, at('Kaelen', '/death-save'), 'POST', { failures: 1, reminderId: reminder!.id });
+  assert.equal(failure.status, 404);
+});
+
+test('a sheet change waiting for its body never brings back a duration the fight changed meanwhile', async () => {
+  const { s, at } = await fight();
+  await send(s.player, at('Kaelen', '/conditions/poisoned'), 'PUT', { roundsLeft: 3 });
+
+  // The request starts, and its body arrives only after the master's change.
+  const stream = new TransformStream<Uint8Array, Uint8Array>();
+  const writer = stream.writable.getWriter();
+  const pending = s.player(`${s.root}/characters/${s.kaelen.id}/state`, {
+    method: 'PATCH',
+    body: stream.readable,
+    duplex: 'half',
+  } as RequestInit);
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  await encounterOf(await send(s.master, at('Kaelen', '/conditions/poisoned'), 'PUT', { roundsLeft: 1 }));
+  await writer.write(new TextEncoder().encode(JSON.stringify({ conditions: [{ condition: 'poisoned' }, { condition: 'prone' }] })));
+  await writer.close();
+
+  const response = await pending;
+  assert.equal(response.status, 200, await response.clone().text());
+  assert.deepEqual((await body<CharacterResponse>(response)).character.conditions, [{ condition: 'poisoned', roundsLeft: 1 }, { condition: 'prone' }]);
+});
+
+test("a change to a character's sheet through one fight reaches every open encounter it is in", async (t) => {
+  const server = await createTestServer(PROFILES);
+  const s = await setup({ app: server.app, db: server.db });
+  const masterSocket = connect(server.port, s.campaign.id, await signIn({ app: server.app }, 'lia'));
+  t.after(async () => {
+    masterSocket.close();
+    await server.close();
+  });
+  await new Promise((resolve) => masterSocket.once('open', resolve));
+  const { at, path } = await fight(s);
+  const prepared = await createEncounter(s, 'Ponte');
+  const other = `${s.base}/${prepared.id}`;
+  const before = await encounterOf(await send(s.master, `${other}/combatants`, 'POST', { source: 'character', characterId: s.kaelen.id }), 201);
+  const running = await encounterOf(await s.master(path));
+  const updates = collectCombat(masterSocket);
+
+  await hp(s.master, at('Kaelen', '/hp'), 'damage', 4);
+  await until(() => updates.some((view) => view.id === prepared.id && view.version > before.version));
+  // Earlier messages may still be on the wire: only what the hit caused counts.
+  const caused = (id: string, version: number) => updates.filter((view) => view.id === id && view.version > version);
+
+  const after = await encounterOf(await s.master(other));
+  assert.equal(byName(after, 'Kaelen').hpCurrent, 20);
+  assert.equal(after.version, before.version + 1);
+  assert.equal(caused(prepared.id, before.version).length, 1);
+  // The fight that made the change is published once, as before.
+  assert.equal(caused(running.id, running.version).length, 1);
+});
+
 // --- Nothing of a monster leaks ------------------------------------------------------------
 
 function monsterSecrets(view: EncounterView, name: string) {

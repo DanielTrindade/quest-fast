@@ -77,6 +77,8 @@ type Mutation = {
   viewer: Viewer;
   /** Feed events to publish once the transaction commits. */
   events: SessionEvent[];
+  /** Sheets this change wrote: every other open encounter of theirs is published too. */
+  characters: Set<string>;
   userName: string;
 };
 
@@ -422,6 +424,7 @@ function changeTurn(mutation: Mutation, body: Record<string, unknown>) {
     const { remaining } = tickConditions(active.conditions);
     if (active.row.characterId) {
       mutation.tx.update(characters).set({ conditions: remaining }).where(eq(characters.id, active.row.characterId)).run();
+      mutation.characters.add(active.row.characterId);
     } else {
       mutation.tx.update(combatants).set({ conditions: remaining }).where(eq(combatants.id, active.row.id)).run();
     }
@@ -464,6 +467,7 @@ function endEncounter(mutation: Mutation) {
     if (!combatant.row.characterId || !combatant.conditions.some((active) => active.roundsLeft !== undefined)) continue;
     const conditions = combatant.conditions.map(({ roundsLeft: _roundsLeft, ...active }) => active);
     tx.update(characters).set({ conditions }).where(eq(characters.id, combatant.row.characterId)).run();
+    mutation.characters.add(combatant.row.characterId);
   }
   mutation.events.push(
     recordCombatEvent(tx, {
@@ -531,6 +535,9 @@ function writeVitals(mutation: Mutation, combatant: LoadedCombatant, vitals: Vit
   if (row.characterId) {
     if (Object.keys(vitals).length > 0) {
       tx.update(characters).set({ ...vitals, updatedAt: new Date() }).where(eq(characters.id, row.characterId)).run();
+      mutation.characters.add(row.characterId);
+      // The same character in another encounter: its reminders follow the sheet too.
+      settleCharacterReminders(tx, row.characterId, row.id);
     }
   } else {
     const { deathSaves: _deathSaves, ...own } = vitals;
@@ -712,13 +719,14 @@ async function mutate(
   const body = source(await c.req.json().catch(() => ({})));
   const encounterId = c.req.param('encounterId') ?? '';
   const events: SessionEvent[] = [];
+  const touched = new Set<string>();
 
   try {
     const loaded = db.transaction((tx) => {
       const encounter = findEncounter(tx, c.var.campaignId, encounterId);
       // A player cannot tell an encounter in preparation from a missing one.
       if (!encounter || (viewer.role !== 'master' && encounter.status === 'preparing')) refuse(404, NOT_FOUND);
-      run({ tx, loaded: loadEncounter(tx, encounter), viewer, events, userName: c.var.user.name }, body);
+      run({ tx, loaded: loadEncounter(tx, encounter), viewer, events, characters: touched, userName: c.var.user.name }, body);
       tx.update(encounters)
         .set({ version: sql`${encounters.version} + 1` })
         .where(eq(encounters.id, encounter.id))
@@ -728,6 +736,10 @@ async function mutate(
 
     for (const event of events) hub.publish(c.var.campaignId, event);
     hub.publishCombat(c.var.campaignId, (connection) => projectEncounter(loaded, connection));
+    // A sheet is shared: the other encounters it is in changed too.
+    for (const characterId of touched) {
+      publishCharacterEncounters(c.var.deps, c.var.campaignId, characterId, loaded.encounter.id);
+    }
     return c.json({ encounter: projectEncounter(loaded, viewer) }, successStatus);
   } catch (error) {
     if (!(error instanceof Refusal)) throw error;
@@ -738,6 +750,30 @@ async function mutate(
 }
 
 type Deps = Pick<Context['Variables']['deps'], 'db' | 'hub'>;
+
+/**
+ * Drops for good the reminders a sheet change made meaningless, on every
+ * combatant of the character but `except`. Filtering on read is not enough:
+ * concentrating again, or falling again, would bring an old one back.
+ */
+export function settleCharacterReminders(tx: Executor, characterId: string, except?: string) {
+  const sheet = tx
+    .select({ hpCurrent: characters.hpCurrent, concentrating: characters.concentrating })
+    .from(characters)
+    .where(eq(characters.id, characterId))
+    .get();
+  if (!sheet) return;
+  const rows = tx
+    .select({ id: combatants.id, reminders: combatants.reminders })
+    .from(combatants)
+    .where(eq(combatants.characterId, characterId))
+    .all();
+  for (const row of rows) {
+    if (row.id === except) continue;
+    const kept = pendingReminders(row.reminders, sheet);
+    if (kept.length !== row.reminders.length) tx.update(combatants).set({ reminders: kept }).where(eq(combatants.id, row.id)).run();
+  }
+}
 
 /** The encounters not yet ended that a character takes part in. */
 function openEncountersOf(tx: Executor, campaignId: string, characterId: string): string[] {
@@ -756,10 +792,14 @@ function openEncountersOf(tx: Executor, campaignId: string, characterId: string)
     .map(({ id }) => id);
 }
 
-/** For a change made outside the combat routes — a sheet's hit points, say. */
-export function publishCharacterEncounters(deps: Deps, campaignId: string, characterId: string) {
+/**
+ * For a change to a sheet: the open encounters the character is in, but
+ * `except`, which the change already published.
+ */
+export function publishCharacterEncounters(deps: Deps, campaignId: string, characterId: string, except?: string) {
   const { db, hub } = deps;
   for (const id of openEncountersOf(db, campaignId, characterId)) {
+    if (id === except) continue;
     const loaded = db.transaction((tx) => {
       tx.update(encounters).set({ version: sql`${encounters.version} + 1` }).where(eq(encounters.id, id)).run();
       return loadEncounter(tx, findEncounter(tx, campaignId, id)!);
