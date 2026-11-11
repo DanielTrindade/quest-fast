@@ -10,7 +10,7 @@ import { BannedList } from '../components/BannedList';
 import { Dialog } from '../components/Dialog';
 import { InviteDialog } from '../components/InviteDialog';
 import { Button as PrimaryButton } from '../components/ui/button';
-import { Dialog as InviteModal, DialogContent, DialogTrigger } from '../components/ui/dialog';
+import { Dialog as InviteModal, DialogContent } from '../components/ui/dialog';
 import { EmptyState } from '../components/EmptyState';
 import { Skeleton } from '../components/Skeleton';
 import { Surface } from '../components/Surface';
@@ -79,16 +79,18 @@ function RemoveMember({
   );
 }
 
-function InviteAction({
+function InviteDialogHost({
   campaignId,
   campaignName,
   inviteCode,
-  variant,
+  open,
+  onOpenChange,
 }: {
   campaignId: string;
   campaignName: string;
   inviteCode: string;
-  variant?: 'secondary';
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }) {
   const queryClient = useQueryClient();
   const rotate = useMutation({
@@ -97,13 +99,7 @@ function InviteAction({
   });
 
   return (
-    <InviteModal>
-      <DialogTrigger asChild>
-        <PrimaryButton variant={variant}>
-          <Plus size={18} aria-hidden="true" />
-          Convidar jogadores
-        </PrimaryButton>
-      </DialogTrigger>
+    <InviteModal open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <InviteDialog
           link={window.location.origin + invitePath(inviteCode)}
@@ -115,6 +111,15 @@ function InviteAction({
         />
       </DialogContent>
     </InviteModal>
+  );
+}
+
+function InviteButton({ onClick, variant }: { onClick: () => void; variant?: 'secondary' }) {
+  return (
+    <PrimaryButton variant={variant} onClick={onClick}>
+      <Plus size={18} aria-hidden="true" />
+      Convidar jogadores
+    </PrimaryButton>
   );
 }
 
@@ -193,6 +198,7 @@ function MembersPanel({
   open,
   onToggle,
   onRemoved,
+  onInvite,
 }: {
   campaignId: string;
   isMaster: boolean;
@@ -201,6 +207,7 @@ function MembersPanel({
   open: boolean;
   onToggle: (open: boolean) => void;
   onRemoved: () => void;
+  onInvite: () => void;
 }) {
   return (
     <div data-slot="campaign-admin" className="min-w-0 [grid-area:admin]">
@@ -273,16 +280,7 @@ function MembersPanel({
                 title="Falta reunir a mesa"
                 icon={Users}
                 description="Compartilhe o link de convite para os jogadores entrarem."
-                action={
-                  campaign?.inviteCode ? (
-                    <InviteAction
-                      campaignId={campaignId}
-                      campaignName={campaign.name}
-                      inviteCode={campaign.inviteCode}
-                      variant="secondary"
-                    />
-                  ) : null
-                }
+                action={campaign?.inviteCode ? <InviteButton variant="secondary" onClick={onInvite} /> : null}
               />
             )}
           </Surface>
@@ -306,6 +304,7 @@ export function Campaign({ campaignId }: { campaignId: string }) {
   // `null` means "not decided by hand yet": an empty table opens the panel,
   // because the invite is the whole point until someone joins.
   const [adminOpen, setAdminOpen] = useState<boolean | null>(null);
+  const [inviteOpen, setInviteOpen] = useState(false);
   // The auth guard already cached `/api/auth/me`; this reads it without a
   // round trip and without importing the route object (which would be a
   // circular dependency with the router).
@@ -358,13 +357,7 @@ export function Campaign({ campaignId }: { campaignId: string }) {
           {campaign.data?.description && <p className="mt-2 text-text-secondary">{campaign.data.description}</p>}
         </div>
         {!campaign.isPending && !isMaster && <LeaveCampaign campaignId={campaignId} />}
-        {isMaster && campaign.data?.inviteCode && (
-          <InviteAction
-            campaignId={campaignId}
-            campaignName={campaign.data.name}
-            inviteCode={campaign.data.inviteCode}
-          />
-        )}
+        {isMaster && campaign.data?.inviteCode && <InviteButton onClick={() => setInviteOpen(true)} />}
       </header>
 
       {/* Order matters more than columns here: on a phone the table (dice and
@@ -396,8 +389,19 @@ export function Campaign({ campaignId }: { campaignId: string }) {
           open={adminOpen ?? tableIsEmpty}
           onToggle={setAdminOpen}
           onRemoved={onRemoved}
+          onInvite={() => setInviteOpen(true)}
         />
       </div>
+
+      {isMaster && campaign.data?.inviteCode && (
+        <InviteDialogHost
+          campaignId={campaignId}
+          campaignName={campaign.data.name}
+          inviteCode={campaign.data.inviteCode}
+          open={inviteOpen}
+          onOpenChange={setInviteOpen}
+        />
+      )}
 
     </main>
   );
