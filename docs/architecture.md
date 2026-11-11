@@ -81,7 +81,8 @@ parameter properties. Os imports levam a extensão `.ts`.
 - `invite.ts`, `role.ts`: código de convite e papéis (`master`, `player`).
 - `invite-link.ts`: caminho e textos do convite (`invitePath`,
   `invitePreviewText`), link do WhatsApp, destino de retorno do login
-  (`safeReturnPath`, `loginFailurePath`) e as iniciais usadas no cartão e na
+  (`safeReturnPath`, `loginFailurePath`).
+- `initials.ts`: as iniciais usadas no avatar, no cartão do convite e na
   interface.
 
 Tudo aqui é função pura, com teste unitário ao lado (`*.test.ts`, rodando no
@@ -115,7 +116,7 @@ src/
   index.ts        sobe o HTTP server e acopla o WebSocket
   app.ts          monta as rotas (createApp recebe as dependências)
   context.ts      Deps (db, env, discord, hub, assets) e variáveis do Hono
-  middleware.ts   requireAuth e requireCampaignRole
+  middleware.ts   requireAuth, optionalAuth e requireCampaignRole
   env.ts          leitura e validação das variáveis de ambiente
   auth/           OAuth do Discord e sessão em cookie
   campaigns/      campanhas, convite, membros e bloqueados
@@ -212,7 +213,8 @@ digitado de uma vez.
   ida e na volta (`safeReturnPath`); em caso de falha, volta à página do
   convite.
 - Remover um membro o grava em `campaign_bans`: entrar de novo devolve 403 até
-  o mestre liberar (`GET` e `DELETE /api/campaigns/:id/bans`).
+  o mestre liberar (`GET /api/campaigns/:id/bans` e
+  `DELETE /api/campaigns/:id/bans/:userId`).
 
 ### Autorização
 

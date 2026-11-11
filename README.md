@@ -137,13 +137,18 @@ O WhatsApp e o Discord só leem a prévia de um link público, então `localhost
 não serve. Para testar de ponta a ponta com um túnel do Cloudflare:
 
 1. `npm run build`
-2. Em outro terminal: `cloudflared tunnel --url http://localhost:3000`, e copie
-   a URL `https://...trycloudflare.com` que ele imprime.
+2. Instale o [`cloudflared`](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/)
+   e, em outro terminal, rode `cloudflared tunnel --url http://localhost:3000`.
+   Copie a URL `https://...trycloudflare.com` que ele imprime.
 3. No `.env`, aponte `APP_URL` para essa URL e `DISCORD_REDIRECT_URI` para
    `<url do túnel>/api/auth/discord/callback`. Cadastre essa Redirect URI
    também na aplicação do Discord.
 4. `npm start`
-5. Mande o link `<url do túnel>/invite/<código>` de uma mesa no WhatsApp e
+5. Abra o app pela URL do túnel (não por `localhost`) e entre com o Discord de
+   novo: a sessão é por domínio. O link que o botão Copiar entrega usa a origem
+   da página aberta, então só sai com o endereço do túnel se o mestre abriu o
+   app por ele.
+6. Mande o link `<url do túnel>/invite/<código>` de uma mesa no WhatsApp e
    confira título, descrição e imagem.
 
 A URL do túnel muda a cada execução: depois do teste, volte o `.env` e remova
