@@ -5,6 +5,8 @@ import {
   ENCOUNTER_LIMITS,
   STATBLOCK_LIMITS as S,
   type CampaignMember,
+  type InvitePreview,
+  type InviteViewer,
   type CampaignSummary,
   type CharacterSheet,
   type CharacterSummary,
@@ -414,23 +416,48 @@ function forPlayer(view: EncounterView): EncounterView {
   };
 }
 
+export type InviteScenario = InviteViewer | 'broken';
+
 type Reply = { status: number; body?: unknown };
+
+const INVITE_CODE = 'MESA42';
+
+function inviteReply(data: Dataset, scenario: InviteScenario, code: string): Reply {
+  if (code !== INVITE_CODE) return { status: 404, body: { error: 'Convite inválido.' } };
+  if (scenario === 'broken') return { status: 500, body: { error: 'Erro interno.' } };
+  const campaign = data.campaigns.find((item) => item.id === CAMPAIGN_ID);
+  const master = data.members.find((item) => item.role === 'master');
+  const preview: InvitePreview = {
+    code: INVITE_CODE,
+    campaignName: campaign?.name ?? 'Mesa',
+    master: { name: master?.name ?? 'Mestre', avatarUrl: null },
+    playerCount: data.members.filter((item) => item.role === 'player').length,
+    viewer: scenario,
+    ...(scenario === 'member' ? { campaignId: CAMPAIGN_ID } : {}),
+  };
+  return { status: 200, body: preview };
+}
 
 /**
  * Answers `/api/*` as the server would for this dataset and viewer, so the
  * real screens render the worst case through their own queries.
  */
-export function respond(state: DataState, role: Role, method: string, path: string): Reply {
+export function respond(state: DataState, role: Role, method: string, path: string, invite?: InviteScenario): Reply {
   const data = DATASETS[state];
   const master = role === 'master';
   const me = master ? data.me : { id: data.members.find((item) => item.role === 'player')?.userId ?? 'player', name: data.members.find((item) => item.role === 'player')?.name ?? 'Jogador', avatarUrl: null };
   const notFound = { status: 404, body: { error: 'Não encontrado.' } };
+  if (method === 'POST' && path === '/api/campaigns/join') {
+    const campaign = data.campaigns.find((item) => item.id === CAMPAIGN_ID);
+    return { status: 201, body: { id: CAMPAIGN_ID, name: campaign?.name ?? 'Mesa', role: 'player' } };
+  }
   if (method !== 'GET') return { status: 422, body: { error: 'Ação desativada no laboratório de dados.' } };
 
   const base = `/api/campaigns/${CAMPAIGN_ID}`;
   const encounters = data.encounters.filter((item) => master || item.status !== 'preparing').map((item) => master ? item : forPlayer(item));
   const [pathname] = path.split('?');
 
+  if (invite && pathname.startsWith('/api/invites/')) return inviteReply(data, invite, pathname.slice('/api/invites/'.length));
   if (pathname === '/api/auth/me') return { status: 200, body: { user: me } };
   if (pathname === '/api/campaigns') return { status: 200, body: { campaigns: data.campaigns.map((item) => item.id === CAMPAIGN_ID ? { ...item, role } : item) } };
   if (pathname === base) {
@@ -438,6 +465,7 @@ export function respond(state: DataState, role: Role, method: string, path: stri
     if (!campaign) return notFound;
     return { status: 200, body: { id: campaign.id, name: campaign.name, description: campaign.description, role, ...(master ? { inviteCode: data.inviteCode } : {}) } };
   }
+  if (pathname === `${base}/bans`) return master ? { status: 200, body: { bans: [] } } : notFound;
   if (pathname === `${base}/members`) return { status: 200, body: { members: data.members } };
   if (pathname === `${base}/characters`) return { status: 200, body: { characters: data.characters.map(summary) } };
   if (pathname.startsWith(`${base}/characters/`)) {
