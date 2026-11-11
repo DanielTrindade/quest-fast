@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { and, desc, eq, sql } from 'drizzle-orm';
 import { sessionEvents, users, type Db } from '@quest-fast/db';
-import type { CombatEndedPayload, CombatSessionEvent, CombatStartedPayload, RollPayload, RollSessionEvent, SessionEvent } from '@quest-fast/shared';
+import type { CombatPayload, CombatSessionEvent, RollPayload, RollSessionEvent, SessionEvent } from '@quest-fast/shared';
 import { redactEvent } from './redact.ts';
 
 /**
@@ -43,14 +43,18 @@ export function recordRollEvent(
   };
 }
 
-/** The start and the end of a combat; the payload is stored whole and redacted on read. */
+/**
+ * What happens in a fight. The payload is stored whole and redacted on read;
+ * a secret event never reaches a player at all.
+ */
 export function recordCombatEvent(
   db: Pick<Db, 'insert'>,
   input: {
     campaignId: string;
     userId: string;
     userName: string;
-    payload: CombatStartedPayload | CombatEndedPayload;
+    payload: CombatPayload;
+    secret?: boolean;
   },
 ): CombatSessionEvent {
   const row = db
@@ -60,12 +64,13 @@ export function recordCombatEvent(
       campaignId: input.campaignId,
       userId: input.userId,
       type: input.payload.kind,
-      secret: false,
+      secret: input.secret ?? false,
       payload: input.payload,
     })
     .returning()
     .get();
 
+  // The type is the payload's kind, so the pair is consistent by construction.
   return {
     id: row.id,
     campaignId: row.campaignId,
@@ -73,10 +78,9 @@ export function recordCombatEvent(
     userName: input.userName,
     secret: row.secret,
     createdAt: row.createdAt.toISOString(),
-    ...(input.payload.kind === 'combat.started'
-      ? { type: 'combat.started', payload: input.payload }
-      : { type: 'combat.ended', payload: input.payload }),
-  };
+    type: input.payload.kind,
+    payload: input.payload,
+  } as CombatSessionEvent;
 }
 
 export type FeedPage = { events: SessionEvent[]; nextCursor: string | null };

@@ -550,9 +550,72 @@ export type CombatEndedPayload = {
   defeated: { name: string; hidden: boolean }[];
 };
 
-/** The start and the end of a combat; turn changes stay out of the feed. */
+/** Who an event is about. A hidden combatant's events are secret, even once revealed. */
+type CombatantRef = {
+  encounterId: string;
+  combatantId: string;
+  name: string;
+  source: CombatantSource;
+};
+
+/**
+ * A change of hit points. Stored whole; a player reading about a monster gets
+ * neither the amount nor the hit points, only the band.
+ */
+export type CombatHitPointsPayload = CombatantRef & {
+  /** `combat.defeated` replaces the damage of the hit that takes a monster down. */
+  kind: 'combat.damage' | 'combat.heal' | 'combat.defeated';
+  amount?: number;
+  hpCurrent?: number;
+  hpMax?: number;
+  band: HealthBand;
+  /**
+   * Only the hit that took a character from standing to 0. The final hit
+   * points cannot tell it: damage to one already down leaves 0 too.
+   */
+  fell?: true;
+};
+
+export type CombatConditionPayload = CombatantRef & {
+  kind: 'combat.condition';
+  /** `expired`: its duration ran out at the end of the combatant's turn. */
+  action: 'applied' | 'removed' | 'expired';
+  condition: ActiveCondition;
+};
+
+/** Only a character makes death saves; the numbers are the table's. */
+export type CombatDeathSavePayload = CombatantRef & {
+  kind: 'combat.deathSave';
+  /** The face rolled; absent when failures from damage taken at 0 were recorded. */
+  d20?: number;
+  failures?: 1 | 2;
+  saves: DeathSaves;
+  outcome: 'pending' | 'stable' | 'dead' | 'revived';
+};
+
+export type CombatPayload =
+  | CombatStartedPayload
+  | CombatEndedPayload
+  | CombatHitPointsPayload
+  | CombatConditionPayload
+  | CombatDeathSavePayload;
+
+/** What happens in a fight; turn changes stay out of the feed. */
 export type CombatSessionEvent = Omit<RollSessionEvent, 'type' | 'payload'> &
   (
     | { type: 'combat.started'; payload: CombatStartedPayload }
     | { type: 'combat.ended'; payload: CombatEndedPayload }
+    | { type: 'combat.damage' | 'combat.heal' | 'combat.defeated'; payload: CombatHitPointsPayload }
+    | { type: 'combat.condition'; payload: CombatConditionPayload }
+    | { type: 'combat.deathSave'; payload: CombatDeathSavePayload }
   );
+
+export const COMBAT_EVENT_TYPES = [
+  'combat.started',
+  'combat.ended',
+  'combat.damage',
+  'combat.heal',
+  'combat.defeated',
+  'combat.condition',
+  'combat.deathSave',
+] as const satisfies readonly CombatSessionEvent['type'][];

@@ -168,7 +168,11 @@ export type {
   CombatantPatch,
   CombatantSource,
   CombatantView,
+  CombatConditionPayload,
+  CombatDeathSavePayload,
   CombatEndedPayload,
+  CombatHitPointsPayload,
+  CombatPayload,
   CombatSessionEvent,
   CombatStartedPayload,
   EncounterConflictResponse,
@@ -213,3 +217,4 @@ export type {
   CampaignBan,
   BansResponse,
 } from './api.ts';
+export { COMBAT_EVENT_TYPES } from './api.ts';

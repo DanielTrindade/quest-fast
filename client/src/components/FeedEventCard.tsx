@@ -1,6 +1,7 @@
-import { EyeSlash, FlagCheckered, Info, Sword } from '@phosphor-icons/react';
-import type { CombatSessionEvent, RollPayload, RollSessionEvent, SessionEvent, UnknownSessionEvent } from '@quest-fast/shared';
+import { EyeSlash, FirstAidKit, FlagCheckered, Heartbeat, HeartBreak, Hourglass, Info, Lightning, Skull, Sword } from '@phosphor-icons/react';
+import { COMBAT_EVENT_TYPES, type CombatSessionEvent, type RollPayload, type RollSessionEvent, type SessionEvent, type UnknownSessionEvent } from '@quest-fast/shared';
 import { ABILITY_LABELS, SKILL_LABELS } from '../lib/5e';
+import { combatEventText, type FightPayload } from '../lib/combat-feed';
 import { formatEventTime } from '../lib/format';
 import { DiceResult } from './DiceResult';
 
@@ -21,6 +22,9 @@ function rollAction(payload: RollPayload): string {
   if (payload.rollKind === 'initiative') return 'rolou iniciativa';
   if (payload.rollKind === 'spellAttack') return 'fez um ataque mágico';
   if (payload.rollKind === 'check') return `teste de ${payload.ability ? ABILITY_LABELS[payload.ability] : ''}`;
+  if (payload.rollKind === 'save' && payload.concentrationDc !== undefined) {
+    return `salvaguarda para manter a concentração (CD ${payload.concentrationDc})`;
+  }
   if (payload.rollKind === 'save') return `teste de resistência de ${payload.ability ? ABILITY_LABELS[payload.ability] : ''}`;
   return `rolou ${payload.expression}`;
 }
@@ -58,8 +62,34 @@ function RollEventCard({ event }: { event: RollSessionEvent }) {
   );
 }
 
-/** The start and the summary of a combat; turn changes never reach the feed. */
+function FightIcon({ payload }: { payload: FightPayload }) {
+  if (payload.kind === 'combat.condition') {
+    return payload.action === 'expired' ? <Hourglass size={16} aria-hidden="true" /> : <Lightning size={16} aria-hidden="true" />;
+  }
+  if (payload.kind === 'combat.deathSave') return <Heartbeat size={16} aria-hidden="true" />;
+  if (payload.kind === 'combat.heal') return <FirstAidKit size={16} aria-hidden="true" />;
+  if (payload.kind === 'combat.defeated') return <Skull size={16} aria-hidden="true" />;
+  return <HeartBreak size={16} aria-hidden="true" />;
+}
+
+/** What happened to one combatant: hit points, a condition, a death save. */
+function FightEventCard({ event, payload }: { event: CombatSessionEvent; payload: FightPayload }) {
+  return (
+    <>
+      <FeedMeta event={event} />
+      <p className={combat}>
+        <FightIcon payload={payload} />
+        <span>{combatEventText(payload)}</span>
+      </p>
+    </>
+  );
+}
+
+/** What happens in a combat; turn changes never reach the feed. */
 function CombatEventCard({ event }: { event: CombatSessionEvent }) {
+  if (event.type !== 'combat.started' && event.type !== 'combat.ended') {
+    return <FightEventCard event={event} payload={event.payload} />;
+  }
   if (event.type === 'combat.started') {
     return (
       <>
@@ -111,7 +141,7 @@ function isRollSessionEvent(event: SessionEvent): event is RollSessionEvent {
 }
 
 function isCombatSessionEvent(event: SessionEvent): event is CombatSessionEvent {
-  return event.type === 'combat.started' || event.type === 'combat.ended';
+  return (COMBAT_EVENT_TYPES as readonly string[]).includes(event.type);
 }
 
 /** Renders a feed event by its type, keeping the secret framing in one place. */

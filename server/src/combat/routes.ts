@@ -30,6 +30,8 @@ import {
   setCondition,
   tickConditions,
   type ActiveCondition,
+  healthBand,
+  type CombatPayload,
   type CombatReminder,
   type CopyEntry,
   type DeathSaves,
@@ -418,10 +420,10 @@ function changeTurn(mutation: Mutation, body: Record<string, unknown>) {
   if (viewer.role !== 'master' && active?.ownerId !== viewer.userId) {
     refuse(403, 'Só o mestre passa a vez de outro combatente.');
   }
-  // Durations run out at the end of the affected combatant's own turn. The
-  // feed entry for an expired condition arrives with conditions themselves.
+  // Durations run out at the end of the affected combatant's own turn.
   if (active) {
-    const { remaining } = tickConditions(active.conditions);
+    const { remaining, expired } = tickConditions(active.conditions);
+    for (const condition of expired) tell(mutation, active, { kind: 'combat.condition', ...about(mutation, active), action: 'expired', condition });
     if (active.row.characterId) {
       mutation.tx.update(characters).set({ conditions: remaining }).where(eq(characters.id, active.row.characterId)).run();
       mutation.characters.add(active.row.characterId);
@@ -563,7 +565,7 @@ function changeHitPoints(mutation: Mutation, combatant: LoadedCombatant, body: R
   if (amount === undefined) refuse(422, `A quantidade deve ser um número entre ${C.hpAmount.min} e ${C.hpAmount.max}.`);
 
   const before = { hpCurrent: combatant.hpCurrent, hpTemp: combatant.hpTemp };
-  const { hitPoints, rose } = applyHpChange(before, operation, amount, combatant.hpMax);
+  const { hitPoints, fell, rose } = applyHpChange(before, operation, amount, combatant.hpMax);
   // Damage always counts, even at 0: it is a death save failure to record.
   if (operation !== 'damage' && hitPoints.hpCurrent === before.hpCurrent && hitPoints.hpTemp === before.hpTemp) {
     refuse(409, operation === 'heal' ? `${combatant.name} já está com os PV cheios.` : `${combatant.name} já tem PV temporários iguais ou maiores.`);
@@ -578,6 +580,39 @@ function changeHitPoints(mutation: Mutation, combatant: LoadedCombatant, body: R
       : [];
   const created = drafts.map((draft) => ({ id: randomUUID(), ...draft }) as CombatReminder);
   writeVitals(mutation, combatant, vitals, [...combatant.row.reminders, ...created]);
+
+  // Temporary hit points stay out of the feed. The hit that takes a monster
+  // down is told once, as its defeat.
+  if (operation === 'temp') return;
+  const kind = operation === 'heal' ? 'combat.heal' : fell && combatant.row.source !== 'character' ? 'combat.defeated' : 'combat.damage';
+  tell(mutation, combatant, {
+    kind,
+    ...about(mutation, combatant),
+    // What was healed, not what was asked: healing stops at the maximum.
+    amount: operation === 'heal' ? hitPoints.hpCurrent - before.hpCurrent : amount,
+    hpCurrent: hitPoints.hpCurrent,
+    hpMax: combatant.hpMax,
+    band: healthBand(hitPoints.hpCurrent, combatant.hpMax),
+    ...(fell && combatant.row.source === 'character' ? { fell: true as const } : {}),
+  });
+}
+
+/** Who an event is about, as the feed stores it. */
+function about(mutation: Mutation, combatant: LoadedCombatant) {
+  return { encounterId: mutation.loaded.encounter.id, combatantId: combatant.row.id, name: combatant.name, source: combatant.row.source };
+}
+
+/** Writes a fight event; a hidden combatant's stays the master's, even once revealed. */
+function tell(mutation: Mutation, combatant: LoadedCombatant, payload: CombatPayload) {
+  mutation.events.push(
+    recordCombatEvent(mutation.tx, {
+      campaignId: mutation.loaded.encounter.campaignId,
+      userId: mutation.viewer.userId,
+      userName: mutation.userName,
+      secret: combatant.row.hidden,
+      payload,
+    }),
+  );
 }
 
 function parseCondition(param: string | undefined, body: Record<string, unknown>): ActiveCondition {
@@ -602,12 +637,15 @@ function applyCondition(mutation: Mutation, combatant: LoadedCombatant, active: 
   const conditions = setCondition(combatant.conditions, active);
   if (JSON.stringify(conditions) === JSON.stringify(combatant.conditions)) refuse(409, 'Essa condição já está assim.');
   writeVitals(mutation, combatant, { conditions });
+  tell(mutation, combatant, { kind: 'combat.condition', ...about(mutation, combatant), action: 'applied', condition: active });
 }
 
 function dropCondition(mutation: Mutation, combatant: LoadedCombatant, param: string | undefined) {
   if (!isCondition(param)) refuse(422, 'Condição desconhecida.');
-  if (!combatant.conditions.some(({ condition }) => condition === param)) refuse(409, `${combatant.name} não está com essa condição.`);
+  const removed = combatant.conditions.find(({ condition }) => condition === param);
+  if (!removed) refuse(409, `${combatant.name} não está com essa condição.`);
   writeVitals(mutation, combatant, { conditions: removeCondition(combatant.conditions, param) });
+  tell(mutation, combatant, { kind: 'combat.condition', ...about(mutation, combatant), action: 'removed', condition: removed });
 }
 
 function setConcentration(mutation: Mutation, combatant: LoadedCombatant, body: Record<string, unknown>) {
@@ -647,7 +685,9 @@ function deathSave(mutation: Mutation, combatant: LoadedCombatant, body: Record<
     if (body.failures !== 1 && body.failures !== 2) refuse(422, 'Registre uma ou duas falhas.');
     const reminders =
       body.reminderId === undefined ? row.reminders : withoutReminder(combatant, findReminder(combatant, body.reminderId, 'deathFailure'));
-    writeVitals(mutation, combatant, { deathSaves: deathSaveFailure(sheet.deathSaves, body.failures) }, reminders);
+    const saves = deathSaveFailure(sheet.deathSaves, body.failures);
+    writeVitals(mutation, combatant, { deathSaves: saves }, reminders);
+    tell(mutation, combatant, { kind: 'combat.deathSave', ...about(mutation, combatant), failures: body.failures, saves, outcome: deathSaveStatus(saves) });
     return;
   }
 
@@ -663,6 +703,7 @@ function deathSave(mutation: Mutation, combatant: LoadedCombatant, body: Record<
   if (outcome.hpCurrent !== undefined) vitals.hpCurrent = outcome.hpCurrent;
   writeVitals(mutation, combatant, vitals);
   mutation.tx.update(combatants).set({ deathSaveRound: encounter.round }).where(eq(combatants.id, row.id)).run();
+  tell(mutation, combatant, { kind: 'combat.deathSave', ...about(mutation, combatant), d20, saves: outcome.saves, outcome: outcome.status });
 }
 
 /**
