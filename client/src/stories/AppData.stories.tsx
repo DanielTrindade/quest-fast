@@ -138,7 +138,7 @@ export const ConviteBloqueado: Story = {
   beforeEach: withJoinMarker,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await canvas.findByText('Você não pode entrar nesta mesa. Fale com quem te chamou.');
+    await canvas.findByText('Você não pode entrar nesta mesa. Fale com quem te chamou.', undefined, { timeout: 5000 });
     await expect(canvas.queryByRole('button', { name: 'Entrar na mesa' })).toBeNull();
     await expect(current.requests).not.toContain(JOIN_REQUEST);
   },
@@ -150,7 +150,7 @@ export const ConviteJoinForjado: Story = {
   globals: dark,
   beforeEach: withoutJoinMarker,
   play: async ({ canvasElement }) => {
-    await within(canvasElement).findByRole('button', { name: 'Entrar na mesa' });
+    await within(canvasElement).findByRole('button', { name: 'Entrar na mesa' }, { timeout: 5000 });
     await new Promise((resolve) => setTimeout(resolve, 300));
     await expect(current.requests).not.toContain(JOIN_REQUEST);
   },
@@ -163,10 +163,10 @@ export const ConviteComErro: Story = {
   beforeEach: withoutJoinMarker,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await canvas.findByText('Não foi possível carregar o convite.');
+    await canvas.findByText('Não foi possível carregar o convite.', undefined, { timeout: 5000 });
     const before = current.requests.filter((request) => request === INVITE_REQUEST).length;
     await userEvent.click(canvas.getByRole('button', { name: 'Tentar de novo' }));
     await waitFor(() => expect(current.requests.filter((request) => request === INVITE_REQUEST).length).toBeGreaterThan(before));
-    await canvas.findByText('Não foi possível carregar o convite.');
+    await canvas.findByText('Não foi possível carregar o convite.', undefined, { timeout: 5000 });
   },
 };

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState, type RefObject } from 'react';
 import { ArrowLeft, CaretRight, Plus, Users } from '@phosphor-icons/react';
 import { useMutation, useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
 import { Link, useNavigate } from '@tanstack/react-router';
@@ -85,12 +85,14 @@ function InviteDialogHost({
   inviteCode,
   open,
   onOpenChange,
+  openerRef,
 }: {
   campaignId: string;
   campaignName: string;
   inviteCode: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  openerRef: RefObject<HTMLElement | null>;
 }) {
   const queryClient = useQueryClient();
   const rotate = useMutation({
@@ -100,7 +102,12 @@ function InviteDialogHost({
 
   return (
     <InviteModal open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent
+        onCloseAutoFocus={(event) => {
+          event.preventDefault();
+          openerRef.current?.focus();
+        }}
+      >
         <InviteDialog
           link={window.location.origin + invitePath(inviteCode)}
           code={inviteCode}
@@ -114,9 +121,9 @@ function InviteDialogHost({
   );
 }
 
-function InviteButton({ onClick, variant }: { onClick: () => void; variant?: 'secondary' }) {
+function InviteButton({ onClick, variant }: { onClick: (opener: HTMLElement) => void; variant?: 'secondary' }) {
   return (
-    <PrimaryButton variant={variant} onClick={onClick}>
+    <PrimaryButton variant={variant} onClick={(event) => onClick(event.currentTarget)}>
       <Plus size={18} aria-hidden="true" />
       Convidar jogadores
     </PrimaryButton>
@@ -207,7 +214,7 @@ function MembersPanel({
   open: boolean;
   onToggle: (open: boolean) => void;
   onRemoved: () => void;
-  onInvite: () => void;
+  onInvite: (opener: HTMLElement) => void;
 }) {
   return (
     <div data-slot="campaign-admin" className="min-w-0 [grid-area:admin]">
@@ -302,7 +309,7 @@ function CampaignHeader({ campaign, campaignId, isMaster, onInvite }: {
   campaign: UseQueryResult<CampaignDetail>;
   campaignId: string;
   isMaster: boolean;
-  onInvite: () => void;
+  onInvite: (opener: HTMLElement) => void;
 }) {
   return (
     <header className="mb-8 flex flex-wrap items-center justify-between gap-6 max-[479px]:gap-4 [&_h1]:mt-2 [&_h1]:font-display [&_h1]:text-display [&_h1]:font-semibold [&_h1]:tracking-[-0.04em] @max-[480px]:[&_h1]:text-h1">
@@ -342,6 +349,11 @@ export function Campaign({ campaignId }: { campaignId: string }) {
   // because the invite is the whole point until someone joins.
   const [adminOpen, setAdminOpen] = useState<boolean | null>(null);
   const [inviteOpen, setInviteOpen] = useState(false);
+  const inviteOpener = useRef<HTMLElement | null>(null);
+  const openInvite = (opener: HTMLElement) => {
+    inviteOpener.current = opener;
+    setInviteOpen(true);
+  };
   // The auth guard already cached `/api/auth/me`; this reads it without a
   // round trip and without importing the route object (which would be a
   // circular dependency with the router).
@@ -371,7 +383,7 @@ export function Campaign({ campaignId }: { campaignId: string }) {
 
   return (
     <main data-slot="page" className={cn(page, 'mx-auto w-full max-w-[1400px]')}>
-      <CampaignHeader campaign={campaign} isMaster={isMaster} campaignId={campaignId} onInvite={() => setInviteOpen(true)} />
+      <CampaignHeader campaign={campaign} isMaster={isMaster} campaignId={campaignId} onInvite={openInvite} />
 
       {/* Order matters more than columns here: on a phone the table (dice and
           session) has to come before the administration of the campaign. */}
@@ -402,7 +414,7 @@ export function Campaign({ campaignId }: { campaignId: string }) {
           open={adminOpen ?? tableIsEmpty}
           onToggle={setAdminOpen}
           onRemoved={onRemoved}
-          onInvite={() => setInviteOpen(true)}
+          onInvite={openInvite}
         />
       </div>
 
@@ -413,6 +425,7 @@ export function Campaign({ campaignId }: { campaignId: string }) {
           inviteCode={campaign.data.inviteCode}
           open={inviteOpen}
           onOpenChange={setInviteOpen}
+          openerRef={inviteOpener}
         />
       )}
 
