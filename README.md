@@ -130,6 +130,7 @@ a Redirect URI.
 | `R2_BUCKET` | com `r2` | Nome do bucket |
 | `R2_PUBLIC_URL` | com `r2` | URL pública do bucket, como `https://cdn.seu-dominio` |
 | `COOKIE_SECURE` | não | `true` atrás de HTTPS; cookies `Secure` não valem em HTTP |
+| `TRUST_PROXY` | não | `true` atrás de proxy reverso: o limite de tentativas do convite lê o visitante em `X-Forwarded-For` |
 
 ## Testar a prévia do convite com túnel
 
@@ -167,6 +168,7 @@ docker run -d --name quest-fast \
   -e DISCORD_CLIENT_SECRET=... \
   -e DISCORD_REDIRECT_URI=https://seu-dominio/api/auth/discord/callback \
   -e COOKIE_SECURE=true \
+  -e TRUST_PROXY=true \
   quest-fast
 ```
 
@@ -174,7 +176,11 @@ As migrações são aplicadas na subida do container. O banco e os uploads ficam
 em `/dados`, num volume: **backup é copiar esse diretório**.
 
 Coloque um proxy reverso com HTTPS na frente. Sem HTTPS, `COOKIE_SECURE=true`
-impede o login; sem `Secure`, o cookie de sessão trafega em claro.
+impede o login; sem `Secure`, o cookie de sessão trafega em claro. Com o proxy
+na frente, mantenha `TRUST_PROXY=true`: sem isso, todo visitante chega com o
+endereço do proxy e divide o mesmo limite de tentativas do convite. O proxy
+precisa acrescentar o endereço do visitante ao `X-Forwarded-For` (o padrão no
+Caddy e no `proxy_add_x_forwarded_for` do nginx).
 
 ### Avatares no Cloudflare R2 (opcional)
 

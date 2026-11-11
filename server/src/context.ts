@@ -1,3 +1,4 @@
+import type { HttpBindings } from '@hono/node-server';
 import type { Db, UserRow } from '@quest-fast/db';
 import type { Role } from '@quest-fast/shared';
 import type { DiscordClient } from './auth/discord.ts';
@@ -18,6 +19,8 @@ export type Deps = {
  * `requireCampaignRole`; no route reads them without the middleware.
  */
 export type Context = {
+  /** Absent under `app.request`, which is how the integration tests call. */
+  Bindings: Partial<HttpBindings>;
   Variables: {
     deps: Deps;
     user: UserRow;

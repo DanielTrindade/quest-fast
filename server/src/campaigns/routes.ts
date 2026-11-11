@@ -6,6 +6,7 @@ import { normalizeInviteCode } from '@quest-fast/shared';
 import type { Context } from '../context.ts';
 import { banRoutes, isBanned } from './bans.ts';
 import { withUniqueCode } from './unique-code.ts';
+import { originKey, tooManyAttempts, type AttemptLimiter } from '../invites/attempt-limiter.ts';
 import { requireAuth, requireCampaignRole } from '../middleware.ts';
 
 const NAME_LIMIT = 80;
@@ -38,7 +39,7 @@ function validText(value: unknown, limit: number): string | undefined {
 }
 
 // Error messages are player-facing, so they stay in Portuguese.
-export function campaignRoutes() {
+export function campaignRoutes(attempts: AttemptLimiter) {
   const routes = new Hono<Context>();
   routes.use('*', requireAuth);
 
@@ -90,8 +91,17 @@ export function campaignRoutes() {
     const code = typeof body?.code === 'string' ? normalizeInviteCode(body.code) : undefined;
     if (!code) return c.json({ error: 'Código de convite inválido.' }, 422);
 
+    // The user budget follows the account across addresses; the origin one
+    // follows the address across accounts.
+    const guesser = [originKey(c), `user:${c.var.user.id}`];
+    const wait = attempts.retryAfter(guesser);
+    if (wait) return tooManyAttempts(c, wait);
+
     const campaign = db.select().from(campaigns).where(eq(campaigns.inviteCode, code)).get();
-    if (!campaign) return c.json({ error: 'Código de convite inválido.' }, 404);
+    if (!campaign) {
+      attempts.fail(guesser);
+      return c.json({ error: 'Código de convite inválido.' }, 404);
+    }
 
     if (isBanned(db, campaign.id, c.var.user.id)) {
       return c.json({ error: 'Você não pode entrar nesta mesa. Fale com quem te chamou.' }, 403);

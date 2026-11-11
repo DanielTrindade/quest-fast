@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { authRoutes } from './auth/routes.ts';
+import { createAttemptLimiter, type AttemptLimiterOptions } from './invites/attempt-limiter.ts';
 import { inviteRoutes } from './invites/routes.ts';
 import { invitePageHandler } from './invites/meta.ts';
 import { campaignRoutes } from './campaigns/routes.ts';
@@ -16,10 +17,14 @@ import { requireAuth } from './middleware.ts';
 export type AppOptions = Deps & {
   /** When false the SPA is not served — used by the integration tests. */
   serveClient?: boolean;
+  inviteAttempts?: AttemptLimiterOptions;
 };
 
-export function createApp({ serveClient = true, ...deps }: AppOptions) {
+export function createApp({ serveClient = true, inviteAttempts, ...deps }: AppOptions) {
   const app = new Hono<Context>();
+  // One budget for every route that takes an invite code, so alternating
+  // between them does not multiply the guesses.
+  const attempts = createAttemptLimiter(inviteAttempts);
 
   app.use('*', async (c, next) => {
     c.set('deps', deps);
@@ -35,8 +40,8 @@ export function createApp({ serveClient = true, ...deps }: AppOptions) {
     return c.json({ user: { id, name, avatarUrl } });
   });
 
-  app.route('/api/invites', inviteRoutes());
-  app.route('/api/campaigns', campaignRoutes());
+  app.route('/api/invites', inviteRoutes(attempts));
+  app.route('/api/campaigns', campaignRoutes(attempts));
   app.route('/api/campaigns/:campaignId/characters', characterRoutes());
   app.route('/api/campaigns/:campaignId/assets', assetRoutes());
   app.route('/api/campaigns/:campaignId/rolls', diceRoutes());
@@ -59,7 +64,7 @@ export function createApp({ serveClient = true, ...deps }: AppOptions) {
   app.all('/uploads/*', (c) => c.json({ error: 'Arquivo não encontrado.' }, 404));
 
   if (serveClient) {
-    app.get('/invite/:code', invitePageHandler());
+    app.get('/invite/:code', invitePageHandler(attempts));
     app.use('/*', serveStatic({ root: deps.env.clientDir }));
     // SPA fallback: TanStack Router routes do not exist on disk.
     app.get('/*', serveStatic({ root: deps.env.clientDir, path: 'index.html' }));

@@ -13,6 +13,7 @@ import { SESSION_COOKIE, STATE_COOKIE } from './auth/session.ts';
 import { createEventHub } from './events/hub.ts';
 import { attachWebSocket } from './events/ws.ts';
 import type { Env } from './env.ts';
+import type { AttemptLimiterOptions } from './invites/attempt-limiter.ts';
 
 const MIGRATIONS = resolve(import.meta.dirname, '../../db/migrations');
 
@@ -36,6 +37,7 @@ export const testEnv: Env = {
   discordRedirectUri: 'http://localhost/api/auth/discord/callback',
   appUrl: 'http://localhost',
   secureCookie: false,
+  trustProxy: false,
 };
 
 /**
@@ -65,10 +67,11 @@ type RequestApp = { app: TestApp['app'] };
  */
 export function createTestApp(
   profiles: Record<string, DiscordProfile>,
-  { assets = createMemoryAssetStore(), env = testEnv, serveClient = false }: {
+  { assets = createMemoryAssetStore(), env = testEnv, serveClient = false, inviteAttempts }: {
     assets?: AssetStore;
     env?: Env;
     serveClient?: boolean;
+    inviteAttempts?: AttemptLimiterOptions;
   } = {},
 ) {
   const db = createTestDb();
@@ -80,6 +83,7 @@ export function createTestApp(
     hub,
     assets,
     serveClient,
+    inviteAttempts,
   });
   return { db, app, hub };
 }

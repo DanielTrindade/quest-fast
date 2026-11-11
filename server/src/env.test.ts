@@ -77,3 +77,9 @@ test('an APP_URL with a trailing slash, query or no http(s) scheme is refused', 
       error instanceof InvalidEnv && /Invalid APP_URL/.test(error.message), url);
   }
 });
+
+test('forwarded headers are only trusted when TRUST_PROXY is exactly true', () => {
+  assert.equal(readEnv(DISCORD).trustProxy, false);
+  assert.equal(readEnv({ ...DISCORD, TRUST_PROXY: '1' }).trustProxy, false);
+  assert.equal(readEnv({ ...DISCORD, TRUST_PROXY: ' true ' }).trustProxy, true);
+});
