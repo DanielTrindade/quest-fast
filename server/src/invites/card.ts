@@ -296,13 +296,19 @@ async function readLimited(response: Response): Promise<Uint8Array | undefined> 
   return Buffer.concat(chunks);
 }
 
+// Discord serves animated avatars as GIF, which the renderer cannot decode; the endpoint returns a static PNG for any hash.
+export function staticAvatarUrl(url: string): string {
+  if (!url.startsWith(AVATAR_CDN)) return url;
+  return url.replace(/\.(gif|webp)(?=\?|$)/, '.png');
+}
+
 export async function fetchAvatar(
   url: string | null,
   fetchImpl: typeof fetch = fetch,
 ): Promise<Uint8Array | undefined> {
   if (!url?.startsWith(AVATAR_CDN)) return undefined;
   try {
-    const response = await fetchImpl(url, { signal: AbortSignal.timeout(AVATAR_TIMEOUT_MS), redirect: 'error' });
+    const response = await fetchImpl(staticAvatarUrl(url), { signal: AbortSignal.timeout(AVATAR_TIMEOUT_MS), redirect: 'error' });
     if (!response.ok) return undefined;
     const type = response.headers.get('content-type')?.split(';')[0].trim();
     if (type !== 'image/png' && type !== 'image/jpeg') return undefined;
