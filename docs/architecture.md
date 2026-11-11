@@ -51,7 +51,7 @@ O repositório é um monorepo de npm workspaces. `npm ci` na raiz instala tudo.
 | --- | --- | --- | --- |
 | `shared/` | `@quest-fast/shared` | Tipos da API e regras 5e puras | nada |
 | `db/` | `@quest-fast/db` | Schema Drizzle, migrações, seed | `shared` |
-| `server/` | — | Hono: REST, auth, WebSocket, estáticos | `shared`, `db` |
+| `server/` | — | Hono: REST, auth, WebSocket, estáticos, HTML do convite e cartão PNG | `shared`, `db` |
 | `client/` | `@quest-fast/client` | SPA React | `shared` |
 
 Não há etapa de build no backend: o Node 22.18+ executa TypeScript direto
@@ -79,6 +79,10 @@ parameter properties. Os imports levam a extensão `.ts`.
 - `validation.ts`: validação da ficha e do statblock, usada pelo formulário
   (feedback por campo) e pelo servidor (o que vale).
 - `invite.ts`, `role.ts`: código de convite e papéis (`master`, `player`).
+- `invite-link.ts`: caminho e textos do convite (`invitePath`,
+  `invitePreviewText`), link do WhatsApp, destino de retorno do login
+  (`safeReturnPath`, `loginFailurePath`) e as iniciais usadas no cartão e na
+  interface.
 
 Tudo aqui é função pura, com teste unitário ao lado (`*.test.ts`, rodando no
 `node:test`).
@@ -86,7 +90,7 @@ Tudo aqui é função pura, com teste unitário ao lado (`*.test.ts`, rodando no
 ### `db/` — persistência
 
 - `src/schema.ts`: tabelas `users`, `sessions`, `campaigns`,
-  `campaign_members`, `assets`, `characters`, `session_events` e, do
+  `campaign_members`, `campaign_bans`, `assets`, `characters`, `session_events` e, do
   combate, `statblocks`, `encounters` e `combatants`. Partes
   extensas da ficha (perícias, ataques, magias, inventário) e o `payload` dos
   eventos são colunas JSON. Um campo novo dentro delas não ganha migração: o
@@ -114,7 +118,8 @@ src/
   middleware.ts   requireAuth e requireCampaignRole
   env.ts          leitura e validação das variáveis de ambiente
   auth/           OAuth do Discord e sessão em cookie
-  campaigns/      campanhas, convite e membros
+  campaigns/      campanhas, convite, membros e bloqueados
+  invites/        prévia pública do convite, HTML com metas e cartão PNG
   characters/     ficha, estado de sessão e rolagens pela ficha
   statblocks/     bestiário da campanha (só o mestre)
   combat/         encontros, iniciativa, turnos e a projeção por papel
@@ -133,6 +138,8 @@ montado em `app.ts`:
 | --- | --- |
 | `/api/auth` | `auth/` |
 | `/api/campaigns` | `campaigns/` |
+| `/api/invites` | `invites/` (público) |
+| `/invite/:code` | `invites/` (HTML do SPA com metas) |
 | `/api/campaigns/:campaignId/characters` | `characters/` |
 | `/api/campaigns/:campaignId/assets` | `assets/` |
 | `/api/campaigns/:campaignId/rolls` | `dice/` |
@@ -181,6 +188,31 @@ src/
    tabela `sessions`.
 3. O cookie `qf_session` é HttpOnly; a sessão é invalidada no servidor no
    logout.
+
+### Convite por link
+
+O link do convite é o código de convite que já existia: `/invite/<código>`.
+Trocar o código (`POST /api/campaigns/:id/invite`) invalida o link e o código
+digitado de uma vez.
+
+- `GET /api/invites/:code` é público (`optionalAuth`) e expõe só o nome da
+  campanha, o nome e o avatar do mestre e o número de jogadores. Quem está
+  logado recebe também a própria situação (já é membro, bloqueado, etc.).
+- `GET /invite/:code` devolve o `index.html` do SPA com as metas Open Graph e
+  Twitter injetadas no servidor (`invites/meta.ts`), porque o rastreador do
+  WhatsApp e do Discord não executa JavaScript. Os links absolutos usam
+  `APP_URL`; sem ela, a origem de `DISCORD_REDIRECT_URI`.
+- `GET /api/invites/:code/card.png` gera o cartão da prévia com Satori e
+  `@resvg/resvg-js`, com as fontes versionadas em `server/assets/fonts`. O
+  resultado fica em cache em memória e renderizações simultâneas do mesmo
+  cartão são unificadas. O avatar do mestre só é baixado de
+  `cdn.discordapp.com`, com timeout de 2 s e limite de 1 MB; se falhar, o
+  cartão usa as iniciais.
+- O login guarda o destino em `?next=` no cookie `qf_oauth_next`, validado na
+  ida e na volta (`safeReturnPath`); em caso de falha, volta à página do
+  convite.
+- Remover um membro o grava em `campaign_bans`: entrar de novo devolve 403 até
+  o mestre liberar (`GET` e `DELETE /api/campaigns/:id/bans`).
 
 ### Autorização
 
@@ -346,6 +378,7 @@ O raciocínio completo, com alternativas descartadas, está em
 | Combate projetado por papel no servidor | O jogador nunca recebe PV de monstro, combatente escondido nem encontro em preparação, nem no REST nem no socket | [combate](history/2026-10-22-combat-and-bestiary.md) |
 | Combatente com id estável, turno por identidade | O token do VTT vai se ancorar no combatente; adicionar ou remover alguém não move o turno | [combate](history/2026-10-22-combat-and-bestiary.md) |
 | Tokens próprios + Storybook como fonte da interface | Consistência e auditoria automática de a11y/overflow | [design system](history/2026-09-04-design-system-foundation.md) |
+| Link do convite = código de convite existente | Um só segredo para o mestre trocar: a troca invalida o link e o código. A prévia pública expõe só nome da campanha, nome e avatar do mestre e número de jogadores | [Convite por link](#convite-por-link) |
 | Uploads em disco por padrão, Cloudflare R2 opcional (não S3) | Avatar é muito lido: o R2 não cobra saída e já é CDN; o disco mantém o self-host sem conta externa | [Armazenamento de arquivos](#armazenamento-de-arquivos) |
 
 Decisão nova que mude um desses pontos, ou um dos princípios acima, deve ser
@@ -362,6 +395,7 @@ descrição do PR.
 | Emitir um novo tipo de evento | tipo em `shared/src/api.ts`, gravação em `server/src/events/`, renderização em `FeedEventCard` |
 | Criar um componente | story em `client/src/stories/`, componente em `client/src/components/`, `npm run test:design` |
 | Ajustar cor, tipografia ou espaçamento | tokens em `client/src/styles/index.css` e [`design-system.md`](design-system.md) |
+| Mudar a prévia do convite (texto, metas, cartão) | `shared/src/invite-link.ts`, `server/src/invites/` e as fontes em `server/assets/fonts` |
 | Mudar onde os uploads ficam | `server/src/assets/store.ts` (um `AssetStore` novo), `server/src/env.ts` e a escolha em `server/src/index.ts` |
 
 ## Testes

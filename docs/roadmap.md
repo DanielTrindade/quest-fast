@@ -3,7 +3,7 @@
 O que já existe, o que vem a seguir e o que está em aberto. Atualize este
 arquivo no PR que entrega ou muda o escopo de uma etapa.
 
-Atualizado em 2026-10-23.
+Atualizado em 2026-11-10.
 
 ## Entregue
 
@@ -32,6 +32,12 @@ Atualizado em 2026-10-23.
   rolagem de ataque (bônus contra a CA) ou um teste de resistência do alvo
   (CD e atributo), sem botão de rolar ataque. Rolagem de dano pela ficha e
   dano composto (`1d8+3+1d6`, issue #8) seguem em aberto.
+- **Convite por link:** o mestre compartilha `/invite/<código>` (cópia ou
+  WhatsApp) e quem abre vê uma prévia pública (nome da mesa, mestre e número
+  de jogadores), com cartão de imagem para a prévia do WhatsApp e do Discord.
+  Sem sessão, o login devolve à página do convite e a entrada é automática.
+  O mestre troca o link (o antigo para de valer) e, ao remover um jogador, ele
+  fica bloqueado até ser liberado na lista de bloqueados.
 
 ## Próximas etapas
 

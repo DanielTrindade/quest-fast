@@ -131,6 +131,24 @@ a Redirect URI.
 | `R2_PUBLIC_URL` | com `r2` | URL pública do bucket, como `https://cdn.seu-dominio` |
 | `COOKIE_SECURE` | não | `true` atrás de HTTPS; cookies `Secure` não valem em HTTP |
 
+## Testar a prévia do convite com túnel
+
+O WhatsApp e o Discord só leem a prévia de um link público, então `localhost`
+não serve. Para testar de ponta a ponta com um túnel do Cloudflare:
+
+1. `npm run build`
+2. Em outro terminal: `cloudflared tunnel --url http://localhost:3000`, e copie
+   a URL `https://...trycloudflare.com` que ele imprime.
+3. No `.env`, aponte `APP_URL` para essa URL e `DISCORD_REDIRECT_URI` para
+   `<url do túnel>/api/auth/discord/callback`. Cadastre essa Redirect URI
+   também na aplicação do Discord.
+4. `npm start`
+5. Mande o link `<url do túnel>/invite/<código>` de uma mesa no WhatsApp e
+   confira título, descrição e imagem.
+
+A URL do túnel muda a cada execução: depois do teste, volte o `.env` e remova
+a Redirect URI extra do Discord.
+
 ## Self-host com Docker
 
 Um processo, um artefato, sem orquestração.
