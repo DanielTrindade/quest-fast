@@ -3,21 +3,38 @@ import { and, desc, eq, ne, sql } from 'drizzle-orm';
 import { Hono, type Context as HonoContext } from 'hono';
 import { characters, combatants, encounters, statblocks, type EncounterRow } from '@quest-fast/db';
 import {
+  COMBAT_LIMITS as C,
   ENCOUNTER_LIMITS as E,
+  EXHAUSTION_MAX,
+  HP_OPERATIONS,
   STATBLOCK_LIMITS as S,
   abilityModifier,
+  applyHpChange,
   copyNumber,
+  damageReminders,
+  deathSaveFailure,
+  deathSaveOutcome,
+  deathSaveStatus,
   hasPreviousTurn,
   initiative as sheetInitiative,
+  isCondition,
   isRollMode,
   isSize,
   nextTurn,
+  pendingReminders,
   placeCopies,
   previousTurn,
+  removeCondition,
   rollDice,
+  saveBonus,
+  setCondition,
   tickConditions,
+  type ActiveCondition,
+  type CombatReminder,
   type CopyEntry,
+  type DeathSaves,
   type EncounterListItem,
+  type HpOperation,
   type RollMode,
   type SessionEvent,
 } from '@quest-fast/shared';
@@ -482,6 +499,200 @@ function setTieOrder(mutation: Mutation, body: Record<string, unknown>) {
   });
 }
 
+// --- Hit points, conditions, concentration and death saves ------------------------
+
+function requireActive(encounter: EncounterRow) {
+  if (encounter.status !== 'active') refuse(409, 'O combate não está em andamento.');
+}
+
+function requireOwnOrMaster(mutation: Mutation, combatant: LoadedCombatant) {
+  if (mutation.viewer.role !== 'master' && combatant.ownerId !== mutation.viewer.userId) {
+    refuse(403, 'Você só altera o seu próprio personagem.');
+  }
+}
+
+type Vitals = Partial<{
+  hpCurrent: number;
+  hpTemp: number;
+  conditions: ActiveCondition[];
+  concentrating: boolean;
+  /** Only a character has them. */
+  deathSaves: DeathSaves;
+}>;
+
+/**
+ * Writes each value where it lives: a character's on the sheet, everyone
+ * else's on the combatant. Reminders always stay on the combatant, and only
+ * the ones still meaningful after the change are kept.
+ */
+function writeVitals(mutation: Mutation, combatant: LoadedCombatant, vitals: Vitals, reminders = combatant.row.reminders) {
+  const { tx } = mutation;
+  const { row } = combatant;
+  if (row.characterId) {
+    if (Object.keys(vitals).length > 0) {
+      tx.update(characters).set({ ...vitals, updatedAt: new Date() }).where(eq(characters.id, row.characterId)).run();
+    }
+  } else {
+    const { deathSaves: _deathSaves, ...own } = vitals;
+    if (Object.keys(own).length > 0) tx.update(combatants).set(own).where(eq(combatants.id, row.id)).run();
+  }
+  const kept = pendingReminders(reminders, {
+    hpCurrent: vitals.hpCurrent ?? combatant.hpCurrent,
+    concentrating: vitals.concentrating ?? combatant.concentrating,
+  });
+  if (JSON.stringify(kept) !== JSON.stringify(row.reminders)) {
+    tx.update(combatants).set({ reminders: kept }).where(eq(combatants.id, row.id)).run();
+  }
+}
+
+function isHpOperation(value: unknown): value is HpOperation {
+  return typeof value === 'string' && (HP_OPERATIONS as readonly string[]).includes(value);
+}
+
+function changeHitPoints(mutation: Mutation, combatant: LoadedCombatant, body: Record<string, unknown>) {
+  const { operation } = body;
+  if (!isHpOperation(operation)) refuse(422, 'Operação inválida: dano, cura ou temporários.');
+  const amount = boundedInteger(body.amount, C.hpAmount.min, C.hpAmount.max);
+  if (amount === undefined) refuse(422, `A quantidade deve ser um número entre ${C.hpAmount.min} e ${C.hpAmount.max}.`);
+
+  const before = { hpCurrent: combatant.hpCurrent, hpTemp: combatant.hpTemp };
+  const { hitPoints, rose } = applyHpChange(before, operation, amount, combatant.hpMax);
+  // Damage always counts, even at 0: it is a death save failure to record.
+  if (operation !== 'damage' && hitPoints.hpCurrent === before.hpCurrent && hitPoints.hpTemp === before.hpTemp) {
+    refuse(409, operation === 'heal' ? `${combatant.name} já está com os PV cheios.` : `${combatant.name} já tem PV temporários iguais ou maiores.`);
+  }
+
+  const vitals: Vitals = { ...hitPoints };
+  // Back on their feet, a character starts the death saves over.
+  if (rose && combatant.sheet) vitals.deathSaves = { successes: 0, failures: 0 };
+  const drafts =
+    operation === 'damage'
+      ? damageReminders({ amount, hpCurrentBefore: before.hpCurrent, concentrating: combatant.concentrating, source: combatant.row.source })
+      : [];
+  const created = drafts.map((draft) => ({ id: randomUUID(), ...draft }) as CombatReminder);
+  writeVitals(mutation, combatant, vitals, [...combatant.row.reminders, ...created]);
+}
+
+function parseCondition(param: string | undefined, body: Record<string, unknown>): ActiveCondition {
+  if (!isCondition(param)) refuse(422, 'Condição desconhecida.');
+  const active: ActiveCondition = { condition: param };
+  if (param === 'exhaustion') {
+    const level = boundedInteger(body.level, 1, EXHAUSTION_MAX);
+    if (level === undefined) refuse(422, `Informe o nível de exaustão, de 1 a ${EXHAUSTION_MAX}.`);
+    active.level = level;
+  } else if (body.level !== undefined) {
+    refuse(422, 'Só a exaustão tem nível.');
+  }
+  if (body.roundsLeft !== undefined && body.roundsLeft !== null) {
+    const roundsLeft = boundedInteger(body.roundsLeft, C.conditionRounds.min, C.conditionRounds.max);
+    if (roundsLeft === undefined) refuse(422, `A duração vai de ${C.conditionRounds.min} a ${C.conditionRounds.max} rodadas.`);
+    active.roundsLeft = roundsLeft;
+  }
+  return active;
+}
+
+function applyCondition(mutation: Mutation, combatant: LoadedCombatant, active: ActiveCondition) {
+  const conditions = setCondition(combatant.conditions, active);
+  if (JSON.stringify(conditions) === JSON.stringify(combatant.conditions)) refuse(409, 'Essa condição já está assim.');
+  writeVitals(mutation, combatant, { conditions });
+}
+
+function dropCondition(mutation: Mutation, combatant: LoadedCombatant, param: string | undefined) {
+  if (!isCondition(param)) refuse(422, 'Condição desconhecida.');
+  if (!combatant.conditions.some(({ condition }) => condition === param)) refuse(409, `${combatant.name} não está com essa condição.`);
+  writeVitals(mutation, combatant, { conditions: removeCondition(combatant.conditions, param) });
+}
+
+function setConcentration(mutation: Mutation, combatant: LoadedCombatant, body: Record<string, unknown>) {
+  if (typeof body.concentrating !== 'boolean') refuse(422, 'Valor inválido para "concentrando".');
+  if (body.concentrating === combatant.concentrating) {
+    refuse(409, body.concentrating ? `${combatant.name} já está concentrando.` : `${combatant.name} não está concentrando.`);
+  }
+  writeVitals(mutation, combatant, { concentrating: body.concentrating });
+}
+
+/** A reminder still pending on this combatant; one that lost its meaning no longer exists. */
+function findReminder(combatant: LoadedCombatant, id: unknown, kind?: CombatReminder['kind']): CombatReminder {
+  const reminder = pendingReminders(combatant.row.reminders, combatant).find(
+    (candidate) => candidate.id === id && (!kind || candidate.kind === kind),
+  );
+  if (!reminder) refuse(404, 'Lembrete não encontrado.');
+  return reminder;
+}
+
+function withoutReminder(combatant: LoadedCombatant, reminder: CombatReminder): CombatReminder[] {
+  return combatant.row.reminders.filter((candidate) => candidate.id !== reminder.id);
+}
+
+/**
+ * Rolls a death save on the server, or records failures from damage taken at
+ * 0 hit points. A player rolls on their own turn, once per round; the master
+ * may roll again to correct a mistake.
+ */
+function deathSave(mutation: Mutation, combatant: LoadedCombatant, body: Record<string, unknown>) {
+  const { row, sheet, name } = combatant;
+  if (!sheet) refuse(422, 'Só personagens fazem teste contra a morte.');
+  if (combatant.hpCurrent > 0) refuse(409, `${name} não está caído.`);
+  const status = deathSaveStatus(sheet.deathSaves);
+  if (status === 'dead') refuse(409, `${name} já falhou em três testes contra a morte.`);
+
+  if (body.failures !== undefined) {
+    if (body.failures !== 1 && body.failures !== 2) refuse(422, 'Registre uma ou duas falhas.');
+    const reminders =
+      body.reminderId === undefined ? row.reminders : withoutReminder(combatant, findReminder(combatant, body.reminderId, 'deathFailure'));
+    writeVitals(mutation, combatant, { deathSaves: deathSaveFailure(sheet.deathSaves, body.failures) }, reminders);
+    return;
+  }
+
+  if (status === 'stable') refuse(409, `${name} está estável e não rola mais testes contra a morte.`);
+  const { encounter } = mutation.loaded;
+  if (mutation.viewer.role !== 'master') {
+    if (encounter.activeCombatantId !== row.id) refuse(409, 'Role o teste contra a morte na sua vez.');
+    if (row.deathSaveRound === encounter.round) refuse(409, 'Você já rolou o teste contra a morte nesta rodada.');
+  }
+  const d20 = rollDice('1d20')!.dice[0]!.value;
+  const outcome = deathSaveOutcome(d20, sheet.deathSaves);
+  const vitals: Vitals = { deathSaves: outcome.saves };
+  if (outcome.hpCurrent !== undefined) vitals.hpCurrent = outcome.hpCurrent;
+  writeVitals(mutation, combatant, vitals);
+  mutation.tx.update(combatants).set({ deathSaveRound: encounter.round }).where(eq(combatants.id, row.id)).run();
+}
+
+/**
+ * The Constitution save a concentration reminder asks for. It answers the
+ * reminder; keeping or ending the concentration is the table's call.
+ */
+function concentrationSave(mutation: Mutation, combatant: LoadedCombatant, body: Record<string, unknown>) {
+  if (typeof body.reminderId !== 'string') refuse(422, 'Informe o lembrete da salvaguarda.');
+  const reminder = findReminder(combatant, body.reminderId, 'concentration');
+  if (reminder.kind !== 'concentration') refuse(404, 'Lembrete não encontrado.');
+  const mode = parseMode(body.mode);
+  if (body.secret !== undefined && typeof body.secret !== 'boolean') refuse(422, 'Valor inválido para "secreta".');
+  const { row, sheet } = combatant;
+  // A monster's roll is the master's unless told otherwise; a character's is the table's.
+  const secret = mutation.viewer.role === 'master' ? ((body.secret as boolean | undefined) ?? row.source !== 'character') : false;
+  const bonus = sheet ? saveBonus(sheet, 'constitution') : row.constitutionModifier;
+  const result = rollDice(`1d20${bonus >= 0 ? '+' : ''}${bonus}`, mode)!;
+  mutation.events.push(
+    recordRollEvent(mutation.tx, {
+      campaignId: mutation.loaded.encounter.campaignId,
+      userId: mutation.viewer.userId,
+      userName: mutation.userName,
+      secret: secret || row.hidden,
+      payload: {
+        kind: 'roll',
+        ...result,
+        rollKind: 'save',
+        ability: 'constitution',
+        characterName: combatant.name,
+        concentrationDc: reminder.dc,
+        ...(row.characterId ? { characterId: row.characterId } : {}),
+      },
+    }),
+  );
+  writeVitals(mutation, combatant, {}, withoutReminder(combatant, reminder));
+}
+
 function viewerOf(c: HonoContext<Context>): Viewer {
   return { role: c.var.role, userId: c.var.user.id };
 }
@@ -726,6 +937,38 @@ export function encounterRoutes() {
       requireOpen(mutation.loaded.encounter);
       setInitiative(mutation, combatant, body);
     }),
+  );
+
+  /**
+   * What happens to one combatant during the fight: the master acts on any of
+   * them, a player only on their own character, and only while it runs.
+   */
+  const duringFight = (
+    c: HonoContext<Context>,
+    act: (mutation: Mutation, combatant: LoadedCombatant, body: Record<string, unknown>) => void,
+  ) =>
+    mutate(c, (mutation, body) => {
+      const combatant = findCombatant(mutation, c.req.param('combatantId') ?? '');
+      requireOwnOrMaster(mutation, combatant);
+      requireActive(mutation.loaded.encounter);
+      act(mutation, combatant, body);
+    });
+
+  const combatant = '/:encounterId/combatants/:combatantId';
+  routes.post(`${combatant}/hp`, (c) => duringFight(c, changeHitPoints));
+  routes.put(`${combatant}/conditions/:condition`, (c) =>
+    duringFight(c, (mutation, target, body) => applyCondition(mutation, target, parseCondition(c.req.param('condition'), body))),
+  );
+  routes.delete(`${combatant}/conditions/:condition`, (c) =>
+    duringFight(c, (mutation, target) => dropCondition(mutation, target, c.req.param('condition'))),
+  );
+  routes.put(`${combatant}/concentration`, (c) => duringFight(c, setConcentration));
+  routes.post(`${combatant}/death-save`, (c) => duringFight(c, deathSave));
+  routes.post(`${combatant}/concentration-save`, (c) => duringFight(c, concentrationSave));
+  routes.delete(`${combatant}/reminders/:reminderId`, (c) =>
+    duringFight(c, (mutation, target) =>
+      writeVitals(mutation, target, {}, withoutReminder(target, findReminder(target, c.req.param('reminderId')))),
+    ),
   );
 
   return routes;

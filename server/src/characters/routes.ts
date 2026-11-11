@@ -13,6 +13,7 @@ import {
   fitStateToSheet,
   initiative,
   isAbility,
+  isActiveCondition,
   isArmorTraining,
   isHitDie,
   isRollMode,
@@ -25,6 +26,7 @@ import {
   skillBonus,
   spellAttackBonus,
   type Ability,
+  type ActiveCondition,
   type ArmorTraining,
   type Attack,
   type CharacterSheet,
@@ -478,6 +480,20 @@ function parseDeathSaves(value: unknown): DeathSaves | undefined {
   return { successes, failures };
 }
 
+/**
+ * The whole list of conditions, each once. Durations count rounds of a fight,
+ * so the sheet sets none and keeps the one a fight already gave.
+ */
+function parseConditions(value: unknown, stored: readonly ActiveCondition[]): ActiveCondition[] | undefined {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value) || !value.every(isActiveCondition)) fail('Condições inválidas.');
+  if (new Set(value.map(({ condition }) => condition)).size !== value.length) fail('Cada condição aparece uma vez só.');
+  return value.map(({ condition, level }) => {
+    const roundsLeft = stored.find((active) => active.condition === condition)?.roundsLeft;
+    return { condition, ...(level === undefined ? {} : { level }), ...(roundsLeft === undefined ? {} : { roundsLeft }) };
+  });
+}
+
 /** The session state, bounded by the sheet it belongs to. */
 function parseStateInput(body: unknown, sheet: CharacterSheet) {
   const source = typeof body === 'object' && body !== null ? (body as Record<string, unknown>) : {};
@@ -489,7 +505,13 @@ function parseStateInput(body: unknown, sheet: CharacterSheet) {
     heroicInspiration: optionalBoolean(source.heroicInspiration, 'Inspiração heroica'),
     coins: parseCoins(source.coins),
     spellSlots: undefined as CharacterSheet['spellSlots'] | undefined,
+    conditions: parseConditions(source.conditions, sheet.conditions),
+    concentrating: optionalBoolean(source.concentrating, 'Concentração'),
   };
+  // Back on their feet, a character starts the death saves over.
+  if (state.hpCurrent !== undefined && state.hpCurrent > 0 && sheet.hpCurrent === 0 && state.deathSaves === undefined) {
+    state.deathSaves = { successes: 0, failures: 0 };
+  }
   if (source.spellSlotsSpent !== undefined) {
     const spent = source.spellSlotsSpent;
     if (
@@ -503,7 +525,7 @@ function parseStateInput(body: unknown, sheet: CharacterSheet) {
   }
   const changes = Object.fromEntries(Object.entries(state).filter(([, value]) => value !== undefined));
   if (Object.keys(changes).length === 0) fail('Nada para atualizar.');
-  return changes as Partial<Pick<CharacterRow, 'hpCurrent' | 'hpTemp' | 'hitDiceSpent' | 'deathSaves' | 'heroicInspiration' | 'coins' | 'spellSlots'>>;
+  return changes as Partial<Pick<CharacterRow, 'hpCurrent' | 'hpTemp' | 'hitDiceSpent' | 'deathSaves' | 'heroicInspiration' | 'coins' | 'spellSlots' | 'conditions' | 'concentrating'>>;
 }
 
 /** Runs a handler whose parsing throws `InputError`, answering 422 with its message. */
