@@ -298,6 +298,43 @@ function MembersPanel({
   );
 }
 
+function CampaignHeader({ campaign, campaignId, isMaster, onInvite }: {
+  campaign: UseQueryResult<CampaignDetail>;
+  campaignId: string;
+  isMaster: boolean;
+  onInvite: () => void;
+}) {
+  return (
+    <header className="mb-8 flex flex-wrap items-center justify-between gap-6 max-[479px]:gap-4 [&_h1]:mt-2 [&_h1]:font-display [&_h1]:text-display [&_h1]:font-semibold [&_h1]:tracking-[-0.04em] @max-[480px]:[&_h1]:text-h1">
+      <div className="min-w-0">
+        <Link to="/campaigns" className="inline-flex min-h-8 items-center gap-1 text-small text-text-secondary no-underline transition-colors duration-(--duration-quick) hover:text-foreground">
+          <ArrowLeft size={16} aria-hidden="true" />
+          Suas campanhas
+        </Link>
+        <h1>{campaign.data?.name ?? 'Carregando…'}</h1>
+        {campaign.data?.description && <p className="mt-2 text-text-secondary">{campaign.data.description}</p>}
+      </div>
+      {!campaign.isPending && !isMaster && <LeaveCampaign campaignId={campaignId} />}
+      {isMaster && campaign.data?.inviteCode && <InviteButton onClick={onInvite} />}
+    </header>
+  );
+}
+
+function CampaignError({ error }: { error: Error }) {
+  return (
+    <main data-slot="page" className={cn(page, 'mx-auto w-full max-w-[1400px]')}>
+      <Link to="/campaigns" className="inline-flex min-h-8 items-center gap-1 text-small text-text-secondary no-underline transition-colors duration-(--duration-quick) hover:text-foreground">
+        <ArrowLeft size={16} aria-hidden="true" /> Suas campanhas
+      </Link>
+      <Surface>
+        <p role="alert" className="text-body text-danger-text">
+          {errorMessage(error)}
+        </p>
+      </Surface>
+    </main>
+  );
+}
+
 export function Campaign({ campaignId }: { campaignId: string }) {
   const queryClient = useQueryClient();
   const notify = useNotify();
@@ -327,38 +364,14 @@ export function Campaign({ campaignId }: { campaignId: string }) {
     queryClient.invalidateQueries({ queryKey: ['campaign', campaignId, 'bans'] });
   };
 
-  if (campaign.isError) {
-    return (
-      <main data-slot="page" className={cn(page, 'mx-auto w-full max-w-[1400px]')}>
-        <Link to="/campaigns" className="inline-flex min-h-8 items-center gap-1 text-small text-text-secondary no-underline transition-colors duration-(--duration-quick) hover:text-foreground">
-          <ArrowLeft size={16} aria-hidden="true" /> Suas campanhas
-        </Link>
-        <Surface>
-          <p role="alert" className="text-body text-danger-text">
-            {errorMessage(campaign.error)}
-          </p>
-        </Surface>
-      </main>
-    );
-  }
+  if (campaign.isError) return <CampaignError error={campaign.error} />;
 
   const isMaster = campaign.data?.role === 'master';
   const tableIsEmpty = members.isSuccess && members.data.members.length <= 1;
 
   return (
     <main data-slot="page" className={cn(page, 'mx-auto w-full max-w-[1400px]')}>
-      <header className="mb-8 flex flex-wrap items-center justify-between gap-6 max-[479px]:gap-4 [&_h1]:mt-2 [&_h1]:font-display [&_h1]:text-display [&_h1]:font-semibold [&_h1]:tracking-[-0.04em] @max-[480px]:[&_h1]:text-h1">
-        <div className="min-w-0">
-          <Link to="/campaigns" className="inline-flex min-h-8 items-center gap-1 text-small text-text-secondary no-underline transition-colors duration-(--duration-quick) hover:text-foreground">
-            <ArrowLeft size={16} aria-hidden="true" />
-            Suas campanhas
-          </Link>
-          <h1>{campaign.data?.name ?? 'Carregando…'}</h1>
-          {campaign.data?.description && <p className="mt-2 text-text-secondary">{campaign.data.description}</p>}
-        </div>
-        {!campaign.isPending && !isMaster && <LeaveCampaign campaignId={campaignId} />}
-        {isMaster && campaign.data?.inviteCode && <InviteButton onClick={() => setInviteOpen(true)} />}
-      </header>
+      <CampaignHeader campaign={campaign} isMaster={isMaster} campaignId={campaignId} onInvite={() => setInviteOpen(true)} />
 
       {/* Order matters more than columns here: on a phone the table (dice and
           session) has to come before the administration of the campaign. */}

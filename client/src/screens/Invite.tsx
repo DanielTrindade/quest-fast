@@ -1,13 +1,33 @@
-import { useEffect, useRef, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from '@tanstack/react-router';
-import { invitePath, normalizeInviteCode } from '@quest-fast/shared';
+import { useEffect, useRef, useState, type ComponentProps } from 'react';
+import { useMutation, useQuery, useQueryClient, type UseMutationResult, type UseQueryResult } from '@tanstack/react-query';
+import { Navigate, useNavigate } from '@tanstack/react-router';
+import { invitePath, normalizeInviteCode, type InvitePreview } from '@quest-fast/shared';
 import { InvitePanel } from '../components/InvitePanel';
 import { ApiError, api, loginHref } from '../lib/api';
 import { clearJoinMarker, readJoinMarker, setJoinMarker } from '../lib/join-marker';
 
 function isNotFound(error: unknown) {
   return error instanceof ApiError && error.status === 404;
+}
+
+type PanelState = ComponentProps<typeof InvitePanel>['state'];
+
+function describe(
+  invite: UseQueryResult<InvitePreview>,
+  join: UseMutationResult<unknown, Error, void>,
+): { state: PanelState; joinError: string | undefined } {
+  const forbidden = join.error instanceof ApiError && join.error.status === 403;
+  const gone = isNotFound(join.error);
+  const viewer = invite.data?.viewer;
+  let joinError: string | undefined;
+  if (join.isError && !forbidden && !gone) {
+    joinError = join.error instanceof ApiError ? join.error.message : 'Algo deu errado. Tente novamente.';
+  }
+  if (isNotFound(invite.error) || gone) return { state: 'invalid', joinError };
+  if (invite.isError) return { state: 'error', joinError };
+  if (forbidden || viewer === 'blocked') return { state: 'blocked', joinError };
+  if (viewer === 'anonymous' || viewer === 'guest') return { state: viewer, joinError };
+  return { state: 'loading', joinError };
 }
 
 export function Invite({ code, join, failed }: { code: string; join: boolean; failed: boolean }) {
@@ -32,11 +52,7 @@ export function Invite({ code, join, failed }: { code: string; join: boolean; fa
   // by clicking the login button for this same code.
   const [autoJoin] = useState(() => join && readJoinMarker() === normalized);
 
-  useEffect(() => {
-    if (!join) return;
-    clearJoinMarker();
-    navigate({ to: '.', search: (previous) => ({ ...previous, join: undefined }), replace: true });
-  }, [join, navigate]);
+  useEffect(clearJoinMarker, []);
 
   const viewer = invite.data?.viewer;
   const memberCampaignId = viewer === 'member' ? invite.data?.campaignId : undefined;
@@ -56,31 +72,23 @@ export function Invite({ code, join, failed }: { code: string; join: boolean; fa
     }
   }, [autoJoin, viewer, joinCampaign]);
 
-  const joinForbidden = joinMutation.error instanceof ApiError && joinMutation.error.status === 403;
-  const joinGone = isNotFound(joinMutation.error);
-  const joinError = joinMutation.isError && !joinForbidden && !joinGone
-    ? joinMutation.error instanceof ApiError ? joinMutation.error.message : 'Algo deu errado. Tente novamente.'
-    : undefined;
-
-  let state: 'loading' | 'anonymous' | 'guest' | 'blocked' | 'invalid' | 'error' = 'loading';
-  if (isNotFound(invite.error) || joinGone) state = 'invalid';
-  else if (invite.isError) state = 'error';
-  else if (joinForbidden || viewer === 'blocked') state = 'blocked';
-  else if (viewer === 'anonymous') state = 'anonymous';
-  else if (viewer === 'guest') state = 'guest';
+  const { state, joinError } = describe(invite, joinMutation);
 
   return (
-    <InvitePanel
-      state={state}
-      invite={invite.data}
-      loginHref={loginHref(`${invitePath(code)}?join=1`)}
-      campaignsHref="/campaigns"
-      failed={failed}
-      onJoin={() => joinCampaign()}
-      joining={joinMutation.isPending}
-      joinError={joinError}
-      onLoginClick={() => setJoinMarker(normalized)}
-      onRetry={() => invite.refetch()}
-    />
+    <>
+      {join && <Navigate to="." search={(previous) => ({ ...previous, join: undefined })} replace />}
+      <InvitePanel
+        state={state}
+        invite={invite.data}
+        loginHref={loginHref(`${invitePath(code)}?join=1`)}
+        campaignsHref="/campaigns"
+        failed={failed}
+        onJoin={() => joinCampaign()}
+        joining={joinMutation.isPending}
+        joinError={joinError}
+        onLoginClick={() => setJoinMarker(normalized)}
+        onRetry={() => invite.refetch()}
+      />
+    </>
   );
 }
