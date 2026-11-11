@@ -19,7 +19,7 @@ export const Goblin: Story = {
     for (const region of within(canvasElement).getAllByRole('region', { name: /^Tema / })) {
       const card = within(region);
       // Initiative: Dexterity 14 (+2) plus a bonus of 0, passive 12.
-      await expect(card.getByText('passiva (12)')).toBeVisible();
+      await expect(card.getByText((_, element) => element?.textContent === 'passiva (12)')).toBeVisible();
       await expect(card.getByText('Cimitarra')).toBeVisible();
     }
   },

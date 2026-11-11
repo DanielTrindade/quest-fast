@@ -78,7 +78,8 @@ export const Descarte: Story = {
   play: async ({ canvasElement, args }) => {
     const [region] = within(canvasElement).getAllByRole('region', { name: /^Tema / });
     const form = within(region);
-    await userEvent.type(form.getByRole('textbox', { name: /^Nome/ }), ' Chefe');
+    // Each attack row has its own "Nome"; the creature's comes first.
+    await userEvent.type(form.getAllByRole('textbox', { name: /^Nome/ })[0], ' Chefe');
     await userEvent.click(form.getByRole('button', { name: 'Cancelar' }));
     await expect(form.getByText('Há alterações que ainda não foram salvas.')).toBeVisible();
     await expect(args.onRequestClose).not.toHaveBeenCalled();
@@ -116,11 +117,11 @@ export const ImportacaoNpc: Story = {
       const form = within(region);
       await userEvent.upload(form.getByLabelText('Importar PDF'), pdf);
       await expect(await form.findByText(/Ficha importada com pontos para revisar/)).toBeVisible();
-      await expect(form.getByRole('textbox', { name: /^Nome/ })).toHaveValue('Capitã Brisa');
-      await expect(form.getByRole('textbox', { name: /^Tipo/ })).toHaveValue('Humana');
+      await expect(form.getAllByRole('textbox', { name: /^Nome/ })[0]).toHaveValue('Capitã Brisa');
+      await expect(form.getAllByRole('textbox', { name: /^Tipo/ })[0]).toHaveValue('Humana');
       await expect(form.getByRole('spinbutton', { name: /^CA/ })).toHaveValue(16);
       await expect(form.getByRole('textbox', { name: /^Fórmula de PV/ })).toHaveValue('3d10+6');
-      await expect(form.getByRole('textbox', { name: /^Traços/ })).toHaveValue(expect.stringContaining('Classe: Guerreira 3 (Campeã)'));
+      await expect(form.getByRole<HTMLTextAreaElement>('textbox', { name: /^Traços/ }).value).toContain('Classe: Guerreira 3 (Campeã)');
 
       // The sheet's warning and the missing challenge rating are both listed.
       const warnings = form.getByRole('list', { name: 'Pontos para revisar' });

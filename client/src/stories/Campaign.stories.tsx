@@ -19,7 +19,8 @@ export const GerenciarMembros: Story = { name: 'Gerenciar membros', play: async 
     await userEvent.click(canvas.getByRole('button', { name: 'Remover Rafael Costa' }));
     dialog = within(await canvas.findByRole('dialog'));
     await userEvent.click(dialog.getByRole('button', { name: 'Remover jogador' }));
-    await waitFor(() => expect(canvas.queryByText('Rafael Costa')).not.toBeInTheDocument());
+    // The removed player moves to the blocked list, so the name stays on screen.
+    await waitFor(() => expect(canvas.queryByRole('button', { name: 'Remover Rafael Costa' })).not.toBeInTheDocument());
     await expect(canvas.getByText('3 na mesa')).toBeInTheDocument();
   }
 } };
