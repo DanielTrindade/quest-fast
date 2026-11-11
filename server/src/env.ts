@@ -20,6 +20,8 @@ export type Env = {
   discordClientId: string;
   discordClientSecret: string;
   discordRedirectUri: string;
+  /** Public origin used in absolute links (invite previews); no trailing slash. */
+  appUrl: string;
   /** `Secure` cookies require HTTPS; off for local development. */
   secureCookie: boolean;
 };
@@ -72,11 +74,21 @@ function readR2(source: NodeJS.ProcessEnv): R2Config | undefined {
   };
 }
 
+function readAppUrl(source: NodeJS.ProcessEnv, redirectUri: string): string {
+  const raw = source.APP_URL?.trim();
+  if (!raw) return new URL(redirectUri).origin;
+  if (!/^https?:\/\/[^/?#]/.test(raw) || /[?#]/.test(raw) || raw.endsWith('/') || !URL.canParse(raw)) {
+    throw new InvalidEnv(`Invalid APP_URL: ${raw}. Use the public origin without a trailing slash, e.g. https://quest.example.com.`);
+  }
+  return raw;
+}
+
 export function readEnv(source: NodeJS.ProcessEnv = process.env): Env {
   const port = Number(source.PORT ?? 3000);
   if (!Number.isInteger(port) || port <= 0 || port > 65535) {
     throw new InvalidEnv(`Invalid PORT: ${source.PORT}`);
   }
+  const discordRedirectUri = required(source, 'DISCORD_REDIRECT_URI');
   return {
     port,
     dbFile: source.DB_FILE?.trim() || undefined,
@@ -85,7 +97,8 @@ export function readEnv(source: NodeJS.ProcessEnv = process.env): Env {
     r2: readR2(source),
     discordClientId: required(source, 'DISCORD_CLIENT_ID'),
     discordClientSecret: required(source, 'DISCORD_CLIENT_SECRET'),
-    discordRedirectUri: required(source, 'DISCORD_REDIRECT_URI'),
+    discordRedirectUri,
+    appUrl: readAppUrl(source, discordRedirectUri),
     secureCookie:
       (source.COOKIE_SECURE ?? (source.NODE_ENV === 'production' ? 'true' : 'false')) === 'true',
   };

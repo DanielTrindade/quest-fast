@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
 import { LoginPanel } from '../components/LoginPanel';
-import { LOGIN_PATH } from '../lib/api';
+import { loginHref } from '../lib/api';
 
 /**
  * Login leaves the SPA through a real navigation: the server is what answers
  * Discord. That is why this is a link, not a fetch.
  */
-export function Login({ failed }: { failed: boolean }) {
+export function Login({ failed, next }: { failed: boolean; next?: string }) {
   const [leaving, setLeaving] = useState(false);
 
   // Coming back from Discord with the browser's Back button restores this page
@@ -19,5 +19,5 @@ export function Login({ failed }: { failed: boolean }) {
     return () => window.removeEventListener('pageshow', reset);
   }, []);
 
-  return <LoginPanel href={LOGIN_PATH} failed={failed} leaving={leaving} onLeave={() => setLeaving(true)} />;
+  return <LoginPanel href={loginHref(next)} failed={failed} leaving={leaving} onLeave={() => setLeaving(true)} />;
 }

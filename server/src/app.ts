@@ -1,6 +1,8 @@
 import { Hono } from 'hono';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { authRoutes } from './auth/routes.ts';
+import { inviteRoutes } from './invites/routes.ts';
+import { invitePageHandler } from './invites/meta.ts';
 import { campaignRoutes } from './campaigns/routes.ts';
 import { assetRoutes } from './assets/routes.ts';
 import { characterRoutes } from './characters/routes.ts';
@@ -33,6 +35,7 @@ export function createApp({ serveClient = true, ...deps }: AppOptions) {
     return c.json({ user: { id, name, avatarUrl } });
   });
 
+  app.route('/api/invites', inviteRoutes());
   app.route('/api/campaigns', campaignRoutes());
   app.route('/api/campaigns/:campaignId/characters', characterRoutes());
   app.route('/api/campaigns/:campaignId/assets', assetRoutes());
@@ -56,6 +59,7 @@ export function createApp({ serveClient = true, ...deps }: AppOptions) {
   app.all('/uploads/*', (c) => c.json({ error: 'Arquivo não encontrado.' }, 404));
 
   if (serveClient) {
+    app.get('/invite/:code', invitePageHandler());
     app.use('/*', serveStatic({ root: deps.env.clientDir }));
     // SPA fallback: TanStack Router routes do not exist on disk.
     app.get('/*', serveStatic({ root: deps.env.clientDir, path: 'index.html' }));

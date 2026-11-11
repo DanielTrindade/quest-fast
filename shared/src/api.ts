@@ -42,6 +42,17 @@ export type CampaignJoin = {
   role: Role;
 };
 
+export type InviteViewer = 'anonymous' | 'guest' | 'member' | 'blocked';
+
+export type InvitePreview = {
+  code: string;
+  campaignName: string;
+  master: { name: string; avatarUrl: string | null };
+  playerCount: number;
+  viewer: InviteViewer;
+  campaignId?: string;
+};
+
 export type CampaignMember = {
   id: string;
   userId: string;
@@ -51,9 +62,17 @@ export type CampaignMember = {
   joinedAt: string;
 };
 
+export type CampaignBan = {
+  userId: string;
+  name: string;
+  avatarUrl: string | null;
+  bannedAt: string;
+};
+
 export type MeResponse = { user: PublicUser };
 export type CampaignsResponse = { campaigns: CampaignSummary[] };
 export type MembersResponse = { members: CampaignMember[] };
+export type BansResponse = { bans: CampaignBan[] };
 
 // --- Phase 1: characters, assets, dice and the session feed -----------------
 

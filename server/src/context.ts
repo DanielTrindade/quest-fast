@@ -21,6 +21,7 @@ export type Context = {
   Variables: {
     deps: Deps;
     user: UserRow;
+    viewer?: UserRow;
     role: Role;
     campaignId: string;
   };

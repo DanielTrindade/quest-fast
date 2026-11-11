@@ -34,6 +34,7 @@ export const testEnv: Env = {
   discordClientId: 'test-id',
   discordClientSecret: 'test-secret',
   discordRedirectUri: 'http://localhost/api/auth/discord/callback',
+  appUrl: 'http://localhost',
   secureCookie: false,
 };
 

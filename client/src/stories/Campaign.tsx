@@ -1,7 +1,9 @@
 import { useId, useState } from 'react';
 import { ArrowUpRight, CalendarBlank, EyeSlash, Plus, UserMinus, Users } from '@phosphor-icons/react';
+import type { CampaignBan } from '@quest-fast/shared';
 import { AppShell } from '../components/AppShell';
-import { CopyField } from '../components/CopyField';
+import { BannedList } from '../components/BannedList';
+import { InviteDialog } from '../components/InviteDialog';
 import { useNotify } from '../hooks/use-notify';
 import { Avatar } from '../components/Avatar';
 import { Badge } from '../components/Badge';
@@ -18,6 +20,10 @@ const initialMembers = [
   { id: 'ana', name: 'Ana Beatriz', role: 'player' as const, joined: '03 set. 2026' },
   { id: 'pedro', name: 'Pedro Alves', role: 'player' as const, joined: '04 set. 2026' },
 ];
+const nextCode = (current: string) => {
+  const digits = (Number(current.replace(/\D/g, '')) + 1) % 100;
+  return `MESA${String(digits).padStart(2, '0')}`;
+};
 const campaigns = [{ id: 'phandalin', name: 'Ecos de Phandalin' }, { id: 'barovia', name: 'A névoa de Baróvia' }];
 
 export function Campaign({ role = 'master', loading = false, empty = false }: {
@@ -28,6 +34,8 @@ export function Campaign({ role = 'master', loading = false, empty = false }: {
   const [members, setMembers] = useState(empty ? initialMembers.slice(0, 1) : initialMembers);
   const notify = useNotify();
   const [invite, setInvite] = useState(false);
+  const [codes, setCodes] = useState<Record<string, string>>({ phandalin: 'MESA42', barovia: 'NEVOA7' });
+  const [bans, setBans] = useState<CampaignBan[]>([]);
   const [removing, setRemoving] = useState<string>();
   const [collapsed, setCollapsed] = useState(false);
   const master = role === 'master';
@@ -36,12 +44,10 @@ export function Campaign({ role = 'master', loading = false, empty = false }: {
   function changeCampaign(value: string) {
     setCampaign(value); setMembers(value === 'barovia' ? initialMembers.slice(0, 1) : initialMembers);
   }
+  const code = codes[campaign];
   const inviteDialog = <DialogContent>
-    <DialogHeader>
-      <DialogTitle>Reúna sua mesa</DialogTitle>
-      <DialogDescription>Envie o código para quem vai participar da campanha.</DialogDescription>
-    </DialogHeader>
-    <CopyField value={campaign === 'phandalin' ? 'MESA42' : 'NEVOA7'} />
+    <InviteDialog link={`https://questfast.app/invite/${code}`} code={code} campaignName={selected.name}
+      onRotate={() => setCodes(current => ({ ...current, [campaign]: nextCode(current[campaign]) }))} />
   </DialogContent>;
   return <TooltipProvider>
     <AppShell campaigns={campaigns.map(item => ({ ...item, role }))} campaignId={campaign} onCampaignChange={changeCampaign}
@@ -97,11 +103,11 @@ export function Campaign({ role = 'master', loading = false, empty = false }: {
                       <DialogContent>
                         <DialogHeader>
                           <DialogTitle>Remover {member.name}?</DialogTitle>
-                          <DialogDescription>Esta pessoa deixará de participar da campanha. Você poderá convidá-la novamente.</DialogDescription>
+                          <DialogDescription>Esta pessoa sairá da campanha e não poderá voltar por convite até você liberar a entrada.</DialogDescription>
                         </DialogHeader>
                         <DialogFooter>
                           <DialogClose asChild><Button variant="secondary">Cancelar</Button></DialogClose>
-                          <Button variant="destructive" onClick={() => { setMembers(current => current.filter(item => item.id !== member.id)); setRemoving(undefined); notify({ variant: 'success', title: 'Jogador removido', description: 'A lista de membros foi atualizada.' }); }}>Remover jogador</Button>
+                          <Button variant="destructive" onClick={() => { setMembers(current => current.filter(item => item.id !== member.id)); setBans(current => [...current, { userId: member.id, name: member.name, avatarUrl: null, bannedAt: new Date().toISOString() }]); setRemoving(undefined); notify({ variant: 'success', title: 'Jogador removido', description: 'A lista de membros foi atualizada.' }); }}>Remover jogador</Button>
                         </DialogFooter>
                       </DialogContent>
                     </Dialog>}
@@ -113,6 +119,9 @@ export function Campaign({ role = 'master', loading = false, empty = false }: {
                   {master && <Button variant="secondary" onClick={() => setInvite(true)}><Plus size={18} aria-hidden="true" />Convidar jogadores</Button>}
                 </div>}
               </CardContent>
+              {master && bans.length > 0 && <CardContent className="border-t border-border px-4 py-4 @md:px-6">
+                <BannedList bans={bans} onUnban={userId => setBans(current => current.filter(item => item.userId !== userId))} />
+              </CardContent>}
             </Card>
             <p className="mt-3 text-small text-text-muted">{master ? 'Você é o mestre desta campanha e gerencia quem participa.' : 'O mestre gerencia os convites e os membros desta campanha.'}</p>
           </section>

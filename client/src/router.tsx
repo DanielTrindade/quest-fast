@@ -7,11 +7,13 @@ import {
   type RouterHistory,
 } from '@tanstack/react-router';
 import type { QueryClient } from '@tanstack/react-query';
+import { safeReturnPath } from '@quest-fast/shared';
 import { Toaster } from './components/Toast';
 import { ApiError, api } from './lib/api';
 import { AccountBar } from './screens/AccountBar';
 import { CampaignWorkspace } from './screens/CampaignWorkspace';
 import { Campaigns } from './screens/Campaigns';
+import { Invite } from './screens/Invite';
 import { Login } from './screens/Login';
 
 type RouterContext = { queryClient: QueryClient };
@@ -30,12 +32,32 @@ const rootRoute = createRootRouteWithContext<RouterContext>()({
 const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/login',
-  // The key is omitted when there is no error, so navigating to /login does
-  // not start requiring `search`.
-  validateSearch: (search: Record<string, unknown>): { error?: 'discord' } =>
-    search.error === 'discord' ? { error: 'discord' } : {},
+  // Keys are omitted when absent, so navigating to /login does not start
+  // requiring `search`.
+  validateSearch: (search: Record<string, unknown>): { error?: 'discord'; next?: string } => {
+    const next = safeReturnPath(search.next);
+    return {
+      ...(search.error === 'discord' ? { error: 'discord' as const } : {}),
+      ...(next ? { next } : {}),
+    };
+  },
   component: function LoginScreen() {
-    return <Login failed={loginRoute.useSearch().error === 'discord'} />;
+    const { error, next } = loginRoute.useSearch();
+    return <Login failed={error === 'discord'} next={next} />;
+  },
+});
+
+const inviteRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/invite/$code',
+  validateSearch: (search: Record<string, unknown>): { join?: true; error?: 'discord' } => ({
+    ...(search.join === 1 || search.join === '1' || search.join === true ? { join: true as const } : {}),
+    ...(search.error === 'discord' ? { error: 'discord' as const } : {}),
+  }),
+  component: function InviteScreen() {
+    const { code } = inviteRoute.useParams();
+    const { join, error } = inviteRoute.useSearch();
+    return <Invite code={code} join={join === true} failed={error === 'discord'} />;
   },
 });
 
@@ -46,12 +68,15 @@ const loginRoute = createRoute({
 const authenticatedRoute = createRoute({
   getParentRoute: () => rootRoute,
   id: 'authenticated',
-  beforeLoad: async ({ context }) => {
+  beforeLoad: async ({ context, location }) => {
     try {
       const { user } = await context.queryClient.ensureQueryData(meQuery);
       return { user };
     } catch (error) {
-      if (error instanceof ApiError && error.unauthenticated) throw redirect({ to: '/login' });
+      if (error instanceof ApiError && error.unauthenticated) {
+        const next = safeReturnPath(location.href);
+        throw redirect({ to: '/login', search: next && !next.startsWith('/login') ? { next } : {} });
+      }
       throw error;
     }
   },
@@ -94,6 +119,7 @@ const campaignRoute = createRoute({
 const routeTree = rootRoute.addChildren([
   indexRoute,
   loginRoute,
+  inviteRoute,
   authenticatedRoute.addChildren([campaignsRoute, campaignRoute]),
 ]);
 

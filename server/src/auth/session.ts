@@ -5,6 +5,7 @@ import type { DiscordProfile } from './discord.ts';
 
 export const SESSION_COOKIE = 'qf_session';
 export const STATE_COOKIE = 'qf_oauth_state';
+export const NEXT_COOKIE = 'qf_oauth_next';
 
 /** Thirty days: a table usually plays every couple of weeks. */
 export const SESSION_DURATION_MS = 30 * 24 * 60 * 60 * 1000;

@@ -1,13 +1,16 @@
-import { useState } from 'react';
-import { ArrowLeft, CaretRight, Users } from '@phosphor-icons/react';
+import { useRef, useState, type RefObject } from 'react';
+import { ArrowLeft, CaretRight, Plus, Users } from '@phosphor-icons/react';
 import { useMutation, useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
 import { Link, useNavigate } from '@tanstack/react-router';
-import type { CampaignDetail, CampaignMember, MembersResponse } from '@quest-fast/shared';
+import { invitePath, type CampaignDetail, type CampaignMember, type MembersResponse } from '@quest-fast/shared';
 import { Avatar } from '../components/Avatar';
 import { Badge } from '../components/Badge';
 import { Button } from '../components/Button';
-import { CopyField } from '../components/CopyField';
+import { BannedList } from '../components/BannedList';
 import { Dialog } from '../components/Dialog';
+import { InviteDialog } from '../components/InviteDialog';
+import { Button as PrimaryButton } from '../components/ui/button';
+import { Dialog as InviteModal, DialogContent } from '../components/ui/dialog';
 import { EmptyState } from '../components/EmptyState';
 import { Skeleton } from '../components/Skeleton';
 import { Surface } from '../components/Surface';
@@ -19,7 +22,7 @@ import { CombatSection } from './campaign/CombatSection';
 import { encountersQuery } from '../lib/combat-cache';
 import { DiceRoller } from './campaign/DiceRoller';
 import { SessionFeed } from './campaign/SessionFeed';
-import { dialogActions, eyebrow, memberRow, page, sectionHeading, stack } from '../components/layout-styles';
+import { dialogActions, memberRow, page, sectionHeading, stack } from '../components/layout-styles';
 import { cn } from '../lib/utils';
 
 const rosterRow = 'col-span-full grid grid-cols-subgrid @max-[480px]:grid-cols-[40px_minmax(0,1fr)] [&>[data-slot=badge]]:col-start-3 [&>[data-slot=badge]]:justify-self-start [&>button]:col-start-4 [&>button]:justify-self-start @max-[480px]:[&>[data-slot=badge]]:col-start-2 @max-[480px]:[&>button]:col-start-2';
@@ -57,7 +60,7 @@ function RemoveMember({
         </Button>
       }
       title={`Remover ${member.name}?`}
-      description="Esta pessoa deixará de participar da campanha. Você poderá convidá-la novamente."
+      description="Esta pessoa sairá da campanha e não poderá voltar por convite até você liberar a entrada."
     >
       {remove.isError && (
         <p role="alert" className="text-small text-danger-text">
@@ -73,6 +76,57 @@ function RemoveMember({
         </Button>
       </div>
     </Dialog>
+  );
+}
+
+function InviteDialogHost({
+  campaignId,
+  campaignName,
+  inviteCode,
+  open,
+  onOpenChange,
+  openerRef,
+}: {
+  campaignId: string;
+  campaignName: string;
+  inviteCode: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  openerRef: RefObject<HTMLElement | null>;
+}) {
+  const queryClient = useQueryClient();
+  const rotate = useMutation({
+    mutationFn: () => api.rotateInvite(campaignId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['campaign', campaignId] }),
+  });
+
+  return (
+    <InviteModal open={open} onOpenChange={onOpenChange}>
+      <DialogContent
+        onCloseAutoFocus={(event) => {
+          event.preventDefault();
+          openerRef.current?.focus();
+        }}
+      >
+        <InviteDialog
+          link={window.location.origin + invitePath(inviteCode)}
+          code={inviteCode}
+          campaignName={campaignName}
+          onRotate={() => rotate.mutate()}
+          rotating={rotate.isPending}
+          rotateError={rotate.isError ? errorMessage(rotate.error) : undefined}
+        />
+      </DialogContent>
+    </InviteModal>
+  );
+}
+
+function InviteButton({ onClick, variant }: { onClick: (opener: HTMLElement) => void; variant?: 'secondary' }) {
+  return (
+    <PrimaryButton variant={variant} onClick={(event) => onClick(event.currentTarget)}>
+      <Plus size={18} aria-hidden="true" />
+      Convidar jogadores
+    </PrimaryButton>
   );
 }
 
@@ -114,6 +168,34 @@ function LeaveCampaign({ campaignId }: { campaignId: string }) {
   );
 }
 
+function BannedSection({ campaignId }: { campaignId: string }) {
+  const queryClient = useQueryClient();
+  const bans = useQuery({
+    queryKey: ['campaign', campaignId, 'bans'],
+    queryFn: () => api.bans(campaignId),
+  });
+  const unban = useMutation({
+    mutationFn: (userId: string) => api.unban(campaignId, userId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['campaign', campaignId, 'bans'] }),
+  });
+
+  if (!bans.data || bans.data.bans.length === 0) return null;
+  return (
+    <Surface className="min-w-0">
+      <BannedList
+        bans={bans.data.bans}
+        onUnban={(userId) => unban.mutate(userId)}
+        unbanning={unban.isPending ? unban.variables : undefined}
+      />
+      {unban.isError && (
+        <p role="alert" className="mt-3 text-small text-danger-text">
+          {errorMessage(unban.error)}
+        </p>
+      )}
+    </Surface>
+  );
+}
+
 /** The roster, the invite and the footnote, inside the admin disclosure. */
 function MembersPanel({
   campaignId,
@@ -123,6 +205,7 @@ function MembersPanel({
   open,
   onToggle,
   onRemoved,
+  onInvite,
 }: {
   campaignId: string;
   isMaster: boolean;
@@ -131,6 +214,7 @@ function MembersPanel({
   open: boolean;
   onToggle: (open: boolean) => void;
   onRemoved: () => void;
+  onInvite: (opener: HTMLElement) => void;
 }) {
   return (
     <div data-slot="campaign-admin" className="min-w-0 [grid-area:admin]">
@@ -202,22 +286,13 @@ function MembersPanel({
               <EmptyState
                 title="Falta reunir a mesa"
                 icon={Users}
-                description="Compartilhe o código de convite para os jogadores entrarem."
-                action={null}
+                description="Compartilhe o link de convite para os jogadores entrarem."
+                action={campaign?.inviteCode ? <InviteButton variant="secondary" onClick={onInvite} /> : null}
               />
             )}
           </Surface>
 
-          {/* The code only reaches the master; the API omits it for a player. */}
-          {campaign?.inviteCode && (
-            <Surface className="min-w-0">
-              <p className={eyebrow}>Convite</p>
-              <p className="mt-1 mb-3 text-small text-text-secondary">
-                Quem tiver este código entra na campanha como jogador.
-              </p>
-              <CopyField value={campaign.inviteCode} />
-            </Surface>
-          )}
+          {isMaster && <BannedSection campaignId={campaignId} />}
 
           <p className="mt-3 text-small text-text-muted">
             {isMaster
@@ -230,12 +305,55 @@ function MembersPanel({
   );
 }
 
+function CampaignHeader({ campaign, campaignId, isMaster, onInvite }: {
+  campaign: UseQueryResult<CampaignDetail>;
+  campaignId: string;
+  isMaster: boolean;
+  onInvite: (opener: HTMLElement) => void;
+}) {
+  return (
+    <header className="mb-8 flex flex-wrap items-center justify-between gap-6 max-[479px]:gap-4 [&_h1]:mt-2 [&_h1]:font-display [&_h1]:text-display [&_h1]:font-semibold [&_h1]:tracking-[-0.04em] @max-[480px]:[&_h1]:text-h1">
+      <div className="min-w-0">
+        <Link to="/campaigns" className="inline-flex min-h-8 items-center gap-1 text-small text-text-secondary no-underline transition-colors duration-(--duration-quick) hover:text-foreground">
+          <ArrowLeft size={16} aria-hidden="true" />
+          Suas campanhas
+        </Link>
+        <h1>{campaign.data?.name ?? 'Carregando…'}</h1>
+        {campaign.data?.description && <p className="mt-2 text-text-secondary">{campaign.data.description}</p>}
+      </div>
+      {!campaign.isPending && !isMaster && <LeaveCampaign campaignId={campaignId} />}
+      {isMaster && campaign.data?.inviteCode && <InviteButton onClick={onInvite} />}
+    </header>
+  );
+}
+
+function CampaignError({ error }: { error: Error }) {
+  return (
+    <main data-slot="page" className={cn(page, 'mx-auto w-full max-w-[1400px]')}>
+      <Link to="/campaigns" className="inline-flex min-h-8 items-center gap-1 text-small text-text-secondary no-underline transition-colors duration-(--duration-quick) hover:text-foreground">
+        <ArrowLeft size={16} aria-hidden="true" /> Suas campanhas
+      </Link>
+      <Surface>
+        <p role="alert" className="text-body text-danger-text">
+          {errorMessage(error)}
+        </p>
+      </Surface>
+    </main>
+  );
+}
+
 export function Campaign({ campaignId }: { campaignId: string }) {
   const queryClient = useQueryClient();
   const notify = useNotify();
   // `null` means "not decided by hand yet": an empty table opens the panel,
   // because the invite is the whole point until someone joins.
   const [adminOpen, setAdminOpen] = useState<boolean | null>(null);
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const inviteOpener = useRef<HTMLElement | null>(null);
+  const openInvite = (opener: HTMLElement) => {
+    inviteOpener.current = opener;
+    setInviteOpen(true);
+  };
   // The auth guard already cached `/api/auth/me`; this reads it without a
   // round trip and without importing the route object (which would be a
   // circular dependency with the router).
@@ -255,39 +373,17 @@ export function Campaign({ campaignId }: { campaignId: string }) {
   const onRemoved = () => {
     notify({ variant: 'success', title: 'Jogador removido', description: 'A lista de membros foi atualizada.' });
     queryClient.invalidateQueries({ queryKey: ['members', campaignId] });
+    queryClient.invalidateQueries({ queryKey: ['campaign', campaignId, 'bans'] });
   };
 
-  if (campaign.isError) {
-    return (
-      <main data-slot="page" className={cn(page, 'mx-auto w-full max-w-[1400px]')}>
-        <Link to="/campaigns" className="inline-flex min-h-8 items-center gap-1 text-small text-text-secondary no-underline transition-colors duration-(--duration-quick) hover:text-foreground">
-          <ArrowLeft size={16} aria-hidden="true" /> Suas campanhas
-        </Link>
-        <Surface>
-          <p role="alert" className="text-body text-danger-text">
-            {errorMessage(campaign.error)}
-          </p>
-        </Surface>
-      </main>
-    );
-  }
+  if (campaign.isError) return <CampaignError error={campaign.error} />;
 
   const isMaster = campaign.data?.role === 'master';
   const tableIsEmpty = members.isSuccess && members.data.members.length <= 1;
 
   return (
     <main data-slot="page" className={cn(page, 'mx-auto w-full max-w-[1400px]')}>
-      <header className="mb-8 flex flex-wrap items-center justify-between gap-6 max-[479px]:gap-4 [&_h1]:mt-2 [&_h1]:font-display [&_h1]:text-display [&_h1]:font-semibold [&_h1]:tracking-[-0.04em] @max-[480px]:[&_h1]:text-h1">
-        <div className="min-w-0">
-          <Link to="/campaigns" className="inline-flex min-h-8 items-center gap-1 text-small text-text-secondary no-underline transition-colors duration-(--duration-quick) hover:text-foreground">
-            <ArrowLeft size={16} aria-hidden="true" />
-            Suas campanhas
-          </Link>
-          <h1>{campaign.data?.name ?? 'Carregando…'}</h1>
-          {campaign.data?.description && <p className="mt-2 text-text-secondary">{campaign.data.description}</p>}
-        </div>
-        {!campaign.isPending && !isMaster && <LeaveCampaign campaignId={campaignId} />}
-      </header>
+      <CampaignHeader campaign={campaign} isMaster={isMaster} campaignId={campaignId} onInvite={openInvite} />
 
       {/* Order matters more than columns here: on a phone the table (dice and
           session) has to come before the administration of the campaign. */}
@@ -318,8 +414,20 @@ export function Campaign({ campaignId }: { campaignId: string }) {
           open={adminOpen ?? tableIsEmpty}
           onToggle={setAdminOpen}
           onRemoved={onRemoved}
+          onInvite={openInvite}
         />
       </div>
+
+      {isMaster && campaign.data?.inviteCode && (
+        <InviteDialogHost
+          campaignId={campaignId}
+          campaignName={campaign.data.name}
+          inviteCode={campaign.data.inviteCode}
+          open={inviteOpen}
+          onOpenChange={setInviteOpen}
+          openerRef={inviteOpener}
+        />
+      )}
 
     </main>
   );

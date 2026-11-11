@@ -5,8 +5,15 @@ import { Button } from './Button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 
-export function CopyField({ value, label = 'Código de convite', copy = text => navigator.clipboard.writeText(text) }: {
+export function CopyField({
+  value, label = 'Código de convite', copy = text => navigator.clipboard.writeText(text),
+  idleText = 'Compartilhe este código para convidar alguém.',
+  copiedText = 'Código copiado. Compartilhe com sua mesa.',
+  errorText = 'Não foi possível copiar. Selecione o código e copie manualmente.',
+  spaced = true,
+}: {
   value: string; label?: string; copy?: (value: string) => Promise<void>;
+  idleText?: string; copiedText?: string; errorText?: string; spaced?: boolean;
 }) {
   const id = useId();
   const [feedback, setFeedback] = useState<{ value: string; state: 'copying' | 'copied' | 'error' }>();
@@ -23,15 +30,14 @@ export function CopyField({ value, label = 'Código de convite', copy = text => 
   return <div className="grid min-w-0 gap-2">
     <Label htmlFor={id}>{label}</Label>
     <div className="flex flex-wrap gap-2">
-      <Input className="w-0 flex-[1_1_120px] font-mono font-semibold tracking-[0.16em] tabular-nums" id={id} value={value} readOnly onFocus={event => event.currentTarget.select()} aria-describedby={`${id}-status`} />
+      <Input className={cn('w-0 flex-[1_1_120px] font-mono font-semibold tabular-nums', spaced && 'tracking-[0.16em]')} id={id} value={value} readOnly onFocus={event => event.currentTarget.select()} aria-describedby={`${id}-status`} />
       <Button variant="secondary" onClick={copyValue} loading={state === 'copying'}>
         {state === 'copied' ? <Check size={18} aria-hidden="true" /> : <Copy size={18} aria-hidden="true" />}
         {state === 'copied' ? 'Copiado' : 'Copiar'}
       </Button>
     </div>
     <p id={`${id}-status`} role="status" className={cn('text-small', state === 'error' ? 'text-danger-text' : 'text-text-muted')}>
-      {state === 'error' ? 'Não foi possível copiar. Selecione o código e copie manualmente.'
-        : state === 'copied' ? 'Código copiado. Compartilhe com sua mesa.' : 'Compartilhe este código para convidar alguém.'}
+      {state === 'error' ? errorText : state === 'copied' ? copiedText : idleText}
     </p>
   </div>;
 }

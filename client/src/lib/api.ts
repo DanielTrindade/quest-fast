@@ -10,6 +10,7 @@ import type {
   CombatantInput,
   CombatantPatch,
   CreatedCampaign,
+  InvitePreview,
   EncounterListResponse,
   EncounterResponse,
   FeedResponse,
@@ -18,6 +19,7 @@ import type {
   LinkedRollRequest,
   MeResponse,
   MembersResponse,
+  BansResponse,
   RollResponse,
   StatblockInput,
   StatblockListResponse,
@@ -91,12 +93,22 @@ export const api = {
     }),
 
   campaign: (id: string) => request<CampaignDetail>(`/api/campaigns/${id}`),
+  invite: (code: string) => request<InvitePreview>(`/api/invites/${encodeURIComponent(code)}`),
+
+  rotateInvite: (campaignId: string) =>
+    request<{ inviteCode: string }>(`/api/campaigns/${campaignId}/invite`, { method: 'POST' }),
+
   members: (id: string) => request<MembersResponse>(`/api/campaigns/${id}/members`),
 
   leaveCampaign: (id: string) => request<void>(`/api/campaigns/${id}/members/me`, { method: 'DELETE' }),
 
   removeMember: (campaignId: string, memberId: string) =>
     request<void>(`/api/campaigns/${campaignId}/members/${memberId}`, { method: 'DELETE' }),
+
+  bans: (campaignId: string) => request<BansResponse>(`/api/campaigns/${campaignId}/bans`),
+
+  unban: (campaignId: string, userId: string) =>
+    request<void>(`/api/campaigns/${campaignId}/bans/${userId}`, { method: 'DELETE' }),
 
   characters: (campaignId: string) => request<CharacterListResponse>(`/api/campaigns/${campaignId}/characters`),
   character: (campaignId: string, characterId: string) =>
@@ -200,3 +212,7 @@ export const api = {
 
 /** Login leaves the SPA: Discord answers the server, not the client. */
 export const LOGIN_PATH = '/api/auth/discord';
+
+export function loginHref(next?: string): string {
+  return next ? `${LOGIN_PATH}?next=${encodeURIComponent(next)}` : LOGIN_PATH;
+}

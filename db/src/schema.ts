@@ -96,6 +96,21 @@ export const campaignMembers = sqliteTable(
   ],
 );
 
+export const campaignBans = sqliteTable(
+  'campaign_bans',
+  {
+    id: text('id').primaryKey(),
+    campaignId: text('campaign_id')
+      .notNull()
+      .references(() => campaigns.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(now),
+  },
+  (table) => [uniqueIndex('campaign_bans_campaign_user_idx').on(table.campaignId, table.userId)],
+);
+
 /** Row types. The API-facing shapes live in `@quest-fast/shared`. */
 export type UserRow = typeof users.$inferSelect;
 export type NewUserRow = typeof users.$inferInsert;

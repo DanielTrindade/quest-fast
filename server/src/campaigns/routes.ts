@@ -1,41 +1,34 @@
 import { randomUUID } from 'node:crypto';
 import { and, desc, eq, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
-import { campaignMembers, campaigns, users, type Db } from '@quest-fast/db';
-import { generateInviteCode, normalizeInviteCode } from '@quest-fast/shared';
+import { campaignBans, campaignMembers, campaigns, users, type Db } from '@quest-fast/db';
+import { normalizeInviteCode } from '@quest-fast/shared';
 import type { Context } from '../context.ts';
+import { banRoutes, isBanned } from './bans.ts';
+import { withUniqueCode } from './unique-code.ts';
 import { requireAuth, requireCampaignRole } from '../middleware.ts';
 
 const NAME_LIMIT = 80;
 const DESCRIPTION_LIMIT = 500;
 
 /**
- * The code is unique by index in the database. A collision is unlikely, but
- * the retry keeps creation deterministic instead of erroring at the master.
  * The campaign and its master membership are one write: a failure while adding
  * the member must not leave a masterless campaign behind.
  */
 function createCampaignWithCode(db: Db, name: string, description: string, creatorId: string) {
-  for (let attempt = 0; attempt < 5; attempt++) {
-    const code = generateInviteCode();
-    try {
-      return db.transaction((tx) => {
-        const campaign = tx
-          .insert(campaigns)
-          .values({ id: randomUUID(), name, description, inviteCode: code })
-          .returning()
-          .get();
-        tx.insert(campaignMembers)
-          .values({ id: randomUUID(), campaignId: campaign.id, userId: creatorId, role: 'master' })
-          .run();
-        return campaign;
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : '';
-      if (!message.includes('UNIQUE') || attempt === 4) throw error;
-    }
-  }
-  throw new Error('Could not generate a unique invite code.');
+  return withUniqueCode((code) =>
+    db.transaction((tx) => {
+      const campaign = tx
+        .insert(campaigns)
+        .values({ id: randomUUID(), name, description, inviteCode: code })
+        .returning()
+        .get();
+      tx.insert(campaignMembers)
+        .values({ id: randomUUID(), campaignId: campaign.id, userId: creatorId, role: 'master' })
+        .run();
+      return campaign;
+    }),
+  );
 }
 
 function validText(value: unknown, limit: number): string | undefined {
@@ -100,6 +93,10 @@ export function campaignRoutes() {
     const campaign = db.select().from(campaigns).where(eq(campaigns.inviteCode, code)).get();
     if (!campaign) return c.json({ error: 'Código de convite inválido.' }, 404);
 
+    if (isBanned(db, campaign.id, c.var.user.id)) {
+      return c.json({ error: 'Você não pode entrar nesta mesa. Fale com quem te chamou.' }, 403);
+    }
+
     const alreadyMember = db
       .select({ role: campaignMembers.role })
       .from(campaignMembers)
@@ -127,6 +124,15 @@ export function campaignRoutes() {
       // The code only exists in the master's response.
       ...(c.var.role === 'master' ? { inviteCode: campaign.inviteCode } : {}),
     });
+  });
+
+  routes.post('/:campaignId/invite', requireCampaignRole('master'), (c) => {
+    const { db } = c.var.deps;
+    const inviteCode = withUniqueCode((code) => {
+      db.update(campaigns).set({ inviteCode: code }).where(eq(campaigns.id, c.var.campaignId)).run();
+      return code;
+    });
+    return c.json({ inviteCode });
   });
 
   routes.get('/:campaignId/members', requireCampaignRole(), (c) => {
@@ -179,11 +185,19 @@ export function campaignRoutes() {
     if (!target) return c.json({ error: 'Membro não encontrado.' }, 404);
     if (target.role === 'master') return c.json({ error: 'O mestre não pode ser removido.' }, 409);
 
-    db.delete(campaignMembers).where(eq(campaignMembers.id, target.id)).run();
+    db.transaction((tx) => {
+      tx.delete(campaignMembers).where(eq(campaignMembers.id, target.id)).run();
+      tx.insert(campaignBans)
+        .values({ id: randomUUID(), campaignId: c.var.campaignId, userId: target.userId })
+        .onConflictDoNothing()
+        .run();
+    });
     // The membership is gone; an open socket must not keep the room.
     c.var.deps.hub.kick(c.var.campaignId, target.userId);
     return c.body(null, 204);
   });
+
+  routes.route('/', banRoutes());
 
   return routes;
 }
