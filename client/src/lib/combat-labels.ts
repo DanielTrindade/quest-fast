@@ -1,4 +1,4 @@
-import type { ActiveCondition, CombatantView, Condition, EncounterStatus, HealthBand } from '@quest-fast/shared';
+import type { ActiveCondition, CombatantView, Condition, DeathSaveStatus, EncounterStatus, HealthBand } from '@quest-fast/shared';
 
 /** Visible labels of the combat, in Portuguese (D&D 2024). */
 
@@ -39,6 +39,13 @@ export function conditionLabel({ condition, level, roundsLeft }: ActiveCondition
   if (roundsLeft === undefined) return name;
   return `${name} (${roundsLeft} ${roundsLeft === 1 ? 'rodada' : 'rodadas'})`;
 }
+
+/** A character at 0 hit points. "Caído" is already the prone condition. */
+export const DEATH_STATUS_LABELS: Record<DeathSaveStatus, string> = {
+  pending: 'Morrendo',
+  stable: 'Estável',
+  dead: 'Morto',
+};
 
 /**
  * Combatants the master may reorder against each other: same initiative and

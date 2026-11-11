@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import type { DeathSaves as DeathSavesValue } from '@quest-fast/shared';
 import { trackerLabel, trackerPanel } from './sheet-styles';
 import { cn } from '../lib/utils';
@@ -35,19 +36,24 @@ function Track({ label, kind, count, editable, pending, onChange }: {
 }
 
 /** Three successes stabilize, three failures kill; the table resolves it. */
-export function DeathSaves({ value, editable = false, pending = false, onChange }: {
+export function DeathSaves({ value, editable = false, pending = false, label = 'Salvaguardas contra a morte', onChange, children }: {
   value: DeathSavesValue;
   editable?: boolean;
   pending?: boolean;
+  /** Names the panel; in a fight it says whose saves they are. */
+  label?: string;
   onChange?: (next: DeathSavesValue) => void;
+  /** What the combat adds to the same panel: the state and the roll. */
+  children?: ReactNode;
 }) {
   return (
-    <section className={cn(trackerPanel, '@container')} aria-label="Salvaguardas contra a morte">
+    <section className={cn(trackerPanel, '@container')} aria-label={label}>
       <p className={trackerLabel}>Salvaguardas contra a morte</p>
       <Track label="Sucessos" kind="success" count={value.successes} editable={editable} pending={pending}
         onChange={(successes) => onChange?.({ ...value, successes })} />
       <Track label="Falhas" kind="failure" count={value.failures} editable={editable} pending={pending}
         onChange={(failures) => onChange?.({ ...value, failures })} />
+      {children}
     </section>
   );
 }
