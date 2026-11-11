@@ -67,16 +67,20 @@ try {
   await page.getByText(uniqueName).waitFor({ timeout: 15000 });
   ok('campanha criada aparece na listagem');
 
-  // 4) The new campaign opens, with members and the invite code for the master.
+  // 4) The new campaign opens, with members and the invite link for the master.
   await page.getByText(uniqueName).click();
   await page.getByRole('heading', { name: 'Membros' }).waitFor({ timeout: 15000 });
   const members = await page.locator('[data-slot="member-name"]').allTextContents();
   if (members.length !== 1) throw new Error(`campanha nova deveria ter 1 membro, tem ${members.length}`);
   ok(`campanha abre com o mestre como único membro (${members[0]})`);
 
-  const inviteCode = await page.locator('input[readonly]').first().inputValue();
-  if (!/^[A-Z2-9]{6}$/.test(inviteCode)) throw new Error(`código de convite inesperado: ${inviteCode}`);
-  ok('código de convite visível ao mestre');
+  await page.getByRole('button', { name: 'Convidar jogadores' }).first().click();
+  const inviteDialog = page.getByRole('dialog');
+  await inviteDialog.waitFor({ timeout: 10000 });
+  const inviteLink = await inviteDialog.locator('input[readonly]').first().inputValue();
+  if (!/\/invite\/[A-Z2-9]{6}$/.test(inviteLink)) throw new Error(`link de convite inesperado: ${inviteLink}`);
+  ok('link de convite visível ao mestre');
+  await page.keyboard.press('Escape');
 
   // 5) Join dialog: also mounts a form, and rejects a malformed code.
   await page.goto(`${base}/campaigns`);

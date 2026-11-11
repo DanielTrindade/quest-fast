@@ -1,13 +1,16 @@
 import { useState } from 'react';
-import { ArrowLeft, CaretRight, Users } from '@phosphor-icons/react';
+import { ArrowLeft, CaretRight, Plus, Users } from '@phosphor-icons/react';
 import { useMutation, useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
 import { Link, useNavigate } from '@tanstack/react-router';
-import type { CampaignDetail, CampaignMember, MembersResponse } from '@quest-fast/shared';
+import { invitePath, type CampaignDetail, type CampaignMember, type MembersResponse } from '@quest-fast/shared';
 import { Avatar } from '../components/Avatar';
 import { Badge } from '../components/Badge';
 import { Button } from '../components/Button';
-import { CopyField } from '../components/CopyField';
+import { BannedList } from '../components/BannedList';
 import { Dialog } from '../components/Dialog';
+import { InviteDialog } from '../components/InviteDialog';
+import { Button as PrimaryButton } from '../components/ui/button';
+import { Dialog as InviteModal, DialogContent, DialogTrigger } from '../components/ui/dialog';
 import { EmptyState } from '../components/EmptyState';
 import { Skeleton } from '../components/Skeleton';
 import { Surface } from '../components/Surface';
@@ -19,7 +22,7 @@ import { CombatSection } from './campaign/CombatSection';
 import { encountersQuery } from '../lib/combat-cache';
 import { DiceRoller } from './campaign/DiceRoller';
 import { SessionFeed } from './campaign/SessionFeed';
-import { dialogActions, eyebrow, memberRow, page, sectionHeading, stack } from '../components/layout-styles';
+import { dialogActions, memberRow, page, sectionHeading, stack } from '../components/layout-styles';
 import { cn } from '../lib/utils';
 
 const rosterRow = 'col-span-full grid grid-cols-subgrid @max-[480px]:grid-cols-[40px_minmax(0,1fr)] [&>[data-slot=badge]]:col-start-3 [&>[data-slot=badge]]:justify-self-start [&>button]:col-start-4 [&>button]:justify-self-start @max-[480px]:[&>[data-slot=badge]]:col-start-2 @max-[480px]:[&>button]:col-start-2';
@@ -57,7 +60,7 @@ function RemoveMember({
         </Button>
       }
       title={`Remover ${member.name}?`}
-      description="Esta pessoa deixará de participar da campanha. Você poderá convidá-la novamente."
+      description="Esta pessoa sairá da campanha e não poderá voltar por convite até você liberar a entrada."
     >
       {remove.isError && (
         <p role="alert" className="text-small text-danger-text">
@@ -73,6 +76,45 @@ function RemoveMember({
         </Button>
       </div>
     </Dialog>
+  );
+}
+
+function InviteAction({
+  campaignId,
+  campaignName,
+  inviteCode,
+  variant,
+}: {
+  campaignId: string;
+  campaignName: string;
+  inviteCode: string;
+  variant?: 'secondary';
+}) {
+  const queryClient = useQueryClient();
+  const rotate = useMutation({
+    mutationFn: () => api.rotateInvite(campaignId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['campaign', campaignId] }),
+  });
+
+  return (
+    <InviteModal>
+      <DialogTrigger asChild>
+        <PrimaryButton variant={variant}>
+          <Plus size={18} aria-hidden="true" />
+          Convidar jogadores
+        </PrimaryButton>
+      </DialogTrigger>
+      <DialogContent>
+        <InviteDialog
+          link={window.location.origin + invitePath(inviteCode)}
+          code={inviteCode}
+          campaignName={campaignName}
+          onRotate={() => rotate.mutate()}
+          rotating={rotate.isPending}
+          rotateError={rotate.isError ? errorMessage(rotate.error) : undefined}
+        />
+      </DialogContent>
+    </InviteModal>
   );
 }
 
@@ -111,6 +153,34 @@ function LeaveCampaign({ campaignId }: { campaignId: string }) {
         </Button>
       </div>
     </Dialog>
+  );
+}
+
+function BannedSection({ campaignId }: { campaignId: string }) {
+  const queryClient = useQueryClient();
+  const bans = useQuery({
+    queryKey: ['campaign', campaignId, 'bans'],
+    queryFn: () => api.bans(campaignId),
+  });
+  const unban = useMutation({
+    mutationFn: (userId: string) => api.unban(campaignId, userId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['campaign', campaignId, 'bans'] }),
+  });
+
+  if (!bans.data || bans.data.bans.length === 0) return null;
+  return (
+    <Surface className="min-w-0">
+      <BannedList
+        bans={bans.data.bans}
+        onUnban={(userId) => unban.mutate(userId)}
+        unbanning={unban.isPending ? unban.variables : undefined}
+      />
+      {unban.isError && (
+        <p role="alert" className="mt-3 text-small text-danger-text">
+          {errorMessage(unban.error)}
+        </p>
+      )}
+    </Surface>
   );
 }
 
@@ -202,22 +272,22 @@ function MembersPanel({
               <EmptyState
                 title="Falta reunir a mesa"
                 icon={Users}
-                description="Compartilhe o código de convite para os jogadores entrarem."
-                action={null}
+                description="Compartilhe o link de convite para os jogadores entrarem."
+                action={
+                  campaign?.inviteCode ? (
+                    <InviteAction
+                      campaignId={campaignId}
+                      campaignName={campaign.name}
+                      inviteCode={campaign.inviteCode}
+                      variant="secondary"
+                    />
+                  ) : null
+                }
               />
             )}
           </Surface>
 
-          {/* The code only reaches the master; the API omits it for a player. */}
-          {campaign?.inviteCode && (
-            <Surface className="min-w-0">
-              <p className={eyebrow}>Convite</p>
-              <p className="mt-1 mb-3 text-small text-text-secondary">
-                Quem tiver este código entra na campanha como jogador.
-              </p>
-              <CopyField value={campaign.inviteCode} />
-            </Surface>
-          )}
+          {isMaster && <BannedSection campaignId={campaignId} />}
 
           <p className="mt-3 text-small text-text-muted">
             {isMaster
@@ -255,6 +325,7 @@ export function Campaign({ campaignId }: { campaignId: string }) {
   const onRemoved = () => {
     notify({ variant: 'success', title: 'Jogador removido', description: 'A lista de membros foi atualizada.' });
     queryClient.invalidateQueries({ queryKey: ['members', campaignId] });
+    queryClient.invalidateQueries({ queryKey: ['campaign', campaignId, 'bans'] });
   };
 
   if (campaign.isError) {
@@ -287,6 +358,13 @@ export function Campaign({ campaignId }: { campaignId: string }) {
           {campaign.data?.description && <p className="mt-2 text-text-secondary">{campaign.data.description}</p>}
         </div>
         {!campaign.isPending && !isMaster && <LeaveCampaign campaignId={campaignId} />}
+        {isMaster && campaign.data?.inviteCode && (
+          <InviteAction
+            campaignId={campaignId}
+            campaignName={campaign.data.name}
+            inviteCode={campaign.data.inviteCode}
+          />
+        )}
       </header>
 
       {/* Order matters more than columns here: on a phone the table (dice and

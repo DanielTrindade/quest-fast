@@ -13,6 +13,7 @@ import { ApiError, api } from './lib/api';
 import { AccountBar } from './screens/AccountBar';
 import { CampaignWorkspace } from './screens/CampaignWorkspace';
 import { Campaigns } from './screens/Campaigns';
+import { Invite } from './screens/Invite';
 import { Login } from './screens/Login';
 
 type RouterContext = { queryClient: QueryClient };
@@ -43,6 +44,20 @@ const loginRoute = createRoute({
   component: function LoginScreen() {
     const { error, next } = loginRoute.useSearch();
     return <Login failed={error === 'discord'} next={next} />;
+  },
+});
+
+const inviteRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/invite/$code',
+  validateSearch: (search: Record<string, unknown>): { join?: true; error?: 'discord' } => ({
+    ...(search.join === 1 || search.join === '1' || search.join === true ? { join: true as const } : {}),
+    ...(search.error === 'discord' ? { error: 'discord' as const } : {}),
+  }),
+  component: function InviteScreen() {
+    const { code } = inviteRoute.useParams();
+    const { join, error } = inviteRoute.useSearch();
+    return <Invite code={code} join={join === true} failed={error === 'discord'} />;
   },
 });
 
@@ -104,6 +119,7 @@ const campaignRoute = createRoute({
 const routeTree = rootRoute.addChildren([
   indexRoute,
   loginRoute,
+  inviteRoute,
   authenticatedRoute.addChildren([campaignsRoute, campaignRoute]),
 ]);
 
