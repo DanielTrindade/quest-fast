@@ -10,7 +10,7 @@ import { Skeleton } from './ui/skeleton';
 type InviteSummary = { campaignName: string; master: { name: string; avatarUrl: string | null }; playerCount: number };
 
 type InvitePanelProps = {
-  state: 'loading' | 'anonymous' | 'guest' | 'blocked' | 'invalid';
+  state: 'loading' | 'anonymous' | 'guest' | 'blocked' | 'invalid' | 'error';
   invite?: InviteSummary;
   loginHref: string;
   campaignsHref: string;
@@ -18,6 +18,8 @@ type InvitePanelProps = {
   onJoin?: () => void;
   joining?: boolean;
   joinError?: string;
+  onLoginClick?: () => void;
+  onRetry?: () => void;
 };
 
 function playerCountText(count: number) {
@@ -45,7 +47,7 @@ function InviteCard({ invite }: { invite: InviteSummary }) {
   </div>;
 }
 
-export function InvitePanel({ state, invite, loginHref, campaignsHref, failed = false, onJoin, joining = false, joinError }: InvitePanelProps) {
+export function InvitePanel({ state, invite, loginHref, campaignsHref, failed = false, onJoin, joining = false, joinError, onLoginClick, onRetry }: InvitePanelProps) {
   const unavailable = state === 'blocked' || state === 'invalid';
   return (
     <main className="flex min-h-dvh flex-col justify-end bg-background p-4 text-foreground min-[600px]:items-center min-[600px]:justify-center min-[600px]:p-8">
@@ -56,7 +58,7 @@ export function InvitePanel({ state, invite, loginHref, campaignsHref, failed = 
         </div>
 
         {state === 'loading' && <><h1 className="sr-only">Convite para a mesa</h1><InviteSkeleton /></>}
-        {!unavailable && state !== 'loading' && invite && <InviteCard invite={invite} />}
+        {!unavailable && state !== 'loading' && state !== 'error' && invite && <InviteCard invite={invite} />}
         {unavailable && <div className="grid gap-3">
           <h1 className="font-display text-display font-semibold tracking-tight">Convite para a mesa</h1>
           <p className="text-pretty">{state === 'blocked'
@@ -64,11 +66,17 @@ export function InvitePanel({ state, invite, loginHref, campaignsHref, failed = 
             : 'Este convite não vale mais. Peça um link novo para quem te chamou.'}</p>
         </div>}
 
+        {state === 'error' && <div className="grid gap-3">
+          <h1 className="font-display text-display font-semibold tracking-tight">Convite para a mesa</h1>
+          <p role="alert" className="text-pretty">Não foi possível carregar o convite.</p>
+          <Button variant="secondary" onClick={onRetry}>Tentar de novo</Button>
+        </div>}
+
         {failed && state === 'anonymous' && <AuthFailedAlert />}
 
         {state === 'anonymous' && <div className="grid gap-3">
           <LinkButton asChild size="lg" className="w-full whitespace-normal text-center">
-            <a href={loginHref}><DiscordLogo size={18} aria-hidden="true" />Entrar com Discord para jogar</a>
+            <a href={loginHref} onClick={onLoginClick}><DiscordLogo size={18} aria-hidden="true" />Entrar com Discord para jogar</a>
           </LinkButton>
           <p className="text-small text-text-muted">É rápido e gratuito: usamos só seu nome e avatar do Discord.</p>
         </div>}

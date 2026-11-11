@@ -37,6 +37,8 @@ export const ErroAoEntrar: Story = {
 
 export const Bloqueado: Story = { args: { state: 'blocked', invite: undefined } };
 
+export const Erro: Story = { args: { state: 'error', invite: undefined } };
+
 export const Invalido: Story = { name: 'Inválido', args: { state: 'invalid', invite: undefined } };
 
 export const SemJogadores: Story = { args: { invite: { ...invite, playerCount: 0 } } };
