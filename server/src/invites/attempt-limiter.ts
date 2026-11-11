@@ -1,3 +1,4 @@
+import { isIPv6 } from 'node:net';
 import type { Context as HonoContext } from 'hono';
 import type { Context } from '../context.ts';
 
@@ -57,6 +58,25 @@ export function createAttemptLimiter({
 }
 
 /**
+ * A single IPv6 client usually owns a whole /64, so the full address would
+ * hand out a fresh budget per interface identifier. IPv4 stays per address.
+ */
+export function clientNetwork(address: string): string {
+  const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/i.exec(address);
+  if (mapped) return mapped[1];
+  if (!isIPv6(address)) return address;
+
+  const [head, tail] = address.split('%')[0].split('::');
+  const left = head ? head.split(':') : [];
+  const right = tail ? tail.split(':') : [];
+  const rightSize = right.length + (right.at(-1)?.includes('.') ? 1 : 0);
+  const groups = tail === undefined
+    ? left
+    : [...left, ...Array<string>(Math.max(0, 8 - left.length - rightSize)).fill('0'), ...right];
+  return `${groups.slice(0, 4).map((group) => parseInt(group, 16).toString(16)).join(':')}::/64`;
+}
+
+/**
  * The origin budget is keyed by the socket address. Forwarded headers are
  * forgeable, so they only count when the operator declares a trusted proxy;
  * then the last hop is the one that proxy appended.
@@ -65,7 +85,7 @@ export function originKey(c: HonoContext<Context>): string {
   const forwarded = c.var.deps.env.trustProxy
     ? c.req.header('x-forwarded-for')?.split(',').at(-1)?.trim()
     : undefined;
-  return `ip:${forwarded || c.env?.incoming?.socket.remoteAddress || 'unknown'}`;
+  return `ip:${clientNetwork(forwarded || c.env?.incoming?.socket.remoteAddress || 'unknown')}`;
 }
 
 export function tooManyAttempts(c: HonoContext<Context>, seconds: number) {

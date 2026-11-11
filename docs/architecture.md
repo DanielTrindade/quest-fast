@@ -214,7 +214,9 @@ digitado de uma vez.
   minutos por endereço e, no `join`, também por usuário. Estourado o limite, a
   origem recebe 429 com `Retry-After` mesmo para um código válido, e a busca
   nem é feita. A janela deslizante fica em memória, por processo. O endereço é
-  o do socket; `X-Forwarded-For` só vale com `TRUST_PROXY=true`.
+  o do socket; `X-Forwarded-For` só vale com `TRUST_PROXY=true`, que supõe o
+  app alcançável só pelo proxy. Endereços IPv6 dividem o limite por prefixo
+  `/64`, porque um único cliente costuma dispor do prefixo inteiro.
 - O login guarda o destino em `?next=` no cookie `qf_oauth_next`, validado na
   ida e na volta (`safeReturnPath`); em caso de falha, volta à página do
   convite.

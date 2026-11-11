@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join as joinPath } from 'node:path';
 import type { CreatedCampaign, MembersResponse } from '@quest-fast/shared';
 import { asUser, body, createTestApp, signIn, testEnv } from '../testing.ts';
-import { createAttemptLimiter } from './attempt-limiter.ts';
+import { clientNetwork, createAttemptLimiter } from './attempt-limiter.ts';
 
 const PROFILES = {
   lia: { discordId: '111', name: 'Lia Martins', avatarUrl: null },
@@ -160,6 +160,30 @@ test('behind a trusted proxy only the hop it appended counts', async () => {
   const { a, valid } = await setup();
   await exhaust((i) => a.app.request('/api/invites/AAAAAA', from(`10.0.4.${i}, 203.0.113.7`)));
   assert.equal((await a.app.request(valid, from('1.1.1.1, 203.0.113.7'))).status, 429);
+});
+
+test('IPv6 addresses share the budget of their /64, from the proxy or the socket', async () => {
+  const proxied = await setup();
+  await exhaust((i) => proxied.a.app.request('/api/invites/AAAAAA', from(`2001:db8:1234:5678::${(i + 1).toString(16)}`)));
+  assert.equal((await proxied.a.app.request(proxied.valid, from('2001:db8:1234:5678:aaaa:bbbb:cccc:dddd'))).status, 429);
+  assert.equal((await proxied.a.app.request(proxied.valid, from('2001:db8:1234:5679::1'))).status, 200);
+
+  const direct = await setup({ trustProxy: false });
+  const socket = (remoteAddress: string) => ({ incoming: { socket: { remoteAddress } } }) as never;
+  await exhaust((i) => direct.a.app.request('/api/invites/AAAAAA', {}, socket(`2001:db8:1234:5678::${(i + 1).toString(16)}`)));
+  assert.equal((await direct.a.app.request(direct.valid, {}, socket('2001:db8:1234:5678::ffff'))).status, 429);
+  assert.equal((await direct.a.app.request(direct.valid, {}, socket('2001:db8:1234:5679::1'))).status, 200);
+});
+
+test('only IPv6 is grouped by prefix', () => {
+  assert.equal(clientNetwork('2001:db8:1234:5678::1'), '2001:db8:1234:5678::/64');
+  assert.equal(clientNetwork('2001:0DB8:1234:5678:1:2:3:4'), '2001:db8:1234:5678::/64');
+  assert.equal(clientNetwork('2001:db8::1'), '2001:db8:0:0::/64');
+  assert.equal(clientNetwork('::1'), '0:0:0:0::/64');
+  assert.equal(clientNetwork('fe80::1%eth0'), 'fe80:0:0:0::/64');
+  assert.equal(clientNetwork('::ffff:203.0.113.7'), '203.0.113.7');
+  assert.equal(clientNetwork('203.0.113.7'), '203.0.113.7');
+  assert.equal(clientNetwork('unknown'), 'unknown');
 });
 
 test('the limiter forgets expired keys and caps how many it holds', () => {
