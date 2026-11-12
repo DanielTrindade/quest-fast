@@ -180,6 +180,8 @@ const fightActions = {
   onRecordFailure: fn(),
   onConcentrationSave: fn(),
   onDismissReminder: fn(),
+  onAttack: fn(),
+  onApplyDamage: fn(),
 };
 
 /** Unfolds a combatant's "PV e condições" panel. */
@@ -262,5 +264,62 @@ export const SoAplicarCondicao: Story = {
   play: async ({ canvasElement }) => {
     const [region] = within(canvasElement).getAllByRole('region', { name: /^Tema / });
     await expect(within(region!).getByRole('list', { name: 'Condições de Goblin 2' })).toBeVisible();
+  },
+};
+
+/** Unfolds a combatant's "Ataques" panel. */
+async function openAttacks(region: HTMLElement, name: string) {
+  const summary = [...region.querySelectorAll('summary')].find((element) => element.textContent?.trim() === `Ataques de ${name}`);
+  await expect(summary).toBeDefined();
+  await userEvent.click(summary!);
+}
+
+/** The master attacks with a monster at a character; the hit waits on the target. */
+export const MestreAtacando: Story = {
+  name: 'Mestre: ataques e dano pendente',
+  args: {
+    combatants: masterCombatants.map((combatant) =>
+      combatant.id === 'c-hazin'
+        ? { ...combatant, reminders: [{ id: 'd1', kind: 'pendingDamage', amount: 6, damageType: 'Cortante', critical: false, attackerName: 'Goblin 4', attackName: 'Cimitarra', eventId: 'e1', secret: false }] }
+        : combatant,
+    ),
+    activeCombatantId: 'g1',
+    ...fightActions,
+  },
+  play: async ({ canvasElement, args }) => {
+    const [region] = within(canvasElement).getAllByRole('region', { name: /^Tema / });
+    const list = within(region);
+    await openAttacks(region, 'Goblin 1');
+    await userEvent.selectOptions(list.getByLabelText('Alvo de Goblin 1'), 'c-hazin');
+    await userEvent.click(list.getAllByRole('button', { name: 'Atacar com Cimitarra' })[0]!);
+    await expect(args.onAttack).toHaveBeenCalledWith('g1', 0, { targetId: 'c-hazin', mode: 'normal', secret: true });
+    await userEvent.click(list.getByRole('button', { name: 'Aplicar o dano em Hazin Dan' }));
+    await expect(args.onApplyDamage).toHaveBeenCalledWith('c-hazin', 'd1', undefined);
+  },
+};
+
+/** A player attacks with their own character and sees what waits on it, without acting on it. */
+export const JogadorAtacando: Story = {
+  name: 'Jogador: ataques',
+  args: {
+    combatants: playerCombatants.map((combatant) =>
+      combatant.id === 'c-hazin'
+        ? { ...combatant, reminders: [{ id: 'd1', kind: 'pendingDamage', amount: 6, damageType: 'Cortante', critical: false, attackerName: 'Goblin 4', attackName: 'Cimitarra', eventId: 'e1', secret: false }] }
+        : combatant,
+    ),
+    master: false,
+    viewerId: PLAYER_ID,
+    activeCombatantId: 'c-hazin',
+    ...fightActions,
+  },
+  play: async ({ canvasElement, args }) => {
+    const [region] = within(canvasElement).getAllByRole('region', { name: /^Tema / });
+    const list = within(region);
+    await expect(list.queryByRole('button', { name: /Aplicar o dano/ })).toBeNull();
+    await expect(list.getByText(/Aguardando o mestre/)).toBeVisible();
+    await openAttacks(region, 'Hazin Dan');
+    await expect(list.queryByRole('checkbox', { name: /segredo/ })).toBeNull();
+    await userEvent.click(list.getByRole('button', { name: 'Atacar com Machado Grande' }));
+    await expect(args.onAttack).toHaveBeenCalledWith('c-hazin', 0, { targetId: null, mode: 'normal', secret: false });
   },
 };

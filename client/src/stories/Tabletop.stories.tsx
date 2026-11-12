@@ -52,7 +52,7 @@ export const NomeLongo: Story = { name: 'Nome longo', args: { longName: true } }
 export const Rolagem: Story = { play: async ({ canvasElement }) => {
   for (const region of within(canvasElement).getAllByRole('region', { name: /^Tema / })) {
     const canvas = within(region);
-    await userEvent.click(canvas.getByRole('button', { name: 'Rolar ataque de Adaga' }));
+    await userEvent.click(canvas.getByRole('button', { name: 'Atacar com Adaga' }));
     await expect(canvas.getByRole('status')).toHaveTextContent('14 + 7 = 21');
     await userEvent.click(canvas.getByRole('button', { name: 'Teste de Sabedoria' }));
     await expect(canvas.getByRole('status')).toHaveTextContent('14 − 1 = 13');

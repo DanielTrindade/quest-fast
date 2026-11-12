@@ -12,7 +12,7 @@ type AttackCardProps = {
 
 /**
  * A row of "Armas e truques de dano": hit bonus or save DC, damage with its
- * type, notes. A save is rolled by the target, so it offers no attack roll.
+ * type, notes. A save is rolled by the target: its button rolls the damage.
  */
 export function AttackCard(props: AttackCardProps) {
   const { name, damage, damageType = '', notes = '', onRoll, disabled = false } = props;
@@ -27,8 +27,12 @@ export function AttackCard(props: AttackCardProps) {
       </dl>
       {notes && <p className="mt-1 text-small text-text-secondary [overflow-wrap:anywhere]">{notes}</p>}
     </div>
-    {onRoll && props.kind !== 'save' && <Button variant="secondary" disabled={disabled} onClick={onRoll} aria-label={`Rolar ataque de ${name}`}>
-      <DiceFive size={18} aria-hidden="true" />Rolar ataque
-    </Button>}
+    {onRoll && (props.kind === 'save'
+      ? <Button variant="secondary" disabled={disabled} onClick={onRoll} aria-label={`Rolar dano de ${name}`}>
+        <DiceFive size={18} aria-hidden="true" />Rolar dano
+      </Button>
+      : <Button variant="secondary" disabled={disabled} onClick={onRoll} aria-label={`Atacar com ${name}`}>
+        <Sword size={18} aria-hidden="true" />Atacar
+      </Button>)}
   </div>;
 }

@@ -378,3 +378,14 @@ test('a pending damage past the manual limit is applied whole, and an adjustment
   const damage = events.find((event) => event.type === 'combat.damage') as CombatSessionEvent | undefined;
   assert.equal(damage?.payload.kind === 'combat.damage' && damage.payload.amount, 2000);
 });
+
+test("a player sees an ally's attacks, never a monster's", async () => {
+  const { s, view } = await fight();
+  const master = await view(s.master);
+  assert.equal(byName(master, 'Goblin 1').attacks[0]?.name, 'Cimitarra');
+  assert.equal(byName(master, 'Kaelen').attacks[0]?.name, 'Espada longa');
+
+  const player = await view(s.otherPlayer);
+  assert.deepEqual(byName(player, 'Goblin 1').attacks, []);
+  assert.equal(byName(player, 'Kaelen').attacks[0]?.name, 'Espada longa');
+});

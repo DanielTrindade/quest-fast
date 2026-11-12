@@ -31,6 +31,7 @@ function encounter(version: number, hpCurrent: number): EncounterView {
     concentrating: false,
     deathSaves: { successes: 0, failures: 0 },
     reminders: [],
+    attacks: [],
   };
   return {
     id: ENCOUNTER,

@@ -34,7 +34,6 @@ import {
   setCondition,
   tickConditions,
   type ActiveCondition,
-  type Attack,
   healthBand,
   type CombatPayload,
   type CombatReminder,
@@ -52,7 +51,7 @@ import type { Viewer } from '../events/hub.ts';
 import { requireAuth, requireCampaignRole } from '../middleware.ts';
 import { boundedInteger, shortText } from '../validation.ts';
 import { projectEncounter } from './projection.ts';
-import { findEncounter, loadEncounter, queueOrder, turnOrder, type Executor, type LoadedCombatant, type LoadedEncounter } from './state.ts';
+import { attacksOf, findEncounter, loadEncounter, queueOrder, turnOrder, type Executor, type LoadedCombatant, type LoadedEncounter } from './state.ts';
 
 type Status = 403 | 404 | 409 | 422;
 
@@ -759,13 +758,6 @@ function concentrationSave(mutation: Mutation, combatant: LoadedCombatant, body:
     }),
   );
   writeVitals(mutation, combatant, {}, withoutReminder(combatant, reminder));
-}
-
-/** The attacks a combatant fights with: its sheet's for a character, its statblock copy otherwise. */
-function attacksOf(combatant: LoadedCombatant): Attack[] {
-  const attacks = combatant.sheet ? combatant.sheet.attacks : combatant.row.attacks;
-  // Attacks stored before the save DC existed have no kind: attack rolls.
-  return attacks.map((attack) => ({ ...attack, kind: attack.kind ?? 'attack', damageType: attack.damageType ?? '' }) as Attack);
 }
 
 function sourceOf(combatant: LoadedCombatant): 'character' | 'monster' {

@@ -8,7 +8,7 @@ import {
   type Db,
   type EncounterRow,
 } from '@quest-fast/db';
-import { sortInitiative, turnQueue, type ActiveCondition, type QueueEntry, type TurnEntry } from '@quest-fast/shared';
+import { sortInitiative, turnQueue, type ActiveCondition, type Attack, type QueueEntry, type TurnEntry } from '@quest-fast/shared';
 
 /** The database or an open transaction: the helpers here run inside both. */
 export type Executor = Pick<Db, 'select' | 'insert' | 'update' | 'delete'>;
@@ -50,6 +50,13 @@ export type LoadedCombatant = {
 };
 
 export type LoadedEncounter = { encounter: EncounterRow; combatants: LoadedCombatant[] };
+
+/** The attacks a combatant fights with: its sheet's for a character, its statblock copy otherwise. */
+export function attacksOf(combatant: LoadedCombatant): Attack[] {
+  const attacks = combatant.sheet ? combatant.sheet.attacks : combatant.row.attacks;
+  // Attacks stored before the save DC existed have no kind: attack rolls.
+  return attacks.map((attack) => ({ ...attack, kind: attack.kind ?? 'attack', damageType: attack.damageType ?? '', notes: attack.notes ?? '' }) as Attack);
+}
 
 const sheetColumns = {
   name: characters.name,

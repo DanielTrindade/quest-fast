@@ -1,5 +1,5 @@
 import { useId, useState, type FormEvent, type ReactNode } from 'react';
-import { ArrowDown, ArrowUp, Brain, DiceFive, DotsThree, Eye, EyeSlash, Heartbeat, Skull, Trash } from '@phosphor-icons/react';
+import { ArrowDown, ArrowUp, Brain, DiceFive, DotsThree, Eye, EyeSlash, Heartbeat, Skull, Sword, Trash } from '@phosphor-icons/react';
 import {
   ENCOUNTER_LIMITS,
   type ActiveCondition,
@@ -8,6 +8,7 @@ import {
   type HpOperation,
 } from '@quest-fast/shared';
 import { Button } from './Button';
+import { CombatantAttacks, type AttackOptions } from './CombatantAttacks';
 import { ConditionChips, ConditionPicker } from './ConditionPicker';
 import { DeathSaveTracker } from './DeathSaveTracker';
 import { HealthBand } from './HealthBand';
@@ -32,10 +33,16 @@ export type InitiativeActions = {
   onRecordFailure?: (combatantId: string, failures: 1 | 2, reminderId: string) => void;
   onConcentrationSave?: (combatantId: string, reminderId: string) => void;
   onDismissReminder?: (combatantId: string, reminderId: string) => void;
+  /** The master on anyone, a player with their own character, at anyone they see. */
+  onAttack?: (combatantId: string, attackIndex: number, options: AttackOptions) => void;
+  /** The master only. Without an amount, the pending damage goes in whole. */
+  onApplyDamage?: (combatantId: string, reminderId: string, amount?: number) => void;
 };
 
 type RowProps = InitiativeActions & {
   combatant: CombatantView;
+  /** Everyone else in the queue: who this combatant may attack. */
+  targets: CombatantView[];
   active: boolean;
   own: boolean;
   master: boolean;
@@ -272,13 +279,40 @@ function FightPanel({ combatant, busy, startOpen, onHitPoints, onConcentration, 
 }
 
 /**
+ * The combatant's attacks, folded like "PV e condições". Someone down does
+ * not attack; a manual combatant has none and says so.
+ */
+function AttackPanel({ combatant, targets, master, busy, onAttack }: InitiativeActions & {
+  combatant: CombatantView;
+  targets: CombatantView[];
+  master: boolean;
+  busy: boolean;
+}) {
+  const { id, name } = combatant;
+  if (!onAttack || down(combatant) || combatant.defeated) return null;
+  return (
+    <details className="group/attacks min-w-0 open:basis-full">
+      <summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-1 rounded-control px-3 font-semibold text-accent-text transition-[background-color] duration-(--duration-quick) hover:bg-muted [&::-webkit-details-marker]:hidden">
+        <Sword size={18} aria-hidden="true" /> Ataques<span className="sr-only"> de {name}</span>
+      </summary>
+      <div className="pt-2">
+        <CombatantAttacks name={name} attacks={combatant.attacks} targets={targets} master={master}
+          defaultSecret={master && combatant.source !== 'character'} pending={busy}
+          onAttack={(attackIndex, options) => onAttack(id, attackIndex, options)} />
+      </div>
+    </details>
+  );
+}
+
+/**
  * What the table has to resolve on this combatant: the death saves of a
  * character down, and the reminders a hit left. Everyone sees them; only who
  * acts on the combatant gets the buttons.
  */
-function Pending({ combatant, acts, canRoll, busy, onDeathSave, onConcentrationSave, onRecordFailure, onDismissReminder }: InitiativeActions & {
+function Pending({ combatant, acts, master, canRoll, busy, onDeathSave, onConcentrationSave, onRecordFailure, onDismissReminder, onApplyDamage }: InitiativeActions & {
   combatant: CombatantView;
   acts: boolean;
+  master: boolean;
   /** The master, or the player on their own turn; the server checks it again. */
   canRoll: boolean;
   busy: boolean;
@@ -288,21 +322,23 @@ function Pending({ combatant, acts, canRoll, busy, onDeathSave, onConcentrationS
   const rollSave = when(onConcentrationSave);
   const recordFailure = when(onRecordFailure);
   const dismiss = when(onDismissReminder);
+  const applyDamage = master ? when(onApplyDamage) : undefined;
   return (
     <>
       {down(combatant) && (
         <DeathSaveTracker name={name} deathSaves={combatant.deathSaves!} pending={busy}
           canRoll={canRoll} onRoll={onDeathSave && (() => onDeathSave(id))} />
       )}
-      <ReminderList name={name} reminders={combatant.reminders} pending={busy}
+      <ReminderList name={name} reminders={combatant.reminders} pending={busy} master={master}
         onRollSave={rollSave && ((reminderId) => rollSave(id, reminderId))}
         onRecordFailure={recordFailure && ((reminderId, failures) => recordFailure(id, failures, reminderId))}
-        onDismiss={dismiss && ((reminderId) => dismiss(id, reminderId))} />
+        onDismiss={dismiss && ((reminderId) => dismiss(id, reminderId))}
+        onApplyDamage={applyDamage && ((reminderId, amount) => applyDamage(id, reminderId, amount))} />
     </>
   );
 }
 
-function InitiativeRow({ combatant, active, own, master, editable, busy, tie, ...actions }: RowProps) {
+function InitiativeRow({ combatant, targets, active, own, master, editable, busy, tie, ...actions }: RowProps) {
   const acts = editable && (master || own);
 
   return (
@@ -320,18 +356,23 @@ function InitiativeRow({ combatant, active, own, master, editable, busy, tie, ..
       {/* Always on the card, so the table reads them at a glance; removable for whoever acts. */}
       <ConditionChips name={combatant.name} conditions={combatant.conditions} pending={busy}
         onRemove={acts && actions.onRemoveCondition ? (condition) => actions.onRemoveCondition!(combatant.id, condition) : undefined} />
-      <Pending combatant={combatant} acts={acts} canRoll={acts && (master || active)} busy={busy} {...actions} />
+      <Pending combatant={combatant} acts={acts} master={master} canRoll={acts && (master || active)} busy={busy} {...actions} />
 
-      <RowActions combatant={combatant} own={own} master={master} editable={editable} busy={busy} tie={tie} {...actions} />
+      <RowActions combatant={combatant} targets={targets} own={own} master={master} editable={editable} busy={busy} tie={tie} {...actions} />
     </li>
   );
 }
 
 /** What this viewer may do on the combatant: the master's line, or a player's own controls. */
-function RowActions({ combatant, own, master, editable, busy, tie, ...actions }: Omit<RowProps, 'active'>) {
+function RowActions({ combatant, targets, own, master, editable, busy, tie, ...actions }: Omit<RowProps, 'active'>) {
   // The master acts on anyone; a player only on their own character.
   const acts = editable && (master || own);
-  const fight = acts ? <FightPanel combatant={combatant} busy={busy} startOpen={own && !master} {...actions} /> : null;
+  const fight = acts ? (
+    <>
+      <FightPanel combatant={combatant} busy={busy} startOpen={own && !master} {...actions} />
+      <AttackPanel combatant={combatant} targets={targets} master={master} busy={busy} {...actions} />
+    </>
+  ) : null;
   if (master && editable) return <MasterActions combatant={combatant} busy={busy} tie={tie} fight={fight} {...actions} />;
   // A player rolls their own initiative, once.
   const playerRolls = acts && !combatant.hasInitiative && !!actions.onRoll;
@@ -375,6 +416,7 @@ export function InitiativeList({ combatants, activeCombatantId, viewerId, master
         <InitiativeRow
           key={combatant.id}
           combatant={combatant}
+          targets={combatants.filter((other) => other.id !== combatant.id)}
           active={combatant.id === activeCombatantId}
           own={combatant.ownerId === viewerId}
           master={master}
