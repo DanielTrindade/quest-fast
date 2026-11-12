@@ -883,8 +883,10 @@ function applyPendingDamage(mutation: Mutation, combatant: LoadedCombatant, remi
   requireMaster(mutation.viewer);
   const reminder = findReminder(combatant, reminderId, 'pendingDamage');
   if (reminder.kind !== 'pendingDamage') refuse(404, 'Lembrete não encontrado.');
+  // Unadjusted, the damage the server rolled goes in whole: the limit is for
+  // what the master types, not for a roll that may exceed it.
   const amount =
-    body.amount === undefined ? Math.min(reminder.amount, C.hpAmount.max) : boundedInteger(body.amount, C.hpAmount.min, C.hpAmount.max);
+    body.amount === undefined ? reminder.amount : boundedInteger(body.amount, C.hpAmount.min, C.hpAmount.max);
   if (amount === undefined) refuse(422, `A quantidade deve ser um número entre ${C.hpAmount.min} e ${C.hpAmount.max}.`);
   applyHitPoints(mutation, combatant, 'damage', amount, withoutReminder(combatant, reminder));
 }

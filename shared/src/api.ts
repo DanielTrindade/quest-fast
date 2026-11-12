@@ -323,9 +323,11 @@ export type RollPayload = {
   /** A damage roll made after its attack: the attack's event id. */
   damageOf?: string;
   /**
-   * A monster's attack as a player reads it: `expression`, `dice` and
-   * `modifier` (of the roll and of the damage) are blanked, since they would
-   * give away the statblock. Only totals remain.
+   * A monster's attack as a player reads it: the roll's `expression`, `dice`,
+   * `modifier` and `total` are blanked and `natural` is gone, since with them
+   * the bonus is a subtraction away; the damage keeps only its total. What
+   * remains is what the master says at the table: hit or miss, critical and
+   * damage.
    */
   redacted?: true;
 };

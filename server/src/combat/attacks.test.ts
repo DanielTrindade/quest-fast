@@ -1,6 +1,6 @@
 import test, { type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
-import type { CombatReminder, FeedResponse, RollPayload, RollResponse, RollSessionEvent, SessionEvent, SocketMessage, StatblockResponse } from '@quest-fast/shared';
+import type { CombatReminder, CombatSessionEvent, FeedResponse, RollPayload, RollResponse, RollSessionEvent, SessionEvent, SocketMessage, StatblockResponse } from '@quest-fast/shared';
 import { body, createTestServer, signIn } from '../testing.ts';
 import {
   PROFILES,
@@ -23,6 +23,17 @@ import {
  * Cimitarra (+4, 1d6+2); Kaelen gets a longsword (+5, 1d8+3) and AC 15.
  * `Math.random` is fixed so a roll is a known natural 20 or natural 1.
  */
+
+const GIANT_STATBLOCK = {
+  name: 'Gigante',
+  size: 'huge',
+  ac: 15,
+  hpAverage: 100,
+  hpFormula: '10d12+30',
+  initiativeBonus: 0,
+  abilityScores: { strength: 25, dexterity: 8, constitution: 18, intelligence: 6, wisdom: 10, charisma: 8 },
+  attacks: [{ name: 'Rocha', bonus: 10, damage: '10d100' }],
+};
 
 const SWORD = { name: 'Espada longa', bonus: 5, damage: '1d8+3', damageType: 'Cortante' };
 
@@ -169,7 +180,13 @@ test('a player reads a public monster attack by its totals only', async (t) => {
   assert.equal(player?.expression, '');
   assert.deepEqual(player?.dice, []);
   assert.equal(player?.modifier, 0);
-  assert.equal(player?.total, master?.total);
+  // With the total and a natural 20, the bonus would be one subtraction away.
+  assert.equal(master?.total, 24);
+  assert.equal(player?.total, 0);
+  assert.equal(player && 'natural' in player, false);
+  // What the master says at the table stays: hit, critical and damage.
+  assert.equal(player?.target?.hit, true);
+  assert.equal(player?.critical, true);
   assert.equal(player?.damage?.expression, '');
   assert.deepEqual(player?.damage?.dice, []);
   assert.equal(player?.damage?.total, 14);
@@ -328,5 +345,36 @@ test('a player\'s socket gets a public monster attack without its numbers', asyn
   assert.equal(roll.payload.redacted, true);
   assert.equal(roll.payload.expression, '');
   assert.equal(roll.payload.damage?.expression, '');
+  assert.equal(roll.payload.total, 0);
+  assert.equal('natural' in roll.payload, false);
   assert.equal(JSON.stringify(roll.payload).includes('1d20+4'), false);
+});
+
+test('a pending damage past the manual limit is applied whole, and an adjustment past it is refused', async (t) => {
+  natural20(t);
+  const { s, id, path, view, at } = await fight();
+  const giant = (
+    await body<StatblockResponse>(
+      await send(s.master, `${s.root}/statblocks`, 'POST', { ...GIANT_STATBLOCK }),
+    )
+  ).statblock;
+  const added = await encounterOf(
+    await send(s.master, `${path}/combatants`, 'POST', { source: 'statblock', statblockId: giant.id, count: 1, hp: 'average' }),
+    201,
+  );
+  await attacked(await send(s.master, `${path}/combatants/${byName(added, 'Gigante').id}/attack`, 'POST', { attackIndex: 0, targetId: id('Kaelen') }));
+  const [reminder] = pending(byName(await view(s.master), 'Kaelen').reminders);
+  assert.ok(reminder?.kind === 'pendingDamage');
+  // A critical 10d100 at its highest: 20 dice of 100.
+  assert.equal(reminder.amount, 2000);
+
+  const refused = await send(s.master, at('Kaelen', `/reminders/${reminder.id}/apply`), 'POST', { amount: 2000 });
+  assert.equal(refused.status, 422);
+  assert.equal(pending(byName(await view(s.master), 'Kaelen').reminders).length, 1, 'a refusal keeps the reminder');
+
+  const applied = await encounterOf(await send(s.master, at('Kaelen', `/reminders/${reminder.id}/apply`), 'POST'));
+  assert.equal(byName(applied, 'Kaelen').hpCurrent, 0);
+  const { events } = await body<FeedResponse>(await s.master(`${s.root}/feed`));
+  const damage = events.find((event) => event.type === 'combat.damage') as CombatSessionEvent | undefined;
+  assert.equal(damage?.payload.kind === 'combat.damage' && damage.payload.amount, 2000);
 });
