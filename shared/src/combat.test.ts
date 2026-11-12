@@ -17,6 +17,7 @@ import {
   isActiveCondition,
   isCondition,
   isDefeated,
+  keepsConcentration,
   nextTurn,
   numberCopies,
   pendingReminders,
@@ -57,6 +58,12 @@ test('damage to someone concentrating asks for a save with the DC of that damage
   assert.deepEqual(damageReminders({ ...base, amount: 8 }), [{ kind: 'concentration', dc: 10 }]);
   assert.deepEqual(damageReminders({ ...base, amount: 40 }), [{ kind: 'concentration', dc: 20 }]);
   assert.deepEqual(damageReminders({ ...base, concentrating: false, amount: 8 }), []);
+});
+
+test('falling to 0 hit points ends concentration', () => {
+  assert.equal(keepsConcentration(true, 1), true);
+  assert.equal(keepsConcentration(true, 0), false);
+  assert.equal(keepsConcentration(false, 10), false);
 });
 
 test('a monster also has to keep its concentration', () => {

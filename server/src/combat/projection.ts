@@ -6,7 +6,7 @@ function defeated(combatant: LoadedCombatant): boolean {
   return isDefeated({ source: combatant.row.source, hpCurrent: combatant.hpCurrent });
 }
 
-function projectCombatant(combatant: LoadedCombatant, master: boolean): CombatantView {
+function projectCombatant(combatant: LoadedCombatant, master: boolean, round: number): CombatantView {
   const { row } = combatant;
   // Allies are open to the whole table; a monster's numbers are the master's.
   const known = master || row.source === 'character';
@@ -31,6 +31,7 @@ function projectCombatant(combatant: LoadedCombatant, master: boolean): Combatan
     conditions: combatant.conditions,
     concentrating: known && combatant.concentrating,
     deathSaves: combatant.sheet?.deathSaves ?? null,
+    deathSaveRolled: !!combatant.sheet && row.deathSaveRound === round,
     // A pending damage from a secret attack would give the roll away.
     reminders: known
       ? pendingReminders(row.reminders, combatant).filter((reminder) => master || reminder.kind !== 'pendingDamage' || !reminder.secret)
@@ -67,7 +68,7 @@ export function projectEncounter(loaded: LoadedEncounter, viewer: Viewer): Encou
     createdAt: encounter.createdAt.toISOString(),
     startedAt: encounter.startedAt?.toISOString() ?? null,
     endedAt: encounter.endedAt?.toISOString() ?? null,
-    combatants: visible.map((combatant) => projectCombatant(combatant, master)),
+    combatants: visible.map((combatant) => projectCombatant(combatant, master, encounter.round)),
     summary:
       encounter.status === 'ended'
         ? {

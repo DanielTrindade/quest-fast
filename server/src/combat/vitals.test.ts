@@ -228,6 +228,32 @@ test('a reminder is dismissed by its owner or the master, once', async () => {
   assert.equal((await send(s.master, at('Kaelen', `/reminders/${reminder!.id}`), 'DELETE')).status, 404);
 });
 
+test('falling to 0 hit points ends the concentration and its pending saves, and no one starts it while down', async () => {
+  const { s, at } = await fight();
+  await send(s.player, at('Kaelen', '/concentration'), 'PUT', { concentrating: true });
+  let kaelen = byName(await encounterOf(await hp(s.master, at('Kaelen', '/hp'), 'damage', 4)), 'Kaelen');
+  assert.equal(kaelen.reminders.filter((reminder) => reminder.kind === 'concentration').length, 1);
+
+  kaelen = byName(await encounterOf(await hp(s.master, at('Kaelen', '/hp'), 'damage', 50)), 'Kaelen');
+  assert.equal(kaelen.concentrating, false);
+  assert.deepEqual(kaelen.reminders, []);
+  assert.equal((await sheetOf(s, s.kaelen.id)).concentrating, false);
+
+  // A hit while down asks for a death save failure, never for a concentration save.
+  kaelen = byName(await encounterOf(await hp(s.master, at('Kaelen', '/hp'), 'damage', 3)), 'Kaelen');
+  assert.deepEqual(kaelen.reminders.map((reminder) => reminder.kind), ['deathFailure']);
+
+  assert.equal((await send(s.player, at('Kaelen', '/concentration'), 'PUT', { concentrating: true })).status, 409);
+  assert.equal((await send(s.master, at('Kaelen', '/concentration'), 'PUT', { concentrating: true })).status, 409);
+});
+
+test('a monster that falls to 0 also lets go of its concentration', async () => {
+  const { s, at } = await fight();
+  await send(s.master, at('Goblin 2', '/concentration'), 'PUT', { concentrating: true });
+  const goblin = byName(await encounterOf(await hp(s.master, at('Goblin 2', '/hp'), 'damage', 50)), 'Goblin 2');
+  assert.deepEqual([goblin.defeated, goblin.concentrating, goblin.reminders], [true, false, []]);
+});
+
 test('letting go of concentration drops its pending saves', async () => {
   const { s, at } = await fight();
   await send(s.player, at('Kaelen', '/concentration'), 'PUT', { concentrating: true });
@@ -265,9 +291,13 @@ test('a player rolls a death save only on their own turn, once per round', async
   t.mock.method(Math, 'random', () => 0.5); // 11: a success
   assert.equal((await send(s.player, at('Kaelen', '/death-save'), 'POST')).status, 409);
 
-  await encounterOf(await advance(s.master, path, id('Goblin 1')));
-  const kaelen = byName(await encounterOf(await send(s.player, at('Kaelen', '/death-save'), 'POST')), 'Kaelen');
+  let kaelen = byName(await encounterOf(await advance(s.master, path, id('Goblin 1'))), 'Kaelen');
+  assert.equal(kaelen.deathSaveRolled, false);
+  kaelen = byName(await encounterOf(await send(s.player, at('Kaelen', '/death-save'), 'POST')), 'Kaelen');
   assert.deepEqual(kaelen.deathSaves, { successes: 1, failures: 0 });
+  // The screen hides the roll it would refuse: the whole table knows it was rolled.
+  assert.equal(kaelen.deathSaveRolled, true);
+  assert.equal(byName(await encounterOf(await s.otherPlayer(path)), 'Kaelen').deathSaveRolled, true);
   assert.equal((await send(s.player, at('Kaelen', '/death-save'), 'POST')).status, 409);
 
   // The master may roll again, to correct a mistake.
@@ -384,6 +414,20 @@ test('getting back up through the sheet clears the death saves, unless the reque
   await send(s.player, state, 'PATCH', { hpCurrent: 0 });
   sheet = (await body<CharacterResponse>(await send(s.player, state, 'PATCH', { hpCurrent: 4, deathSaves: { successes: 2, failures: 0 } }))).character;
   assert.deepEqual(sheet.deathSaves, { successes: 2, failures: 0 });
+});
+
+test('falling to 0 through the sheet ends the concentration, and the sheet starts none while down', async () => {
+  const { s } = await fight();
+  const state = `${s.root}/characters/${s.kaelen.id}/state`;
+  await send(s.player, state, 'PATCH', { concentrating: true });
+  let sheet = (await body<CharacterResponse>(await send(s.player, state, 'PATCH', { hpCurrent: 0 }))).character;
+  assert.equal(sheet.concentrating, false);
+
+  assert.equal((await send(s.player, state, 'PATCH', { concentrating: true })).status, 422);
+  assert.equal((await send(s.player, state, 'PATCH', { hpCurrent: 0, concentrating: true })).status, 422);
+  // Back up and concentrating again in one go.
+  sheet = (await body<CharacterResponse>(await send(s.player, state, 'PATCH', { hpCurrent: 5, concentrating: true }))).character;
+  assert.deepEqual([sheet.hpCurrent, sheet.concentrating], [5, true]);
 });
 
 test('a concentration let go through the sheet takes its pending save with it, for good', async () => {
