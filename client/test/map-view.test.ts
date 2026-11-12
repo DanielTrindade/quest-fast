@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { MAX_SCALE, clampView, fitView, gridCells, gridLines, scaleBounds, visibleRect, zoomAt } from '../src/lib/map-view.ts';
+import { MAX_SCALE, clampView, fitView, gridCells, gridLines, scaleBounds, visibleRect, zoomAt, zoomViewAt } from '../src/lib/map-view.ts';
 
 const MAP = { width: 3000, height: 2000 };
 const SCREEN = { width: 1000, height: 1000 };
@@ -52,4 +52,34 @@ test('cells are counted across and down, partial edge cells included', () => {
   assert.deepEqual(gridCells(GRID, MAP), { columns: 30, rows: 20 });
   assert.deepEqual(gridCells({ ...GRID, offsetX: 50 }, MAP), { columns: 31, rows: 20 });
   assert.deepEqual(gridCells({ ...GRID, cellSize: 3000 / 7 }, MAP), { columns: 7, rows: 5 });
+});
+
+/** The map point under (px, py) on screen. */
+const under = (view: { x: number; y: number; scale: number }, px: number, py: number) =>
+  ({ x: (px - view.x) / view.scale, y: (py - view.y) / view.scale });
+
+test('zooming at a bound does not move the map', () => {
+  const atMax = { x: -2000, y: -1500, scale: MAX_SCALE };
+  assert.deepEqual(zoomViewAt(atMax, 1.25, 100, 700, MAP, SCREEN), atMax);
+  const atMin = { x: 200, y: 300, scale: 1 / 6 };
+  assert.deepEqual(zoomViewAt(atMin, 0.8, 900, 50, MAP, SCREEN), atMin);
+});
+
+test('a zoom that crosses a bound stops at it and keeps the point under the cursor', () => {
+  const near = { x: -2000, y: -1500, scale: 3.5 };
+  const zoomed = zoomViewAt(near, 2, 400, 600, MAP, SCREEN);
+  assert.equal(zoomed.scale, MAX_SCALE);
+  const before = under(near, 400, 600);
+  const after = under(zoomed, 400, 600);
+  assert.ok(Math.abs(after.x - before.x) < 1e-9 && Math.abs(after.y - before.y) < 1e-9);
+
+  const low = { x: 100, y: 100, scale: 0.2 };
+  const out = zoomViewAt(low, 0.5, 500, 500, MAP, SCREEN);
+  assert.equal(out.scale, 1 / 6);
+  assert.ok(Math.abs(under(out, 500, 500).x - under(low, 500, 500).x) < 1e-9);
+});
+
+test('a pinch at the bound still pans by how far its midpoint moved', () => {
+  const atMax = { x: -2000, y: -1500, scale: MAX_SCALE };
+  assert.deepEqual(zoomViewAt(atMax, 1.5, 500, 500, MAP, SCREEN, { x: 30, y: -20 }), { x: -1970, y: -1520, scale: MAX_SCALE });
 });

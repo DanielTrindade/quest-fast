@@ -27,10 +27,21 @@ async function readSize(file: File): Promise<{ width: number; height: number } |
   }
 }
 
-/** The same bounds the server applies, checked before sending 25 MB for nothing. */
-function mapProblem(file: File, size: { width: number; height: number } | null): string | null {
-  if (!isMapType(file.type) || !size) return 'O arquivo não é uma imagem válida. Use JPEG, PNG ou WebP.';
+const NOT_A_MAP = 'O arquivo não é uma imagem válida. Use JPEG, PNG ou WebP.';
+
+/**
+ * The same bounds the server applies, checked before sending 25 MB for
+ * nothing. Type and weight first: they cost nothing, while reading the size
+ * decodes the whole image, which a phone should not do for a file refused anyway.
+ */
+function fileProblem(file: File): string | null {
+  if (!isMapType(file.type)) return NOT_A_MAP;
   if (file.size > M.maxBytes) return `O mapa deve ter até ${M.maxBytes / MEGABYTE} MB.`;
+  return null;
+}
+
+function sizeProblem(size: { width: number; height: number } | null): string | null {
+  if (!size) return NOT_A_MAP;
   const smallest = Math.min(size.width, size.height);
   const largest = Math.max(size.width, size.height);
   if (smallest < M.minSide || largest > M.maxInputSide) {
@@ -102,8 +113,13 @@ export function SceneForm({ scene, upload, serverError, onSubmit, onCancel }: {
     // Clearing lets the same file be picked again after a fix.
     event.target.value = '';
     if (!file) return;
+    const refused = fileProblem(file);
+    if (refused) {
+      setMapError(refused);
+      return;
+    }
     const size = await readSize(file);
-    const problem = mapProblem(file, size);
+    const problem = sizeProblem(size);
     setMapError(problem ?? undefined);
     if (!problem && size) setPicked({ file, url: URL.createObjectURL(file), ...size });
   };

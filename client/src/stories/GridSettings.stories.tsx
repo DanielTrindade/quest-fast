@@ -99,3 +99,29 @@ export const SemGrid: Story = {
 export const Salvando: Story = {
   args: { saving: true },
 };
+
+export const CasasInvalidas: Story = {
+  name: 'Casas de largura inválidas',
+  play: async ({ canvasElement, args }) => {
+    const form = firstTheme(canvasElement);
+    const columns = form.getByLabelText('Casas de largura');
+    const save = form.getByRole('button', { name: 'Salvar grid' });
+    for (const [text, message] of [
+      ['', /Informe quantas casas/],
+      ['0', /Use de 1 a 225 casas/],
+      ['-2', /Use de 1 a 225 casas/],
+      ['abc', /Informe quantas casas/],
+      // Typed one key at a time: "2" and "22" are valid on the way, so the
+      // preview may move before "226" is refused.
+      ['226', /Use de 1 a 225 casas/],
+    ] as const) {
+      await userEvent.clear(columns);
+      if (text) await userEvent.type(columns, text);
+      await expect(form.getByText(message)).toBeVisible();
+      await expect(columns).toHaveAttribute('aria-invalid', 'true');
+      await expect(save).toBeDisabled();
+    }
+    // The last preview is the last valid count, never the refused one.
+    await expect(args.onPreview).toHaveBeenLastCalledWith({ ...defaultSceneGrid, cellSize: 1800 / 22 });
+  },
+};

@@ -1,3 +1,4 @@
+import { StrictMode } from 'react';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { expect, userEvent, waitFor, within } from 'storybook/test';
 import { MapCanvas } from '../components/MapCanvas';
@@ -75,5 +76,25 @@ export const Erro: Story = {
     const map = within(region);
     await waitFor(() => expect(map.getByText('Não foi possível carregar o mapa.')).toBeVisible());
     await expect(map.getByRole('button', { name: 'Tentar de novo' })).toBeVisible();
+  },
+};
+
+/** Whether the canvas has the map painted at its centre. */
+function painted(frame: HTMLElement): boolean {
+  const canvas = frame.querySelector('canvas');
+  const context = canvas?.getContext('2d');
+  if (!canvas || !context) return false;
+  return context.getImageData(Math.floor(canvas.width / 2), Math.floor(canvas.height / 2), 1, 1).data[3] > 0;
+}
+
+export const ModoEstrito: Story = {
+  name: 'StrictMode',
+  // The app's root runs under StrictMode, which runs every effect twice.
+  decorators: [(Story) => <StrictMode><Story /></StrictMode>],
+  play: async ({ canvasElement }) => {
+    const { frame, map } = await readyMap(canvasElement);
+    await waitFor(() => expect(painted(frame)).toBe(true));
+    await userEvent.click(map.getByRole('button', { name: 'Aproximar' }));
+    await waitFor(() => expect(painted(frame)).toBe(true));
   },
 };

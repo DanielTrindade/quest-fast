@@ -56,6 +56,20 @@ export function zoomAt(view: MapView, factor: number, px: number, py: number): M
   };
 }
 
+/**
+ * Zooms by `factor` around (px, py), within the scale bounds: the anchor is
+ * kept with the factor actually applied, so pushing past a bound does not
+ * turn into a pan. `pan` then moves the result, as a pinch's midpoint does.
+ */
+export function zoomViewAt(
+  view: MapView, factor: number, px: number, py: number, map: Size, viewport: Size, pan = { x: 0, y: 0 },
+): MapView {
+  const { min, max } = scaleBounds(map, viewport);
+  const scale = Math.min(max, Math.max(min, view.scale * factor));
+  const zoomed = zoomAt(view, scale / view.scale, px, py);
+  return clampView({ ...zoomed, x: zoomed.x + pan.x, y: zoomed.y + pan.y }, map, viewport);
+}
+
 /** The part of the map inside the viewport, in map pixels (empty when none is). */
 export function visibleRect(view: MapView, map: Size, viewport: Size) {
   const left = Math.max(0, -view.x / view.scale);

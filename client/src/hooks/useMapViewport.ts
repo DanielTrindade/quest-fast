@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
 import type { GridSettings } from '@quest-fast/shared';
 import { drawMap } from '../lib/map-draw';
-import { clampView, fitView, zoomAt, type MapView, type Size } from '../lib/map-view';
+import { clampView, fitView, zoomViewAt, type MapView, type Size } from '../lib/map-view';
 
 export const ZOOM_STEP = 1.25;
 const PAN_STEP = 64;
@@ -106,7 +106,7 @@ export function useMapViewport({ imageUrl, mapWidth, mapHeight, grid }: {
     if (!view) return;
     stopAnimation();
     const viewport = viewportRef.current;
-    setView(zoomAt(view, factor, at?.x ?? viewport.width / 2, at?.y ?? viewport.height / 2));
+    setView(zoomViewAt(view, factor, at?.x ?? viewport.width / 2, at?.y ?? viewport.height / 2, mapRef.current, viewport));
   }, [setView]);
 
   // A new map size reframes; a new grid only redraws.
@@ -175,9 +175,13 @@ export function useMapViewport({ imageUrl, mapWidth, mapHeight, grid }: {
     return () => canvas.removeEventListener('wheel', onWheel);
   }, [zoomBy]);
 
+  // Released, not just cancelled: under StrictMode the effects run again,
+  // and a request id left behind would block every later draw.
   useEffect(() => () => {
     cancelAnimationFrame(drawRequest.current);
     cancelAnimationFrame(animation.current);
+    drawRequest.current = 0;
+    animation.current = 0;
   }, []);
 
   const onPointerDown = (event: PointerEvent<HTMLCanvasElement>) => {
@@ -207,8 +211,8 @@ export function useMapViewport({ imageUrl, mapWidth, mapHeight, grid }: {
     if (before === 0) return;
     const midBefore = { x: (previous.x + other.x) / 2, y: (previous.y + other.y) / 2 };
     const midAfter = { x: (point.x + other.x) / 2, y: (point.y + other.y) / 2 };
-    const zoomed = zoomAt(view, after / before, midBefore.x, midBefore.y);
-    setView({ ...zoomed, x: zoomed.x + midAfter.x - midBefore.x, y: zoomed.y + midAfter.y - midBefore.y });
+    setView(zoomViewAt(view, after / before, midBefore.x, midBefore.y, mapRef.current, viewportRef.current,
+      { x: midAfter.x - midBefore.x, y: midAfter.y - midBefore.y }));
   };
 
   const onPointerEnd = (event: PointerEvent<HTMLCanvasElement>) => {

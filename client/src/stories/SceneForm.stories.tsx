@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { expect, fn, userEvent, within } from 'storybook/test';
+import { expect, fn, spyOn, userEvent, within } from 'storybook/test';
 import { SceneForm } from '../components/SceneForm';
 import { syntheticMapUrl } from './fixtures/maps';
 
@@ -76,4 +76,21 @@ export const Processando: Story = {
 export const ErroDoServidor: Story = {
   name: 'Erro do servidor',
   args: { serverError: 'O mapa deve ter até 25 MB.' },
+};
+
+export const ArquivoPesado: Story = {
+  name: 'Arquivo acima de 25 MB',
+  play: async ({ canvasElement }) => {
+    const form = firstTheme(canvasElement);
+    // Refused by its weight alone: the image is never decoded.
+    const decode = spyOn(window, 'createImageBitmap');
+    try {
+      const heavy = new File([new Uint8Array(25 * 1024 * 1024 + 1)], 'mapa-enorme.png', { type: 'image/png' });
+      await userEvent.upload(form.getByLabelText(/Escolher imagem/), heavy);
+      await expect(await form.findByText('O mapa deve ter até 25 MB.')).toBeVisible();
+      await expect(decode).not.toHaveBeenCalled();
+    } finally {
+      decode.mockRestore();
+    }
+  },
 };
