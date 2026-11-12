@@ -18,6 +18,8 @@ import {
   hasPreviousTurn,
   initiative as sheetInitiative,
   isCondition,
+  isDefeated,
+  isHit,
   isRollMode,
   isSize,
   nextTurn,
@@ -25,11 +27,14 @@ import {
   placeCopies,
   previousTurn,
   removeCondition,
+  rollAttackHit,
+  rollDamage,
   rollDice,
   saveBonus,
   setCondition,
   tickConditions,
   type ActiveCondition,
+  type Attack,
   healthBand,
   type CombatPayload,
   type CombatReminder,
@@ -38,6 +43,7 @@ import {
   type EncounterListItem,
   type HpOperation,
   type RollMode,
+  type RollPayload,
   type SessionEvent,
 } from '@quest-fast/shared';
 import type { Context } from '../context.ts';
@@ -563,7 +569,21 @@ function changeHitPoints(mutation: Mutation, combatant: LoadedCombatant, body: R
   if (!isHpOperation(operation)) refuse(422, 'Operação inválida: dano, cura ou temporários.');
   const amount = boundedInteger(body.amount, C.hpAmount.min, C.hpAmount.max);
   if (amount === undefined) refuse(422, `A quantidade deve ser um número entre ${C.hpAmount.min} e ${C.hpAmount.max}.`);
+  applyHitPoints(mutation, combatant, operation, amount);
+}
 
+/**
+ * One change of hit points with everything it sets off: the reminders a hit
+ * leaves, the death saves a recovery resets, and the feed. `reminders` is the
+ * list to start from, so a pending damage can be consumed in the same write.
+ */
+function applyHitPoints(
+  mutation: Mutation,
+  combatant: LoadedCombatant,
+  operation: HpOperation,
+  amount: number,
+  reminders = combatant.row.reminders,
+) {
   const before = { hpCurrent: combatant.hpCurrent, hpTemp: combatant.hpTemp };
   const { hitPoints, fell, rose } = applyHpChange(before, operation, amount, combatant.hpMax);
   // Damage always counts, even at 0: it is a death save failure to record.
@@ -579,7 +599,7 @@ function changeHitPoints(mutation: Mutation, combatant: LoadedCombatant, body: R
       ? damageReminders({ amount, hpCurrentBefore: before.hpCurrent, concentrating: combatant.concentrating, source: combatant.row.source })
       : [];
   const created = drafts.map((draft) => ({ id: randomUUID(), ...draft }) as CombatReminder);
-  writeVitals(mutation, combatant, vitals, [...combatant.row.reminders, ...created]);
+  writeVitals(mutation, combatant, vitals, [...reminders, ...created]);
 
   // Temporary hit points stay out of the feed. The hit that takes a monster
   // down is told once, as its defeat.
@@ -738,6 +758,143 @@ function concentrationSave(mutation: Mutation, combatant: LoadedCombatant, body:
       },
     }),
   );
+  writeVitals(mutation, combatant, {}, withoutReminder(combatant, reminder));
+}
+
+/** The attacks a combatant fights with: its sheet's for a character, its statblock copy otherwise. */
+function attacksOf(combatant: LoadedCombatant): Attack[] {
+  const attacks = combatant.sheet ? combatant.sheet.attacks : combatant.row.attacks;
+  // Attacks stored before the save DC existed have no kind: attack rolls.
+  return attacks.map((attack) => ({ ...attack, kind: attack.kind ?? 'attack', damageType: attack.damageType ?? '' }) as Attack);
+}
+
+function sourceOf(combatant: LoadedCombatant): 'character' | 'monster' {
+  return combatant.row.source === 'character' ? 'character' : 'monster';
+}
+
+/**
+ * An attack, rolled on the server. With a target, the attack roll is
+ * compared with its AC and a hit rolls the damage, left pending on the
+ * target for the master to apply. Without one, only the attack roll is made
+ * and its damage can be rolled later, once. Reactions happen out of turn, so
+ * the turn is not checked.
+ */
+function attack(mutation: Mutation, combatant: LoadedCombatant, body: Record<string, unknown>) {
+  const { row } = combatant;
+  if (isDefeated({ source: row.source, hpCurrent: combatant.hpCurrent }) || combatant.hpCurrent === 0) {
+    refuse(409, `${combatant.name} está fora de combate.`);
+  }
+  const index = body.attackIndex;
+  const chosen = typeof index === 'number' && Number.isInteger(index) ? attacksOf(combatant)[index] : undefined;
+  if (!chosen) refuse(422, 'Ataque inválido.');
+  const mode = parseMode(body.mode);
+  if (chosen.kind === 'save' && mode !== 'normal') {
+    refuse(422, 'Vantagem e desvantagem não se aplicam a um ataque por salvaguarda.');
+  }
+  if (body.secret !== undefined && typeof body.secret !== 'boolean') refuse(422, 'Valor inválido para "secreta".');
+  const master = mutation.viewer.role === 'master';
+  if (!master && body.secret === true) refuse(403, 'Apenas o mestre pode rolar em segredo.');
+
+  let target: LoadedCombatant | undefined;
+  if (body.targetId !== undefined && body.targetId !== null) {
+    if (typeof body.targetId !== 'string') refuse(422, 'Alvo inválido.');
+    target = findCombatant(mutation, body.targetId);
+    if (target.row.id === row.id) refuse(422, 'Escolha outro combatente como alvo.');
+  }
+
+  // A monster's attack is the master's unless told otherwise, like its
+  // initiative; a character's is the table's. A hidden attacker or target
+  // would be given away by the event.
+  const secret =
+    (master ? ((body.secret as boolean | undefined) ?? row.source !== 'character') : false) ||
+    row.hidden ||
+    target?.row.hidden === true;
+
+  const base = {
+    kind: 'roll' as const,
+    rollKind: 'attack' as const,
+    attackName: chosen.name,
+    characterName: combatant.name,
+    attackerSource: sourceOf(combatant),
+    ...(row.characterId ? { characterId: row.characterId } : {}),
+  };
+  const aimed = target ? { combatantId: target.row.id, name: target.name, source: sourceOf(target) } : undefined;
+
+  let payload: RollPayload;
+  if (chosen.kind === 'save') {
+    const damage = rollDamage(chosen.damage, false);
+    if (!damage) refuse(422, 'A expressão de dano deste ataque é inválida.');
+    payload = {
+      ...base,
+      ...damage,
+      mode: 'normal',
+      damage: { ...damage, damageType: chosen.damageType },
+      save: { dc: chosen.dc, ability: chosen.saveAbility },
+      ...(aimed ? { target: { ...aimed, hit: true } } : {}),
+    };
+  } else {
+    const roll = rollAttackHit(chosen.bonus, mode);
+    const { critical, ...result } = roll;
+    payload = { ...base, ...result, critical };
+    if (!target || !aimed) {
+      payload.damageRollable = { expression: chosen.damage, damageType: chosen.damageType };
+    } else {
+      const hit = isHit(roll, target.ac);
+      payload.target = { ...aimed, hit, ac: target.ac };
+      if (hit) {
+        const damage = rollDamage(chosen.damage, critical);
+        if (!damage) refuse(422, 'O dano deste ataque passa do limite de dados no crítico ou é inválido.');
+        payload.damage = { ...damage, damageType: chosen.damageType };
+      }
+    }
+  }
+
+  const event = recordRollEvent(mutation.tx, {
+    campaignId: mutation.loaded.encounter.campaignId,
+    userId: mutation.viewer.userId,
+    userName: mutation.userName,
+    secret,
+    payload,
+  });
+  mutation.events.push(event);
+
+  if (!target || !payload.damage || payload.damage.total === 0) return;
+  const pending: CombatReminder = {
+    id: randomUUID(),
+    kind: 'pendingDamage',
+    amount: payload.damage.total,
+    damageType: chosen.damageType,
+    critical: payload.critical === true,
+    attackerName: combatant.name,
+    attackName: chosen.name,
+    ...(payload.save ? { save: payload.save } : {}),
+    eventId: event.id,
+    secret,
+  };
+  writeVitals(mutation, target, {}, [...target.row.reminders, pending]);
+}
+
+/**
+ * The master applies a pending damage, adjusted or not (resistance, half on a
+ * save), through the same path as any damage. Consuming it and hurting
+ * happen in one write.
+ */
+function applyPendingDamage(mutation: Mutation, combatant: LoadedCombatant, reminderId: string | undefined, body: Record<string, unknown>) {
+  requireMaster(mutation.viewer);
+  const reminder = findReminder(combatant, reminderId, 'pendingDamage');
+  if (reminder.kind !== 'pendingDamage') refuse(404, 'Lembrete não encontrado.');
+  // Unadjusted, the damage the server rolled goes in whole: the limit is for
+  // what the master types, not for a roll that may exceed it.
+  const amount =
+    body.amount === undefined ? reminder.amount : boundedInteger(body.amount, C.hpAmount.min, C.hpAmount.max);
+  if (amount === undefined) refuse(422, `A quantidade deve ser um número entre ${C.hpAmount.min} e ${C.hpAmount.max}.`);
+  applyHitPoints(mutation, combatant, 'damage', amount, withoutReminder(combatant, reminder));
+}
+
+/** Any reminder may be dismissed by who acts on the combatant; a pending damage only by the master. */
+function dismissReminder(mutation: Mutation, combatant: LoadedCombatant, reminderId: string | undefined) {
+  const reminder = findReminder(combatant, reminderId);
+  if (reminder.kind === 'pendingDamage') requireMaster(mutation.viewer);
   writeVitals(mutation, combatant, {}, withoutReminder(combatant, reminder));
 }
 
@@ -1047,10 +1204,12 @@ export function encounterRoutes() {
   routes.post(`${combatant}/death-save`, (c) => duringFight(c, deathSave));
   routes.post(`${combatant}/concentration-save`, (c) => duringFight(c, concentrationSave));
   routes.delete(`${combatant}/reminders/:reminderId`, (c) =>
-    duringFight(c, (mutation, target) =>
-      writeVitals(mutation, target, {}, withoutReminder(target, findReminder(target, c.req.param('reminderId')))),
-    ),
+    duringFight(c, (mutation, target) => dismissReminder(mutation, target, c.req.param('reminderId'))),
   );
+  routes.post(`${combatant}/reminders/:reminderId/apply`, (c) =>
+    duringFight(c, (mutation, target, body) => applyPendingDamage(mutation, target, c.req.param('reminderId'), body)),
+  );
+  routes.post(`${combatant}/attack`, (c) => duringFight(c, attack));
 
   return routes;
 }

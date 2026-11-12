@@ -29,6 +29,7 @@ type SheetColumns = Pick<
   | 'saves'
   | 'abilityScores'
   | 'initiativeBonus'
+  | 'attacks'
 >;
 
 /**
@@ -65,6 +66,7 @@ const sheetColumns = {
   saves: characters.saves,
   abilityScores: characters.abilityScores,
   initiativeBonus: characters.initiativeBonus,
+  attacks: characters.attacks,
 };
 
 function resolve(row: CombatantRow, sheet: SheetColumns | null): LoadedCombatant {

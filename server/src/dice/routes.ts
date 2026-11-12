@@ -1,6 +1,8 @@
+import { and, eq } from 'drizzle-orm';
 import { Hono } from 'hono';
-import type { FreeRollRequest, RollMode, RollPayload } from '@quest-fast/shared';
-import { isRollMode, isSingleD20, parseDiceExpression, rollDice } from '@quest-fast/shared';
+import { sessionEvents } from '@quest-fast/db';
+import type { FreeRollRequest, RollMode, RollPayload, RollSessionEvent } from '@quest-fast/shared';
+import { isRollMode, isSingleD20, parseDiceExpression, rollDamage, rollDice } from '@quest-fast/shared';
 import type { Context } from '../context.ts';
 import { requireAuth, requireCampaignRole } from '../middleware.ts';
 import { recordRollEvent } from '../events/feed.ts';
@@ -54,6 +56,59 @@ export function diceRoutes() {
     });
     hub.publish(c.var.campaignId, event);
     return c.json({ event }, 201);
+  });
+
+  /**
+   * The damage of an attack rolled without a target, once, by who attacked.
+   * The expression and the critical come from the stored event, never from
+   * the client. It stays as secret as its attack.
+   */
+  routes.post('/:eventId/damage', requireCampaignRole(), (c) => {
+    const { db, hub } = c.var.deps;
+    const notFound = { error: 'Rolagem não encontrada.' };
+    const outcome = db.transaction((tx) => {
+      const row = tx
+        .select()
+        .from(sessionEvents)
+        .where(and(eq(sessionEvents.id, c.req.param('eventId')), eq(sessionEvents.campaignId, c.var.campaignId)))
+        .get();
+      // A secret roll does not exist for a player.
+      if (!row || row.type !== 'roll' || (row.secret && c.var.role !== 'master')) return { status: 404 as const, body: notFound };
+      if (row.userId !== c.var.user.id) return { status: 403 as const, body: { error: 'Só quem atacou rola o dano.' } };
+      const attack = row.payload as RollPayload;
+      if (!attack.damageRollable) return { status: 409 as const, body: { error: 'Esta rolagem não tem dano a rolar.' } };
+      if (attack.damageRolled) return { status: 409 as const, body: { error: 'O dano deste ataque já foi rolado.' } };
+
+      const critical = attack.critical === true;
+      const damage = rollDamage(attack.damageRollable.expression, critical);
+      if (!damage) return { status: 422 as const, body: { error: 'O dano deste ataque passa do limite de dados no crítico ou é inválido.' } };
+      tx.update(sessionEvents)
+        .set({ payload: { ...attack, damageRolled: true } })
+        .where(eq(sessionEvents.id, row.id))
+        .run();
+      const event: RollSessionEvent = recordRollEvent(tx, {
+        campaignId: c.var.campaignId,
+        userId: c.var.user.id,
+        userName: c.var.user.name,
+        secret: row.secret,
+        payload: {
+          kind: 'roll',
+          ...damage,
+          mode: 'normal',
+          rollKind: 'attack',
+          attackName: attack.attackName,
+          characterName: attack.characterName,
+          ...(attack.characterId ? { characterId: attack.characterId } : {}),
+          ...(attack.attackerSource ? { attackerSource: attack.attackerSource } : {}),
+          critical,
+          damage: { ...damage, damageType: attack.damageRollable.damageType },
+          damageOf: row.id,
+        },
+      });
+      return { status: 201 as const, body: { event } };
+    });
+    if (outcome.status === 201) hub.publish(c.var.campaignId, outcome.body.event);
+    return c.json(outcome.body, outcome.status);
   });
 
   return routes;

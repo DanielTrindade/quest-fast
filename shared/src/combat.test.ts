@@ -95,6 +95,7 @@ test('pending damage waits for the master whatever the hit points', () => {
     attackerName: 'Goblin 2',
     attackName: 'Cimitarra',
     eventId: 'e',
+    secret: false,
   };
   assert.deepEqual(pendingReminders([pending], { hpCurrent: 5, concentrating: false }), [pending]);
   assert.deepEqual(pendingReminders([pending], { hpCurrent: 0, concentrating: false }), [pending]);

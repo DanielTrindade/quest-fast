@@ -346,17 +346,32 @@ test('a save DC needs a DC in range and a known ability', async () => {
   }
 });
 
-test('a player cannot roll an attack on a save DC row', async () => {
+test('a save DC row rolls only its damage, with the DC the target faces', async () => {
   const { player, campaign } = await appWithCampaign();
   const { character } = await create(player, campaign.id, { ...HAZIN, attacks: [...HAZIN.attacks, BREATH] });
   assert.ok(character);
 
-  const refused = await roll(player, campaign.id, character.id, { kind: 'attack', attackIndex: 1 });
-  assert.equal(refused.status, 422);
-  assert.match((await body<{ error: string }>(refused)).error, /teste de resistência/);
+  const breath = await body<RollResponse>(await roll(player, campaign.id, character.id, { kind: 'attack', attackIndex: 1 }));
+  assert.equal(breath.event.payload.expression, '2d6');
+  assert.deepEqual(breath.event.payload.save, { dc: 13, ability: 'dexterity' });
+  assert.equal(breath.event.payload.damage?.damageType, 'Fogo');
+  assert.equal(breath.event.payload.damage?.total, breath.event.payload.total);
+  assert.equal(breath.event.payload.damageRollable, undefined);
+
+  const disadvantage = await roll(player, campaign.id, character.id, { kind: 'attack', attackIndex: 1, mode: 'disadvantage' });
+  assert.equal(disadvantage.status, 422);
+});
+
+test('an attack roll from the sheet leaves its damage to roll once it hits', async () => {
+  const { player, campaign } = await appWithCampaign();
+  const { character } = await create(player, campaign.id, HAZIN);
+  assert.ok(character);
 
   const axe = await body<RollResponse>(await roll(player, campaign.id, character.id, { kind: 'attack', attackIndex: 0 }));
   assert.equal(axe.event.payload.expression, '1d20+7');
+  assert.equal(axe.event.payload.attackerSource, 'character');
+  assert.deepEqual(axe.event.payload.damageRollable, { expression: HAZIN.attacks[0]!.damage, damageType: HAZIN.attacks[0]!.damageType ?? '' });
+  assert.equal(axe.event.payload.damage, undefined);
 });
 
 test('attacks stored before the save DC existed read as attack rolls', async () => {
