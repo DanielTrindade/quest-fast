@@ -141,7 +141,7 @@ export const Encerrado: Story = {
   },
 };
 
-export const Ocupado: Story = { args: { busyId: 'g1' } };
+export const Ocupado: Story = { args: { busyIds: ['g1', 'g2'] } };
 
 export const Vazio: Story = { args: { combatants: [] } };
 
