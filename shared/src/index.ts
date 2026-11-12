@@ -78,6 +78,7 @@ export {
   deathSaveOutcome,
   deathSaveStatus,
   hasPreviousTurn,
+  keepsConcentration,
   healthBand,
   isActiveCondition,
   isChallengeRating,

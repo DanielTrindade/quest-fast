@@ -4,11 +4,12 @@ import { assets } from '@quest-fast/db';
 import type { AssetUploadResponse } from '@quest-fast/shared';
 import type { Context } from '../context.ts';
 import { requireAuth, requireCampaignRole } from '../middleware.ts';
-import { ALLOWED_IMAGE_TYPES, MAX_ASSET_SIZE } from './store.ts';
+import { normalizeAvatar } from './image.ts';
+import { MAX_ASSET_SIZE } from './store.ts';
 
 /**
- * Avatar upload. Files are validated by mime and size before the store is
- * touched; nothing here trusts the file name from the client.
+ * Avatar upload. The browser's type and file name are ignored: the server
+ * decodes the image and stores its own re-encoded copy.
  */
 export function assetRoutes() {
   const routes = new Hono<Context>();
@@ -22,9 +23,6 @@ export function assetRoutes() {
     if (!(file instanceof File)) {
       return c.json({ error: 'Envie um arquivo de imagem.' }, 422);
     }
-    if (!(ALLOWED_IMAGE_TYPES as readonly string[]).includes(file.type)) {
-      return c.json({ error: 'Formato não permitido. Use PNG, JPEG, WebP ou GIF.' }, 422);
-    }
     if (file.size === 0) {
       return c.json({ error: 'O arquivo de imagem está vazio.' }, 422);
     }
@@ -32,12 +30,16 @@ export function assetRoutes() {
       return c.json({ error: 'A imagem deve ter até 5 MB.' }, 413);
     }
 
-    const buffer = new Uint8Array(await file.arrayBuffer());
+    const normalized = await normalizeAvatar(new Uint8Array(await file.arrayBuffer()));
+    if (!normalized.ok) {
+      return c.json({ error: normalized.error }, 422);
+    }
+    const { buffer, mimeType } = normalized.image;
     // The store may be a remote bucket: a failure there is reported, and no
     // row is written for a file that was never kept.
     let stored;
     try {
-      stored = await store.save(c.var.campaignId, buffer, file.type);
+      stored = await store.save(c.var.campaignId, buffer, mimeType);
     } catch (error) {
       console.error('asset upload failed', error);
       return c.json({ error: 'Não foi possível guardar a imagem. Tente novamente.' }, 502);
@@ -49,8 +51,8 @@ export function assetRoutes() {
         campaignId: c.var.campaignId,
         uploadedById: c.var.user.id,
         path: stored.path,
-        mimeType: file.type,
-        size: file.size,
+        mimeType,
+        size: buffer.byteLength,
       })
       .returning()
       .get();

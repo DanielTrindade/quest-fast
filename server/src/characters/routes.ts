@@ -20,6 +20,7 @@ import {
   isSize,
   isSkill,
   isSpeed,
+  keepsConcentration,
   rollAttackHit,
   rollDamage,
   rollDice,
@@ -514,6 +515,10 @@ function parseStateInput(body: unknown, sheet: CharacterSheet) {
   if (state.hpCurrent !== undefined && state.hpCurrent > 0 && sheet.hpCurrent === 0 && state.deathSaves === undefined) {
     state.deathSaves = { successes: 0, failures: 0 };
   }
+  // Down at 0, a character is unconscious: the fall ends the concentration and none starts.
+  const hpCurrent = state.hpCurrent ?? sheet.hpCurrent;
+  if (state.concentrating === true && !keepsConcentration(true, hpCurrent)) fail('Um personagem caído não consegue se concentrar.');
+  if (state.concentrating === undefined && sheet.concentrating && !keepsConcentration(true, hpCurrent)) state.concentrating = false;
   if (source.spellSlotsSpent !== undefined) {
     const spent = source.spellSlotsSpent;
     if (

@@ -33,7 +33,11 @@ export function DeathSaveTracker({ name, deathSaves, canRoll = false, pending = 
         <div className="grid min-w-0 justify-items-start gap-2 [&>[data-slot=button]]:max-w-full [&>[data-slot=button]]:whitespace-normal">
           <RollModeControl value={mode} onChange={setMode} disabled={pending} name={`${id}-mode`}
             label={`Tipo de rolagem do teste contra a morte de ${name}`} />
-          <Button variant="secondary" disabled={pending} onClick={() => onRoll(mode)}>
+          {/* Advantage comes from one feature or spell: the next save starts normal again. */}
+          <Button variant="secondary" disabled={pending} onClick={() => {
+            onRoll(mode);
+            setMode('normal');
+          }}>
             <DiceFive size={18} aria-hidden="true" /> Teste contra a morte<span className="sr-only"> de {name}</span>
           </Button>
         </div>

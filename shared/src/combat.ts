@@ -198,6 +198,11 @@ export function applyHpChange(
   };
 }
 
+/** At 0 hit points a creature falls unconscious, and that ends its concentration. */
+export function keepsConcentration(concentrating: boolean, hpCurrent: number): boolean {
+  return concentrating && hpCurrent > 0;
+}
+
 /**
  * Something the table has to resolve; nothing is applied on its own. It lives
  * on the combatant so it survives a reload and reaches whoever has to roll,
