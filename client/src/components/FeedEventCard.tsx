@@ -1,9 +1,12 @@
-import { EyeSlash, FirstAidKit, FlagCheckered, Heartbeat, HeartBreak, Hourglass, Info, Lightning, Skull, Sword } from '@phosphor-icons/react';
+import { DiceFive, EyeSlash, FirstAidKit, FlagCheckered, Heartbeat, HeartBreak, Hourglass, Info, Lightning, Skull, Sword } from '@phosphor-icons/react';
 import { COMBAT_EVENT_TYPES, type CombatSessionEvent, type RollPayload, type RollSessionEvent, type SessionEvent, type UnknownSessionEvent } from '@quest-fast/shared';
 import { ABILITY_LABELS, SKILL_LABELS } from '../lib/5e';
+import { attackHeadline, attackOutcome, canRollDamage, damageText, showsAttackRoll } from '../lib/attack-feed';
 import { combatEventText, type FightPayload } from '../lib/combat-feed';
 import { formatEventTime } from '../lib/format';
+import { Button } from './Button';
 import { DiceResult } from './DiceResult';
+import { Badge } from './ui/badge';
 
 function rollSummary(payload: RollPayload): string {
   const kept = payload.dice.filter((die) => !die.discarded);
@@ -15,7 +18,6 @@ function rollSummary(payload: RollPayload): string {
 }
 
 function rollAction(payload: RollPayload): string {
-  if (payload.rollKind === 'attack') return `atacou com ${payload.attackName}`;
   if (payload.rollKind === 'skill') {
     return `teste de ${payload.skill ? SKILL_LABELS[payload.skill] : ''}`;
   }
@@ -47,8 +49,47 @@ function FeedMeta({ event }: { event: SessionEvent }) {
   );
 }
 
-function RollEventCard({ event }: { event: RollSessionEvent }) {
+/**
+ * An attack: the d20 when this reader may see it, then what came of it — hit
+ * or miss, the DC of a save, the damage. Without a target, whoever attacked
+ * may roll the damage once it is known to have hit.
+ */
+function AttackEventCard({ event, onRollDamage, pending }: { event: RollSessionEvent } & DamageActions) {
   const payload = event.payload;
+  const headline = attackHeadline(payload);
+  const outcome = attackOutcome(payload);
+  const damage = damageText(payload);
+  return (
+    <>
+      <FeedMeta event={event} />
+      {showsAttackRoll(payload) ? (
+        <DiceResult compact label={headline} total={payload.total} decomposition={rollSummary(payload)}
+          dice={payload.dice} mode={payload.mode} natural={payload.natural} />
+      ) : (
+        <p className={combat}><Sword size={16} aria-hidden="true" /><span>{headline}</span></p>
+      )}
+      {(outcome || payload.critical || damage) && (
+        <p data-slot="attack-outcome" data-hit={payload.target?.hit}
+          className="m-0 mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-small text-foreground [overflow-wrap:anywhere]">
+          {outcome && <span className="font-semibold">{outcome}</span>}
+          {payload.critical && <Badge variant="accent">Crítico</Badge>}
+          {damage && <span>Dano: <strong className="font-semibold tabular-nums">{damage}</strong></span>}
+        </p>
+      )}
+      {onRollDamage && canRollDamage(payload) && (
+        <div className="mt-2 [&>[data-slot=button]]:max-w-full [&>[data-slot=button]]:whitespace-normal">
+          <Button variant="secondary" disabled={pending} onClick={() => onRollDamage(event.id)}>
+            <DiceFive size={18} aria-hidden="true" /> Rolar dano<span className="sr-only"> de {payload.attackName}</span>
+          </Button>
+        </div>
+      )}
+    </>
+  );
+}
+
+function RollEventCard({ event, ...actions }: { event: RollSessionEvent } & DamageActions) {
+  const payload = event.payload;
+  if (payload.rollKind === 'attack') return <AttackEventCard event={event} {...actions} />;
   const headline =
     payload.rollKind && payload.characterName
       ? `${payload.characterName} ${rollAction(payload)}`
@@ -144,10 +185,16 @@ function isCombatSessionEvent(event: SessionEvent): event is CombatSessionEvent 
   return (COMBAT_EVENT_TYPES as readonly string[]).includes(event.type);
 }
 
+type DamageActions = {
+  /** Only on the reader's own attacks: rolls the damage of one made without a target. */
+  onRollDamage?: (eventId: string) => void;
+  pending?: boolean;
+};
+
 /** Renders a feed event by its type, keeping the secret framing in one place. */
-export function FeedEventCard({ event }: { event: SessionEvent }) {
+export function FeedEventCard({ event, ...actions }: { event: SessionEvent } & DamageActions) {
   const content = isRollSessionEvent(event)
-    ? <RollEventCard event={event} />
+    ? <RollEventCard event={event} {...actions} />
     : isCombatSessionEvent(event)
       ? <CombatEventCard event={event} />
       : <UnknownEventCard event={event as UnknownSessionEvent} />;

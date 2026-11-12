@@ -482,6 +482,8 @@ export type CombatantView = {
   deathSaves: DeathSaves | null;
   /** Always empty for a player looking at a monster: a DC gives the damage away. */
   reminders: CombatReminder[];
+  /** What it attacks with. Always empty for a player looking at a monster. */
+  attacks: Attack[];
 };
 
 export type EncounterSummaryView = {

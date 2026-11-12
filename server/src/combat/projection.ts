@@ -1,6 +1,6 @@
 import { healthBand, isDefeated, pendingReminders, type CombatantView, type EncounterView } from '@quest-fast/shared';
 import type { Viewer } from '../events/hub.ts';
-import { queueOrder, type LoadedCombatant, type LoadedEncounter } from './state.ts';
+import { attacksOf, queueOrder, type LoadedCombatant, type LoadedEncounter } from './state.ts';
 
 function defeated(combatant: LoadedCombatant): boolean {
   return isDefeated({ source: combatant.row.source, hpCurrent: combatant.hpCurrent });
@@ -35,6 +35,8 @@ function projectCombatant(combatant: LoadedCombatant, master: boolean): Combatan
     reminders: known
       ? pendingReminders(row.reminders, combatant).filter((reminder) => master || reminder.kind !== 'pendingDamage' || !reminder.secret)
       : [],
+    // A statblock's attacks give its bonus and damage away.
+    attacks: known ? attacksOf(combatant) : [],
   };
 }
 

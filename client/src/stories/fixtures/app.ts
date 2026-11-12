@@ -269,7 +269,7 @@ function combatant(id: string, name: string, extra: Partial<CombatantView> = {})
   return {
     id, source: 'statblock', characterId: null, ownerId: null, name, size: 'medium', hidden: false,
     initiative: 10, hasInitiative: true, dexModifier: 0, tieOrder: 0, ac: 15, hpMax: 30, hpCurrent: 30, hpTemp: 0,
-    healthBand: 'unhurt', defeated: false, conditions: [], concentrating: false, deathSaves: null, reminders: [], ...extra,
+    healthBand: 'unhurt', defeated: false, conditions: [], concentrating: false, deathSaves: null, reminders: [], attacks: [], ...extra,
   };
 }
 
@@ -412,7 +412,7 @@ function forPlayer(view: EncounterView): EncounterView {
     ...view,
     combatants: view.combatants.filter((item) => !item.hidden).map((item) => item.source === 'character'
       ? { ...item, dexModifier: null, tieOrder: null }
-      : { ...item, initiative: null, ac: null, hpMax: null, hpCurrent: null, hpTemp: null, dexModifier: null, tieOrder: null, concentrating: false, reminders: [] }),
+      : { ...item, initiative: null, ac: null, hpMax: null, hpCurrent: null, hpTemp: null, dexModifier: null, tieOrder: null, concentrating: false, reminders: [], attacks: [] }),
   };
 }
 

@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { expect, within } from 'storybook/test';
+import { expect, fn, userEvent, within } from 'storybook/test';
 import type { CombatSessionEvent, RollSessionEvent, SessionEvent, UnknownSessionEvent } from '@quest-fast/shared';
 import { FeedEventCard } from '../components/FeedEventCard';
 
@@ -133,13 +133,83 @@ function reads(text: string): Story['play'] {
   };
 }
 
-function Frame({ event }: { event: SessionEvent }) {
+function Frame({ event, onRollDamage }: { event: SessionEvent; onRollDamage?: (eventId: string) => void }) {
   return (
     <ol className="m-0 list-none p-0 [&>li]:py-3 [&>li+li]:border-t [&>li+li]:border-border" style={{ maxWidth: 420 }}>
-      <li><FeedEventCard event={event} /></li>
+      <li><FeedEventCard event={event} onRollDamage={onRollDamage} /></li>
     </ol>
   );
 }
+
+// --- Attacks during a fight ---------------------------------------------------
+
+const sword = {
+  kind: 'roll',
+  expression: '1d20+5',
+  dice: [{ value: 12, sides: 20 }],
+  modifier: 5,
+  total: 17,
+  mode: 'normal',
+  rollKind: 'attack',
+  attackName: 'Espada longa',
+  characterId: 'kaelen',
+  characterName: 'Kaelen',
+  attackerSource: 'character',
+} satisfies RollSessionEvent['payload'];
+const goblinTarget = { combatantId: 'g2', name: 'Goblin 2', source: 'monster' } as const;
+const slash = { expression: '1d8+3', dice: [{ value: 6, sides: 8 }], modifier: 3, total: 9, damageType: 'Cortante' };
+
+function attackEvent(id: string, payload: RollSessionEvent['payload'], extra: Partial<RollSessionEvent> = {}): RollSessionEvent {
+  return { ...roll, id, payload, createdAt: '2026-09-10T21:58:00.000Z', ...extra };
+}
+
+const hitForMaster = attackEvent('a1', { ...sword, target: { ...goblinTarget, hit: true, ac: 15 }, damage: slash });
+/** The same hit as a player reads it: no monster AC. */
+const hitForPlayer = attackEvent('a2', { ...sword, target: { ...goblinTarget, hit: true }, damage: slash });
+const miss = attackEvent('a3', { ...sword, dice: [{ value: 4, sides: 20 }], total: 9, target: { ...goblinTarget, hit: false, ac: 15 } });
+const critical = attackEvent('a4', {
+  ...sword,
+  dice: [{ value: 20, sides: 20 }],
+  total: 25,
+  natural: 20,
+  critical: true,
+  target: { ...goblinTarget, hit: true, ac: 15 },
+  damage: { ...slash, expression: '2d8+3', dice: [{ value: 6, sides: 8 }, { value: 7, sides: 8 }], total: 16 },
+});
+const fumble = attackEvent('a5', { ...sword, dice: [{ value: 1, sides: 20 }], total: 6, natural: 1, target: { ...goblinTarget, hit: false, ac: 15 } });
+const breath = attackEvent('a6', {
+  ...sword,
+  expression: '2d6',
+  dice: [{ value: 3, sides: 6 }, { value: 4, sides: 6 }],
+  modifier: 0,
+  total: 7,
+  attackName: 'Sopro de fogo',
+  save: { dc: 13, ability: 'dexterity' },
+  target: { ...goblinTarget, hit: true },
+  damage: { expression: '2d6', dice: [{ value: 3, sides: 6 }, { value: 4, sides: 6 }], modifier: 0, total: 7, damageType: 'Fogo' },
+});
+/** What `redactEvent` leaves a player of a public goblin attack: hit, critical and damage. */
+const monsterForPlayer = attackEvent(
+  'a7',
+  {
+    ...sword,
+    expression: '',
+    dice: [],
+    modifier: 0,
+    total: 0,
+    attackName: 'Cimitarra',
+    characterId: undefined,
+    characterName: 'Goblin 1',
+    attackerSource: 'monster',
+    critical: true,
+    target: { combatantId: 'c-hazin', name: 'Hazin Dan', source: 'character', hit: true, ac: 17 },
+    damage: { expression: '', dice: [], modifier: 0, total: 14, damageType: 'Cortante' },
+    redacted: true,
+  },
+  { userId: 'lia', userName: 'Lia Martins' },
+);
+const untargeted = attackEvent('a8', { ...sword, damageRollable: { expression: '1d8+3', damageType: 'Cortante' } });
+const damageLater = attackEvent('a9', { ...sword, ...slash, damageOf: 'a8', damage: slash });
 
 const meta = { title: 'Componentes/FeedEventCard', component: Frame, args: { event: roll } } satisfies Meta<typeof Frame>;
 export default meta;
@@ -163,3 +233,39 @@ export const FalhasPorDano: Story = { name: 'Falhas por dano caído', args: { ev
 /** A hidden combatant's events are the master's secret, even after it is revealed. */
 export const DanoEscondido: Story = { name: 'Dano em escondido (secreto)', args: { event: hiddenDamage } };
 export const SalvaguardaDeConcentracao: Story = { name: 'Salvaguarda de concentração', args: { event: concentrationSave } };
+export const AtaqueAcerto: Story = {
+  name: 'Ataque: acerto (mestre)',
+  args: { event: hitForMaster },
+  play: reads('Acertou (CA 15)'),
+};
+export const AtaqueAcertoJogador: Story = { name: 'Ataque: acerto (jogador)', args: { event: hitForPlayer }, play: reads('Acertou') };
+export const AtaqueErro: Story = { name: 'Ataque: erro', args: { event: miss }, play: reads('Errou (CA 15)') };
+export const AtaqueCritico: Story = { name: 'Ataque: crítico', args: { event: critical }, play: reads('Crítico') };
+export const AtaqueErroCritico: Story = { name: 'Ataque: 1 natural', args: { event: fumble }, play: reads('1 natural') };
+export const AtaquePorSalvaguarda: Story = {
+  name: 'Ataque por salvaguarda',
+  args: { event: breath },
+  play: reads('CD 13 de Destreza'),
+};
+export const AtaqueDeMonstroJogador: Story = {
+  name: 'Ataque de monstro (jogador)',
+  args: { event: monsterForPlayer },
+  play: async ({ canvasElement }) => {
+    const [region] = within(canvasElement).getAllByRole('region', { name: /^Tema / });
+    const card = within(region!);
+    await expect(card.getByText('Goblin 1 atacou Hazin Dan com Cimitarra')).toBeVisible();
+    // No d20 to read the bonus from: only what the master says at the table.
+    await expect(card.queryByRole('group', { name: /Cimitarra/ })).toBeNull();
+    await expect(card.getByText('14 cortante')).toBeVisible();
+  },
+};
+export const AtaqueSemAlvo: Story = {
+  name: 'Ataque sem alvo, com dano a rolar',
+  args: { event: untargeted, onRollDamage: fn() },
+  play: async ({ canvasElement, args }) => {
+    const [region] = within(canvasElement).getAllByRole('region', { name: /^Tema / });
+    await userEvent.click(within(region!).getByRole('button', { name: 'Rolar dano de Espada longa' }));
+    await expect(args.onRollDamage).toHaveBeenCalledWith('a8');
+  },
+};
+export const DanoDepois: Story = { name: 'Dano rolado depois', args: { event: damageLater }, play: reads('Dano de Kaelen com Espada longa') };

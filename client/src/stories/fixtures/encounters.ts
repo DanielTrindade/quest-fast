@@ -1,4 +1,4 @@
-import type { CombatantView, EncounterListItem, HealthBand } from '@quest-fast/shared';
+import type { Attack, CombatantView, EncounterListItem, HealthBand } from '@quest-fast/shared';
 
 /**
  * "Emboscada na estrada" as the server projects it. The master sees every
@@ -23,7 +23,11 @@ const base = {
   concentrating: false,
   deathSaves: null,
   reminders: [],
+  attacks: [],
 } satisfies Partial<CombatantView>;
+
+const SCIMITAR: Attack = { kind: 'attack', name: 'Cimitarra', bonus: 4, damage: '1d6+2', damageType: 'Cortante', notes: '' };
+const SHORTBOW: Attack = { kind: 'attack', name: 'Arco curto', bonus: 4, damage: '1d6+2', damageType: 'Perfurante', notes: 'Distância 24/96 m' };
 
 function monster(id: string, name: string, initiative: number | null, hpCurrent: number, hpMax: number, band: HealthBand, extra: Partial<CombatantView> = {}): CombatantView {
   return {
@@ -38,6 +42,7 @@ function monster(id: string, name: string, initiative: number | null, hpCurrent:
     hpCurrent,
     healthBand: band,
     defeated: band === 'defeated',
+    attacks: [SCIMITAR, SHORTBOW],
     ...extra,
   };
 }
@@ -58,6 +63,10 @@ const hazin: CombatantView = {
   hpTemp: 5,
   healthBand: 'wounded',
   deathSaves: { successes: 0, failures: 0 },
+  attacks: [
+    { kind: 'attack', name: 'Machado Grande', bonus: 7, damage: '1d12+5', damageType: 'Cortante', notes: 'Pesada, duas mãos' },
+    { kind: 'save', name: 'Sopro de fogo', dc: 13, saveAbility: 'dexterity', damage: '2d6', damageType: 'Fogo', notes: 'Cone de 4,5 m' },
+  ],
 };
 
 const lyra: CombatantView = {
@@ -82,7 +91,7 @@ const lyra: CombatantView = {
 export const masterCombatants: CombatantView[] = [
   monster('g1', 'Goblin 1', 18, 7, 7, 'unhurt'),
   hazin,
-  monster('bandit', 'Bandido', 12, 11, 11, 'unhurt', { source: 'manual', size: 'medium', hidden: true, ac: 12, dexModifier: 1 }),
+  monster('bandit', 'Bandido', 12, 11, 11, 'unhurt', { source: 'manual', size: 'medium', hidden: true, ac: 12, dexModifier: 1, attacks: [] }),
   lyra,
   monster('g3', 'Goblin 3', 10, 0, 7, 'defeated', { tieOrder: 1, dexModifier: 3 }),
   monster('g2', 'Goblin 2', 10, 3, 7, 'bloodied', { conditions: [{ condition: 'prone' }] }),
@@ -95,7 +104,7 @@ export const playerCombatants: CombatantView[] = masterCombatants
   .map((combatant) =>
     combatant.source === 'character'
       ? { ...combatant, dexModifier: null, tieOrder: null }
-      : { ...combatant, initiative: null, ac: null, hpMax: null, hpCurrent: null, hpTemp: null, dexModifier: null, tieOrder: null },
+      : { ...combatant, initiative: null, ac: null, hpMax: null, hpCurrent: null, hpTemp: null, dexModifier: null, tieOrder: null, attacks: [] },
   );
 
 /**

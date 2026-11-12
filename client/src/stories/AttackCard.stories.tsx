@@ -17,14 +17,15 @@ export const Rolando: Story = { args: { ...dagger, disabled: true } };
 export const NomeLongo: Story = { args: { ...dagger, name: 'Espada curta élfica dos caminhos esquecidos', bonus: -1, damage: '1d4+4 mais 2d6 de veneno' } };
 export const Resistencia: Story = {
   name: 'Resistência (CD)',
-  // The target rolls a save: the card shows the DC and offers no attack roll.
+  // The target rolls a save: the card shows the DC and rolls only the damage.
   args: {
     kind: 'save', name: 'Palavra Radiante', dc: 13, saveAbility: 'constitution', damage: '1d6', damageType: 'Radiante', onRoll: fn(),
   },
   play: async ({ canvasElement }) => {
     for (const region of within(canvasElement).getAllByRole('region', { name: /^Tema / })) {
       await expect(within(region).getByText('Constituição — CD 13')).toBeVisible();
-      await expect(within(region).queryByRole('button', { name: /Rolar ataque/ })).toBeNull();
+      await expect(within(region).queryByRole('button', { name: /Atacar/ })).toBeNull();
+      await expect(within(region).getByRole('button', { name: 'Rolar dano de Palavra Radiante' })).toBeVisible();
     }
   },
 };
