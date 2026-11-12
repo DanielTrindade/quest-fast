@@ -7,11 +7,16 @@ import type { Role } from '@quest-fast/shared';
 import { createAppRouter } from '../router';
 import { CAMPAIGN_ID, DATA_STATES, respond, type DataState, type InviteScenario } from './fixtures/app';
 
+/** A request that answers with an error instead of the fixture, matched by exact path. */
+type Failure = { path: string; status: number; error: string };
+
 // Both theme frames render the same dataset, so the mock reads one shared value.
-const current: { state: DataState; role: Role; invite?: InviteScenario; requests: string[] } = {
+const current: { state: DataState; role: Role; invite?: InviteScenario; failing: Failure[]; requests: string[]; sockets: number } = {
   state: 'demo',
   role: 'master',
+  failing: [],
   requests: [],
+  sockets: 0,
 };
 
 class QuietSocket extends EventTarget {
@@ -22,6 +27,7 @@ class QuietSocket extends EventTarget {
   onerror: (() => void) | null = null;
   constructor() {
     super();
+    current.sockets += 1;
     setTimeout(() => this.onopen?.(), 0);
   }
   send() {}
@@ -37,7 +43,10 @@ function installApiMock() {
     if (!path.startsWith('/api/')) return realFetch(input, init);
     const method = init?.method ?? 'GET';
     current.requests.push(`${method} ${path.split('?')[0]}`);
-    const reply = respond(current.state, current.role, method, path, current.invite);
+    const failure = current.failing.find((item) => item.path === path.split('?')[0]);
+    const reply = failure
+      ? { status: failure.status, body: { error: failure.error } }
+      : respond(current.state, current.role, method, path, current.invite);
     return new Response(reply.body === undefined ? null : JSON.stringify(reply.body), {
       status: reply.status, headers: { 'content-type': 'application/json' },
     });
@@ -57,7 +66,7 @@ function App({ path }: { path: string }) {
   return <QueryClientProvider client={queryClient}><RouterProvider router={router} /></QueryClientProvider>;
 }
 
-function AppLab({ role, path, data = 'demo' }: { role: Role; path: string; data?: DataState; invite?: InviteScenario }) {
+function AppLab({ role, path, data = 'demo' }: { role: Role; path: string; data?: DataState; invite?: InviteScenario; failing?: Failure[] }) {
   return <App key={`${data}-${role}-${path}`} path={path} />;
 }
 
@@ -71,7 +80,9 @@ const meta = {
     current.state = data;
     current.role = args.role;
     current.invite = args.invite;
+    current.failing = args.failing ?? [];
     current.requests = [];
+    current.sockets = 0;
     return <AppLab {...args} data={data} />;
   },
 } satisfies Meta<typeof AppLab>;
@@ -177,5 +188,41 @@ export const ConviteComErro: Story = {
     await userEvent.click(canvas.getByRole('button', { name: 'Tentar de novo' }));
     await waitFor(() => expect(current.requests.filter((request) => request === INVITE_REQUEST).length).toBeGreaterThan(before));
     await canvas.findByText('Não foi possível carregar o convite.', undefined, { timeout: 5000 });
+  },
+};
+
+const CAMPAIGN_API = `/api/campaigns/${CAMPAIGN_ID}`;
+const ENCOUNTERS_REQUEST = `GET ${CAMPAIGN_API}/encounters`;
+
+export const VisaoGeralComFalha: Story = {
+  name: 'Visão geral: falha nas consultas não vira ausência de dados',
+  args: {
+    ...overview,
+    failing: [
+      { path: `${CAMPAIGN_API}/encounters`, status: 500, error: 'Erro interno.' },
+      { path: `${CAMPAIGN_API}/members`, status: 500, error: 'Erro interno.' },
+    ],
+  },
+  globals: dark,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await canvas.findByText('Não foi possível verificar se há combate.', undefined, { timeout: 5000 });
+    await canvas.findByText('Não foi possível carregar os jogadores.');
+    await expect(canvas.getByText('Indisponível')).toBeVisible();
+    await expect(canvas.queryByText(/Nenhum combate em andamento/)).toBeNull();
+    const before = current.requests.filter((request) => request === ENCOUNTERS_REQUEST).length;
+    await userEvent.click(canvas.getAllByRole('button', { name: 'Tentar novamente' })[0]);
+    await waitFor(() => expect(current.requests.filter((request) => request === ENCOUNTERS_REQUEST).length).toBeGreaterThan(before));
+  },
+};
+
+export const CampanhaNaoEncontrada: Story = {
+  name: 'Campanha não encontrada não abre o socket',
+  args: { ...master, failing: [{ path: CAMPAIGN_API, status: 404, error: 'Campanha não encontrada.' }] },
+  globals: dark,
+  play: async ({ canvasElement }) => {
+    await within(canvasElement).findByText('Campanha não encontrada.', undefined, { timeout: 5000 });
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    await expect(current.sockets).toBe(0);
   },
 };

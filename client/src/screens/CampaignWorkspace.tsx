@@ -29,11 +29,13 @@ export function CampaignWorkspace({ campaignId, user }: {
 }) {
   const navigate = useNavigate();
   const signOut = useSignOut();
-  const socketStatus = useCampaignSocket(campaignId);
   const pathname = useLocation({ select: (location) => location.pathname.replace(/\/+$/, '') });
   const [collapsed, setCollapsed] = useStoredFlag('quest-fast:sidebar-collapsed');
   const campaigns = useQuery({ queryKey: ['campaigns'], queryFn: api.campaigns });
   const campaign = useQuery({ queryKey: ['campaign', campaignId], queryFn: () => api.campaign(campaignId) });
+  // No socket until the campaign answers: a 404 shows its error without a
+  // connection retrying behind it.
+  const socketStatus = useCampaignSocket(campaignId, campaign.isSuccess);
   const encounters = useQuery(encountersQuery(campaignId));
   const activeFight = encounters.data?.encounters.find((fight) => fight.status === 'active');
   const items = navigation(campaignId, campaign.data?.role === 'master', activeFight?.round);

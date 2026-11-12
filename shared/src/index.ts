@@ -257,4 +257,4 @@ export type {
   CampaignBan,
   BansResponse,
 } from './api.ts';
-export { COMBAT_EVENT_TYPES } from './api.ts';
+export { COMBAT_EVENT_TYPES, NOT_A_MEMBER_CLOSE_CODE } from './api.ts';

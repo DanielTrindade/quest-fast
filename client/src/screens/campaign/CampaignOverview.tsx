@@ -1,6 +1,8 @@
 import { ArrowRight, Skull, Users } from '@phosphor-icons/react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
+import { Button as RetryButton } from '../../components/Button';
+import { Skeleton } from '../../components/Skeleton';
 import { Surface } from '../../components/Surface';
 import { Button } from '../../components/ui/button';
 import { sectionHeading } from '../../components/layout-styles';
@@ -9,6 +11,15 @@ import { encountersQuery } from '../../lib/combat-cache';
 import { CampaignPage } from './CampaignPage';
 import { useCampaignScreen } from './campaign-screen';
 import { useInviteDialog } from './useInviteDialog';
+
+function Retry({ message, retrying, onRetry }: { message: string; retrying: boolean; onRetry: () => void }) {
+  return (
+    <div className="grid justify-items-start gap-3">
+      <p role="alert" className="text-body text-danger-text">{message}</p>
+      <RetryButton variant="secondary" loading={retrying} onClick={onRetry}>Tentar novamente</RetryButton>
+    </div>
+  );
+}
 
 /**
  * Where a campaign opens: what is happening now and the way to it. A fight in
@@ -22,8 +33,11 @@ export function CampaignOverview({ campaignId }: { campaignId: string }) {
     queryKey: ['members', campaignId],
     queryFn: () => api.members(campaignId),
   });
+  // Data already in hand wins over a failed refetch; without data, loading and
+  // failure are told apart, and "no fight" is said only after an answer.
   const active = encounters.data?.encounters.find((encounter) => encounter.status === 'active');
   const memberCount = members.data?.members.length;
+  const membersLabel = memberCount !== undefined ? `${memberCount} na mesa` : members.isError ? 'Indisponível' : 'Carregando…';
 
   return (
     <CampaignPage campaign={campaign} actions={invite.button}>
@@ -36,11 +50,19 @@ export function CampaignOverview({ campaignId }: { campaignId: string }) {
             {active && <span className="text-danger-text">Rodada {active.round}</span>}
           </div>
           <Surface className="grid justify-items-start gap-3">
-            <p className="text-body text-text-secondary">
-              {active
-                ? `Combate em andamento: ${active.name}.`
-                : 'Nenhum combate em andamento. Dados, fichas e o histórico da sessão ficam na mesa.'}
-            </p>
+            {encounters.data && (
+              <p className="text-body text-text-secondary">
+                {active
+                  ? `Combate em andamento: ${active.name}.`
+                  : 'Nenhum combate em andamento. Dados, fichas e o histórico da sessão ficam na mesa.'}
+              </p>
+            )}
+            {!encounters.data && encounters.isError && (
+              <Retry message="Não foi possível verificar se há combate." retrying={encounters.isFetching} onRetry={() => encounters.refetch()} />
+            )}
+            {!encounters.data && !encounters.isError && (
+              <Skeleton width="70%" label="Verificando se há combate" />
+            )}
             <Button asChild variant={active ? 'default' : 'secondary'}>
               <Link to="/campaigns/$campaignId/table" params={{ campaignId }}>
                 {active ? 'Ir para o combate' : 'Abrir a mesa'}
@@ -55,9 +77,12 @@ export function CampaignOverview({ campaignId }: { campaignId: string }) {
             <h2 id="overview-players-title">
               <Users size={20} aria-hidden="true" /> Jogadores
             </h2>
-            <span>{memberCount === undefined ? 'Carregando…' : `${memberCount} na mesa`}</span>
+            <span>{membersLabel}</span>
           </div>
           <Surface className="grid justify-items-start gap-3">
+            {!members.data && members.isError && (
+              <Retry message="Não foi possível carregar os jogadores." retrying={members.isFetching} onRetry={() => members.refetch()} />
+            )}
             <p className="text-body text-text-secondary">
               {invite.available
                 ? 'Membros, convite e quem foi removido da mesa.'

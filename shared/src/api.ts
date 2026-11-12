@@ -392,6 +392,13 @@ export type FeedResponse = { events: SessionEvent[]; nextCursor: string | null }
 export type RollResponse = { event: RollSessionEvent };
 
 /**
+ * Close code for a socket whose user is no longer a member of the campaign.
+ * In the private 4000 range, echoing the 404 the REST routes give non-members.
+ * The client stops reconnecting on it: retrying cannot bring access back.
+ */
+export const NOT_A_MEMBER_CLOSE_CODE = 4404;
+
+/**
  * What the server pushes. `combat.updated` carries the whole encounter as the
  * receiver may see it; the client drops one older than the `version` it has.
  */
