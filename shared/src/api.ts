@@ -356,9 +356,9 @@ export type AttackTarget = {
 export type SessionEvent = RollSessionEvent | CombatSessionEvent | UnknownSessionEvent;
 
 /**
- * A roll event, the only kind the MVP persists. Phase 2 adds new event types
- * on the same channel (`token.moved`, `fog.updated`) without changing this
- * envelope; the client renders them via the unknown branch until a card exists.
+ * A roll event, the first kind the feed persisted. Combat added its own types
+ * on the same envelope; the client renders an unknown type via the unknown
+ * branch until a card exists. The battlefield adds no feed event.
  */
 export type RollSessionEvent = {
   id: string;

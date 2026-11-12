@@ -40,6 +40,11 @@ export const SCENE_LIMITS = {
  */
 export const MAP_LIMITS = {
   maxBytes: 25 * 1024 * 1024,
+  /**
+   * Smallest side accepted, in pixels. Keeps every map wide enough for a grid
+   * cell of `SCENE_LIMITS.minCellSize`, so the default grid is always valid.
+   */
+  minSide: 64,
   /** Largest side accepted on input, in pixels. */
   maxInputSide: 8192,
   /** Largest side after normalisation, in pixels. */
@@ -58,7 +63,10 @@ export function cellSizeFromColumns(mapWidth: number, columns: number): number {
   return mapWidth / columns;
 }
 
-/** Most cells a map can hold across, with cells no smaller than the minimum. */
+/**
+ * Most cells a map can hold across, with cells no smaller than the minimum.
+ * Assumes a width of at least `MAP_LIMITS.minSide`.
+ */
 export function maxGridColumns(mapWidth: number): number {
   return Math.max(1, Math.floor(mapWidth / SCENE_LIMITS.minCellSize));
 }

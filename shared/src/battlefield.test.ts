@@ -30,7 +30,13 @@ test('a narrow map gets fewer columns so no cell is below the minimum', () => {
   assert.equal(maxGridColumns(100), 12);
   assert.equal(defaultGrid(100).cellSize, 100 / 12);
   assert.ok(defaultGrid(100).cellSize >= SCENE_LIMITS.minCellSize);
-  assert.equal(maxGridColumns(4), 1);
+});
+
+test('the default grid passes its own validation on every accepted map width', () => {
+  assert.ok(MAP_LIMITS.minSide >= SCENE_LIMITS.minCellSize);
+  for (let width = MAP_LIMITS.minSide; width <= MAP_LIMITS.maxOutputSide; width += 1) {
+    assert.deepEqual(validateGrid(defaultGrid(width), width), {}, String(width));
+  }
 });
 
 test('a grid with a cell inside the map and the offset inside a cell is valid', () => {
@@ -51,7 +57,8 @@ test('an offset outside one cell is refused', () => {
   assert.ok(validateGrid({ cellSize: 100, offsetX: Number.NaN, offsetY: 0 }, 3000).offsetX);
 });
 
-test('maps are JPEG, PNG or WebP, up to 25 MB and 8192 px, stored at 4096 px', () => {
+test('maps are JPEG, PNG or WebP, from 64 px, up to 25 MB and 8192 px, stored at 4096 px', () => {
+  assert.equal(MAP_LIMITS.minSide, 64);
   assert.equal(MAP_LIMITS.maxBytes, 25 * 1024 * 1024);
   assert.equal(MAP_LIMITS.maxInputSide, 8192);
   assert.equal(MAP_LIMITS.maxOutputSide, 4096);
