@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { expect, userEvent, within } from 'storybook/test';
-import type { CharacterSheet, CharacterStateInput } from '@quest-fast/shared';
+import { keepsConcentration, type CharacterSheet, type CharacterStateInput } from '@quest-fast/shared';
 import { CharacterSheetView } from '../screens/campaign/CharacterSheetView';
 import { hazinDan, lyraVentoclaro } from './fixtures/characters';
 
@@ -17,9 +17,12 @@ const handlers = {
 /** What the server does with a state change, so the controls work in the lab. */
 function applyState(character: CharacterSheet, state: CharacterStateInput): CharacterSheet {
   const { spellSlotsSpent, ...rest } = state;
+  const hpCurrent = rest.hpCurrent ?? character.hpCurrent;
   return {
     ...character,
     ...rest,
+    // Like the server: the fall ends a concentration.
+    concentrating: keepsConcentration(rest.concentrating ?? character.concentrating, hpCurrent),
     spellSlots: spellSlotsSpent
       ? character.spellSlots.map((slot, circle) => ({ ...slot, spent: spellSlotsSpent[circle] ?? slot.spent }))
       : character.spellSlots,
@@ -96,6 +99,29 @@ export const DanoNaSessao: Story = {
 export const Caido: Story = {
   name: 'Caído, com salvaguardas contra a morte',
   args: { character: { ...hazinDan, hpCurrent: 0, deathSaves: { successes: 1, failures: 2 } } },
+  play: async ({ canvasElement }) => {
+    for (const region of within(canvasElement).getAllByRole('region', { name: /^Tema / })) {
+      const sheet = within(region);
+      // Unconscious at 0: nobody starts concentrating; healed, the choice is back.
+      await expect(sheet.queryByRole('button', { name: 'Marcar concentração' })).toBeNull();
+      const hitPoints = within(sheet.getByRole('region', { name: 'Pontos de vida' }));
+      await userEvent.type(hitPoints.getByLabelText('Quantidade'), '3');
+      await userEvent.click(hitPoints.getByRole('button', { name: 'Cura' }));
+      await expect(sheet.getByRole('button', { name: 'Marcar concentração' })).toBeVisible();
+    }
+  },
+};
+
+export const CaidoConcentrando: Story = {
+  name: 'Caído com uma concentração ainda marcada',
+  args: { character: { ...hazinDan, hpCurrent: 0, concentrating: true } },
+  play: async ({ canvasElement }) => {
+    for (const region of within(canvasElement).getAllByRole('region', { name: /^Tema / })) {
+      const sheet = within(region);
+      await userEvent.click(sheet.getByRole('button', { name: 'Encerrar concentração' }));
+      await expect(sheet.queryByRole('button', { name: /concentração/ })).toBeNull();
+    }
+  },
 };
 
 export const FichaLonga: Story = {
