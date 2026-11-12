@@ -403,7 +403,7 @@ export function Campaign({ campaignId }: { campaignId: string }) {
 
         <aside className="grid min-w-0 content-start gap-6 [grid-area:table]" aria-label="Mesa">
           <DiceRoller campaignId={campaignId} isMaster={isMaster} />
-          <SessionFeed campaignId={campaignId} />
+          <SessionFeed campaignId={campaignId} currentUserId={me.data?.user.id ?? ''} />
         </aside>
 
         <MembersPanel

@@ -217,6 +217,8 @@ export type {
   ConcentrationRequest,
   DeathSaveRequest,
   ConcentrationSaveRequest,
+  AttackRequest,
+  ApplyDamageRequest,
   UnknownSessionEvent,
 } from './api.ts';
 export type {

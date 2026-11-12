@@ -11,6 +11,8 @@ import type {
   CombatantPatch,
   ConcentrationRequest,
   ConcentrationSaveRequest,
+  AttackRequest,
+  ApplyDamageRequest,
   ConditionRequest,
   DeathSaveRequest,
   CreatedCampaign,
@@ -149,6 +151,9 @@ export const api = {
 
   roll: (campaignId: string, body: FreeRollRequest) =>
     request<RollResponse>(`/api/campaigns/${campaignId}/rolls`, { method: 'POST', body: JSON.stringify(body) }),
+  /** The damage of an attack rolled without a target, once, by who attacked. */
+  rollDamage: (campaignId: string, eventId: string) =>
+    request<RollResponse>(`/api/campaigns/${campaignId}/rolls/${eventId}/damage`, { method: 'POST' }),
   characterRoll: (campaignId: string, characterId: string, body: LinkedRollRequest) =>
     request<RollResponse>(`/api/campaigns/${campaignId}/characters/${characterId}/rolls`, {
       method: 'POST',
@@ -223,7 +228,7 @@ export const api = {
     combatantId: string,
     action: string,
     method: 'POST' | 'PUT' | 'DELETE',
-    body?: HpRequest | ConditionRequest | ConcentrationRequest | DeathSaveRequest | ConcentrationSaveRequest,
+    body?: HpRequest | ConditionRequest | ConcentrationRequest | DeathSaveRequest | ConcentrationSaveRequest | AttackRequest | ApplyDamageRequest,
   ) =>
     request<EncounterResponse>(`/api/campaigns/${campaignId}/encounters/${encounterId}/combatants/${combatantId}/${action}`, {
       method,

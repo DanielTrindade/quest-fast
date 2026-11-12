@@ -7,14 +7,16 @@ import { FeedFollow } from '../../components/FeedFollow';
 import { Skeleton } from '../../components/Skeleton';
 import { Surface } from '../../components/Surface';
 import { useCampaignSocket } from '../../hooks/useCampaignSocket';
+import { useNotify } from '../../hooks/use-notify';
 import { ApiError, api } from '../../lib/api';
+import { mergeFeedEvent } from '../../lib/feed-cache';
 import { sectionHeading, stack } from '../../components/layout-styles';
 
-function errorMessage(error: unknown) {
-  return error instanceof ApiError ? error.message : 'Não foi possível carregar eventos anteriores.';
+function errorMessage(error: unknown, fallback = 'Não foi possível carregar eventos anteriores.') {
+  return error instanceof ApiError ? error.message : fallback;
 }
 
-export function SessionFeed({ campaignId }: { campaignId: string }) {
+export function SessionFeed({ campaignId, currentUserId }: { campaignId: string; currentUserId: string }) {
   const queryClient = useQueryClient();
   const status = useCampaignSocket(campaignId);
   const feed = useQuery({ queryKey: ['feed', campaignId], queryFn: () => api.feed(campaignId) });
@@ -31,6 +33,17 @@ export function SessionFeed({ campaignId }: { campaignId: string }) {
         return { events: [...older, ...prev.events], nextCursor: page.nextCursor };
       });
     },
+  });
+
+  // The damage of one's own attack made without a target. The new roll and
+  // the attack it settles are both updated in the cache, as the socket does.
+  // A failure is a toast: the button may sit deep in a scrolled history, where
+  // an alert above the list would never be seen.
+  const notify = useNotify();
+  const rollDamage = useMutation({
+    mutationFn: (eventId: string) => api.rollDamage(campaignId, eventId),
+    onSuccess: ({ event }) => mergeFeedEvent(queryClient, campaignId, event),
+    onError: (error) => notify({ variant: 'error', title: errorMessage(error, 'Não foi possível rolar o dano.') }),
   });
 
   const events = feed.data?.events ?? [];
@@ -80,7 +93,8 @@ export function SessionFeed({ campaignId }: { campaignId: string }) {
             <ol data-slot="feed-list" className="m-0 list-none p-0 [&>li]:py-3 [&>li+li]:border-t [&>li+li]:border-border">
               {events.map((event) => (
                 <li key={event.id}>
-                  <FeedEventCard event={event} />
+                  <FeedEventCard event={event} pending={rollDamage.isPending}
+                    onRollDamage={event.userId === currentUserId ? (eventId) => rollDamage.mutate(eventId) : undefined} />
                 </li>
               ))}
             </ol>
