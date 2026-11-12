@@ -15,6 +15,7 @@ import {
   type CombatReminder,
   type DeathSaves,
   type HitDie,
+  type MultiPolygon,
   type Skill,
   type Spell,
   type SpellSlot,
@@ -67,6 +68,9 @@ export const campaigns = sqliteTable(
     description: text('description').notNull().default(''),
     /** Visible only to the master; the read route omits it for a player. */
     inviteCode: text('invite_code').notNull(),
+    // Phase 4: the scene open for the table. No foreign key, for the same
+    // reason as `encounters.active_combatant_id`; deleting the scene clears it.
+    activeSceneId: text('active_scene_id'),
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(now),
   },
   (table) => [uniqueIndex('campaigns_invite_code_idx').on(table.inviteCode)],
@@ -362,3 +366,41 @@ export const combatants = sqliteTable(
 export type StatblockRow = typeof statblocks.$inferSelect;
 export type EncounterRow = typeof encounters.$inferSelect;
 export type CombatantRow = typeof combatants.$inferSelect;
+
+// --- Phase 4: battlefield ------------------------------------------------------
+
+/**
+ * A map the master shows the table. The image is a normalised asset (JPEG, at
+ * most 4096 px), and `map_width`/`map_height` are its pixels: the space of the
+ * grid, the tokens and the fog. The fog columns arrive now so its delivery
+ * needs no migration. `version` orders the realtime messages, as in combat.
+ */
+export const scenes = sqliteTable(
+  'scenes',
+  {
+    id: text('id').primaryKey(),
+    campaignId: text('campaign_id')
+      .notNull()
+      .references(() => campaigns.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    // Restrict: the server deletes the scene first, then its asset.
+    mapAssetId: text('map_asset_id')
+      .notNull()
+      .references(() => assets.id, { onDelete: 'restrict' }),
+    mapWidth: integer('map_width').notNull(),
+    mapHeight: integer('map_height').notNull(),
+    gridEnabled: integer('grid_enabled', { mode: 'boolean' }).notNull().default(true),
+    /** Map pixels; the server starts it at `map_width / 30`. */
+    gridCellSize: real('grid_cell_size').notNull(),
+    gridOffsetX: real('grid_offset_x').notNull().default(0),
+    gridOffsetY: real('grid_offset_y').notNull().default(0),
+    snapToGrid: integer('snap_to_grid', { mode: 'boolean' }).notNull().default(true),
+    fogEnabled: integer('fog_enabled', { mode: 'boolean' }).notNull().default(false),
+    fogRevealed: text('fog_revealed', { mode: 'json' }).$type<MultiPolygon>().notNull().default([]),
+    version: integer('version').notNull().default(0),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(now),
+  },
+  (table) => [index('scenes_campaign_id_idx').on(table.campaignId)],
+);
+
+export type SceneRow = typeof scenes.$inferSelect;

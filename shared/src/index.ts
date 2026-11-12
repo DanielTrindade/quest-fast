@@ -162,6 +162,20 @@ export {
   type StatblockImportLabels,
   type StatblockImportResult,
 } from './statblock-import.ts';
+export {
+  DEFAULT_GRID_COLUMNS,
+  MAP_LIMITS,
+  SCENE_LIMITS,
+  cellSizeFromColumns,
+  defaultGrid,
+  isMapType,
+  maxGridColumns,
+  validateGrid,
+  type GridFieldErrors,
+  type GridSettings,
+  type MapType,
+  type MultiPolygon,
+} from './battlefield.ts';
 export type {
   AbilityScores,
   Asset,
@@ -220,6 +234,12 @@ export type {
   AttackRequest,
   ApplyDamageRequest,
   UnknownSessionEvent,
+  ActiveSceneRequest,
+  SceneInput,
+  SceneListResponse,
+  SceneResponse,
+  SceneSummary,
+  SceneView,
 } from './api.ts';
 export type {
   ErrorResponse,
