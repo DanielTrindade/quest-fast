@@ -9,7 +9,7 @@ import { Skeleton } from '../../components/Skeleton';
 import { Surface } from '../../components/Surface';
 import { TurnBar, type TurnAction } from '../../components/TurnBar';
 import { ApiError, api } from '../../lib/api';
-import { encounterQuery, mergeEncounter, removeEncounter, withHitPoints } from '../../lib/combat-cache';
+import { encounterQuery, mergeEncounter, removeEncounter, settleRequest, startRequest, withHitPoints, type InFlight } from '../../lib/combat-cache';
 import { stack } from '../../components/layout-styles';
 
 function errorMessage(error: unknown) {
@@ -124,7 +124,9 @@ function BackButton({ onBack }: { onBack?: () => void }) {
 function useEncounterActions(campaignId: string, encounterId: string) {
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
-  const [busyId, setBusyId] = useState<string | null>(null);
+  const [inFlight, setInFlight] = useState<InFlight>({});
+  const start = (id: string) => setInFlight((current) => startRequest(current, id));
+  const settle = (id: string) => setInFlight((current) => settleRequest(current, id));
   const [pendingTurn, setPendingTurn] = useState<TurnAction | null>(null);
 
   const apply = (response: EncounterResponse) => {
@@ -138,10 +140,10 @@ function useEncounterActions(campaignId: string, encounterId: string) {
 
   const combatant = useMutation({
     mutationFn: ({ run }: { id: string; run: () => Promise<EncounterResponse> }) => run(),
-    onMutate: ({ id }) => setBusyId(id),
+    onMutate: ({ id }) => start(id),
     onSuccess: apply,
     onError: fail,
-    onSettled: () => setBusyId(null),
+    onSettled: (_data, _error, { id }) => settle(id),
   });
   const turn = useMutation({
     mutationFn: ({ encounter, action }: { encounter: EncounterView; action: TurnAction }) => turnRequest(campaignId, encounter, action),
@@ -165,7 +167,7 @@ function useEncounterActions(campaignId: string, encounterId: string) {
     mutationFn: ({ id, operation, amount }: { id: string; operation: HpOperation; amount: number; characterId: string | null }) =>
       api.combatantAction(campaignId, encounterId, id, 'hp', 'POST', { operation, amount }),
     onMutate: async ({ id, operation, amount }) => {
-      setBusyId(id);
+      start(id);
       const key = ['encounter', campaignId, encounterId];
       // An answer already on its way must not undo what the screen shows.
       await queryClient.cancelQueries({ queryKey: key });
@@ -183,12 +185,12 @@ function useEncounterActions(campaignId: string, encounterId: string) {
       }
     },
     onError: fail,
-    onSettled: () => setBusyId(null),
+    onSettled: (_data, _error, { id }) => settle(id),
   });
 
   return {
     error,
-    busyId,
+    busyIds: Object.keys(inFlight),
     pendingTurn,
     run: (id: string, request: () => Promise<EncounterResponse>) => combatant.mutate({ id, run: request }),
     turn: (encounter: EncounterView, action: TurnAction) => turn.mutate({ encounter, action }),
@@ -295,7 +297,7 @@ export function EncounterPanel({ campaignId, encounterId, isMaster, currentUserI
         viewerId={currentUserId}
         master={isMaster}
         editable={encounter.status !== 'ended'}
-        busyId={actions.busyId}
+        busyIds={actions.busyIds}
         onRoll={(id) => actions.run(id, () => api.combatantInitiative(...path, id, {}))}
         onAssign={(id, value) => actions.run(id, () => api.combatantInitiative(...path, id, { value }))}
         onToggleHidden={(id, hidden) => actions.run(id, () => api.updateCombatant(...path, id, { hidden }))}
