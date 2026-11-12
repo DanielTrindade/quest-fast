@@ -357,11 +357,24 @@ sem migração de dados. Cada caminho leva um UUID novo e nunca é sobrescrito,
 por isso o R2 entrega as imagens com cache permanente
 (`Cache-Control: immutable`).
 
-Mapas do VTT passam antes por uma normalização no servidor com `sharp`
-(decidida no [spike](history/2026-11-12-vtt-spike.md), ainda não
-implementada): entrada de até 25 MB e 8192 × 8192 px; saída em JPEG mozjpeg
-q82 com até 4096 px de lado, sem metadados. O `sharp` roda fora da thread
-principal e é dependência nativa no mesmo processo, como o `better-sqlite3`.
+O servidor não confia no tipo nem no nome que o navegador manda: abre a imagem
+com `sharp` e guarda a própria cópia (`server/src/assets/image.ts`). O
+`sharp` roda fora da thread principal e é dependência nativa no mesmo
+processo, como o `better-sqlite3`; no Windows, instala com `--ignore-scripts`.
+
+- **Avatares:** entrada de até 5 MB (413 acima disso) e até 8192 × 8192 px,
+  lidos só do cabeçalho antes de decodificar (`limitInputPixels` como segunda
+  barreira contra imagem-bomba). Aceita PNG, JPEG, WebP e GIF pelo formato
+  detectado no conteúdo; o resto, ou o que não decodifica, recebe 422 sem
+  tocar no armazenamento nem gravar linha em `assets`. A saída é WebP q82 com
+  até 512 px de lado (sem ampliar), orientação EXIF aplicada aos pixels e
+  transparência mantida. Nenhum metadado (EXIF, GPS, ICC, XMP) sobrevive, e
+  do GIF animado fica só o primeiro quadro. O banco guarda o tipo e o tamanho
+  da cópia, não do arquivo enviado. Avatares enviados antes disso não foram
+  reprocessados.
+- **Mapas do VTT** (decidido no [spike](history/2026-11-12-vtt-spike.md),
+  ainda não implementado): entrada de até 25 MB e 8192 × 8192 px; saída em
+  JPEG mozjpeg q82 com até 4096 px de lado, sem metadados.
 
 ### Por que R2, e por que opcional
 
