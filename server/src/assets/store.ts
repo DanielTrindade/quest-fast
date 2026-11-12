@@ -3,9 +3,6 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 
-/** Character avatars are images; the VTT will reuse this list for maps. */
-export const ALLOWED_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'] as const;
-
 /** 5 MB keeps a self-hosted table's disk predictable. */
 export const MAX_ASSET_SIZE = 5 * 1024 * 1024;
 

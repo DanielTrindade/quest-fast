@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 import type { AddressInfo } from 'node:net';
 import { getRequestListener } from '@hono/node-server';
 import Database from 'better-sqlite3';
+import sharp from 'sharp';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import type { Db } from '@quest-fast/db';
@@ -162,4 +163,15 @@ export function asUser(app: RequestApp, session: string) {
 /** `Response.json()` returns `unknown`; the test declares the expected shape. */
 export async function body<T>(response: Response): Promise<T> {
   return (await response.json()) as T;
+}
+
+export type TestImageFormat = 'png' | 'jpeg' | 'webp' | 'gif';
+
+export async function testImageBytes(format: TestImageFormat = 'png', width = 32, height = 32) {
+  const image = sharp({ create: { width, height, channels: 3, background: { r: 180, g: 40, b: 40 } } });
+  return new Uint8Array(await image.toFormat(format).toBuffer());
+}
+
+export async function testImageFile(format: TestImageFormat = 'png', type = `image/${format}`) {
+  return new File([await testImageBytes(format)], `avatar.${format}`, { type });
 }

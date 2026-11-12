@@ -5,7 +5,7 @@ import type {
   CharacterResponse,
   CreatedCampaign,
 } from '@quest-fast/shared';
-import { asUser, body, createTestApp, signIn } from '../testing.ts';
+import { asUser, body, createTestApp, signIn, testImageFile } from '../testing.ts';
 
 const PROFILES = {
   lia: { discordId: '111', name: 'Lia Martins', avatarUrl: null },
@@ -388,7 +388,7 @@ test('the avatar must be an asset of the same campaign', async () => {
   const { character } = await createSheet(player, campaign.id);
 
   const form = new FormData();
-  form.append('file', new File([new Uint8Array([1, 2, 3])], 'avatar.png', { type: 'image/png' }));
+  form.append('file', await testImageFile('png'));
   const uploaded = await player(`/api/campaigns/${campaign.id}/assets`, { method: 'POST', body: form });
   assert.equal(uploaded.status, 201);
   const { asset } = await body<{ asset: { id: string; url: string } }>(uploaded);

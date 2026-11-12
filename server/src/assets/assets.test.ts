@@ -5,8 +5,9 @@ import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 import { assets } from '@quest-fast/db';
 import type { AssetUploadResponse, CharacterResponse, CreatedCampaign } from '@quest-fast/shared';
-import { asUser, body, createTestApp, signIn, testEnv } from '../testing.ts';
-import { MAX_ASSET_SIZE, createDiskAssetStore, createR2AssetStore } from './store.ts';
+import { asUser, body, createTestApp, signIn, testEnv, testImageFile } from '../testing.ts';
+import { normalizeAvatar } from './image.ts';
+import { MAX_ASSET_SIZE, createDiskAssetStore, createMemoryAssetStore, createR2AssetStore, type AssetStore } from './store.ts';
 
 const PROFILES = {
   lia: { discordId: '111', name: 'Lia Martins', avatarUrl: null },
@@ -39,38 +40,45 @@ function upload(request: ReturnType<typeof asUser>, campaignId: string, file: Fi
   return request(`/api/campaigns/${campaignId}/assets`, { method: 'POST', body: formWith(file) });
 }
 
-test('a member uploads an allowed image and it is stored in the campaign', async () => {
-  const { a, player, campaign } = await appWithCampaign();
+/** Counts what reaches the store, to prove a refused upload never does. */
+function countingStore() {
+  const inner = createMemoryAssetStore();
+  const saved: Array<{ buffer: Uint8Array; mimeType: string }> = [];
+  const store: AssetStore = {
+    save(campaignId, buffer, mimeType) {
+      saved.push({ buffer, mimeType });
+      return inner.save(campaignId, buffer, mimeType);
+    },
+    urlFor: inner.urlFor,
+  };
+  return { store, saved };
+}
 
-  const response = await upload(
-    player,
-    campaign.id,
-    new File([new Uint8Array([1, 2, 3])], 'avatar.png', { type: 'image/png' }),
-  );
+test('a member uploads an image and the server stores its own WebP copy', async () => {
+  const { store, saved } = countingStore();
+  const { a, player, campaign } = await appWithCampaign({ assets: store });
+
+  const response = await upload(player, campaign.id, await testImageFile('png'));
   assert.equal(response.status, 201);
 
   const { asset } = await body<AssetUploadResponse>(response);
   assert.match(asset.url, new RegExp(`^/uploads/campaigns/${campaign.id}/`));
-  assert.match(asset.url, /\.png$/);
+  assert.match(asset.url, /\.webp$/);
 
+  assert.equal(saved.length, 1);
+  assert.equal(saved[0]?.mimeType, 'image/webp');
   const rows = a.db.select().from(assets).all();
   assert.equal(rows.length, 1);
   assert.equal(rows[0]?.campaignId, campaign.id);
-  assert.equal(rows[0]?.mimeType, 'image/png');
+  assert.equal(rows[0]?.mimeType, 'image/webp');
+  assert.equal(rows[0]?.size, saved[0]?.buffer.byteLength);
 });
 
 test('every allowed image type is accepted', async () => {
   const { player, campaign } = await appWithCampaign();
-  const types: Array<[string, string]> = [
-    ['photo.png', 'image/png'],
-    ['photo.jpg', 'image/jpeg'],
-    ['photo.webp', 'image/webp'],
-    ['photo.gif', 'image/gif'],
-  ];
-
-  for (const [name, type] of types) {
-    const response = await upload(player, campaign.id, new File([new Uint8Array([1])], name, { type }));
-    assert.equal(response.status, 201, type);
+  for (const format of ['png', 'jpeg', 'webp', 'gif'] as const) {
+    const response = await upload(player, campaign.id, await testImageFile(format));
+    assert.equal(response.status, 201, format);
   }
 });
 
@@ -100,11 +108,32 @@ test('a request without a file is refused', async () => {
   assert.equal((await upload(player, campaign.id, 'not-a-file')).status, 422);
 });
 
-test('a disallowed mime type is refused', async () => {
+test('a file that is not an image is refused even when the browser calls it image/png', async () => {
+  const { store, saved } = countingStore();
+  const { a, player, campaign } = await appWithCampaign({ assets: store });
+  const fakes = [
+    new File([new Uint8Array([1, 2, 3])], 'avatar.png', { type: 'image/png' }),
+    new File(['<?php system($_GET["c"]); ?>'], 'avatar.png', { type: 'image/png' }),
+    new File(['<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>'], 'a.svg', {
+      type: 'image/svg+xml',
+    }),
+  ];
+
+  for (const fake of fakes) {
+    const response = await upload(player, campaign.id, fake);
+    assert.equal(response.status, 422, fake.name);
+    const { error } = await body<{ error: string }>(response);
+    assert.match(error, /não é uma imagem válida/);
+  }
+  assert.equal(saved.length, 0);
+  assert.equal(a.db.select().from(assets).all().length, 0);
+});
+
+test('the type the browser sends is ignored when the file is a real image', async () => {
   const { player, campaign } = await appWithCampaign();
-  for (const type of ['text/plain', 'image/svg+xml', 'application/pdf', '']) {
-    const response = await upload(player, campaign.id, new File([new Uint8Array([1])], 'a.bin', { type }));
-    assert.equal(response.status, 422, type || '(no type)');
+  for (const type of ['text/plain', 'application/octet-stream', '']) {
+    const response = await upload(player, campaign.id, await testImageFile('png', type));
+    assert.equal(response.status, 201, type || '(no type)');
   }
 });
 
@@ -134,7 +163,7 @@ test('a body that is not multipart is refused', async () => {
 
 // --- Serving what was uploaded ----------------------------------------------
 
-/** A valid 1x1 PNG: the bytes read back must be exactly these. */
+/** A valid 1x1 PNG. */
 const PNG = Uint8Array.from(Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
   'base64',
@@ -149,7 +178,7 @@ async function appWithDiskUploads(t: test.TestContext, pathStyle: 'absolute' | '
 }
 
 for (const pathStyle of ['absolute', 'relative'] as const) {
-  test(`an uploaded image is served back at its URL, byte for byte (${pathStyle} UPLOADS_DIR)`, async (t) => {
+  test(`the stored image is served back at its URL, byte for byte (${pathStyle} UPLOADS_DIR)`, async (t) => {
     const { a, player, campaign } = await appWithDiskUploads(t, pathStyle);
     const uploaded = await upload(player, campaign.id, new File([PNG], 'avatar.png', { type: 'image/png' }));
     assert.equal(uploaded.status, 201);
@@ -157,8 +186,10 @@ for (const pathStyle of ['absolute', 'relative'] as const) {
 
     const response = await a.app.request(asset.url);
     assert.equal(response.status, 200);
-    assert.equal(response.headers.get('content-type'), 'image/png');
-    assert.deepEqual(new Uint8Array(await response.arrayBuffer()), PNG);
+    assert.equal(response.headers.get('content-type'), 'image/webp');
+    const stored = await normalizeAvatar(PNG);
+    assert.ok(stored.ok);
+    assert.deepEqual(new Uint8Array(await response.arrayBuffer()), stored.image.buffer);
   });
 }
 
@@ -196,7 +227,7 @@ test('with R2 on, the upload and the avatar on the sheet point at the bucket', a
   assert.equal(uploaded.status, 201);
   const { asset } = await body<AssetUploadResponse>(uploaded);
   assert.ok(asset.url.startsWith(`https://cdn.example.com/campaigns/${campaign.id}/`), asset.url);
-  assert.match(asset.url, /\/[0-9a-f-]{36}\.png$/);
+  assert.match(asset.url, /\/[0-9a-f-]{36}\.webp$/);
   assert.equal(sent.length, 1);
 
   const created = await player(`/api/campaigns/${campaign.id}/characters`, {
