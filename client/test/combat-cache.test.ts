@@ -2,7 +2,7 @@ import test, { afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { QueryClient, QueryObserver } from '@tanstack/react-query';
 import type { CombatantView, EncounterView } from '@quest-fast/shared';
-import { encounterQuery, mergeEncounter } from '../src/lib/combat-cache.ts';
+import { encounterQuery, mergeEncounter, settleRequest, startRequest, withHitPoints } from '../src/lib/combat-cache.ts';
 
 const CAMPAIGN = 'c1';
 const ENCOUNTER = 'e1';
@@ -125,4 +125,40 @@ test('an answer older than the known encounter changes nothing', async () => {
   assert.equal(answer.encounter.combatants[0]!.hpCurrent, 1);
   assert.equal(sheet.fetches, fetchesAfterUpdate);
   close();
+});
+
+test('hit points change on screen before the server answers, by the shared rules', () => {
+  const view = withHitPoints(encounter(4, 30), 'p1', 'damage', 10);
+  const kaelen = view.combatants[0]!;
+  assert.deepEqual([kaelen.hpCurrent, kaelen.healthBand, view.version], [20, 'wounded', 4]);
+  assert.equal(withHitPoints(view, 'p1', 'heal', 50).combatants[0]!.hpCurrent, 38);
+  assert.equal(withHitPoints(view, 'p1', 'temp', 5).combatants[0]!.hpTemp, 5);
+});
+
+test('a combatant whose numbers this viewer does not know is left as it is', () => {
+  const unknown = encounter(4, 30);
+  unknown.combatants[0] = { ...unknown.combatants[0]!, hpCurrent: null, hpMax: null, hpTemp: null };
+  assert.deepEqual(withHitPoints(unknown, 'p1', 'damage', 10), unknown);
+  assert.deepEqual(withHitPoints(unknown, 'missing', 'damage', 10), unknown);
+});
+
+test('a card stays busy until its own request settles, whatever the others do', () => {
+  // Hit points on the goblin, then concentration on Bram, both in flight.
+  let inFlight = startRequest(startRequest({}, 'goblin'), 'bram');
+  assert.deepEqual(Object.keys(inFlight).sort(), ['bram', 'goblin']);
+  // The goblin's answer arrives first: Bram is still waiting.
+  inFlight = settleRequest(inFlight, 'goblin');
+  assert.deepEqual(Object.keys(inFlight), ['bram']);
+  inFlight = settleRequest(inFlight, 'bram');
+  assert.deepEqual(inFlight, {});
+});
+
+test('two requests on one card keep it busy until both settle', () => {
+  let inFlight = startRequest(startRequest({}, 'goblin'), 'goblin');
+  inFlight = settleRequest(inFlight, 'goblin');
+  assert.deepEqual(Object.keys(inFlight), ['goblin']);
+  inFlight = settleRequest(inFlight, 'goblin');
+  assert.deepEqual(inFlight, {});
+  // Settling what is not in flight changes nothing.
+  assert.deepEqual(settleRequest({}, 'goblin'), {});
 });

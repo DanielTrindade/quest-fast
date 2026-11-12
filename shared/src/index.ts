@@ -200,6 +200,11 @@ export type {
   StatblockSummary,
   TieOrderRequest,
   TurnRequest,
+  HpRequest,
+  ConditionRequest,
+  ConcentrationRequest,
+  DeathSaveRequest,
+  ConcentrationSaveRequest,
   UnknownSessionEvent,
 } from './api.ts';
 export type {

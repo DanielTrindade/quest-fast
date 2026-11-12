@@ -1,15 +1,15 @@
 import { useState } from 'react';
 import { ArrowLeft, Trash } from '@phosphor-icons/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { hasPreviousTurn, type CombatantInput, type EncounterResponse, type EncounterSummaryView, type EncounterView } from '@quest-fast/shared';
+import { hasPreviousTurn, type CombatantInput, type CombatantView, type EncounterResponse, type EncounterSummaryView, type EncounterView, type HpOperation } from '@quest-fast/shared';
 import { Button } from '../../components/Button';
 import { EncounterSetup } from '../../components/EncounterSetup';
-import { InitiativeList } from '../../components/InitiativeList';
+import { InitiativeList, type InitiativeActions } from '../../components/InitiativeList';
 import { Skeleton } from '../../components/Skeleton';
 import { Surface } from '../../components/Surface';
 import { TurnBar, type TurnAction } from '../../components/TurnBar';
 import { ApiError, api } from '../../lib/api';
-import { encounterQuery, mergeEncounter, removeEncounter } from '../../lib/combat-cache';
+import { encounterQuery, mergeEncounter, removeEncounter, settleRequest, startRequest, withHitPoints, type InFlight } from '../../lib/combat-cache';
 import { stack } from '../../components/layout-styles';
 
 function errorMessage(error: unknown) {
@@ -124,7 +124,9 @@ function BackButton({ onBack }: { onBack?: () => void }) {
 function useEncounterActions(campaignId: string, encounterId: string) {
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
-  const [busyId, setBusyId] = useState<string | null>(null);
+  const [inFlight, setInFlight] = useState<InFlight>({});
+  const start = (id: string) => setInFlight((current) => startRequest(current, id));
+  const settle = (id: string) => setInFlight((current) => settleRequest(current, id));
   const [pendingTurn, setPendingTurn] = useState<TurnAction | null>(null);
 
   const apply = (response: EncounterResponse) => {
@@ -138,10 +140,10 @@ function useEncounterActions(campaignId: string, encounterId: string) {
 
   const combatant = useMutation({
     mutationFn: ({ run }: { id: string; run: () => Promise<EncounterResponse> }) => run(),
-    onMutate: ({ id }) => setBusyId(id),
+    onMutate: ({ id }) => start(id),
     onSuccess: apply,
     onError: fail,
-    onSettled: () => setBusyId(null),
+    onSettled: (_data, _error, { id }) => settle(id),
   });
   const turn = useMutation({
     mutationFn: ({ encounter, action }: { encounter: EncounterView; action: TurnAction }) => turnRequest(campaignId, encounter, action),
@@ -160,15 +162,69 @@ function useEncounterActions(campaignId: string, encounterId: string) {
     onSuccess: () => removeEncounter(queryClient, campaignId, encounterId),
     onError: fail,
   });
+  // Hit points change on screen at once; a refusal refetches the truth.
+  const hitPoints = useMutation({
+    mutationFn: ({ id, operation, amount }: { id: string; operation: HpOperation; amount: number; characterId: string | null }) =>
+      api.combatantAction(campaignId, encounterId, id, 'hp', 'POST', { operation, amount }),
+    onMutate: async ({ id, operation, amount }) => {
+      start(id);
+      const key = ['encounter', campaignId, encounterId];
+      // An answer already on its way must not undo what the screen shows.
+      await queryClient.cancelQueries({ queryKey: key });
+      queryClient.setQueryData<EncounterResponse>(key, (current) =>
+        current && { encounter: withHitPoints(current.encounter, id, operation, amount) },
+      );
+    },
+    onSuccess: (response, { characterId }) => {
+      apply(response);
+      // The screen already showed the change, so the comparison in
+      // `mergeEncounter` sees none: the sheet is told here.
+      if (characterId) {
+        void queryClient.invalidateQueries({ queryKey: ['character', campaignId, characterId] });
+        void queryClient.invalidateQueries({ queryKey: ['characters', campaignId] });
+      }
+    },
+    onError: fail,
+    onSettled: (_data, _error, { id }) => settle(id),
+  });
 
   return {
     error,
-    busyId,
+    busyIds: Object.keys(inFlight),
     pendingTurn,
     run: (id: string, request: () => Promise<EncounterResponse>) => combatant.mutate({ id, run: request }),
     turn: (encounter: EncounterView, action: TurnAction) => turn.mutate({ encounter, action }),
+    hitPoints: (target: CombatantView, operation: HpOperation, amount: number) =>
+      hitPoints.mutate({ id: target.id, operation, amount, characterId: target.characterId }),
     add,
     remove,
+  };
+}
+
+/**
+ * What happens to one combatant during the fight. Only while it runs: the
+ * server refuses these before the first round and after the end.
+ */
+function fightActions(
+  campaignId: string,
+  encounter: EncounterView,
+  actions: ReturnType<typeof useEncounterActions>,
+): InitiativeActions {
+  if (encounter.status !== 'active') return {};
+  const act = (id: string, path: string, method: 'POST' | 'PUT' | 'DELETE', body?: Parameters<typeof api.combatantAction>[5]) =>
+    actions.run(id, () => api.combatantAction(campaignId, encounter.id, id, path, method, body));
+  return {
+    onHitPoints: (id, operation, amount) => {
+      const target = encounter.combatants.find((combatant) => combatant.id === id);
+      if (target) actions.hitPoints(target, operation, amount);
+    },
+    onApplyCondition: (id, { condition, ...rest }) => act(id, `conditions/${condition}`, 'PUT', rest),
+    onRemoveCondition: (id, condition) => act(id, `conditions/${condition}`, 'DELETE'),
+    onConcentration: (id, concentrating) => act(id, 'concentration', 'PUT', { concentrating }),
+    onDeathSave: (id) => act(id, 'death-save', 'POST', {}),
+    onRecordFailure: (id, failures, reminderId) => act(id, 'death-save', 'POST', { failures, reminderId }),
+    onConcentrationSave: (id, reminderId) => act(id, 'concentration-save', 'POST', { reminderId }),
+    onDismissReminder: (id, reminderId) => act(id, `reminders/${reminderId}`, 'DELETE'),
   };
 }
 
@@ -241,12 +297,13 @@ export function EncounterPanel({ campaignId, encounterId, isMaster, currentUserI
         viewerId={currentUserId}
         master={isMaster}
         editable={encounter.status !== 'ended'}
-        busyId={actions.busyId}
+        busyIds={actions.busyIds}
         onRoll={(id) => actions.run(id, () => api.combatantInitiative(...path, id, {}))}
         onAssign={(id, value) => actions.run(id, () => api.combatantInitiative(...path, id, { value }))}
         onToggleHidden={(id, hidden) => actions.run(id, () => api.updateCombatant(...path, id, { hidden }))}
         onRemove={(id) => actions.run(id, () => api.removeCombatant(...path, id))}
         onMoveTie={(id, direction) => actions.run(id, () => api.setTieOrder(...path, reorderedTie(encounter, id, direction)))}
+        {...fightActions(campaignId, encounter, actions)}
       />
 
       {isMaster && encounter.status !== 'ended' && (

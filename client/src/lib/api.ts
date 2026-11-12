@@ -9,12 +9,17 @@ import type {
   CharacterStateInput,
   CombatantInput,
   CombatantPatch,
+  ConcentrationRequest,
+  ConcentrationSaveRequest,
+  ConditionRequest,
+  DeathSaveRequest,
   CreatedCampaign,
   InvitePreview,
   EncounterListResponse,
   EncounterResponse,
   FeedResponse,
   FreeRollRequest,
+  HpRequest,
   InitiativeRequest,
   LinkedRollRequest,
   MeResponse,
@@ -208,6 +213,22 @@ export const api = {
       `/api/campaigns/${campaignId}/encounters/${encounterId}/combatants/${combatantId}/initiative`,
       { method: 'POST', body: JSON.stringify(body) },
     ),
+  /**
+   * What happens to one combatant during the fight: one shape for every
+   * action, by path below the combatant (`hp`, `conditions/prone`…).
+   */
+  combatantAction: (
+    campaignId: string,
+    encounterId: string,
+    combatantId: string,
+    action: string,
+    method: 'POST' | 'PUT' | 'DELETE',
+    body?: HpRequest | ConditionRequest | ConcentrationRequest | DeathSaveRequest | ConcentrationSaveRequest,
+  ) =>
+    request<EncounterResponse>(`/api/campaigns/${campaignId}/encounters/${encounterId}/combatants/${combatantId}/${action}`, {
+      method,
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    }),
 };
 
 /** Login leaves the SPA: Discord answers the server, not the client. */

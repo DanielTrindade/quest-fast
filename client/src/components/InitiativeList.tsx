@@ -8,13 +8,13 @@ import {
   type HpOperation,
 } from '@quest-fast/shared';
 import { Button } from './Button';
-import { ConditionPicker } from './ConditionPicker';
+import { ConditionChips, ConditionPicker } from './ConditionPicker';
 import { DeathSaveTracker } from './DeathSaveTracker';
 import { HealthBand } from './HealthBand';
 import { HpAdjuster } from './HpAdjuster';
 import { Input } from './Input';
 import { ReminderList } from './ReminderList';
-import { conditionLabel, tiedWith } from '../lib/combat-labels';
+import { tiedWith } from '../lib/combat-labels';
 
 export type InitiativeActions = {
   /** Rolls on the server; the list only asks. */
@@ -233,26 +233,26 @@ function MasterActions({ combatant, busy, tie, fight, onMoveTie, ...actions }: I
  * Hit points, concentration and conditions, folded like "Ajustar". A
  * player's own character opens unfolded: it is the card they act on.
  */
-function FightPanel({ combatant, busy, startOpen, onHitPoints, onConcentration, onApplyCondition, onRemoveCondition }: InitiativeActions & {
+function FightPanel({ combatant, busy, startOpen, onHitPoints, onConcentration, onApplyCondition }: InitiativeActions & {
   combatant: CombatantView;
   busy: boolean;
   startOpen: boolean;
 }) {
   const { id, name } = combatant;
-  if (!onHitPoints && !onConcentration && !(onApplyCondition && onRemoveCondition)) return null;
+  if (!onHitPoints && !onConcentration && !onApplyCondition) return null;
   return (
     <details open={startOpen} className="group/fight min-w-0 open:basis-full">
       <summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-1 rounded-control px-3 font-semibold text-accent-text transition-[background-color] duration-(--duration-quick) hover:bg-muted [&::-webkit-details-marker]:hidden">
         <Heartbeat size={18} aria-hidden="true" /> PV e condições<span className="sr-only"> de {name}</span>
       </summary>
-      <div className="grid min-w-0 gap-4 pt-2">
+      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4 pt-2">
         {onHitPoints && (
           <HpAdjuster name={name} pending={busy}
             full={combatant.hpCurrent !== null && combatant.hpMax !== null && combatant.hpCurrent >= combatant.hpMax}
             onApply={(operation, amount) => onHitPoints(id, operation, amount)} />
         )}
         {onConcentration && (
-          <div>
+          <div className="min-w-0 [&>[data-slot=button]]:max-w-full [&>[data-slot=button]]:whitespace-normal">
             <Button variant="ghost" aria-pressed={combatant.concentrating} disabled={busy}
               onClick={() => onConcentration(id, !combatant.concentrating)}>
               <Brain size={18} aria-hidden="true" />
@@ -261,21 +261,13 @@ function FightPanel({ combatant, busy, startOpen, onHitPoints, onConcentration, 
             </Button>
           </div>
         )}
-        {onApplyCondition && onRemoveCondition && (
-          <ConditionPicker name={name} conditions={combatant.conditions} pending={busy}
-            onApply={(condition) => onApplyCondition(id, condition)} onRemove={(condition) => onRemoveCondition(id, condition)} />
+        {/* The chips are on the card already: here, only the form to apply one. */}
+        {onApplyCondition && (
+          <ConditionPicker name={name} conditions={combatant.conditions} listed={false} pending={busy}
+            onApply={(condition) => onApplyCondition(id, condition)} />
         )}
       </div>
     </details>
-  );
-}
-
-function ConditionChips({ combatant }: { combatant: CombatantView }) {
-  if (combatant.conditions.length === 0) return null;
-  return (
-    <ul className="m-0 flex list-none flex-wrap gap-1 p-0" aria-label={`Condições de ${combatant.name}`}>
-      {combatant.conditions.map((condition) => <li key={condition.condition} className="rounded-control border border-input bg-background px-2 py-0.5 text-small text-foreground">{conditionLabel(condition)}</li>)}
-    </ul>
   );
 }
 
@@ -315,7 +307,7 @@ function InitiativeRow({ combatant, active, own, master, editable, busy, tie, ..
 
   return (
     <li aria-current={active ? 'step' : undefined} data-defeated={combatant.defeated || undefined} data-hidden={combatant.hidden || undefined}
-      className="group/row grid min-w-0 gap-3 rounded-panel border border-border bg-card px-4 py-3 edge-raised transition-[border-color,box-shadow] duration-(--duration-quick) ease-settle aria-[current=step]:border-accent-text aria-[current=step]:shadow-[inset_4px_0_0_var(--color-accent-text),inset_0_1px_0_var(--color-edge-light)] data-hidden:border-dashed data-hidden:bg-surface-secret">
+      className="group/row grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 rounded-panel border border-border bg-card px-4 py-3 edge-raised transition-[border-color,box-shadow] duration-(--duration-quick) ease-settle aria-[current=step]:border-accent-text aria-[current=step]:shadow-[inset_4px_0_0_var(--color-accent-text),inset_0_1px_0_var(--color-edge-light)] data-hidden:border-dashed data-hidden:bg-surface-secret">
       <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
         <Score combatant={combatant} />
         <div className="grid min-w-0 flex-[1_1_10rem] gap-1">
@@ -325,8 +317,9 @@ function InitiativeRow({ combatant, active, own, master, editable, busy, tie, ..
         <Vitals combatant={combatant} />
       </div>
 
-      {/* Whoever acts sees the conditions inside the panel, each removable. */}
-      {!(acts && actions.onApplyCondition && actions.onRemoveCondition) && <ConditionChips combatant={combatant} />}
+      {/* Always on the card, so the table reads them at a glance; removable for whoever acts. */}
+      <ConditionChips name={combatant.name} conditions={combatant.conditions} pending={busy}
+        onRemove={acts && actions.onRemoveCondition ? (condition) => actions.onRemoveCondition!(combatant.id, condition) : undefined} />
       <Pending combatant={combatant} acts={acts} canRoll={acts && (master || active)} busy={busy} {...actions} />
 
       <RowActions combatant={combatant} own={own} master={master} editable={editable} busy={busy} tie={tie} {...actions} />
@@ -362,19 +355,20 @@ function RowActions({ combatant, own, master, editable, busy, tie, ...actions }:
  * hidden combatant). The list shows and asks; it neither sorts nor decides
  * who may see what. Ties are reordered with Antes/Depois, one step at a time.
  */
-export function InitiativeList({ combatants, activeCombatantId, viewerId, master, editable = true, busyId = null, ...actions }: InitiativeActions & {
+export function InitiativeList({ combatants, activeCombatantId, viewerId, master, editable = true, busyIds = [], ...actions }: InitiativeActions & {
   combatants: CombatantView[];
   activeCombatantId: string | null;
   viewerId: string;
   master: boolean;
   /** False once the encounter has ended: read-only for everyone. */
   editable?: boolean;
-  /** The combatant with a request in flight. */
-  busyId?: string | null;
+  /** Combatants with a request in flight: each stays busy until its own requests settle. */
+  busyIds?: readonly string[];
 }) {
   if (combatants.length === 0) {
     return <p className="text-text-secondary">Nenhum combatente no encontro ainda.</p>;
   }
+  const busy = new Set(busyIds);
   return (
     <ol className="m-0 grid min-w-0 list-none gap-2 p-0" aria-label="Ordem de iniciativa">
       {combatants.map((combatant, index) => (
@@ -385,7 +379,7 @@ export function InitiativeList({ combatants, activeCombatantId, viewerId, master
           own={combatant.ownerId === viewerId}
           master={master}
           editable={editable}
-          busy={busyId === combatant.id}
+          busy={busy.has(combatant.id)}
           tie={master ? tiedWith(combatants, index) : { up: false, down: false }}
           {...actions}
         />

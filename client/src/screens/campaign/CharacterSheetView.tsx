@@ -1,5 +1,5 @@
 import { useId, useState } from 'react';
-import { PencilSimple, Trash, Warning } from '@phosphor-icons/react';
+import { Brain, PencilSimple, Trash, Warning } from '@phosphor-icons/react';
 import {
   ABILITIES,
   SKILLS,
@@ -7,8 +7,10 @@ import {
   abilityModifier,
   initiative,
   passivePerception,
+  removeCondition,
   proficiencyBonus,
   saveBonus,
+  setCondition,
   skillBonus,
   skillProficiency,
   spellAttackBonus,
@@ -27,6 +29,7 @@ import { AttunedItems } from '../../components/AttunedItems';
 import { Avatar } from '../../components/Avatar';
 import { Button } from '../../components/Button';
 import { CoinPurse } from '../../components/CoinPurse';
+import { ConditionPicker } from '../../components/ConditionPicker';
 import { DeathSaves } from '../../components/DeathSaves';
 import { DerivedStats } from '../../components/DerivedStats';
 import { DiceResult } from '../../components/DiceResult';
@@ -43,9 +46,11 @@ import { SpellSlots } from '../../components/SpellSlots';
 import { SpellcastingHeader } from '../../components/SpellcastingHeader';
 import { Surface } from '../../components/Surface';
 import { TraitList } from '../../components/TraitList';
+import { conditionLabel } from '../../lib/combat-labels';
 import { contentKeys } from '../../lib/content-keys';
 import { ABILITY_ABBREVIATIONS, ABILITY_LABELS, SKILL_LABELS } from '../../lib/5e';
 import { dialogActions, sheetEmpty } from '../../components/layout-styles';
+import { trackerLabel, trackerPanel } from '../../components/sheet-styles';
 
 /** The skills printed under each ability, alphabetical as on the sheet. */
 const SKILLS_BY_ABILITY = ABILITIES.reduce<Record<Ability, Skill[]>>(
@@ -125,6 +130,61 @@ function CombatTrackers({
       <HeroicInspiration active={character.heroicInspiration} editable={editable} pending={pending}
         onChange={(heroicInspiration) => onChange({ heroicInspiration })} />
     </div>
+  );
+}
+
+/**
+ * Conditions and concentration, in and out of a fight: the sheet is where
+ * they live. The owner marks them; the sheet sets no duration, and one a
+ * fight is counting stays as it is. Everyone else only reads them.
+ */
+function SheetConditions({
+  character,
+  editable,
+  pending,
+  onChange,
+}: {
+  character: CharacterSheet;
+  editable: boolean;
+  pending: boolean;
+  onChange: (state: CharacterStateInput) => void;
+}) {
+  const { conditions, concentrating } = character;
+  if (!editable && conditions.length === 0 && !concentrating) return null;
+  return (
+    <section className={trackerPanel} aria-label="Condições e concentração">
+      <p className={trackerLabel}>Condições e concentração</p>
+      {editable ? (
+        <>
+          <ConditionPicker name={character.name} conditions={conditions} durations={false} pending={pending}
+            onApply={(active) => onChange({ conditions: setCondition(conditions, active) })}
+            onRemove={(condition) => onChange({ conditions: removeCondition(conditions, condition) })} />
+          <div className="min-w-0 [&>[data-slot=button]]:max-w-full [&>[data-slot=button]]:whitespace-normal">
+            <Button variant="ghost" aria-pressed={concentrating} disabled={pending} onClick={() => onChange({ concentrating: !concentrating })}>
+              <Brain size={18} aria-hidden="true" />
+              {concentrating ? 'Encerrar concentração' : 'Marcar concentração'}
+            </Button>
+          </div>
+        </>
+      ) : (
+        <>
+          {concentrating && (
+            <p className="m-0 inline-flex items-center gap-1 text-small text-foreground">
+              <Brain size={16} aria-hidden="true" /> Concentrando
+            </p>
+          )}
+          {conditions.length > 0 && (
+            <ul className="m-0 flex list-none flex-wrap gap-1 p-0" aria-label={`Condições de ${character.name}`}>
+              {conditions.map((active) => (
+                <li key={active.condition} className="rounded-control border border-input bg-background px-2 py-0.5 text-small text-foreground">
+                  {conditionLabel(active)}
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
+      )}
+    </section>
   );
 }
 
@@ -441,6 +501,7 @@ export function CharacterSheetView({
         <SheetHead character={character} isOwner={isOwner} />
 
         <CombatTrackers character={character} editable={canChangeState} pending={stateSaving} onChange={change} />
+        <SheetConditions character={character} editable={canChangeState} pending={stateSaving} onChange={change} />
 
         {stateError && (
           <p role="alert" className="text-small text-danger-text">

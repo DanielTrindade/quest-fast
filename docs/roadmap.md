@@ -3,7 +3,7 @@
 O que já existe, o que vem a seguir e o que está em aberto. Atualize este
 arquivo no PR que entrega ou muda o escopo de uma etapa.
 
-Atualizado em 2026-11-10.
+Atualizado em 2026-11-11.
 
 ## Entregue
 
@@ -66,9 +66,15 @@ usável na mesa:
    Reforços, empates (Antes/Depois), combatentes escondidos e encerramento com
    resumo no feed. Tudo chega ao vivo por `combat.updated`, projetado por papel:
    o jogador vê aliados por inteiro e monstros só pela faixa de saúde.
-3. **PV e condições.** Dano e cura por delta, faixa de saúde dos monstros para
-   os jogadores, teste contra a morte, as 15 condições com duração e
-   concentração com lembrete.
+3. **PV e condições — entregue.** Dano, cura e PV temporário por delta, com o
+   PV mudando na tela antes da resposta; o jogador vê de um monstro só a faixa
+   de saúde. As 15 condições com nível de exaustão e duração, que expira no fim
+   do turno. Concentração com lembrete da salvaguarda de Constituição e teste
+   contra a morte rolado no servidor, uma vez por round na vez do jogador. O
+   feed conta dano, cura, derrota, condições e testes contra a morte, redigido
+   por papel no servidor. Condições e concentração também na ficha, fora do
+   combate. Spec e diferenças em
+   [`history/2026-11-06-combat-hp-conditions.md`](history/2026-11-06-combat-hp-conditions.md).
 4. **Ataques e acabamento.** Ataque e dano num clique com crítico, resumo no
    feed, seed com statblock e encontro, `verify:app` e `verify:group`.
 
