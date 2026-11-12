@@ -1,6 +1,6 @@
 import { useRef, useState, type FormEvent } from 'react';
 import { ArrowCounterClockwise } from '@phosphor-icons/react';
-import { cellSizeFromColumns, maxGridColumns, validateGrid, type GridFieldErrors, type GridSettings as Grid } from '@quest-fast/shared';
+import { SCENE_LIMITS, cellSizeFromColumns, maxGridColumns, validateGrid, type GridFieldErrors, type GridSettings as Grid } from '@quest-fast/shared';
 import { gridCells } from '../lib/map-view';
 import { Button } from './Button';
 import { Field } from './Field';
@@ -16,6 +16,11 @@ type Draft = {
    * columns on a 1800 px map are 1800 / 22 px, not 81.82. NaN while invalid.
    */
   exact: number;
+  /**
+   * The size field the master typed in; the other one is derived from it.
+   * A refusal belongs to the field typed, never to the derived one.
+   */
+  source: 'columns' | 'cellSize';
   offsetX: string;
   offsetY: string;
 };
@@ -30,6 +35,7 @@ function draftOf(grid: Grid, mapWidth: number): Draft {
     columns: show(mapWidth / grid.cellSize),
     cellSize: show(grid.cellSize),
     exact: grid.cellSize,
+    source: 'cellSize',
     offsetX: show(grid.offsetX),
     offsetY: show(grid.offsetY),
   };
@@ -45,8 +51,9 @@ type DraftErrors = GridFieldErrors & { columns?: string };
 
 /**
  * The grid a draft describes, and why it does not fit the map when it does
- * not. The columns are checked on their own: a column count that is not a
- * number keeps the last cell size, which must not pass for the master's input.
+ * not. When the master typed the columns, they are checked on their own and
+ * carry the refusal. Their bound is the real one, the map's width over the
+ * smallest cell, not a whole count: 225.13 columns of 8 px fit 1801 px.
  */
 function read(draft: Draft, mapWidth: number): { grid: Grid; errors: DraftErrors } {
   const grid: Grid = {
@@ -57,10 +64,13 @@ function read(draft: Draft, mapWidth: number): { grid: Grid; errors: DraftErrors
     offsetY: parse(draft.offsetY),
   };
   const errors: DraftErrors = validateGrid(grid, mapWidth);
+  if (draft.source !== 'columns') return { grid, errors };
   const columns = parse(draft.columns);
-  const maxColumns = maxGridColumns(mapWidth);
   if (!Number.isFinite(columns)) errors.columns = 'Informe quantas casas o mapa tem de largura.';
-  else if (columns < 1 || columns > maxColumns) errors.columns = `Use de 1 a ${maxColumns} casas de largura.`;
+  else if (columns < 1 || columns > mapWidth / SCENE_LIMITS.minCellSize) {
+    errors.columns = `Use de 1 a ${maxGridColumns(mapWidth)} casas de largura.`;
+  }
+  if (errors.columns) delete errors.cellSize;
   return { grid, errors };
 }
 
@@ -87,7 +97,8 @@ export function GridSettings({ grid, mapWidth, mapHeight, onPreview, onSave, sav
   const latest = useRef(draft);
   const { grid: next, errors } = read(draft, mapWidth);
   const valid = Object.keys(errors).length === 0;
-  const changed = JSON.stringify(draftOf(grid, mapWidth)) !== JSON.stringify(draft);
+  // Which field was typed last is not a change of the grid.
+  const changed = JSON.stringify(draftOf(grid, mapWidth)) !== JSON.stringify({ ...draft, source: 'cellSize' });
 
   const update = (changes: Partial<Draft>) => {
     const updated = { ...latest.current, ...changes };
@@ -100,12 +111,12 @@ export function GridSettings({ grid, mapWidth, mapHeight, onPreview, onSave, sav
   const onColumns = (text: string) => {
     const count = parse(text);
     const exact = count > 0 ? cellSizeFromColumns(mapWidth, count) : Number.NaN;
-    update({ columns: text, exact, ...(count > 0 ? { cellSize: show(exact) } : {}) });
+    update({ columns: text, exact, source: 'columns', ...(count > 0 ? { cellSize: show(exact) } : {}) });
   };
 
   const onCellSize = (text: string) => {
     const size = parse(text);
-    update({ cellSize: text, exact: size, ...(size > 0 ? { columns: show(mapWidth / size) } : {}) });
+    update({ cellSize: text, exact: size, source: 'cellSize', ...(size > 0 ? { columns: show(mapWidth / size) } : {}) });
   };
 
   const reset = () => {
@@ -134,7 +145,7 @@ export function GridSettings({ grid, mapWidth, mapHeight, onPreview, onSave, sav
           <Field label="Casas de largura" inputMode="decimal" autoComplete="off"
             value={draft.columns} error={errors.columns} onChange={(event) => onColumns(event.target.value)} />
           <Field label="Casa (pixels)" inputMode="decimal" autoComplete="off"
-            value={draft.cellSize} error={errors.columns ? undefined : errors.cellSize} onChange={(event) => onCellSize(event.target.value)} />
+            value={draft.cellSize} error={errors.cellSize} onChange={(event) => onCellSize(event.target.value)} />
           <Field label="Deslocamento horizontal" hint="Em pixels do mapa" inputMode="decimal" autoComplete="off"
             value={draft.offsetX} error={errors.offsetX} onChange={(event) => update({ offsetX: event.target.value })} />
           <Field label="Deslocamento vertical" hint="Em pixels do mapa" inputMode="decimal" autoComplete="off"

@@ -125,3 +125,36 @@ export const CasasInvalidas: Story = {
     await expect(args.onPreview).toHaveBeenLastCalledWith({ ...defaultSceneGrid, cellSize: 1800 / 22 });
   },
 };
+
+export const CasaForaDoMapa: Story = {
+  name: 'Casa fora do mapa',
+  play: async ({ canvasElement }) => {
+    const form = firstTheme(canvasElement);
+    const cell = form.getByLabelText('Casa (pixels)');
+    const columns = form.getByLabelText('Casas de largura');
+    for (const text of ['5000', '5']) {
+      await userEvent.clear(cell);
+      await userEvent.type(cell, text);
+      // The refusal stays on the field typed, not on the columns derived from it.
+      await expect(cell).toHaveAttribute('aria-invalid', 'true');
+      await expect(cell).toHaveAccessibleDescription(/entre 8 px e a largura do mapa/);
+      await expect(columns).not.toHaveAttribute('aria-invalid');
+      await expect(form.getByRole('button', { name: 'Salvar grid' })).toBeDisabled();
+    }
+  },
+};
+
+export const CasaMinimaMapaImpar: Story = {
+  name: 'Casa de 8 px num mapa de 1801 px',
+  args: { mapWidth: 1801, grid: { ...defaultSceneGrid, cellSize: 8 } },
+  play: async ({ canvasElement, args }) => {
+    const form = firstTheme(canvasElement);
+    // 225,13 columns: not a whole count, and still a grid the server accepts.
+    await expect(form.getByLabelText('Casas de largura')).toHaveValue('225,13');
+    await userEvent.click(form.getByLabelText(/Encaixar os tokens/));
+    await expect(args.onPreview).toHaveBeenLastCalledWith({ ...defaultSceneGrid, cellSize: 8, snap: false });
+    await expect(form.getByLabelText('Casas de largura')).not.toHaveAttribute('aria-invalid');
+    await expect(form.getByRole('button', { name: 'Salvar grid' })).toBeEnabled();
+  },
+};
+
