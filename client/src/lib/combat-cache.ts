@@ -1,5 +1,15 @@
 import type { QueryClient } from '@tanstack/react-query';
-import { changedCharacters, type EncounterListItem, type EncounterListResponse, type EncounterResponse, type EncounterView } from '@quest-fast/shared';
+import {
+  applyHpChange,
+  changedCharacters,
+  healthBand,
+  isDefeated,
+  type EncounterListItem,
+  type EncounterListResponse,
+  type EncounterResponse,
+  type EncounterView,
+  type HpOperation,
+} from '@quest-fast/shared';
 import { ApiError, api } from './api';
 
 const encounterKey = (campaignId: string, encounterId: string) => ['encounter', campaignId, encounterId] as const;
@@ -139,6 +149,25 @@ export function mergeEncounter(queryClient: QueryClient, campaignId: string, enc
   queryClient.setQueryData<EncounterListResponse>(['encounters', campaignId], {
     encounters: list.encounters.map((item) => (item.id === encounter.id ? listItem(item, encounter) : item)),
   });
+}
+
+/**
+ * The encounter as it will be once the server applies a change of hit points,
+ * by the same rules in `shared/`. Only for the screen while the request is
+ * out: the version stays, so the server's answer replaces it whole. A
+ * combatant whose numbers this viewer does not know is left as it is.
+ */
+export function withHitPoints(encounter: EncounterView, combatantId: string, operation: HpOperation, amount: number): EncounterView {
+  const target = encounter.combatants.find((combatant) => combatant.id === combatantId);
+  if (!target || target.hpCurrent === null || target.hpMax === null || target.hpTemp === null) return encounter;
+  const { hitPoints } = applyHpChange({ hpCurrent: target.hpCurrent, hpTemp: target.hpTemp }, operation, amount, target.hpMax);
+  const changed = {
+    ...target,
+    ...hitPoints,
+    healthBand: healthBand(hitPoints.hpCurrent, target.hpMax),
+    defeated: isDefeated({ source: target.source, hpCurrent: hitPoints.hpCurrent }),
+  };
+  return { ...encounter, combatants: encounter.combatants.map((combatant) => (combatant.id === combatantId ? changed : combatant)) };
 }
 
 function dropFromList(queryClient: QueryClient, campaignId: string, encounterId: string): void {
