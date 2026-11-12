@@ -221,7 +221,7 @@ export const JogadorCaidoNaVez: Story = {
     const list = within(region);
     await expect(list.getByText('Morrendo', { selector: 'p' })).toBeVisible();
     await userEvent.click(list.getByRole('button', { name: 'Teste contra a morte de Hazin Dan' }));
-    await expect(args.onDeathSave).toHaveBeenCalledWith('c-hazin');
+    await expect(args.onDeathSave).toHaveBeenCalledWith('c-hazin', 'normal');
     // His own panel starts open; nobody else's is offered to him.
     await expect(list.getByRole('group', { name: 'Pontos de vida de Hazin Dan' })).toBeVisible();
     await expect(list.queryByRole('group', { name: 'Pontos de vida de Lyra Ventoclaro' })).toBeNull();

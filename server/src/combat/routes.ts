@@ -701,6 +701,7 @@ function deathSave(mutation: Mutation, combatant: LoadedCombatant, body: Record<
   if (status === 'dead') refuse(409, `${name} já falhou em três testes contra a morte.`);
 
   if (body.failures !== undefined) {
+    if (body.mode !== undefined) refuse(422, 'Vantagem e desvantagem valem só para a rolagem.');
     if (body.failures !== 1 && body.failures !== 2) refuse(422, 'Registre uma ou duas falhas.');
     const reminders =
       body.reminderId === undefined ? row.reminders : withoutReminder(combatant, findReminder(combatant, body.reminderId, 'deathFailure'));
@@ -711,18 +712,28 @@ function deathSave(mutation: Mutation, combatant: LoadedCombatant, body: Record<
   }
 
   if (status === 'stable') refuse(409, `${name} está estável e não rola mais testes contra a morte.`);
+  const mode = parseMode(body.mode);
   const { encounter } = mutation.loaded;
   if (mutation.viewer.role !== 'master') {
     if (encounter.activeCombatantId !== row.id) refuse(409, 'Role o teste contra a morte na sua vez.');
     if (row.deathSaveRound === encounter.round) refuse(409, 'Você já rolou o teste contra a morte nesta rodada.');
   }
-  const d20 = rollDice('1d20')!.dice[0]!.value;
+  // Under advantage or disadvantage, the kept die decides, a natural 20 or 1 included.
+  const roll = rollDice('1d20', mode)!;
+  const d20 = roll.dice.find((die) => !die.discarded)!.value;
   const outcome = deathSaveOutcome(d20, sheet.deathSaves);
   const vitals: Vitals = { deathSaves: outcome.saves };
   if (outcome.hpCurrent !== undefined) vitals.hpCurrent = outcome.hpCurrent;
   writeVitals(mutation, combatant, vitals);
   mutation.tx.update(combatants).set({ deathSaveRound: encounter.round }).where(eq(combatants.id, row.id)).run();
-  tell(mutation, combatant, { kind: 'combat.deathSave', ...about(mutation, combatant), d20, saves: outcome.saves, outcome: outcome.status });
+  tell(mutation, combatant, {
+    kind: 'combat.deathSave',
+    ...about(mutation, combatant),
+    d20,
+    ...(mode === 'normal' ? {} : { mode, rolls: [roll.dice[0]!.value, roll.dice[1]!.value] as [number, number] }),
+    saves: outcome.saves,
+    outcome: outcome.status,
+  });
 }
 
 /**

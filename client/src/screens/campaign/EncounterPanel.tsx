@@ -221,7 +221,7 @@ function fightActions(
     onApplyCondition: (id, { condition, ...rest }) => act(id, `conditions/${condition}`, 'PUT', rest),
     onRemoveCondition: (id, condition) => act(id, `conditions/${condition}`, 'DELETE'),
     onConcentration: (id, concentrating) => act(id, 'concentration', 'PUT', { concentrating }),
-    onDeathSave: (id) => act(id, 'death-save', 'POST', {}),
+    onDeathSave: (id, mode) => act(id, 'death-save', 'POST', mode === 'normal' ? {} : { mode }),
     onRecordFailure: (id, failures, reminderId) => act(id, 'death-save', 'POST', { failures, reminderId }),
     onConcentrationSave: (id, reminderId) => act(id, 'concentration-save', 'POST', { reminderId }),
     onDismissReminder: (id, reminderId) => act(id, `reminders/${reminderId}`, 'DELETE'),

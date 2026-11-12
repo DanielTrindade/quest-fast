@@ -586,6 +586,8 @@ export type DeathSaveRequest = {
   failures?: 1 | 2;
   /** The reminder this answers, cleared along with it. */
   reminderId?: string;
+  /** Only for a roll: advantage or disadvantage, from a feature or a spell. */
+  mode?: RollMode;
 };
 
 export type ConcentrationSaveRequest = {
@@ -654,8 +656,11 @@ export type CombatConditionPayload = CombatantRef & {
 /** Only a character makes death saves; the numbers are the table's. */
 export type CombatDeathSavePayload = CombatantRef & {
   kind: 'combat.deathSave';
-  /** The face rolled; absent when failures from damage taken at 0 were recorded. */
+  /** The face kept; absent when failures from damage taken at 0 were recorded. */
   d20?: number;
+  /** Only under advantage or disadvantage: the mode and both faces, in order. */
+  mode?: Exclude<RollMode, 'normal'>;
+  rolls?: [number, number];
   failures?: 1 | 2;
   saves: DeathSaves;
   outcome: 'pending' | 'stable' | 'dead' | 'revived';

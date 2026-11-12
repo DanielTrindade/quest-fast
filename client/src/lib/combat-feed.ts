@@ -44,14 +44,21 @@ function conditionText({ name, action, condition }: CombatConditionPayload): str
   return `A condição ${CONDITION_LABELS[condition.condition]} de ${name} acabou.`;
 }
 
-function deathSaveText({ name, d20, failures, saves, outcome }: CombatDeathSavePayload): string {
-  if (outcome === 'revived') return `${name} tirou 20 no teste contra a morte e voltou com 1 PV.`;
+/** " (com vantagem: 3 e 13)": both faces, so the table sees which one was kept. */
+function modeText({ mode, rolls }: CombatDeathSavePayload): string {
+  if (!mode || !rolls) return '';
+  return ` (com ${mode === 'advantage' ? 'vantagem' : 'desvantagem'}: ${rolls[0]} e ${rolls[1]})`;
+}
+
+function deathSaveText(payload: CombatDeathSavePayload): string {
+  const { name, d20, failures, saves, outcome } = payload;
+  if (outcome === 'revived') return `${name} tirou 20 no teste contra a morte${modeText(payload)} e voltou com 1 PV.`;
   const ending = outcome === 'stable' ? '. Está estável.' : outcome === 'dead' ? '. Morreu.' : ` (${counts(saves)}).`;
   if (d20 === undefined) {
     return `${name} sofreu dano caído: ${failures === 2 ? 'duas falhas' : 'uma falha'} no teste contra a morte${ending}`;
   }
   const result = d20 === 1 ? 'duas falhas' : d20 >= 10 ? 'sucesso' : 'falha';
-  return `${name} tirou ${d20} no teste contra a morte: ${result}${ending}`;
+  return `${name} tirou ${d20} no teste contra a morte${modeText(payload)}: ${result}${ending}`;
 }
 
 export function combatEventText(payload: FightPayload): string {

@@ -17,7 +17,19 @@ export const NaVez: Story = {
     const [region] = within(canvasElement).getAllByRole('region', { name: /^Tema / });
     await expect(within(region!).getByText('Morrendo')).toBeVisible();
     await userEvent.click(within(region!).getByRole('button', { name: 'Teste contra a morte de Hazin Dan' }));
-    await expect(args.onRoll).toHaveBeenCalled();
+    await expect(args.onRoll).toHaveBeenLastCalledWith('normal');
+  },
+};
+
+/** A feature or a spell grants advantage: the roll goes with it. */
+export const ComVantagem: Story = {
+  name: 'Morrendo, com vantagem',
+  play: async ({ canvasElement, args }) => {
+    const [region] = within(canvasElement).getAllByRole('region', { name: /^Tema / });
+    const tracker = within(region!);
+    await userEvent.click(tracker.getByRole('radio', { name: 'Vantagem' }));
+    await userEvent.click(tracker.getByRole('button', { name: 'Teste contra a morte de Hazin Dan' }));
+    await expect(args.onRoll).toHaveBeenLastCalledWith('advantage');
   },
 };
 
