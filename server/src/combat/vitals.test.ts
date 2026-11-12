@@ -275,6 +275,47 @@ test('a player rolls a death save only on their own turn, once per round', async
   assert.deepEqual(corrected.deathSaves, { successes: 2, failures: 0 });
 });
 
+/** The faces each call to `Math.random` lands on, for a d20. */
+function d20s(...faces: number[]) {
+  let index = 0;
+  return () => (faces[Math.min(index++, faces.length - 1)]! - 1) / 20 + 1e-9;
+}
+
+async function lastDeathSave(s: Setup) {
+  const { events } = await body<FeedResponse>(await s.master(`${s.root}/feed`));
+  const saves = events.filter((event) => event.type === 'combat.deathSave');
+  return saves[saves.length - 1]!.payload as Record<string, unknown>;
+}
+
+test('a death save rolls with advantage or disadvantage, and the kept die decides', async (t) => {
+  const { s, at, path, id } = await downed();
+  await encounterOf(await advance(s.master, path, id('Goblin 1')));
+  t.mock.method(Math, 'random', d20s(3, 13));
+  let kaelen = byName(await encounterOf(await send(s.player, at('Kaelen', '/death-save'), 'POST', { mode: 'advantage' })), 'Kaelen');
+  assert.deepEqual(kaelen.deathSaves, { successes: 1, failures: 0 });
+  const advantage = await lastDeathSave(s);
+  assert.deepEqual([advantage.d20, advantage.mode, advantage.rolls], [13, 'advantage', [3, 13]]);
+
+  // A 20 left out by disadvantage brings nobody back: the 5 kept is a failure.
+  t.mock.method(Math, 'random', d20s(20, 5));
+  kaelen = byName(await encounterOf(await send(s.master, at('Kaelen', '/death-save'), 'POST', { mode: 'disadvantage' })), 'Kaelen');
+  assert.deepEqual([kaelen.hpCurrent, kaelen.deathSaves], [0, { successes: 1, failures: 1 }]);
+  assert.deepEqual((await lastDeathSave(s)).rolls, [20, 5]);
+});
+
+test('a normal death save records no mode, and a bad mode is refused', async (t) => {
+  const { s, at } = await downed();
+  t.mock.method(Math, 'random', d20s(12));
+  await encounterOf(await send(s.master, at('Kaelen', '/death-save'), 'POST', {}));
+  const normal = await lastDeathSave(s);
+  assert.equal(normal.d20, 12);
+  assert.equal('mode' in normal, false);
+  assert.equal('rolls' in normal, false);
+
+  assert.equal((await send(s.master, at('Kaelen', '/death-save'), 'POST', { mode: 'luck' })).status, 422);
+  assert.equal((await send(s.master, at('Kaelen', '/death-save'), 'POST', { failures: 1, mode: 'advantage' })).status, 422);
+});
+
 test('a natural 20 brings the character back with 1 hit point', async (t) => {
   const { s, at } = await downed();
   t.mock.method(Math, 'random', () => 0.99);

@@ -63,3 +63,25 @@ test('a death save tells the face, the result and the count', () => {
     'Kaelen sofreu dano caído: duas falhas no teste contra a morte (0 sucessos, 2 falhas).',
   );
 });
+
+test('a death save with advantage or disadvantage shows both faces', () => {
+  const save = (payload: Partial<CombatDeathSavePayload>): CombatDeathSavePayload => ({
+    ...kaelen,
+    kind: 'combat.deathSave',
+    saves: { successes: 1, failures: 0 },
+    outcome: 'pending',
+    ...payload,
+  });
+  assert.equal(
+    combatEventText(save({ d20: 13, mode: 'advantage', rolls: [3, 13] })),
+    'Kaelen tirou 13 no teste contra a morte (com vantagem: 3 e 13): sucesso (1 sucesso, 0 falhas).',
+  );
+  assert.equal(
+    combatEventText(save({ d20: 5, mode: 'disadvantage', rolls: [20, 5], saves: { successes: 0, failures: 1 } })),
+    'Kaelen tirou 5 no teste contra a morte (com desvantagem: 20 e 5): falha (0 sucessos, 1 falha).',
+  );
+  assert.equal(
+    combatEventText(save({ d20: 20, mode: 'advantage', rolls: [20, 8], saves: { successes: 0, failures: 0 }, outcome: 'revived' })),
+    'Kaelen tirou 20 no teste contra a morte (com vantagem: 20 e 8) e voltou com 1 PV.',
+  );
+});

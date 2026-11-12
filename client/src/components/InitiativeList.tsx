@@ -6,6 +6,7 @@ import {
   type CombatantView,
   type Condition,
   type HpOperation,
+  type RollMode,
 } from '@quest-fast/shared';
 import { Button } from './Button';
 import { CombatantAttacks, type AttackOptions } from './CombatantAttacks';
@@ -29,7 +30,7 @@ export type InitiativeActions = {
   onApplyCondition?: (combatantId: string, condition: ActiveCondition) => void;
   onRemoveCondition?: (combatantId: string, condition: Condition) => void;
   onConcentration?: (combatantId: string, concentrating: boolean) => void;
-  onDeathSave?: (combatantId: string) => void;
+  onDeathSave?: (combatantId: string, mode: RollMode) => void;
   onRecordFailure?: (combatantId: string, failures: 1 | 2, reminderId: string) => void;
   onConcentrationSave?: (combatantId: string, reminderId: string) => void;
   onDismissReminder?: (combatantId: string, reminderId: string) => void;
@@ -327,7 +328,7 @@ function Pending({ combatant, acts, master, canRoll, busy, onDeathSave, onConcen
     <>
       {down(combatant) && (
         <DeathSaveTracker name={name} deathSaves={combatant.deathSaves!} pending={busy}
-          canRoll={canRoll} onRoll={onDeathSave && (() => onDeathSave(id))} />
+          canRoll={canRoll} onRoll={onDeathSave && ((mode) => onDeathSave(id, mode))} />
       )}
       <ReminderList name={name} reminders={combatant.reminders} pending={busy} master={master}
         onRollSave={rollSave && ((reminderId) => rollSave(id, reminderId))}
