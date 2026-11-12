@@ -66,7 +66,7 @@ const pendingDamage = {
 /** The master applies a hit as rolled, or adjusted for a resistance. */
 export const DanoPendenteMestre: Story = {
   name: 'Dano pendente (mestre)',
-  args: { name: 'Hazin Dan', reminders: [pendingDamage], onApplyDamage: fn() },
+  args: { name: 'Hazin Dan', reminders: [pendingDamage], master: true, onApplyDamage: fn() },
   play: async ({ canvasElement, args }) => {
     const [region] = within(canvasElement).getAllByRole('region', { name: /^Tema / });
     const list = within(region!);
@@ -89,6 +89,7 @@ export const DanoPendenteSalvaguarda: Story = {
   args: {
     name: 'Hazin Dan',
     reminders: [{ ...pendingDamage, critical: false, amount: 9, damageType: 'Fogo', attackerName: 'Goblin xamã', attackName: 'Raio de fogo', save: { dc: 13, ability: 'dexterity' } }],
+    master: true,
     onApplyDamage: fn(),
   },
   play: async ({ canvasElement, args }) => {
@@ -97,6 +98,22 @@ export const DanoPendenteSalvaguarda: Story = {
     await expect(list.getByText(/CD 13 de Destreza: metade se passar/)).toBeVisible();
     await userEvent.click(list.getByRole('button', { name: 'Metade do dano em Hazin Dan' }));
     await expect(args.onApplyDamage).toHaveBeenCalledWith('d1', 4);
+  },
+};
+
+/**
+ * The master's screen before applying is wired: dropping a pending damage
+ * does not wait for it.
+ */
+export const DanoPendenteMestreSoDescarte: Story = {
+  name: 'Dano pendente (mestre, só descarte)',
+  args: { name: 'Hazin Dan', reminders: [pendingDamage], master: true },
+  play: async ({ canvasElement, args }) => {
+    const [region] = within(canvasElement).getAllByRole('region', { name: /^Tema / });
+    const list = within(region!);
+    await expect(list.queryByText(/Aguardando o mestre/)).toBeNull();
+    await userEvent.click(list.getByRole('button', { name: 'Dispensar o lembrete de Hazin Dan' }));
+    await expect(args.onDismiss).toHaveBeenCalledWith('d1');
   },
 };
 

@@ -90,19 +90,24 @@ function DamageControls({ name, reminder, pending, onApply, onDismiss }: {
  * list only tells the rest of the table what is pending. A pending damage is
  * the master's alone: the owner of the character sees it waiting.
  */
-export function ReminderList({ name, reminders, pending = false, onRollSave, onRecordFailure, onDismiss, onApplyDamage }: ReminderActions & {
+export function ReminderList({ name, reminders, pending = false, master = false, onRollSave, onRecordFailure, onDismiss, onApplyDamage }: ReminderActions & {
   /** Whose reminders: names the controls for screen readers. */
   name: string;
   reminders: CombatReminder[];
   pending?: boolean;
+  /**
+   * The master's view: a pending damage is theirs to apply or drop. Apart
+   * from `onApplyDamage`, so dropping one does not wait for applying it.
+   */
+  master?: boolean;
 }) {
   if (reminders.length === 0) return null;
   return (
     <ul className="m-0 grid list-none gap-2 p-0" aria-label={`Pendências de ${name}`}>
       {reminders.map((reminder) => {
-        const resolvesDamage = reminder.kind === 'pendingDamage' && !!onApplyDamage;
-        // Only who applies a pending damage may drop it.
-        const dismiss = reminder.kind === 'pendingDamage' && !onApplyDamage ? undefined : onDismiss;
+        const resolvesDamage = reminder.kind === 'pendingDamage' && master && !!onApplyDamage;
+        // Only the master may drop a pending damage; the server checks it again.
+        const dismiss = reminder.kind === 'pendingDamage' && !master ? undefined : onDismiss;
         const hasActions =
           resolvesDamage ||
           (reminder.kind === 'concentration' && !!onRollSave) ||
@@ -113,7 +118,7 @@ export function ReminderList({ name, reminders, pending = false, onRollSave, onR
             className="group/reminder grid min-w-0 gap-2 rounded-control border border-border-strong bg-background px-3 py-2">
             <p className="m-0 flex items-start gap-2 text-small text-foreground">
               <Icon kind={reminder.kind} />
-              <span className="min-w-0 [overflow-wrap:anywhere]">{text(reminder, resolvesDamage)}</span>
+              <span className="min-w-0 [overflow-wrap:anywhere]">{text(reminder, master)}</span>
             </p>
             {hasActions && (
               <div className="flex flex-wrap items-end gap-2 *:max-w-full [&>[data-slot=button]]:whitespace-normal">
@@ -132,7 +137,7 @@ export function ReminderList({ name, reminders, pending = false, onRollSave, onR
                     </Button>
                   </>
                 )}
-                {reminder.kind === 'pendingDamage' && onApplyDamage ? (
+                {reminder.kind === 'pendingDamage' && resolvesDamage && onApplyDamage ? (
                   <DamageControls name={name} reminder={reminder} pending={pending}
                     onApply={(amount) => onApplyDamage(reminder.id, amount)}
                     onDismiss={dismiss && (() => dismiss(reminder.id))} />
