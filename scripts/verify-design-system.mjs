@@ -220,7 +220,7 @@ try {
       await page.getByRole('button', { name: 'Recolher menu' }).focus();
       await page.keyboard.press('Enter');
       await expect(page.getByRole('button', { name: 'Expandir menu' })).toBeFocused();
-      await expect(page.getByRole('link', { name: 'Combate, Rodada 3' })).toBeVisible();
+      await expect(page.getByRole('link', { name: 'Mesa, Rodada 3' })).toBeVisible();
       expect((await audit()).violations).toEqual([]);
       await page.screenshot({ path: resolve(output, `shell-${theme}-collapsed.png`) });
       await page.keyboard.press('Enter');

@@ -12,6 +12,10 @@ import { Toaster } from './components/Toast';
 import { ApiError, api } from './lib/api';
 import { AccountBar } from './screens/AccountBar';
 import { CampaignWorkspace } from './screens/CampaignWorkspace';
+import { CampaignOverview } from './screens/campaign/CampaignOverview';
+import { CampaignPlayers } from './screens/campaign/CampaignPlayers';
+import { CampaignPrep } from './screens/campaign/CampaignPrep';
+import { CampaignTable } from './screens/campaign/CampaignTable';
 import { Campaigns } from './screens/Campaigns';
 import { Invite } from './screens/Invite';
 import { Login } from './screens/Login';
@@ -106,6 +110,7 @@ const campaignsRoute = createRoute({
   },
 });
 
+/** The campaign layout; each screen of the campaign is a child route. */
 const campaignRoute = createRoute({
   getParentRoute: () => authenticatedRoute,
   path: '/campaigns/$campaignId',
@@ -116,11 +121,50 @@ const campaignRoute = createRoute({
   },
 });
 
+const campaignOverviewRoute = createRoute({
+  getParentRoute: () => campaignRoute,
+  path: '/',
+  component: function CampaignOverviewScreen() {
+    const { campaignId } = campaignRoute.useParams();
+    return <CampaignOverview campaignId={campaignId} />;
+  },
+});
+
+const campaignTableRoute = createRoute({
+  getParentRoute: () => campaignRoute,
+  path: 'table',
+  component: function CampaignTableScreen() {
+    const { campaignId } = campaignRoute.useParams();
+    return <CampaignTable campaignId={campaignId} />;
+  },
+});
+
+const campaignPrepRoute = createRoute({
+  getParentRoute: () => campaignRoute,
+  path: 'prep',
+  component: function CampaignPrepScreen() {
+    const { campaignId } = campaignRoute.useParams();
+    return <CampaignPrep campaignId={campaignId} />;
+  },
+});
+
+const campaignPlayersRoute = createRoute({
+  getParentRoute: () => campaignRoute,
+  path: 'players',
+  component: function CampaignPlayersScreen() {
+    const { campaignId } = campaignRoute.useParams();
+    return <CampaignPlayers campaignId={campaignId} />;
+  },
+});
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   loginRoute,
   inviteRoute,
-  authenticatedRoute.addChildren([campaignsRoute, campaignRoute]),
+  authenticatedRoute.addChildren([
+    campaignsRoute,
+    campaignRoute.addChildren([campaignOverviewRoute, campaignTableRoute, campaignPrepRoute, campaignPlayersRoute]),
+  ]),
 ]);
 
 export function createAppRouter(queryClient: QueryClient, history?: RouterHistory) {

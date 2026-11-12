@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { DiceFive, Scroll, Sword, UserPlus, Users } from '@phosphor-icons/react';
+import { House, MapTrifold, Sword, UserPlus } from '@phosphor-icons/react';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { expect, fn, userEvent, within } from 'storybook/test';
 import { AppShell, type CampaignOption, type NavItem } from '../components/AppShell';
@@ -11,11 +11,10 @@ const CAMPAIGNS: CampaignOption[] = [
 
 function navigation(round?: number): NavItem[] {
   return [
-    { id: 'characters', label: 'Personagens', href: '#personagens', icon: Users, group: 'Mesa' },
-    { id: 'combat', label: 'Combate', href: '#combate', icon: Sword, group: 'Mesa', badge: round ? `Rodada ${round}` : undefined },
-    { id: 'dice', label: 'Dados', href: '#dados', icon: DiceFive, group: 'Mesa' },
-    { id: 'session', label: 'Sessão', href: '#sessao', icon: Scroll, group: 'Mesa' },
-    { id: 'members', label: 'Membros e convite', shortLabel: 'Membros', href: '#membros', icon: UserPlus, group: 'Administração' },
+    { id: 'overview', label: 'Visão geral', shortLabel: 'Início', href: '/campaigns/phandalin', icon: House, group: 'Mesa' },
+    { id: 'table', label: 'Mesa', href: '/campaigns/phandalin/table', icon: MapTrifold, group: 'Mesa', badge: round ? `Rodada ${round}` : undefined },
+    { id: 'prep', label: 'Preparo', href: '/campaigns/phandalin/prep', icon: Sword, group: 'Mesa' },
+    { id: 'players', label: 'Jogadores', href: '/campaigns/phandalin/players', icon: UserPlus, group: 'Administração' },
   ];
 }
 
@@ -24,8 +23,11 @@ function Example({ empty = false, startCollapsed = false, round, onSignOut = () 
 }) {
   const [campaign, setCampaign] = useState('phandalin');
   const [collapsed, setCollapsed] = useState(startCollapsed);
+  const [active, setActive] = useState('overview');
+  const items = navigation(round);
   return <AppShell campaigns={empty ? [] : CAMPAIGNS} campaignId={empty ? '' : campaign} onCampaignChange={setCampaign}
-    onShowAllCampaigns={() => {}} navigation={navigation(round)} activeItem="characters"
+    onShowAllCampaigns={() => {}} navigation={items} activeItem={active}
+    onNavigate={(href) => setActive(items.find((item) => item.href === href)?.id ?? '')}
     account={{ name: 'Lia Martins', avatarUrl: null, onSignOut }}
     collapsed={collapsed} onCollapsedChange={setCollapsed}>
     <h1 className="font-display text-h1">{empty ? 'Suas campanhas' : CAMPAIGNS.find(item => item.id === campaign)?.name}</h1>
@@ -54,7 +56,7 @@ export const RecolherEExpandir: Story = {
     const expand = canvas.getByRole('button', { name: 'Expandir menu' });
     await expect(expand).toHaveAttribute('aria-expanded', 'false');
     await expect(expand).toHaveFocus();
-    await expect(canvas.getAllByRole('link', { name: 'Personagens' })[0]).toBeInTheDocument();
+    await expect(canvas.getAllByRole('link', { name: 'Visão geral' })[0]).toBeInTheDocument();
     await userEvent.keyboard('{Enter}');
     const collapse = canvas.getByRole('button', { name: 'Recolher menu' });
     await expect(collapse).toHaveAttribute('aria-expanded', 'true');

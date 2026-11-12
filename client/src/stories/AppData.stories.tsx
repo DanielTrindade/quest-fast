@@ -82,15 +82,24 @@ type Story = StoryObj<typeof meta>;
 const dark = { theme: 'dark' };
 const light = { theme: 'light' };
 const campaigns = { role: 'master', path: '/campaigns' } as const;
-const master = { role: 'master', path: `/campaigns/${CAMPAIGN_ID}` } as const;
-const player = { role: 'player', path: `/campaigns/${CAMPAIGN_ID}` } as const;
+const master = { role: 'master', path: `/campaigns/${CAMPAIGN_ID}/table` } as const;
+const player = { role: 'player', path: `/campaigns/${CAMPAIGN_ID}/table` } as const;
+const overview = { role: 'master', path: `/campaigns/${CAMPAIGN_ID}` } as const;
+const prep = { role: 'master', path: `/campaigns/${CAMPAIGN_ID}/prep` } as const;
+const players = { role: 'master', path: `/campaigns/${CAMPAIGN_ID}/players` } as const;
 
 export const Campanhas: Story = { args: campaigns, globals: dark };
 export const CampanhasClaro: Story = { name: 'Campanhas (claro)', args: campaigns, globals: light };
+export const VisaoGeral: Story = { name: 'Visão geral do mestre', args: overview, globals: dark };
+export const VisaoGeralClaro: Story = { name: 'Visão geral do mestre (claro)', args: overview, globals: light };
 export const MesaDoMestre: Story = { name: 'Mesa do mestre', args: master, globals: dark };
 export const MesaDoMestreClaro: Story = { name: 'Mesa do mestre (claro)', args: master, globals: light };
 export const MesaDoJogador: Story = { name: 'Mesa do jogador', args: player, globals: dark };
 export const MesaDoJogadorClaro: Story = { name: 'Mesa do jogador (claro)', args: player, globals: light };
+export const Preparo: Story = { name: 'Preparo do mestre', args: prep, globals: dark };
+export const PreparoClaro: Story = { name: 'Preparo do mestre (claro)', args: prep, globals: light };
+export const Jogadores: Story = { name: 'Jogadores do mestre', args: players, globals: dark };
+export const JogadoresClaro: Story = { name: 'Jogadores do mestre (claro)', args: players, globals: light };
 
 const JOIN_MARKER_KEY = 'qf_join_after_login';
 const INVITE = '/invite/MESA42';

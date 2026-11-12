@@ -6,7 +6,7 @@ import { FeedEventCard } from '../../components/FeedEventCard';
 import { FeedFollow } from '../../components/FeedFollow';
 import { Skeleton } from '../../components/Skeleton';
 import { Surface } from '../../components/Surface';
-import { useCampaignSocket } from '../../hooks/useCampaignSocket';
+import { useCampaignSocketStatus } from '../../hooks/useCampaignSocket';
 import { useNotify } from '../../hooks/use-notify';
 import { ApiError, api } from '../../lib/api';
 import { mergeFeedEvent } from '../../lib/feed-cache';
@@ -18,7 +18,7 @@ function errorMessage(error: unknown, fallback = 'Não foi possível carregar ev
 
 export function SessionFeed({ campaignId, currentUserId }: { campaignId: string; currentUserId: string }) {
   const queryClient = useQueryClient();
-  const status = useCampaignSocket(campaignId);
+  const status = useCampaignSocketStatus();
   const feed = useQuery({ queryKey: ['feed', campaignId], queryFn: () => api.feed(campaignId) });
 
   // Older pages are merged into the same cache the socket appends to, so the

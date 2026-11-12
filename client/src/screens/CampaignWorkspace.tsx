@@ -1,47 +1,43 @@
-import { DiceFive, Scroll, Sword, UserPlus, Users } from '@phosphor-icons/react';
+import { House, MapTrifold, Sword, UserPlus } from '@phosphor-icons/react';
 import { useQuery } from '@tanstack/react-query';
-import { useNavigate } from '@tanstack/react-router';
+import { Outlet, useLocation, useNavigate } from '@tanstack/react-router';
 import { AppShell, type NavItem } from '../components/AppShell';
-import { useActiveSection } from '../hooks/useActiveSection';
+import { CampaignSocketStatus, useCampaignSocket } from '../hooks/useCampaignSocket';
 import { useStoredFlag } from '../hooks/useStoredFlag';
 import { api } from '../lib/api';
 import { encountersQuery } from '../lib/combat-cache';
 import { useSignOut } from '../hooks/useSignOut';
-import { Campaign } from './Campaign';
 
-const NAVIGATION: NavItem[] = [
-  { id: 'characters', label: 'Personagens', shortLabel: 'Fichas', href: '#characters-title', icon: Users, group: 'Mesa' },
-  { id: 'combat', label: 'Combate', href: '#combat-title', icon: Sword, group: 'Mesa' },
-  { id: 'dice', label: 'Dados', href: '#dice-title', icon: DiceFive, group: 'Mesa' },
-  // Fragmento de navegação; "#feed" não é uma cor hexadecimal.
-  // eslint-disable-next-line local/no-raw-color
-  { id: 'session', label: 'Sessão', href: '#feed-title', icon: Scroll, group: 'Mesa' },
-  { id: 'members', label: 'Membros e convite', shortLabel: 'Membros', href: '#members-title', icon: UserPlus, group: 'Administração' },
-];
+function navigation(campaignId: string, isMaster: boolean, round: number | undefined): NavItem[] {
+  const base = `/campaigns/${campaignId}`;
+  const items: (NavItem | false)[] = [
+    { id: 'overview', label: 'Visão geral', shortLabel: 'Início', href: base, icon: House, group: 'Mesa' },
+    { id: 'table', label: 'Mesa', href: `${base}/table`, icon: MapTrifold, group: 'Mesa', badge: round ? `Rodada ${round}` : undefined },
+    isMaster && { id: 'prep', label: 'Preparo', href: `${base}/prep`, icon: Sword, group: 'Mesa' },
+    { id: 'players', label: 'Jogadores', href: `${base}/players`, icon: UserPlus, group: 'Administração' },
+  ];
+  return items.filter((item): item is NavItem => item !== false);
+}
 
-// Each item's anchor names the heading the section observer watches. The
-// combat heading is absent for a player without a fight, and the observer skips it.
-const SECTION_IDS = NAVIGATION.map((item) => item.href.slice(1));
-
+/**
+ * The campaign layout: the shell, the one socket of the campaign room and the
+ * screen of the current route. The socket lives here so the round badge and
+ * every cached fight stay live whichever screen is open.
+ */
 export function CampaignWorkspace({ campaignId, user }: {
   campaignId: string; user: { name: string; avatarUrl: string | null };
 }) {
   const navigate = useNavigate();
   const signOut = useSignOut();
+  const socketStatus = useCampaignSocket(campaignId);
+  const pathname = useLocation({ select: (location) => location.pathname.replace(/\/+$/, '') });
   const [collapsed, setCollapsed] = useStoredFlag('quest-fast:sidebar-collapsed');
   const campaigns = useQuery({ queryKey: ['campaigns'], queryFn: api.campaigns });
   const campaign = useQuery({ queryKey: ['campaign', campaignId], queryFn: () => api.campaign(campaignId) });
   const encounters = useQuery(encountersQuery(campaignId));
-  const fights = encounters.data?.encounters ?? [];
-  // A player gets the combat section once a fight has started (never one in
-  // preparation, which the server does not list for them).
-  const showCombat = campaign.data?.role === 'master' || fights.length > 0;
-  const activeFight = fights.find((fight) => fight.status === 'active');
-  const navigation = NAVIGATION.flatMap((item) => {
-    if (item.id !== 'combat') return [item];
-    if (!showCombat) return [];
-    return [activeFight ? { ...item, badge: `Rodada ${activeFight.round}` } : item];
-  });
+  const activeFight = encounters.data?.encounters.find((fight) => fight.status === 'active');
+  const items = navigation(campaignId, campaign.data?.role === 'master', activeFight?.round);
+  const activeItem = items.find((item) => item.href === pathname)?.id ?? '';
 
   const options = campaigns.data?.campaigns ?? [];
   // A direct link can resolve before the list. Keep the selected campaign
@@ -50,17 +46,14 @@ export function CampaignWorkspace({ campaignId, user }: {
     ? options
     : [{ id: campaignId, name: campaign.data?.name ?? 'Campanha atual', role: campaign.data?.role }, ...options];
 
-  // The nav follows the section in view instead of a fixed active item. The
-  // observer reports heading ids; the nav speaks in item ids.
-  const activeSection = useActiveSection(SECTION_IDS);
-  const activeItem = NAVIGATION.find((item) => item.href === `#${activeSection}`)?.id ?? '';
-
   return <AppShell campaigns={available} campaignId={campaignId}
     onCampaignChange={id => { void navigate({ to: '/campaigns/$campaignId', params: { campaignId: id } }); }}
     onShowAllCampaigns={() => { void navigate({ to: '/campaigns' }); }}
-    navigation={navigation} activeItem={activeItem}
+    navigation={items} activeItem={activeItem} onNavigate={href => { void navigate({ href }); }}
     account={{ ...user, onSignOut: () => signOut.mutate(), signingOut: signOut.isPending }}
     collapsed={collapsed} onCollapsedChange={setCollapsed}>
-    <Campaign campaignId={campaignId} />
+    <CampaignSocketStatus value={socketStatus}>
+      <Outlet />
+    </CampaignSocketStatus>
   </AppShell>;
 }

@@ -34,7 +34,7 @@ Para auditar um Storybook já aberto, defina `STORYBOOK_URL` e execute `node scr
 - `Dialog`: título e descrição obrigatórios, foco modal e retorno ao gatilho; composição shadcn/ui sobre Radix (`components/ui/dialog.tsx`).
 - `Toaster`, `ToastCard` e `useNotify()` (Sonner): notificações de sucesso, erro e informação, com fechamento manual e pausa do tempo ao passar o mouse. Sucesso e erro tingem o toast inteiro (tokens `success-surface` e `danger-surface`, borda no tom do estado), não só o ícone, para o resultado ser lido de relance.
 - `CopyField`: usa o clipboard do navegador, confirma a cópia e orienta a seleção manual quando ela falha.
-- `AppShell`: menu lateral recolhível com seletor de campanha, navegação por seção e conta; no celular, barra superior e barra de seções embaixo (veja "Menu lateral recolhível"). Os callbacks e destinos de navegação são fornecidos pelo consumidor.
+- `AppShell`: menu lateral recolhível com seletor de campanha, navegação entre as telas da campanha (`CampaignNav`) e conta; no celular, barra superior e barra de telas embaixo (veja "Menu lateral recolhível" e "Telas da campanha"). Os callbacks e destinos de navegação são fornecidos pelo consumidor.
 - `DiceResult`: apresenta total, decomposição, dados descartados e naturais recebidos. Não rola dados nem calcula regras 5e.
 
 ## Tokens e temas
@@ -215,3 +215,16 @@ O que a rodada corrigiu:
 - **Retrato do personagem:** o recorte privilegia o topo (`object-[50%_20%]`), para o rosto de um retrato de corpo inteiro aparecer.
 - **Plurais:** "1 criatura"; os espaços de magia concordam com os livres, "1 livre de 3".
 - **Cópias numeradas:** a numeração encurta o nome para caber no limite de 80 caracteres (`numberCopies` em `shared/`).
+
+## Telas da campanha (12 de novembro de 2026)
+
+A campanha deixou de ser uma página única com âncoras e virou um layout com uma rota por tela: Visão geral, Mesa, Preparo (só o mestre) e Jogadores. Esta é a fase 1 da [#88](https://github.com/DanielTrindade/quest-fast/issues/88): as seções de antes foram movidas sem redesenho. Sem token novo.
+
+- **`CampaignNav`** substitui o `SectionNav`. Os itens são telas, então o atual leva `aria-current="page"` (não mais `location`). A navegação vem do consumidor por `onNavigate(href)`: o link continua um `<a href>` de verdade, e clique com Ctrl, Shift, Alt ou botão do meio abre em outra aba como qualquer link. `icon`, `group`, `badge` e `shortLabel` seguem iguais. O `useActiveSection` saiu com as âncoras.
+- **Selo de rodada** fica no item Mesa ("Mesa, Rodada 3"), onde o combate é conduzido.
+- **Barra do celular:** Início, Mesa, Preparo (mestre) e Jogadores cabem em 320 px.
+- **Mesa** reúne o que se usa durante o jogo: fichas, o combate em andamento (ou o último encerrado), dados e o feed. Sem combate, um estado vazio diz onde ele vai aparecer.
+- **Preparo** é a lista de encontros, a criação e o bestiário do mestre, fora da Mesa. Para o jogador, a rota mostra "Esta página não existe".
+- **Jogadores** traz o painel de membros sem o `<details>` recolhível: aqui o convite e a lista são o assunto da tela. Convidar fica no cabeçalho (mestre); Sair da campanha também (jogador).
+- **Visão geral** mostra se há combate e leva à Mesa e a Jogadores. O grupo em medalhões chega na fase 2.
+- **Laboratório → Dados extremos** ganhou Visão geral, Preparo e Jogadores do mestre, nos dois temas; "Mesa do mestre/jogador" agora abrem `/table`.

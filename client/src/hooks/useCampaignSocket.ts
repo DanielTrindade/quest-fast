@@ -1,10 +1,20 @@
-import { useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { SocketMessage } from '@quest-fast/shared';
 import { mergeEncounter, removeEncounter } from '../lib/combat-cache';
 import { mergeFeedEvent } from '../lib/feed-cache';
 
 export type SocketStatus = 'connecting' | 'connected' | 'disconnected';
+
+/**
+ * The campaign layout owns the one socket, so every screen stays live; the
+ * screens that show the connection read its status from here.
+ */
+export const CampaignSocketStatus = createContext<SocketStatus>('connecting');
+
+export function useCampaignSocketStatus(): SocketStatus {
+  return useContext(CampaignSocketStatus);
+}
 
 const MAX_BACKOFF_MS = 10_000;
 
