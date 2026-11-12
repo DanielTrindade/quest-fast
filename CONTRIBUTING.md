@@ -184,7 +184,10 @@ Conforme a área tocada:
 
 `verify:app` e `verify:group` pedem `npm run build && npm run dev` em outro
 terminal e `npm run db:seed` antes. `APP_URL` troca o endereço (padrão
-`http://localhost:3000`).
+`http://localhost:3000`) e `PLAYWRIGHT_CHANNEL` escolhe o navegador instalado
+(por exemplo `msedge`), como no `test:design`. Rode `verify:app` antes de
+`verify:group`: o segundo roda e encerra o combate do seed, que o primeiro
+só abre. Para repetir, rode o seed de novo.
 
 ## Agentes de IA
 

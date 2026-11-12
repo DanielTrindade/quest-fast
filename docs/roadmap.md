@@ -3,7 +3,7 @@
 O que já existe, o que vem a seguir e o que está em aberto. Atualize este
 arquivo no PR que entrega ou muda o escopo de uma etapa.
 
-Atualizado em 2026-11-11.
+Atualizado em 2026-11-12.
 
 ## Entregue
 
@@ -30,8 +30,8 @@ Atualizado em 2026-11-11.
   a partir de um NPC.
 - **Bônus de ataque ou CD:** cada linha de "Armas e truques de dano" é uma
   rolagem de ataque (bônus contra a CA) ou um teste de resistência do alvo
-  (CD e atributo), sem botão de rolar ataque. Rolagem de dano pela ficha e
-  dano composto (`1d8+3+1d6`, issue #8) seguem em aberto.
+  (CD e atributo). Pela ficha, o ataque rola o acerto e oferece o dano no
+  feed; o de resistência rola só o dano.
 - **Convite por link:** o mestre compartilha `/invite/<código>` (cópia ou
   WhatsApp) e quem abre vê uma prévia pública (nome da mesa, mestre e número
   de jogadores), com cartão de imagem para a prévia do WhatsApp e do Discord.
@@ -39,13 +39,7 @@ Atualizado em 2026-11-11.
   O mestre troca o link (o antigo para de valer) e, ao remover um jogador, ele
   fica bloqueado até ser liberado na lista de bloqueados.
 
-## Próximas etapas
-
-Em ordem. O combate e o mapa vêm antes do mundo porque substituem as
-ferramentas que mais pesam na mesa hoje (Avrae e Owlbear); NPCs, locais e
-diários continuam no Kanka até a fase 3.
-
-### Fase 2 — combate e bestiário (em andamento)
+### Fase 2 — combate e bestiário
 
 O mestre roda um combate inteiro sem redigitar monstros e sem planilha ao
 lado; os jogadores acompanham e agem no próprio combatente, inclusive no
@@ -75,8 +69,23 @@ usável na mesa:
    por papel no servidor. Condições e concentração também na ficha, fora do
    combate. Spec e diferenças em
    [`history/2026-11-06-combat-hp-conditions.md`](history/2026-11-06-combat-hp-conditions.md).
-4. **Ataques e acabamento.** Ataque e dano num clique com crítico, resumo no
-   feed, seed com statblock e encontro, `verify:app` e `verify:group`.
+4. **Ataques e acabamento — entregue.** O ataque escolhe um alvo entre os
+   combatentes visíveis; o servidor compara com a CA (empate acerta, 20 natural
+   sempre acerta, 1 natural sempre erra) e, num acerto, rola o dano com os
+   dados dobrados no crítico. O dano fica pendente no alvo até o mestre
+   aplicar (como rolado, ajustado ou pela metade numa salvaguarda) ou
+   descartar. Sem alvo, quem atacou rola o dano depois, pelo feed. O jogador
+   nunca recebe a CA de um monstro nem os números do ataque dele: só acerto,
+   crítico e dano. Seed com bestiário e o encontro "Emboscada na estrada";
+   `verify:app` e `verify:group` percorrem um combate inteiro. Spec e
+   diferenças em
+   [`history/2026-11-11-combat-attacks-polish.md`](history/2026-11-11-combat-attacks-polish.md).
+
+## Próximas etapas
+
+Em ordem. O mapa vem antes do mundo porque substitui o Owlbear, a ferramenta
+que mais pesa na mesa hoje depois que o combate substituiu o Avrae; NPCs,
+locais e diários continuam no Kanka até a fase 3.
 
 ### Fase 4 — campo de batalha (VTT)
 
@@ -113,7 +122,7 @@ seção `world-entries`.
 
 - Validação de formulários e tratamento de erros de ponta a ponta.
 - Seed completo: mestre, jogador, personagens, statblock, NPC e quest
-  (statblock e encontro entram na entrega 4 da fase 2).
+  (statblock e encontro já estão no seed; faltam NPC e quest, da fase 3).
 
 ## Ideias levantadas (sem prioridade)
 

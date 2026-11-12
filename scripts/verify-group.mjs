@@ -2,7 +2,8 @@
 // + um não-membro na mesma campanha. Cada contexto de navegador é um usuário
 // com seu próprio cookie e a própria conexão WebSocket — então o feed ao vivo,
 // a ficha nova aparecendo na mesa e o filtro da rolagem secreta são exercitados
-// de verdade, entre clientes, não dentro de uma página só.
+// de verdade, entre clientes, não dentro de uma página só. No fim, a mesa roda
+// o combate do seed ("Emboscada na estrada") de ponta a ponta.
 //
 //   npm run build && npm run db:migrate && npm run db:seed
 //   npm run dev                # em outro terminal (porta 3000)
@@ -18,7 +19,7 @@ import Database from 'better-sqlite3';
 
 const base = process.env.APP_URL || 'http://localhost:3000';
 const dbPath = process.env.DB_FILE || 'quest-fast.db';
-const channel = existsSync('C:/Program Files/Google/Chrome/Application/chrome.exe') ? 'chrome' : undefined;
+const channel = process.env.PLAYWRIGHT_CHANNEL || (existsSync('C:/Program Files/Google/Chrome/Application/chrome.exe') ? 'chrome' : undefined);
 
 if (!existsSync(dbPath)) {
   console.error(`Banco não encontrado em ${dbPath}. Rode antes: npm run db:migrate && npm run db:seed`);
@@ -39,8 +40,9 @@ function createSession(userId) {
   return id;
 }
 
-// The seed names the campaign and already seats master + players in it.
-const campaign = db.prepare('SELECT id FROM campaigns ORDER BY rowid DESC LIMIT 1').get();
+// The seed names the campaign and already seats master + players in it. By
+// name: `verify:app` creates campaigns of its own in the same database.
+const campaign = db.prepare("SELECT id FROM campaigns WHERE name = 'Ecos de Phandalin' ORDER BY rowid DESC LIMIT 1").get();
 if (!campaign) {
   console.error('Nenhuma campanha encontrada. Rode antes: npm run db:seed');
   process.exit(2);
@@ -67,11 +69,14 @@ const members = {
 };
 
 const problems = [];
+// Requests this script makes on purpose to see them refused (403/404).
+const probes = new Set();
 function collectErrors(page, who) {
   page.on('pageerror', (error) => problems.push(`${who}: erro de página: ${error.message}`));
   page.on('console', (message) => {
     if (message.type() !== 'error') return;
     if (message.text().includes('401')) return;
+    if (probes.has(message.location()?.url ?? '')) return;
     // Every failure path of the non-member is expected: the campaign 404s for
     // them and the socket upgrade is refused. Both are what we assert below.
     if (who === 'não-membro' && /WebSocket|ws:\/\/|404/i.test(message.text())) return;
@@ -254,6 +259,175 @@ try {
     throw new Error(`em 390px os dados (y=${Math.round(dicePanel.y)}) ainda vêm depois da administração (y=${Math.round(admin.y)})`);
   }
   ok('em 390px os dados e o histórico vêm antes da administração da campanha');
+
+  // 14) Combate: o encontro em preparação não existe para os jogadores.
+  await rafael.page.setViewportSize({ width: 1280, height: 900 });
+  const encounter = db.prepare("SELECT id FROM encounters WHERE campaign_id = ? AND name = 'Emboscada na estrada'").get(campaign.id);
+  if (!encounter) throw new Error('o seed não criou o encontro "Emboscada na estrada"');
+  const encounterApi = `/api/campaigns/${campaign.id}/encounters/${encounter.id}`;
+  const status = (page, path) => {
+    probes.add(`${base}${path}`);
+    return page.evaluate((url) => fetch(url).then((response) => response.status), path);
+  };
+  if ((await status(ana.page, encounterApi)) !== 404) throw new Error('Ana vê o encontro em preparação');
+  if ((await status(outsider.page, encounterApi)) !== 404) throw new Error('o não-membro vê o encontro');
+  if ((await ana.page.getByText('Emboscada na estrada').count()) !== 0) throw new Error('Ana vê o nome do encontro em preparação');
+  ok('o encontro em preparação não existe para os jogadores nem para o não-membro (404)');
+
+  // 15) O mestre põe Kaelen no encontro, inicia e rola as criaturas; cada
+  //     jogador rola a própria iniciativa, e a fila chega a todos.
+  const kaelen = db.prepare("SELECT id FROM characters WHERE campaign_id = ? AND name LIKE 'Kaelen%'").get(campaign.id);
+  const added = await master.page.evaluate(
+    ([url, characterId]) =>
+      fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ source: 'character', characterId }) }).then((r) => r.status),
+    [`${encounterApi}/combatants`, kaelen.id],
+  );
+  if (added !== 201) throw new Error(`o mestre não conseguiu pôr Kaelen no encontro (${added})`);
+  await master.page.getByRole('list', { name: 'Encontros' }).getByRole('button', { name: /Emboscada na estrada/ }).click();
+  await master.page.getByRole('button', { name: 'Iniciar combate' }).click();
+  await master.page.getByRole('button', { name: 'Rolar iniciativa das criaturas' }).click();
+  await master.page.getByRole('button', { name: 'Rolar iniciativa de Bram Linha Longa' }).click();
+  for (const { page } of [rafael, ana]) {
+    await page.getByRole('list', { name: 'Ordem de iniciativa' }).waitFor({ timeout: 15000 });
+    await page.getByRole('button', { name: 'Rolar iniciativa', exact: true }).click();
+  }
+  await master.page.getByRole('button', { name: 'Começar round 1' }).click({ timeout: 15000 });
+  for (const { page } of [master, rafael, ana]) {
+    await page.getByText(/Round 1/i).first().waitFor({ timeout: 15000 });
+  }
+  ok('o mestre inicia, os jogadores rolam a própria iniciativa e a fila chega a todos ao vivo');
+
+  // Abre o painel de ataques de um combatente e escolhe o alvo.
+  async function aim(page, attacker, target) {
+    const panel = page.locator('details').filter({ has: page.locator('summary', { hasText: new RegExp(`^\\s*Ataques\\s*de ${attacker}\\s*$`) }) });
+    if (!(await panel.evaluate((element) => element.open))) await panel.locator('summary').click();
+    const select = panel.getByLabel(`Alvo de ${attacker}`);
+    // The label carries hit points or the health band; the name starts it.
+    const value = await select.evaluate((element, name) => [...element.options].find((option) => option.text.startsWith(`${name} — `))?.value, target);
+    if (!value) throw new Error(`${target} não está entre os alvos de ${attacker}`);
+    await select.selectOption(value);
+    return panel;
+  }
+  const lastFeedText = (page) => feedRows(page).last().innerText();
+
+  // 16) Ataque secreto do mestre: nada chega aos jogadores.
+  const rafaelCount = await feedCount(rafael.page);
+  const anaCount = await feedCount(ana.page);
+  const masterCount = await feedCount(master.page);
+  const goblin = await aim(master.page, 'Goblin 1', 'Kaelen');
+  if (!(await goblin.getByRole('checkbox', { name: /Atacar em segredo/ }).isChecked())) throw new Error('o ataque do goblin não começou secreto');
+  await goblin.getByRole('button', { name: 'Atacar com Cimitarra' }).click();
+  await waitForCount(master.page, '[data-slot="feed-list"] > li', masterCount + 1, 'o mestre recebe o próprio ataque', 10000);
+  await new Promise((resolve) => setTimeout(resolve, 900));
+  if ((await feedCount(rafael.page)) !== rafaelCount) throw new Error('Rafael recebeu o ataque secreto');
+  if ((await feedCount(ana.page)) !== anaCount) throw new Error('Ana recebeu o ataque secreto');
+  if ((await rafael.page.getByText(/Dano pendente/).count()) !== 0) throw new Error('Rafael vê o dano pendente de um ataque secreto');
+  ok('o ataque secreto do mestre e o dano que ele deixa não chegam aos jogadores');
+
+  // 17) Ataque público do goblin: os jogadores leem totais, nunca o bônus.
+  await goblin.getByRole('checkbox', { name: /Atacar em segredo/ }).uncheck();
+  await goblin.getByRole('button', { name: 'Atacar com Cimitarra' }).click();
+  for (const [who, page, before] of [['Rafael', rafael.page, rafaelCount], ['Ana', ana.page, anaCount]]) {
+    await waitForCount(page, '[data-slot="feed-list"] > li', before + 1, `${who} recebe o ataque público`, 10000);
+    const text = await lastFeedText(page);
+    if (!/Goblin 1 atacou Kaelen com Cimitarra/.test(text)) throw new Error(`${who} leu o ataque como: ${text}`);
+    if (/1d20|\+ 4|1d6/.test(text)) throw new Error(`${who} vê os números do goblin: ${text}`);
+  }
+  ok('o ataque público do goblin chega aos jogadores só com acerto, crítico e dano');
+
+  // 18) Ana ataca um goblin com Elara: só o mestre lê a CA, e um acerto deixa
+  //     o dano pendente, que só o mestre resolve.
+  // Each browser gets the attack on its own socket: every one waits for it, and
+  // reads it only once its last event is this attack, not the goblin's before.
+  const elaraAttack = /Elara Sombravil atacou Goblin 2 com Adaga/;
+  const table = [['mestre', master.page], ['Rafael', rafael.page], ['Ana', ana.page]];
+  let hit = false;
+  let masterText = '';
+  for (let tries = 0; tries < 12 && !hit; tries++) {
+    const counts = await Promise.all(table.map(([, page]) => feedCount(page)));
+    const elara = await aim(ana.page, 'Elara Sombravil', 'Goblin 2');
+    await elara.getByRole('button', { name: 'Atacar com Adaga' }).click();
+    for (const [index, [who, page]] of table.entries()) {
+      await waitForCount(page, '[data-slot="feed-list"] > li', counts[index] + 1, `${who} recebe o ataque de Elara`, 10000);
+    }
+    const anaText = await lastFeedText(ana.page);
+    masterText = await lastFeedText(master.page);
+    if (!elaraAttack.test(anaText) || !elaraAttack.test(masterText)) {
+      throw new Error(`o último evento não é o ataque de Elara: Ana leu "${anaText}", o mestre "${masterText}"`);
+    }
+    if (/CA \d/.test(anaText)) throw new Error(`Ana vê a CA do goblin: ${anaText}`);
+    hit = /Acertou/.test(anaText);
+  }
+  if (!hit) throw new Error('Elara não acertou o goblin em 12 tentativas');
+  if (!/Acertou \(CA 15\)/.test(masterText)) throw new Error(`o mestre não lê a CA do goblin no acerto: ${masterText}`);
+  await master.page.getByRole('button', { name: 'Aplicar o dano em Goblin 2' }).waitFor({ timeout: 10000 });
+  if ((await ana.page.getByRole('button', { name: /Aplicar o dano/ }).count()) !== 0) throw new Error('Ana recebeu o botão de aplicar dano');
+  ok('o ataque de Elara compara com a CA no servidor e só o mestre vê a CA e o dano pendente');
+
+  // 19) O mestre aplica o dano: os jogadores veem a faixa de saúde, não os PV.
+  await master.page.getByRole('button', { name: 'Aplicar o dano em Goblin 2' }).click();
+  await master.page.getByRole('button', { name: 'Aplicar o dano em Goblin 2' }).waitFor({ state: 'detached', timeout: 10000 });
+  // The card whose name is exactly this one: other cards mention it in their target lists.
+  const cardText = (page, name) =>
+    page.evaluate(
+      (wanted) => [...document.querySelectorAll('[aria-label="Ordem de iniciativa"] > li')].find((row) => row.querySelector('p')?.textContent === wanted)?.innerText ?? '',
+      name,
+    );
+  for (const [who, page] of [['Rafael', rafael.page], ['Ana', ana.page]]) {
+    await page.waitForFunction(
+      () => {
+        const row = [...document.querySelectorAll('[aria-label="Ordem de iniciativa"] > li')].find((li) => li.querySelector('p')?.textContent === 'Goblin 2');
+        return row && /Ferido|Muito ferido|Derrotado/.test(row.innerText);
+      },
+      null,
+      { timeout: 10000 },
+    ).catch(() => {
+      throw new Error(`${who} não viu a faixa de saúde do goblin mudar`);
+    });
+    if (/\d+\s*\/\s*7/.test(await cardText(page, 'Goblin 2'))) throw new Error(`${who} vê os PV do goblin`);
+  }
+  ok('o dano aplicado pelo mestre chega aos jogadores só como faixa de saúde');
+
+  // 20) Ana não ataca com o personagem de Rafael, nem pela interface nem pela API.
+  if ((await ana.page.getByText('Ataques de Kaelen').count()) !== 0) throw new Error('Ana recebeu o painel de ataques de Kaelen');
+  const kaelenCombatant = db.prepare('SELECT id FROM combatants WHERE encounter_id = ? AND character_id = ?').get(encounter.id, kaelen.id);
+  probes.add(`${base}${encounterApi}/combatants/${kaelenCombatant.id}/attack`);
+  const refused = await ana.page.evaluate(
+    (url) => fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ attackIndex: 0 }) }).then((r) => r.status),
+    `${encounterApi}/combatants/${kaelenCombatant.id}/attack`,
+  );
+  if (refused !== 403) throw new Error(`Ana atacou com Kaelen (${refused})`);
+  ok('Ana não ataca com o personagem de Rafael (403)');
+
+  // 21) Rafael encerra o próprio turno quando chega a vez de Kaelen.
+  const kaelenActive = (page) =>
+    page.evaluate(() =>
+      [...document.querySelectorAll('[aria-label="Ordem de iniciativa"] > li')].some(
+        (row) => row.getAttribute('aria-current') === 'step' && row.querySelector('p')?.textContent === 'Kaelen',
+      ),
+    );
+  for (let turns = 0; turns < 8 && !(await kaelenActive(rafael.page)); turns++) {
+    await master.page.getByRole('button', { name: /Próximo turno/ }).click();
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+  if (!(await kaelenActive(rafael.page))) throw new Error('a vez de Kaelen não chegou');
+  await rafael.page.getByRole('button', { name: /Encerrar meu turno/ }).click();
+  await rafael.page.waitForFunction(
+    () => ![...document.querySelectorAll('[aria-label="Ordem de iniciativa"] > li')].some(
+      (row) => row.getAttribute('aria-current') === 'step' && row.querySelector('p')?.textContent === 'Kaelen',
+    ),
+    null,
+    { timeout: 10000 },
+  );
+  ok('Rafael encerra o próprio turno e a vez passa para todos');
+
+  // 22) O mestre encerra o combate e o resumo chega à mesa inteira.
+  await master.page.getByRole('button', { name: 'Encerrar combate' }).click();
+  await master.page.getByRole('group', { name: 'Encerrar o combate?' }).getByRole('button', { name: 'Encerrar e registrar resumo' }).click();
+  for (const { page } of [master, rafael, ana]) {
+    await page.getByText(/Combate encerrado: Emboscada na estrada/).first().waitFor({ timeout: 15000 });
+  }
+  ok('o mestre encerra o combate e o resumo chega ao feed de todos');
 
   await master.context.close();
   await rafael.context.close();

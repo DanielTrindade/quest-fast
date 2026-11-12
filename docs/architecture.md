@@ -282,6 +282,15 @@ ao reconectar. Excluir um encontro publica `combat.deleted` só para quem podia
 vê-lo (o de preparação, só para o mestre); o cliente o tira do cache e, se
 estava aberto, volta para o padrão da seção.
 
+Um ataque compara o acerto com a CA do alvo no servidor e nunca aplica dano
+sozinho: um acerto vira um lembrete de dano pendente no alvo, que só o mestre
+aplica ou descarta, pelo mesmo caminho de qualquer dano. A redação do feed
+segue a regra da projeção: do ataque de um monstro o jogador recebe acerto ou
+erro, crítico e o total do dano, sem o d20, o total do acerto, a expressão, os
+dados nem a CA de um alvo monstro. Com qualquer um deles, o bônus ou o dano do
+statblock sairiam numa conta. O dano pendente de um ataque secreto também não
+aparece para o jogador, nem no próprio personagem.
+
 Pedido de turno leva `expectedActiveCombatantId` e `expectedRound`: se não
 baterem com o turno atual, a resposta é 409 com o estado atual, o que evita
 turno pulado duas vezes por clique duplo ou mestre e jogador ao mesmo tempo. O

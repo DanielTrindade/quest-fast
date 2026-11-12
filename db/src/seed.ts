@@ -1,7 +1,18 @@
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
-import { generateInviteCode } from '@quest-fast/shared';
-import { campaignMembers, campaigns, characters, createDb, sessionEvents, sessions, users } from './index.ts';
+import { abilityModifier, generateInviteCode, type AbilityScores, type Attack } from '@quest-fast/shared';
+import {
+  campaignMembers,
+  campaigns,
+  characters,
+  combatants,
+  createDb,
+  encounters,
+  sessionEvents,
+  sessions,
+  statblocks,
+  users,
+} from './index.ts';
 
 /**
  * Sample campaign for development and visual review. It also creates a fixed
@@ -97,6 +108,10 @@ const charactersSeed: Array<
     race: 'Meio-elfa',
     class: 'Ladina',
     ownerId: players[1].id,
+    attacks: [
+      { name: 'Adaga', bonus: 7, damage: '1d4+4', damageType: 'Perfurante' },
+      { kind: 'save', name: 'Frasco de ácido', dc: 13, saveAbility: 'dexterity', damage: '2d6', damageType: 'Ácido', notes: 'Arremesso, 6 m' },
+    ],
   },
   {
     ...baseSheet,
@@ -129,10 +144,13 @@ const charactersSeed: Array<
     coins: { cp: 30, sp: 0, ep: 0, gp: 12, pp: 0 },
   },
 ];
+const characterIds = new Map<string, string>();
 for (const sheet of charactersSeed) {
+  const id = randomUUID();
+  characterIds.set(sheet.name, id);
   db.insert(characters)
     .values({
-      id: randomUUID(),
+      id,
       campaignId: campaign.id,
       ownerId: sheet.ownerId,
       name: sheet.name,
@@ -146,15 +164,13 @@ for (const sheet of charactersSeed) {
       ac: sheet.ac,
       skills: sheet.skills,
       saves: sheet.saves,
-      // The demo sheets only carry attack rolls.
-      attacks: sheet.attacks.flatMap((attack) => (attack.kind === 'save' ? [] : [{
-        kind: 'attack' as const,
-        name: attack.name,
-        bonus: attack.bonus,
-        damage: attack.damage,
-        damageType: attack.damageType ?? '',
-        notes: attack.notes ?? '',
-      }])),
+      // Stored as the API stores them: every field filled.
+      attacks: sheet.attacks.map((attack): Attack => {
+        const details = { name: attack.name, damage: attack.damage, damageType: attack.damageType ?? '', notes: attack.notes ?? '' };
+        return attack.kind === 'save'
+          ? { ...details, kind: 'save', dc: attack.dc, saveAbility: attack.saveAbility! }
+          : { ...details, kind: 'attack', bonus: attack.bonus };
+      }),
       features: sheet.features,
       description: sheet.description,
       avatarAssetId: sheet.avatarAssetId,
@@ -176,6 +192,115 @@ for (const sheet of charactersSeed) {
       coins: sheet.coins ?? { cp: 0, sp: 0, ep: 0, gp: 0, pp: 0 },
     })
     .run();
+}
+
+// The bestiary and an encounter ready to start: the master opens it, rolls
+// the monsters' initiative and runs the fight, as `verify:group` does.
+type SeedStatblock = {
+  name: string;
+  size: 'small' | 'medium';
+  creatureType: string;
+  challengeRating: string;
+  ac: number;
+  hpAverage: number;
+  hpFormula: string;
+  speed: string;
+  abilityScores: AbilityScores;
+  attacks: Attack[];
+  traits?: string;
+};
+const bestiary: SeedStatblock[] = [
+  {
+    name: 'Goblin',
+    size: 'small',
+    creatureType: 'Feérico (goblinoide)',
+    challengeRating: '1/4',
+    ac: 15,
+    hpAverage: 7,
+    hpFormula: '2d6',
+    speed: '9 m',
+    abilityScores: { strength: 8, dexterity: 15, constitution: 10, intelligence: 10, wisdom: 8, charisma: 8 },
+    attacks: [
+      { kind: 'attack', name: 'Cimitarra', bonus: 4, damage: '1d6+2', damageType: 'Cortante', notes: '' },
+      { kind: 'attack', name: 'Arco curto', bonus: 4, damage: '1d6+2', damageType: 'Perfurante', notes: 'Distância 24/96 m' },
+    ],
+    traits: 'Fuga ágil: Desengajar ou Esconder como ação bônus.',
+  },
+  {
+    name: 'Lobo',
+    size: 'medium',
+    creatureType: 'Fera',
+    challengeRating: '1/4',
+    ac: 12,
+    hpAverage: 11,
+    hpFormula: '2d8+2',
+    speed: '12 m',
+    abilityScores: { strength: 14, dexterity: 15, constitution: 12, intelligence: 3, wisdom: 12, charisma: 6 },
+    attacks: [{ kind: 'attack', name: 'Mordida', bonus: 4, damage: '1d6+2', damageType: 'Perfurante', notes: 'Alvo Grande ou menor: Caído' }],
+    traits: 'Táticas de matilha: vantagem se um aliado estiver a 1,5 m do alvo.',
+  },
+  {
+    name: 'Goblin xamã',
+    size: 'small',
+    creatureType: 'Feérico (goblinoide)',
+    challengeRating: '1',
+    ac: 12,
+    hpAverage: 13,
+    hpFormula: '3d6+3',
+    speed: '9 m',
+    abilityScores: { strength: 8, dexterity: 14, constitution: 12, intelligence: 10, wisdom: 15, charisma: 12 },
+    attacks: [
+      { kind: 'attack', name: 'Bordão', bonus: 1, damage: '1d6-1', damageType: 'Concussão', notes: '' },
+      { kind: 'save', name: 'Chama sagrada', dc: 12, saveAbility: 'dexterity', damage: '1d8', damageType: 'Radiante', notes: 'Alcance 18 m' },
+    ],
+  },
+];
+const statblockIds = new Map<string, string>();
+for (const statblock of bestiary) {
+  const id = randomUUID();
+  statblockIds.set(statblock.name, id);
+  db.insert(statblocks).values({ id, campaignId: campaign.id, ...statblock }).run();
+}
+
+const encounterId = randomUUID();
+db.insert(encounters).values({ id: encounterId, campaignId: campaign.id, name: 'Emboscada na estrada' }).run();
+for (const sheet of charactersSeed) {
+  db.insert(combatants)
+    .values({
+      id: randomUUID(),
+      encounterId,
+      source: 'character',
+      characterId: characterIds.get(sheet.name)!,
+      name: sheet.name,
+      size: 'medium',
+      dexModifier: abilityModifier(sheet.abilityScores.dexterity) ?? 0,
+    })
+    .run();
+}
+// Copies as the server makes them: numbered, average hit points.
+for (const [creature, names] of [['Goblin', ['Goblin 1', 'Goblin 2']], ['Lobo', ['Lobo']]] as const) {
+  const statblock = bestiary.find((entry) => entry.name === creature)!;
+  for (const name of names) {
+    db.insert(combatants)
+      .values({
+        id: randomUUID(),
+        encounterId,
+        source: 'statblock',
+        statblockId: statblockIds.get(creature)!,
+        name,
+        size: statblock.size,
+        ac: statblock.ac,
+        hpMax: statblock.hpAverage,
+        hpCurrent: statblock.hpAverage,
+        hpTemp: 0,
+        conditions: [],
+        concentrating: false,
+        dexModifier: abilityModifier(statblock.abilityScores.dexterity) ?? 0,
+        constitutionModifier: abilityModifier(statblock.abilityScores.constitution) ?? 0,
+        attacks: statblock.attacks,
+      })
+      .run();
+  }
 }
 
 // The feed with a visible history: a public roll and a secret one (the seed
@@ -228,4 +353,5 @@ db.insert(sessions)
   .run();
 
 console.log(`Campaign "${campaign.name}" created with invite code ${campaign.inviteCode}.`);
+console.log(`Encounter "Emboscada na estrada" ready to start, with ${bestiary.length} creatures in the bestiary.`);
 console.log(`Master session (qf_session cookie): ${session}`);

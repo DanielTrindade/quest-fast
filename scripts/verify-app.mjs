@@ -1,5 +1,5 @@
-// Smoke check of the phase 0 flows against a running server, in a real
-// browser. It exists because a crash inside the create-campaign dialog shipped
+// Smoke check of the phase 0 flows, and the combat section of the seed
+// campaign, against a running server, in a real browser. It exists because a crash inside the create-campaign dialog shipped
 // unnoticed: the API was fine and the screens rendered, but no check had ever
 // opened a dialog that mounts a form.
 //
@@ -20,7 +20,7 @@ if (!session) {
   process.exit(2);
 }
 
-const channel = existsSync('C:/Program Files/Google/Chrome/Application/chrome.exe') ? 'chrome' : undefined;
+const channel = process.env.PLAYWRIGHT_CHANNEL || (existsSync('C:/Program Files/Google/Chrome/Application/chrome.exe') ? 'chrome' : undefined);
 const browser = await chromium.launch({ channel, headless: true });
 const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
 const page = await context.newPage();
@@ -102,6 +102,37 @@ try {
     if (scrollWidth > width) throw new Error(`overflow horizontal em ${width}px: ${scrollWidth}`);
   }
   ok('sem overflow horizontal em 320/390/768/1280');
+
+  // 7) Combat in the seed campaign, read-only: `verify:group` runs the
+  //    fight on the same encounter, so this leaves it in preparation.
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto(`${base}/campaigns`);
+  await page.getByText('Ecos de Phandalin').first().click();
+  await page.getByRole('heading', { name: /Combate/ }).waitFor({ timeout: 15000 });
+  await page.getByRole('list', { name: 'Criaturas do bestiário' }).getByText('Goblin xamã').waitFor({ timeout: 15000 });
+  ok('a seção de combate abre com o bestiário do seed');
+
+  await page.getByRole('button', { name: 'Adicionar criatura' }).first().click();
+  const statblockDialog = page.getByRole('dialog');
+  await statblockDialog.waitFor({ timeout: 10000 });
+  ok('o diálogo de nova criatura abre sem quebrar');
+  await page.keyboard.press('Escape');
+  await statblockDialog.waitFor({ state: 'detached', timeout: 10000 });
+
+  await page.getByRole('list', { name: 'Encontros' }).getByRole('button', { name: /Emboscada na estrada/ }).click();
+  await page.getByRole('button', { name: 'Iniciar combate' }).waitFor({ timeout: 15000 });
+  const queue = page.getByRole('list', { name: 'Ordem de iniciativa' });
+  for (const name of ['Elara Sombravil', 'Bram Linha Longa', 'Goblin 1', 'Goblin 2', 'Lobo']) {
+    await queue.getByText(name, { exact: true }).first().waitFor({ timeout: 10000 });
+  }
+  ok('o encontro do seed abre em preparação, com personagens e criaturas');
+
+  for (const width of [320, 390, 768, 1280]) {
+    await page.setViewportSize({ width, height: 900 });
+    const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+    if (scrollWidth > width) throw new Error(`encontro aberto: overflow em ${width}px (${scrollWidth})`);
+  }
+  ok('o encontro não corta conteúdo em 320/390/768/1280');
 } catch (error) {
   problems.push(error.message);
 } finally {
