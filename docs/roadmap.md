@@ -92,16 +92,33 @@ locais e diários continuam no Kanka até a fase 3.
 Cenas com mapa, grid, tokens e fog of war em tempo real, substituindo o
 Owlbear Rodeo. É o item de maior risco técnico.
 
-Começa por um **spike descartável** que decide, por medição:
-
-- representação do fog (máscara bitmap ou polígonos revelados);
-- protocolo de movimento (frequência, throttle, resolução de conflito);
-- biblioteca de canvas ou canvas 2D direto.
+**Spike — entregue (2026-11-12).** Medido com os mapas reais da mesa, fechou
+as questões abertas: canvas 2D direto; fog como multipolígono calculado no
+servidor e guardado numa coluna da `Scene`; token com trava no início do
+arrasto, envio a 30 Hz só pelo socket, interpolação em quem assiste e gravação
+ao soltar; mapas normalizados no servidor com `sharp` (até 4096 px, entrada
+até 25 MB). Números e alternativas em
+[`history/2026-11-12-vtt-spike.md`](history/2026-11-12-vtt-spike.md).
 
 A garantia de segurança do fog é sobre **tokens ocultos**: eles nunca chegam
 ao cliente do jogador. A imagem do mapa, essa sim, é baixada inteira.
 
-Requisitos e spike em
+Próximo passo: a spec da fase 4, no fluxo do combate. Divisão proposta em
+entregas usáveis na mesa, a confirmar na spec:
+
+1. **Cena e mapa.** O mestre cria cenas, envia o mapa (normalizado no
+   servidor), escolhe a cena ativa e configura o grid; os jogadores veem a
+   cena ativa com pan e zoom, inclusive no celular.
+2. **Tokens.** Tokens de personagem, do bestiário e de combatente (ancorados
+   no id estável do combatente), com arrasto ao vivo, posse por papel e tokens
+   ocultos fora do payload do jogador.
+3. **Fog of war.** Revelar e ocultar com retângulo e polígono, regra em
+   `shared/` e estado calculado no servidor.
+4. **Acabamento.** Reconexão com o estado completo da cena, lista de tokens e
+   movimento por teclado, seed com cena, `verify:app` e o Owlbear fora do
+   README.
+
+Requisitos em
 [`history/2026-09-04-vtt-battlefield.md`](history/2026-09-04-vtt-battlefield.md).
 
 ### Fase 3 — mundo
