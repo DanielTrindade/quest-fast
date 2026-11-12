@@ -103,23 +103,26 @@ até 25 MB). Números e alternativas em
 A garantia de segurança do fog é sobre **tokens ocultos**: eles nunca chegam
 ao cliente do jogador. A imagem do mapa, essa sim, é baixada inteira.
 
-Próximo passo: a spec da fase 4, no fluxo do combate. Divisão proposta em
-entregas usáveis na mesa, a confirmar na spec:
+**Em andamento.** Spec aprovada em
+[`history/2026-11-12-vtt-battlefield-phase4.md`](history/2026-11-12-vtt-battlefield-phase4.md),
+que detalha os requisitos de
+[`history/2026-09-04-vtt-battlefield.md`](history/2026-09-04-vtt-battlefield.md)
+com as decisões do spike. Quatro entregas, cada uma usável na mesa:
 
-1. **Cena e mapa.** O mestre cria cenas, envia o mapa (normalizado no
-   servidor), escolhe a cena ativa e configura o grid; os jogadores veem a
-   cena ativa com pan e zoom, inclusive no celular.
-2. **Tokens.** Tokens de personagem, do bestiário e de combatente (ancorados
-   no id estável do combatente), com arrasto ao vivo, posse por papel e tokens
-   ocultos fora do payload do jogador.
+1. **Cena e mapa — em andamento.** O mestre cria cenas, envia o mapa
+   (normalizado no servidor), abre uma cena para a mesa e configura o grid; os
+   jogadores veem a cena aberta com pan e zoom, inclusive no celular. Já
+   prontos: regras do grid e limites do mapa em `shared/`, contrato da API e
+   schema das cenas.
+2. **Tokens.** Tokens de personagem, de combatente (ancorados no id estável do
+   combatente) e do bestiário ou livres, com tamanho pela criatura, arrasto ao
+   vivo com trava, posse por papel, tokens ocultos fora do payload do jogador
+   e movimento por teclado.
 3. **Fog of war.** Revelar e ocultar com retângulo e polígono, regra em
-   `shared/` e estado calculado no servidor.
-4. **Acabamento.** Reconexão com o estado completo da cena, lista de tokens e
-   movimento por teclado, seed com cena, `verify:app` e o Owlbear fora do
-   README.
-
-Requisitos em
-[`history/2026-09-04-vtt-battlefield.md`](history/2026-09-04-vtt-battlefield.md).
+   `shared/` e estado calculado no servidor; monstro na área oculta fora do
+   payload do jogador.
+4. **Acabamento.** Token ligado ao combate, reconexão com o estado completo da
+   cena, seed com cena, `verify:app` e o Owlbear fora do README.
 
 ### Fase 3 — mundo
 

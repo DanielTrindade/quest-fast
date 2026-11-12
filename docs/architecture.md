@@ -299,26 +299,38 @@ está de pé. PV e condições de personagem continuam na ficha; mudar a ficha d
 quem está num encontro também publica `combat.updated`, e excluí-la passa o
 turno adiante, como remover o combatente, antes de o cascade apagá-lo.
 
-### Campo de batalha (VTT) — decidido, ainda não implementado
+### Campo de batalha (VTT) — decidido, em implementação
 
 As escolhas da fase 4 foram fechadas por medição no
-[spike do VTT](history/2026-11-12-vtt-spike.md), antes de qualquer código de
-produção:
+[spike do VTT](history/2026-11-12-vtt-spike.md) e detalhadas na
+[spec da fase 4](history/2026-11-12-vtt-battlefield-phase4.md). Regras do grid
+e limites do mapa já estão em `shared/src/battlefield.ts`, e a tabela `scenes`
+no schema; rotas, socket e telas chegam nas próximas seções da entrega 1.
 
 - **Canvas 2D direto**, sem biblioteca: pan, zoom, pinça e hit-test escritos à
   mão. A lista de tokens e o movimento por teclado ficam em DOM, fora do canvas.
+- **Cena projetada por papel, como o combate.** `projectScene` monta o que
+  cada um recebe, tanto na resposta REST quanto no socket. O jogador só
+  enxerga a cena aberta para a mesa (`campaigns.active_scene_id`; outra cena é
+  404). Toda mudança gravada sobe a `version` e publica `scene.updated` com a
+  cena projetada; fechar o mapa ou excluir a cena aberta publica
+  `scene.closed`.
 - **Fog of war como multipolígono das áreas reveladas.** União e diferença
   (`polygon-clipping`) são regra pura em `shared/`. O mestre envia a forma e o
   modo, o servidor calcula o estado oficial e o guarda numa coluna JSON da
-  `Scene`, e `fog.updated` leva o multipolígono inteiro, o mesmo que recebe
-  quem reconecta. O fog é só visual: token escondido é marcação do mestre,
-  filtrada no servidor, não deduzida do fog.
-- **Movimento:** `grab` trava o token (validade de 3 s, renovada a cada
-  movimento, liberada ao soltar ou quando o socket fecha). Só quem tem a trava
-  envia `token.moving` (30 Hz, só no socket, sem banco) e solta. `token.moved`,
-  com `version`, é gravado uma vez por arrasto e vence qualquer interpolação.
-  O receptor interpola com um buffer de intervalo + jitter. A posse por papel é
-  conferida no `grab` e de novo ao soltar.
+  `Scene`; o fog viaja dentro de `scene.updated`, o mesmo estado que recebe
+  quem reconecta. O fog também decide visibilidade: token que não é de
+  personagem com o centro na área oculta não sai do servidor para o jogador,
+  assim como o token escondido pelo mestre e o do combatente escondido no
+  encontro. Tokens de personagem aparecem sempre.
+- **Movimento:** o `grab` é REST e trava o token (validade de 3 s, renovada a
+  cada movimento, liberada ao soltar ou quando o socket fecha). Só quem tem a
+  trava manda `token.move` pelo socket (30 Hz, sem banco), que o servidor
+  repassa como `token.moving` a quem vê o token. Soltar é um `PATCH` com a
+  posição: grava uma vez por arrasto, libera a trava, sobe a `version` e
+  publica `scene.updated`, que vence qualquer interpolação. O receptor
+  interpola com um buffer de intervalo + jitter. A posse por papel é conferida
+  no `grab` e de novo ao soltar.
 
 ```mermaid
 sequenceDiagram
@@ -326,16 +338,15 @@ sequenceDiagram
   participant S as Servidor
   participant M as Mesa (sockets)
 
-  J->>S: grab(token)
+  J->>S: POST grab (REST)
   S->>S: posse por papel e trava livre?
-  S-->>M: token.grabbed
   loop 30 Hz enquanto arrasta
-    J->>S: token.moving(x, y)
-    S-->>M: token.moving (efêmero)
+    J->>S: token.move(x, y) (socket)
+    S-->>M: token.moving (efêmero, só a quem vê o token)
   end
-  J->>S: drop(x, y)
+  J->>S: PATCH token (x, y)
   S->>S: grava posição, version + 1, libera a trava
-  S-->>M: token.moved
+  S-->>M: scene.updated (projetada por papel)
 ```
 
 ## Armazenamento de arquivos
@@ -376,7 +387,7 @@ processo, como o `better-sqlite3`; no Windows, instala com `--ignore-scripts`.
   da cópia, não do arquivo enviado. Avatares enviados antes disso não foram
   reprocessados.
 - **Mapas do VTT** (decidido no [spike](history/2026-11-12-vtt-spike.md),
-  ainda não implementado): entrada de até 25 MB e 8192 × 8192 px; saída em
+  ainda não implementado): entrada de 64 a 8192 px de lado e até 25 MB; saída em
   JPEG mozjpeg q82 com até 4096 px de lado, sem metadados.
 
 ### Por que R2, e por que opcional
@@ -462,6 +473,7 @@ O raciocínio completo, com alternativas descartadas, está em
 | Uploads em disco por padrão, Cloudflare R2 opcional (não S3) | Avatar é muito lido: o R2 não cobra saída e já é CDN; o disco mantém o self-host sem conta externa | [Armazenamento de arquivos](#armazenamento-de-arquivos) |
 | VTT em canvas 2D direto, sem Konva nem PixiJS | Empata com o PixiJS em quadros, reduz o tempo para exibir o mapa real de 4096² de 4,2 s para 2,0 s (~2,1×) e o sintético de 8192² em cerca de 3×, sem dependência; o Konva custa 2× no desenho | [spike do VTT](history/2026-11-12-vtt-spike.md) |
 | Fog como multipolígono calculado no servidor, em coluna da `Scene` | Fiel ao contorno (bit por casa erra 4–5 %), e o servidor calcula o estado (máscara bitmap exigiria pintar no servidor); o estado não cresce com o número de operações | [spike do VTT](history/2026-11-12-vtt-spike.md) |
+| Monstro na área oculta fora do payload do jogador | Com o fog em polígonos no servidor, saber se um ponto está revelado é barato; sem isso o token continuaria no devtools | [spec da fase 4](history/2026-11-12-vtt-battlefield-phase4.md) |
 | Token: trava no `grab`, 30 Hz efêmero, interpolação, grava ao soltar | Liso para quem assiste com atraso de ~65 ms na LAN; último-a-escrever-vence faz o token pular entre dois jogadores | [spike do VTT](history/2026-11-12-vtt-spike.md) |
 | Mapas normalizados no servidor com `sharp` (mozjpeg, 4096 px) | Mapas da mesa caem para ~40 % sem perda visível; o servidor abre o arquivo em vez de confiar no tipo informado | [spike do VTT](history/2026-11-12-vtt-spike.md) |
 

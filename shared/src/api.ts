@@ -2,6 +2,7 @@ import type { Role } from './role.ts';
 import type { DieResult, RollMode } from './dice.ts';
 import type { Ability, Skill } from './modifiers.ts';
 import type { ArmorTraining, Coins, DeathSaves, HitDie, Size, Spell, SpellSlot } from './sheet.ts';
+import type { GridSettings } from './battlefield.ts';
 import type { ActiveCondition, COMBATANT_SOURCES, CombatReminder, ENCOUNTER_STATUSES, HealthBand, HpOperation } from './combat.ts';
 
 /**
@@ -355,9 +356,9 @@ export type AttackTarget = {
 export type SessionEvent = RollSessionEvent | CombatSessionEvent | UnknownSessionEvent;
 
 /**
- * A roll event, the only kind the MVP persists. Phase 2 adds new event types
- * on the same channel (`token.moved`, `fog.updated`) without changing this
- * envelope; the client renders them via the unknown branch until a card exists.
+ * A roll event, the first kind the feed persisted. Combat added its own types
+ * on the same envelope; the client renders an unknown type via the unknown
+ * branch until a card exists. The battlefield adds no feed event.
  */
 export type RollSessionEvent = {
   id: string;
@@ -398,7 +399,14 @@ export type SocketMessage =
   | { type: 'session.event'; event: SessionEvent }
   | { type: 'combat.updated'; encounter: EncounterView }
   /** Sent only to whoever could see the encounter: never one in preparation to a player. */
-  | { type: 'combat.deleted'; encounterId: string };
+  | { type: 'combat.deleted'; encounterId: string }
+  /**
+   * The scene as the receiver may see it. A player only ever receives the one
+   * open for the table; opening another scene sends it to everyone.
+   */
+  | { type: 'scene.updated'; scene: SceneView }
+  /** The master closed the map, or deleted the scene that was open. */
+  | { type: 'scene.closed'; sceneId: string };
 
 // --- Phase 2: combat and bestiary --------------------------------------------
 
@@ -694,3 +702,45 @@ export const COMBAT_EVENT_TYPES = [
   'combat.condition',
   'combat.deathSave',
 ] as const satisfies readonly CombatSessionEvent['type'][];
+
+// --- Phase 4: battlefield ------------------------------------------------------
+
+/**
+ * A scene as its receiver may see it, from the REST routes and the socket
+ * alike. The map is served by URL; the client draws it at `mapWidth` ×
+ * `mapHeight`, the space every coordinate is in. Tokens and fog arrive in
+ * later deliveries.
+ */
+export type SceneView = {
+  id: string;
+  campaignId: string;
+  name: string;
+  mapUrl: string;
+  mapWidth: number;
+  mapHeight: number;
+  grid: GridSettings;
+  /** Grows with every saved change; the client drops an older one. */
+  version: number;
+  createdAt: string;
+};
+
+/** A row of the master's scene list. */
+export type SceneSummary = Pick<SceneView, 'id' | 'name' | 'mapUrl' | 'mapWidth' | 'mapHeight' | 'createdAt'> & {
+  /** Open for the table: the one the players see. */
+  active: boolean;
+};
+
+/**
+ * What the master changes on a scene (`PATCH`). Creating a scene and swapping
+ * its map are multipart uploads instead: a `name` field and an `image` file.
+ */
+export type SceneInput = {
+  name?: string;
+  grid?: Partial<GridSettings>;
+};
+
+/** Opens a scene for the table, or closes the map with `null`. */
+export type ActiveSceneRequest = { sceneId: string | null };
+
+export type SceneListResponse = { scenes: SceneSummary[] };
+export type SceneResponse = { scene: SceneView };
