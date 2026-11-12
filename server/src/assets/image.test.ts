@@ -51,13 +51,49 @@ test('a truncated image is refused', async () => {
   await refused(png.subarray(0, Math.floor(png.length / 2)));
 });
 
-test('an image above the pixel limit is refused before decoding', async () => {
-  // Only the header is read, so a PNG that claims 10000 × 10000 is enough.
+// Only the header is read before the limit is checked, so a 1 × 1 PNG whose
+// header claims other dimensions is enough.
+async function pngClaiming(width: number, height: number) {
   const png = Buffer.from(await testImageBytes('png', 1, 1));
-  png.writeUInt32BE(10000, 16);
-  png.writeUInt32BE(10000, 20);
+  png.writeUInt32BE(width, 16);
+  png.writeUInt32BE(height, 20);
   png.writeUInt32BE(crc32(png.subarray(12, 29)), 29);
-  assert.match(await refused(new Uint8Array(png)), /8192 × 8192/);
+  return new Uint8Array(png);
+}
+
+test('an image above 8192 px on either side is refused before decoding', async () => {
+  for (const [width, height] of [[10000, 10000], [8193, 1], [1, 8193], [100000, 1]]) {
+    assert.match(await refused(await pngClaiming(width!, height!)), /8192 × 8192/, `${width} × ${height}`);
+  }
+});
+
+test('an image of exactly 8192 px on one side is accepted', async () => {
+  const image = await normalized(await testImageBytes('png', 8192, 4));
+  assert.equal(image.metadata.width, AVATAR_MAX_SIDE);
+});
+
+test('parallel uploads are decoded one at a time', async () => {
+  const input = await testImageBytes('png', 2000, 2000);
+  let peak = 0;
+  const sampler = setInterval(() => {
+    peak = Math.max(peak, sharp.counters().process);
+  }, 1);
+  try {
+    const results = await Promise.all(Array.from({ length: 4 }, () => normalizeAvatar(input)));
+    assert.ok(results.every((result) => result.ok));
+  } finally {
+    clearInterval(sampler);
+  }
+  assert.equal(peak, 1);
+});
+
+test('a refused upload does not block the next one', async () => {
+  const [bad, good] = await Promise.all([
+    normalizeAvatar(new Uint8Array([1, 2, 3])),
+    normalizeAvatar(await testImageBytes('png')),
+  ]);
+  assert.equal(bad.ok, false);
+  assert.equal(good.ok, true);
 });
 
 test('EXIF and GPS metadata do not survive', async () => {

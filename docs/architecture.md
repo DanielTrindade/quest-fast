@@ -362,9 +362,12 @@ com `sharp` e guarda a própria cópia (`server/src/assets/image.ts`). O
 `sharp` roda fora da thread principal e é dependência nativa no mesmo
 processo, como o `better-sqlite3`; no Windows, instala com `--ignore-scripts`.
 
-- **Avatares:** entrada de até 5 MB (413 acima disso) e até 8192 × 8192 px,
-  lidos só do cabeçalho antes de decodificar (`limitInputPixels` como segunda
-  barreira contra imagem-bomba). Aceita PNG, JPEG, WebP e GIF pelo formato
+- **Avatares:** entrada de até 5 MB (413 acima disso) e até 8192 px em cada
+  lado, lidos só do cabeçalho antes de decodificar (`limitInputPixels` como
+  segunda barreira contra imagem-bomba). Uma imagem no limite chega a ~400 MB
+  durante a decodificação, então os uploads são processados um de cada vez:
+  pedidos em paralelo esperam na fila em vez de somar memória no processo
+  único. Aceita PNG, JPEG, WebP e GIF pelo formato
   detectado no conteúdo; o resto, ou o que não decodifica, recebe 422 sem
   tocar no armazenamento nem gravar linha em `assets`. A saída é WebP q82 com
   até 512 px de lado (sem ampliar), orientação EXIF aplicada aos pixels e

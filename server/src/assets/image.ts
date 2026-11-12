@@ -13,9 +13,20 @@ export type NormalizeResult =
   | { ok: true; image: NormalizedImage }
   | { ok: false; error: string };
 
+// A full decode of an 8192 × 8192 image can take ~400 MB, and the limits above are
+// per image: running uploads one at a time keeps parallel requests from
+// multiplying that peak inside the single server process.
+let queue: Promise<unknown> = Promise.resolve();
+
+export function normalizeAvatar(input: Uint8Array): Promise<NormalizeResult> {
+  const run = queue.then(() => normalize(input));
+  queue = run.catch(() => undefined);
+  return run;
+}
+
 // Re-encoding drops every metadata block (EXIF, GPS). sharp decodes only the
 // first frame of an animated GIF, which bounds the work per upload.
-export async function normalizeAvatar(input: Uint8Array): Promise<NormalizeResult> {
+async function normalize(input: Uint8Array): Promise<NormalizeResult> {
   const notAnImage = { ok: false, error: 'O arquivo não é uma imagem válida. Use PNG, JPEG, WebP ou GIF.' } as const;
 
   let metadata;
@@ -26,7 +37,7 @@ export async function normalizeAvatar(input: Uint8Array): Promise<NormalizeResul
   }
   if (!metadata.format || !ACCEPTED_FORMATS.has(metadata.format)) return notAnImage;
   if (!metadata.width || !metadata.height) return notAnImage;
-  if (metadata.width * metadata.height > MAX_INPUT_PIXELS) {
+  if (metadata.width > AVATAR_MAX_INPUT_SIDE || metadata.height > AVATAR_MAX_INPUT_SIDE) {
     return {
       ok: false,
       error: `A imagem deve ter até ${AVATAR_MAX_INPUT_SIDE} × ${AVATAR_MAX_INPUT_SIDE} pixels.`,
