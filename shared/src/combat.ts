@@ -226,6 +226,8 @@ export type PendingDamage = {
   save?: { dc: number; ability: Ability };
   /** The attack event that rolled it. */
   eventId: string;
+  /** Rolled in secret: a player does not see it, even on their own character. */
+  secret: boolean;
 };
 
 /** A reminder not yet stored: the server gives it its id. */

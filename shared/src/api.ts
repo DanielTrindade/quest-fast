@@ -313,10 +313,21 @@ export type RollPayload = {
   save?: { dc: number; ability: Ability };
   /** Who attacked, kept so redaction never depends on a combatant still there. */
   attackerSource?: 'character' | 'monster';
-  /** An attack without a target whose damage may still be rolled, once. */
-  damageRollable?: boolean;
-  /** Set when that damage was rolled. */
+  /**
+   * An attack without a target: its damage may still be rolled, once, by who
+   * attacked. A player never reads it on a monster's attack.
+   */
+  damageRollable?: { expression: string; damageType: string };
+  /** Set once that damage was rolled. */
   damageRolled?: boolean;
+  /** A damage roll made after its attack: the attack's event id. */
+  damageOf?: string;
+  /**
+   * A monster's attack as a player reads it: `expression`, `dice` and
+   * `modifier` (of the roll and of the damage) are blanked, since they would
+   * give away the statblock. Only totals remain.
+   */
+  redacted?: true;
 };
 
 export type DamageRoll = {
@@ -332,6 +343,8 @@ export type DamageRoll = {
 export type AttackTarget = {
   combatantId: string;
   name: string;
+  /** Decides whether a player may read the AC. */
+  source: 'character' | 'monster';
   hit: boolean;
   /** Removed for a player when the target is a monster or a manual combatant. */
   ac?: number;

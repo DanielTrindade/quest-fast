@@ -31,7 +31,10 @@ function projectCombatant(combatant: LoadedCombatant, master: boolean): Combatan
     conditions: combatant.conditions,
     concentrating: known && combatant.concentrating,
     deathSaves: combatant.sheet?.deathSaves ?? null,
-    reminders: known ? pendingReminders(row.reminders, combatant) : [],
+    // A pending damage from a secret attack would give the roll away.
+    reminders: known
+      ? pendingReminders(row.reminders, combatant).filter((reminder) => master || reminder.kind !== 'pendingDamage' || !reminder.secret)
+      : [],
   };
 }
 

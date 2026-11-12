@@ -20,6 +20,8 @@ import {
   isSize,
   isSkill,
   isSpeed,
+  rollAttackHit,
+  rollDamage,
   rollDice,
   saveBonus,
   skillAbility,
@@ -728,8 +730,39 @@ function parseLinkedRoll(body: LinkedRollRequest, sheet: CharacterSheet): Linked
     const index = body?.attackIndex;
     const attack = Number.isInteger(index) ? sheet.attacks[Number(index)] : undefined;
     if (!attack) return { error: 'Ataque inválido.' };
-    if (attack.kind === 'save') return { error: 'Este ataque pede um teste de resistência do alvo; não há rolagem de ataque.' };
-    return d20(sheet, attack.bonus, mode, { rollKind: 'attack', attackName: attack.name });
+    const details = { rollKind: 'attack' as const, attackName: attack.name, attackerSource: 'character' as const };
+    if (attack.kind === 'save') {
+      // The target rolls the save: there is no attack roll, only the damage.
+      if (mode !== 'normal') return { error: 'Vantagem e desvantagem não se aplicam a um ataque por salvaguarda.' };
+      const damage = rollDamage(attack.damage, false);
+      if (!damage) return { error: 'A expressão de dano deste ataque é inválida.' };
+      return {
+        payload: {
+          kind: 'roll',
+          ...damage,
+          mode,
+          ...details,
+          damage: { ...damage, damageType: attack.damageType },
+          save: { dc: attack.dc, ability: attack.saveAbility },
+          characterId: sheet.id,
+          characterName: sheet.name,
+        },
+      };
+    }
+    // Outside a fight there is no target: the damage is rolled afterwards, if it hit.
+    const hit = rollAttackHit(attack.bonus, mode);
+    const { critical, ...result } = hit;
+    return {
+      payload: {
+        kind: 'roll',
+        ...result,
+        ...details,
+        critical,
+        damageRollable: { expression: attack.damage, damageType: attack.damageType },
+        characterId: sheet.id,
+        characterName: sheet.name,
+      },
+    };
   }
 
   if (kind === 'check' || kind === 'save') {
