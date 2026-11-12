@@ -1,3 +1,4 @@
+import type { Ability } from './modifiers.ts';
 import { applyDamage, applyHealing, applyTempHp, type DeathSaves, type HitPoints } from './sheet.ts';
 
 /**
@@ -205,7 +206,27 @@ export function applyHpChange(
 export type CombatReminder = { id: string } & (
   | { kind: 'concentration'; dc: number }
   | { kind: 'deathFailure' }
+  | PendingDamage
 );
+
+/**
+ * Damage an attack rolled against this combatant, waiting for the master to
+ * apply it (adjusted for resistance, for instance) or drop it.
+ */
+export type PendingDamage = {
+  kind: 'pendingDamage';
+  amount: number;
+  /** e.g. "Cortante"; empty when the attack does not say. */
+  damageType: string;
+  /** Applied on a combatant at 0 hit points, it counts as two failures. */
+  critical: boolean;
+  attackerName: string;
+  attackName: string;
+  /** Only for an attack against a save: the master applies all or half. */
+  save?: { dc: number; ability: Ability };
+  /** The attack event that rolled it. */
+  eventId: string;
+};
 
 /** A reminder not yet stored: the server gives it its id. */
 export type ReminderDraft = { kind: 'concentration'; dc: number } | { kind: 'deathFailure' };
@@ -232,12 +253,17 @@ export function damageReminders(input: {
  * Drops the reminders that lost their meaning: nobody rolls to keep a
  * concentration already gone, nor marks a failure on someone back on their
  * feet — even when that changed on the sheet, outside the combat routes.
+ * Pending damage stays until the master decides: it still counts on someone
+ * already down.
  */
 export function pendingReminders(
   reminders: readonly CombatReminder[],
   state: { hpCurrent: number; concentrating: boolean },
 ): CombatReminder[] {
-  return reminders.filter((reminder) => (reminder.kind === 'concentration' ? state.concentrating : state.hpCurrent === 0));
+  return reminders.filter((reminder) => {
+    if (reminder.kind === 'pendingDamage') return true;
+    return reminder.kind === 'concentration' ? state.concentrating : state.hpCurrent === 0;
+  });
 }
 
 const DEATH_SAVES_MAX = 3;

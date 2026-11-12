@@ -9,9 +9,14 @@ export type ReminderActions = {
 };
 
 function text(reminder: CombatReminder): string {
-  return reminder.kind === 'concentration'
-    ? `Salvaguarda de Constituição para manter a concentração: CD ${reminder.dc}.`
-    : 'Sofreu dano caído: marque uma falha no teste contra a morte, ou duas se foi um crítico.';
+  switch (reminder.kind) {
+    case 'concentration':
+      return `Salvaguarda de Constituição para manter a concentração: CD ${reminder.dc}.`;
+    case 'deathFailure':
+      return 'Sofreu dano caído: marque uma falha no teste contra a morte, ou duas se foi um crítico.';
+    case 'pendingDamage':
+      return `Dano pendente de ${reminder.attackerName}: ${reminder.amount}${reminder.damageType ? ` ${reminder.damageType.toLowerCase()}` : ''}, aguardando o mestre.`;
+  }
 }
 
 /**

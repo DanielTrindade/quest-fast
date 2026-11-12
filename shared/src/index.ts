@@ -30,6 +30,15 @@ export {
   type RollResult,
 } from './dice.ts';
 export {
+  criticalExpression,
+  halfDamage,
+  isHit,
+  rollAttackHit,
+  rollDamage,
+  type AttackHit,
+  type DamageDice,
+} from './attack.ts';
+export {
   ABILITIES,
   ABILITY_SCORE_MAX,
   ABILITY_SCORE_MIN,
@@ -87,6 +96,7 @@ export {
   type ActiveCondition,
   type CharacterVitals,
   type CombatReminder,
+  type PendingDamage,
   type Condition,
   type CopyEntry,
   type DeathSaveOutcome,
@@ -158,11 +168,13 @@ export type {
   AssetUploadResponse,
   Attack,
   AttackInput,
+  AttackTarget,
   CharacterInput,
   CharacterStateInput,
   CharacterListResponse,
   CharacterResponse,
   CharacterSheet,
+  DamageRoll,
   CharacterSummary,
   CombatantInput,
   CombatantPatch,
