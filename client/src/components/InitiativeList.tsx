@@ -259,7 +259,8 @@ function FightPanel({ combatant, busy, startOpen, onHitPoints, onConcentration, 
             full={combatant.hpCurrent !== null && combatant.hpMax !== null && combatant.hpCurrent >= combatant.hpMax}
             onApply={(operation, amount) => onHitPoints(id, operation, amount)} />
         )}
-        {onConcentration && (
+        {/* At 0 hit points nobody starts concentrating; the server refuses it too. */}
+        {onConcentration && (combatant.concentrating || combatant.hpCurrent !== 0) && (
           <div className="min-w-0 [&>[data-slot=button]]:max-w-full [&>[data-slot=button]]:whitespace-normal">
             <Button variant="ghost" aria-pressed={combatant.concentrating} disabled={busy}
               onClick={() => onConcentration(id, !combatant.concentrating)}>
@@ -357,7 +358,7 @@ function InitiativeRow({ combatant, targets, active, own, master, editable, busy
       {/* Always on the card, so the table reads them at a glance; removable for whoever acts. */}
       <ConditionChips name={combatant.name} conditions={combatant.conditions} pending={busy}
         onRemove={acts && actions.onRemoveCondition ? (condition) => actions.onRemoveCondition!(combatant.id, condition) : undefined} />
-      <Pending combatant={combatant} acts={acts} master={master} canRoll={acts && (master || active)} busy={busy} {...actions} />
+      <Pending combatant={combatant} acts={acts} master={master} canRoll={acts && (master || (active && !combatant.deathSaveRolled))} busy={busy} {...actions} />
 
       <RowActions combatant={combatant} targets={targets} own={own} master={master} editable={editable} busy={busy} tie={tie} {...actions} />
     </li>

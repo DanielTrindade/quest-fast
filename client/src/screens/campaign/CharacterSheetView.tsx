@@ -6,6 +6,7 @@ import {
   SKILL_ABILITIES,
   abilityModifier,
   initiative,
+  keepsConcentration,
   passivePerception,
   removeCondition,
   proficiencyBonus,
@@ -159,12 +160,15 @@ function SheetConditions({
           <ConditionPicker name={character.name} conditions={conditions} durations={false} pending={pending}
             onApply={(active) => onChange({ conditions: setCondition(conditions, active) })}
             onRemove={(condition) => onChange({ conditions: removeCondition(conditions, condition) })} />
-          <div className="min-w-0 [&>[data-slot=button]]:max-w-full [&>[data-slot=button]]:whitespace-normal">
-            <Button variant="ghost" aria-pressed={concentrating} disabled={pending} onClick={() => onChange({ concentrating: !concentrating })}>
-              <Brain size={18} aria-hidden="true" />
-              {concentrating ? 'Encerrar concentração' : 'Marcar concentração'}
-            </Button>
-          </div>
+          {/* Down at 0 nobody starts concentrating; one still on can always be ended. */}
+          {(concentrating || keepsConcentration(true, character.hpCurrent)) && (
+            <div className="min-w-0 [&>[data-slot=button]]:max-w-full [&>[data-slot=button]]:whitespace-normal">
+              <Button variant="ghost" aria-pressed={concentrating} disabled={pending} onClick={() => onChange({ concentrating: !concentrating })}>
+                <Brain size={18} aria-hidden="true" />
+                {concentrating ? 'Encerrar concentração' : 'Marcar concentração'}
+              </Button>
+            </div>
+          )}
         </>
       ) : (
         <>

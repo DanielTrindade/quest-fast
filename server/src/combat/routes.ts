@@ -22,6 +22,7 @@ import {
   isHit,
   isRollMode,
   isSize,
+  keepsConcentration,
   nextTurn,
   pendingReminders,
   placeCopies,
@@ -593,9 +594,12 @@ function applyHitPoints(
   const vitals: Vitals = { ...hitPoints };
   // Back on their feet, a character starts the death saves over.
   if (rose && combatant.sheet) vitals.deathSaves = { successes: 0, failures: 0 };
+  // The fall ends the concentration: no save to keep it, and its pending ones go.
+  const concentrating = keepsConcentration(combatant.concentrating, hitPoints.hpCurrent);
+  if (concentrating !== combatant.concentrating) vitals.concentrating = concentrating;
   const drafts =
     operation === 'damage'
-      ? damageReminders({ amount, hpCurrentBefore: before.hpCurrent, concentrating: combatant.concentrating, source: combatant.row.source })
+      ? damageReminders({ amount, hpCurrentBefore: before.hpCurrent, concentrating, source: combatant.row.source })
       : [];
   const created = drafts.map((draft) => ({ id: randomUUID(), ...draft }) as CombatReminder);
   writeVitals(mutation, combatant, vitals, [...reminders, ...created]);
@@ -672,6 +676,9 @@ function setConcentration(mutation: Mutation, combatant: LoadedCombatant, body: 
   if (body.concentrating === combatant.concentrating) {
     refuse(409, body.concentrating ? `${combatant.name} já está concentrando.` : `${combatant.name} não está concentrando.`);
   }
+  if (body.concentrating && !keepsConcentration(true, combatant.hpCurrent)) {
+    refuse(409, `${combatant.name} está caído e não consegue se concentrar.`);
+  }
   writeVitals(mutation, combatant, { concentrating: body.concentrating });
 }
 
@@ -718,9 +725,10 @@ function deathSave(mutation: Mutation, combatant: LoadedCombatant, body: Record<
     if (encounter.activeCombatantId !== row.id) refuse(409, 'Role o teste contra a morte na sua vez.');
     if (row.deathSaveRound === encounter.round) refuse(409, 'Você já rolou o teste contra a morte nesta rodada.');
   }
-  // Under advantage or disadvantage, the kept die decides, a natural 20 or 1 included.
+  // Under advantage or disadvantage, the kept die decides, a natural 20 or 1 included:
+  // with no modifier, the total of a single d20 is that die.
   const roll = rollDice('1d20', mode)!;
-  const d20 = roll.dice.find((die) => !die.discarded)!.value;
+  const d20 = roll.total;
   const outcome = deathSaveOutcome(d20, sheet.deathSaves);
   const vitals: Vitals = { deathSaves: outcome.saves };
   if (outcome.hpCurrent !== undefined) vitals.hpCurrent = outcome.hpCurrent;

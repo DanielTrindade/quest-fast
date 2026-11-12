@@ -480,6 +480,8 @@ export type CombatantView = {
   concentrating: boolean;
   /** Only for a character; a monster has none. */
   deathSaves: DeathSaves | null;
+  /** The death save of this round was already rolled: a player rolls one per round. */
+  deathSaveRolled: boolean;
   /** Always empty for a player looking at a monster: a DC gives the damage away. */
   reminders: CombatReminder[];
   /** What it attacks with. Always empty for a player looking at a monster. */

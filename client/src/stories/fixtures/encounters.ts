@@ -22,6 +22,7 @@ const base = {
   conditions: [],
   concentrating: false,
   deathSaves: null,
+  deathSaveRolled: false,
   reminders: [],
   attacks: [],
 } satisfies Partial<CombatantView>;
