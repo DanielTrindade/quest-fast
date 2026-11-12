@@ -84,8 +84,8 @@ function decompose(payload: RollPayload) {
   return `${kept} ${payload.modifier > 0 ? '+' : '−'} ${Math.abs(payload.modifier)}`;
 }
 
-/** A linked roll without its mode: the sheet owns one mode for all of them. */
-type SheetRoll = (request: Omit<LinkedRollRequest, 'mode'>) => void;
+/** A linked roll: the sheet owns one mode for all of them, unless the roll says otherwise. */
+type SheetRoll = (request: LinkedRollRequest) => void;
 
 function SheetHead({ character, isOwner }: { character: CharacterSheet; isOwner: boolean }) {
   return (
@@ -240,9 +240,11 @@ function CharacterTab({
         <ul className="m-0 grid list-none gap-2 p-0 *:min-w-0">
           {contentKeys(character.attacks).map(({ item: attack, key }, index) => (
             <li key={key}>
-              {/* A save DC is rolled by the target: no attack roll to offer. */}
+              {/* An attack roll, its damage later from the feed; a save DC rolls only the damage. */}
               <AttackCard {...attack} disabled={rolling}
-                onRoll={canRoll && attack.kind === 'attack' ? () => roll({ kind: 'attack', attackIndex: index }) : undefined} />
+                onRoll={canRoll
+                  ? () => roll({ kind: 'attack', attackIndex: index, ...(attack.kind === 'save' ? { mode: 'normal' as const } : {}) })
+                  : undefined} />
             </li>
           ))}
         </ul>
@@ -490,7 +492,7 @@ export function CharacterSheetView({
   // One mode choice for every linked roll of the sheet; always a single d20,
   // so advantage and disadvantage always apply.
   const [mode, setMode] = useState<RollMode>('normal');
-  const roll: SheetRoll = (request) => onRoll({ ...request, mode });
+  const roll: SheetRoll = (request) => onRoll({ mode, ...request });
 
   const tabProps = { character, idPrefix: tabsId, canRoll, rolling, roll };
   const liveTabProps = { ...tabProps, editable: canChangeState, pending: stateSaving, onChange: change };

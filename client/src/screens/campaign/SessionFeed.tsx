@@ -8,13 +8,14 @@ import { Skeleton } from '../../components/Skeleton';
 import { Surface } from '../../components/Surface';
 import { useCampaignSocket } from '../../hooks/useCampaignSocket';
 import { ApiError, api } from '../../lib/api';
+import { mergeFeedEvent } from '../../lib/feed-cache';
 import { sectionHeading, stack } from '../../components/layout-styles';
 
-function errorMessage(error: unknown) {
-  return error instanceof ApiError ? error.message : 'Não foi possível carregar eventos anteriores.';
+function errorMessage(error: unknown, fallback = 'Não foi possível carregar eventos anteriores.') {
+  return error instanceof ApiError ? error.message : fallback;
 }
 
-export function SessionFeed({ campaignId }: { campaignId: string }) {
+export function SessionFeed({ campaignId, currentUserId }: { campaignId: string; currentUserId: string }) {
   const queryClient = useQueryClient();
   const status = useCampaignSocket(campaignId);
   const feed = useQuery({ queryKey: ['feed', campaignId], queryFn: () => api.feed(campaignId) });
@@ -31,6 +32,13 @@ export function SessionFeed({ campaignId }: { campaignId: string }) {
         return { events: [...older, ...prev.events], nextCursor: page.nextCursor };
       });
     },
+  });
+
+  // The damage of one's own attack made without a target. The new roll and
+  // the attack it settles are both updated in the cache, as the socket does.
+  const rollDamage = useMutation({
+    mutationFn: (eventId: string) => api.rollDamage(campaignId, eventId),
+    onSuccess: ({ event }) => mergeFeedEvent(queryClient, campaignId, event),
   });
 
   const events = feed.data?.events ?? [];
@@ -77,10 +85,14 @@ export function SessionFeed({ campaignId }: { campaignId: string }) {
             loadingMore={loadMore.isPending}
             loadMoreError={loadMore.isError ? errorMessage(loadMore.error) : null}
           >
+            {rollDamage.isError && (
+              <p role="alert" className="m-0 pt-3 text-small text-danger-text">{errorMessage(rollDamage.error, 'Não foi possível rolar o dano.')}</p>
+            )}
             <ol data-slot="feed-list" className="m-0 list-none p-0 [&>li]:py-3 [&>li+li]:border-t [&>li+li]:border-border">
               {events.map((event) => (
                 <li key={event.id}>
-                  <FeedEventCard event={event} />
+                  <FeedEventCard event={event} pending={rollDamage.isPending}
+                    onRollDamage={event.userId === currentUserId ? (eventId) => rollDamage.mutate(eventId) : undefined} />
                 </li>
               ))}
             </ol>

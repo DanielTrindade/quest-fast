@@ -595,6 +595,19 @@ export type ConcentrationSaveRequest = {
   secret?: boolean;
 };
 
+export type AttackRequest = {
+  /** Position in the combatant's attacks. */
+  attackIndex: number;
+  /** Without one, only the attack roll is made; the damage comes later. */
+  targetId?: string | null;
+  mode?: RollMode;
+  /** Master only; a monster's attack is secret unless told otherwise. */
+  secret?: boolean;
+};
+
+/** Without an amount, the pending damage goes in whole, as rolled. */
+export type ApplyDamageRequest = { amount?: number };
+
 export type CombatStartedPayload = { kind: 'combat.started'; encounterId: string; encounterName: string };
 export type CombatEndedPayload = {
   kind: 'combat.ended';
