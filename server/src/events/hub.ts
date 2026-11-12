@@ -1,5 +1,5 @@
 import type { WebSocket } from 'ws';
-import type { EncounterView, Role, SessionEvent, SocketMessage } from '@quest-fast/shared';
+import type { EncounterView, Role, SceneView, SessionEvent, SocketMessage } from '@quest-fast/shared';
 import { redactEvent } from './redact.ts';
 
 /** Who sits behind a socket: what every projection and redaction needs. */
@@ -33,6 +33,14 @@ export type EventHub = {
   publishCombat(campaignId: string, project: (viewer: Viewer) => EncounterView | null): void;
   /** Sends `combat.deleted` to each connection whose viewer `couldSee` the encounter. */
   publishCombatDeleted(campaignId: string, encounterId: string, couldSee: (viewer: Viewer) => boolean): void;
+  /**
+   * Sends `scene.updated` with what `project` returns for each connection;
+   * `null` means this viewer may not see the scene (a player, for any scene
+   * not open for the table), and nothing is sent.
+   */
+  publishScene(campaignId: string, project: (viewer: Viewer) => SceneView | null): void;
+  /** Sends `scene.closed` to the whole room: the table no longer has that scene open. */
+  publishSceneClosed(campaignId: string, sceneId: string): void;
   join(campaignId: string, viewer: Viewer, socket: WebSocket): void;
   leave(socket: WebSocket): void;
   /**
@@ -99,6 +107,17 @@ export function createEventHub(): EventHub {
         const encounter = project(connection);
         return encounter ? { type: 'combat.updated', encounter } : null;
       });
+    },
+
+    publishScene(campaignId, project) {
+      send(campaignId, (connection) => {
+        const scene = project(connection);
+        return scene ? { type: 'scene.updated', scene } : null;
+      });
+    },
+
+    publishSceneClosed(campaignId, sceneId) {
+      send(campaignId, () => ({ type: 'scene.closed', sceneId }));
     },
 
     publishCombatDeleted(campaignId, encounterId, couldSee) {
