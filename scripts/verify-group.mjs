@@ -311,8 +311,8 @@ try {
   const lastFeedText = (page) => feedRows(page).last().innerText();
 
   // 16) Ataque secreto do mestre: nada chega aos jogadores.
-  let rafaelCount = await feedCount(rafael.page);
-  let anaCount = await feedCount(ana.page);
+  const rafaelCount = await feedCount(rafael.page);
+  const anaCount = await feedCount(ana.page);
   const masterCount = await feedCount(master.page);
   const goblin = await aim(master.page, 'Goblin 1', 'Kaelen');
   if (!(await goblin.getByRole('checkbox', { name: /Atacar em segredo/ }).isChecked())) throw new Error('o ataque do goblin não começou secreto');
@@ -337,18 +337,29 @@ try {
 
   // 18) Ana ataca um goblin com Elara: só o mestre lê a CA, e um acerto deixa
   //     o dano pendente, que só o mestre resolve.
+  // Each browser gets the attack on its own socket: every one waits for it, and
+  // reads it only once its last event is this attack, not the goblin's before.
+  const elaraAttack = /Elara Sombravil atacou Goblin 2 com Adaga/;
+  const table = [['mestre', master.page], ['Rafael', rafael.page], ['Ana', ana.page]];
   let hit = false;
+  let masterText = '';
   for (let tries = 0; tries < 12 && !hit; tries++) {
-    rafaelCount = await feedCount(rafael.page);
+    const counts = await Promise.all(table.map(([, page]) => feedCount(page)));
     const elara = await aim(ana.page, 'Elara Sombravil', 'Goblin 2');
     await elara.getByRole('button', { name: 'Atacar com Adaga' }).click();
-    await waitForCount(rafael.page, '[data-slot="feed-list"] > li', rafaelCount + 1, 'Rafael recebe o ataque de Elara', 10000);
+    for (const [index, [who, page]] of table.entries()) {
+      await waitForCount(page, '[data-slot="feed-list"] > li', counts[index] + 1, `${who} recebe o ataque de Elara`, 10000);
+    }
     const anaText = await lastFeedText(ana.page);
+    masterText = await lastFeedText(master.page);
+    if (!elaraAttack.test(anaText) || !elaraAttack.test(masterText)) {
+      throw new Error(`o último evento não é o ataque de Elara: Ana leu "${anaText}", o mestre "${masterText}"`);
+    }
     if (/CA \d/.test(anaText)) throw new Error(`Ana vê a CA do goblin: ${anaText}`);
     hit = /Acertou/.test(anaText);
   }
   if (!hit) throw new Error('Elara não acertou o goblin em 12 tentativas');
-  if (!/Acertou \(CA 15\)/.test(await lastFeedText(master.page))) throw new Error('o mestre não lê a CA do goblin no acerto');
+  if (!/Acertou \(CA 15\)/.test(masterText)) throw new Error(`o mestre não lê a CA do goblin no acerto: ${masterText}`);
   await master.page.getByRole('button', { name: 'Aplicar o dano em Goblin 2' }).waitFor({ timeout: 10000 });
   if ((await ana.page.getByRole('button', { name: /Aplicar o dano/ }).count()) !== 0) throw new Error('Ana recebeu o botão de aplicar dano');
   ok('o ataque de Elara compara com a CA no servidor e só o mestre vê a CA e o dano pendente');
