@@ -13,8 +13,9 @@ function optionLabel(target: TargetOption): string {
 
 /**
  * Who an attack is aimed at, from the combatants this viewer sees. "Sem alvo"
- * rolls only the attack and leaves the damage for later: for cover, or a
- * target the app does not know about.
+ * is for cover, or a target the app does not know about. The label stays
+ * neutral: an attack roll then leaves the damage for later, but a save
+ * attack rolls its damage at once.
  */
 export function TargetPicker({ name, targets, value, onChange }: {
   /** Who attacks: names the field for screen readers. */
@@ -26,7 +27,7 @@ export function TargetPicker({ name, targets, value, onChange }: {
 }) {
   return (
     <SelectField label={`Alvo de ${name}`} value={value} onChange={onChange}>
-      <option value="">Sem alvo (rolar o dano depois)</option>
+      <option value="">Sem alvo</option>
       {targets.map((target) => (
         <option key={target.id} value={target.id}>{optionLabel(target)}</option>
       ))}

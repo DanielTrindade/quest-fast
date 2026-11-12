@@ -329,7 +329,7 @@ function Pending({ combatant, acts, master, canRoll, busy, onDeathSave, onConcen
         <DeathSaveTracker name={name} deathSaves={combatant.deathSaves!} pending={busy}
           canRoll={canRoll} onRoll={onDeathSave && (() => onDeathSave(id))} />
       )}
-      <ReminderList name={name} reminders={combatant.reminders} pending={busy}
+      <ReminderList name={name} reminders={combatant.reminders} pending={busy} master={master}
         onRollSave={rollSave && ((reminderId) => rollSave(id, reminderId))}
         onRecordFailure={recordFailure && ((reminderId, failures) => recordFailure(id, failures, reminderId))}
         onDismiss={dismiss && ((reminderId) => dismiss(id, reminderId))}
