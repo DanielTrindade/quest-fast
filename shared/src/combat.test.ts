@@ -85,6 +85,21 @@ test('a reminder that lost its meaning is no longer pending', () => {
   assert.deepEqual(pendingReminders(reminders, { hpCurrent: 5, concentrating: false }), []);
 });
 
+test('pending damage waits for the master whatever the hit points', () => {
+  const pending: CombatReminder = {
+    id: 'p',
+    kind: 'pendingDamage',
+    amount: 9,
+    damageType: 'Cortante',
+    critical: false,
+    attackerName: 'Goblin 2',
+    attackName: 'Cimitarra',
+    eventId: 'e',
+  };
+  assert.deepEqual(pendingReminders([pending], { hpCurrent: 5, concentrating: false }), [pending]);
+  assert.deepEqual(pendingReminders([pending], { hpCurrent: 0, concentrating: false }), [pending]);
+});
+
 test('a death save failure adds up and keeps the successes while still dying', () => {
   assert.deepEqual(deathSaveFailure({ successes: 1, failures: 0 }, 1), { successes: 1, failures: 1 });
   assert.deepEqual(deathSaveFailure({ successes: 1, failures: 1 }, 2), { successes: 1, failures: 3 });

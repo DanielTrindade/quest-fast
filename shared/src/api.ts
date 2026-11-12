@@ -297,6 +297,44 @@ export type RollPayload = {
   skill?: Skill;
   /** Only for a Constitution save that keeps concentration: the DC it had to beat. */
   concentrationDc?: number;
+  /**
+   * An attack's damage. Absent on a miss, and on an attack without a target
+   * until its damage is rolled (as an event of its own).
+   */
+  damage?: DamageRoll;
+  /** A natural 20 on an attack roll: the damage dice were doubled. */
+  critical?: boolean;
+  /** Who the attack was aimed at. A player never reads a monster's AC here. */
+  target?: AttackTarget;
+  /**
+   * An attack against a save: no attack roll, the target rolls. The roll's
+   * own `expression`/`dice`/`total` are then the damage.
+   */
+  save?: { dc: number; ability: Ability };
+  /** Who attacked, kept so redaction never depends on a combatant still there. */
+  attackerSource?: 'character' | 'monster';
+  /** An attack without a target whose damage may still be rolled, once. */
+  damageRollable?: boolean;
+  /** Set when that damage was rolled. */
+  damageRolled?: boolean;
+};
+
+export type DamageRoll = {
+  /** As rolled: already doubled on a critical. */
+  expression: string;
+  dice: DieResult[];
+  modifier: number;
+  total: number;
+  /** e.g. "Cortante"; empty when the attack does not say. */
+  damageType: string;
+};
+
+export type AttackTarget = {
+  combatantId: string;
+  name: string;
+  hit: boolean;
+  /** Removed for a player when the target is a monster or a manual combatant. */
+  ac?: number;
 };
 
 export type SessionEvent = RollSessionEvent | CombatSessionEvent | UnknownSessionEvent;
