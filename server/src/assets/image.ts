@@ -13,15 +13,20 @@ export type NormalizeResult =
   | { ok: true; image: NormalizedImage }
   | { ok: false; error: string };
 
-// A full decode of an 8192 × 8192 image can take ~400 MB, and the limits above are
-// per image: running uploads one at a time keeps parallel requests from
-// multiplying that peak inside the single server process.
+// A full decode of an 8192 × 8192 image can take ~400 MB, and the limits are
+// per image: running every decode one at a time — avatars and maps share the
+// queue — keeps parallel requests from multiplying that peak inside the
+// single server process.
 let queue: Promise<unknown> = Promise.resolve();
 
-export function normalizeAvatar(input: Uint8Array): Promise<NormalizeResult> {
-  const run = queue.then(() => normalize(input));
+export function oneDecodeAtATime<T>(work: () => Promise<T>): Promise<T> {
+  const run = queue.then(work);
   queue = run.catch(() => undefined);
   return run;
+}
+
+export function normalizeAvatar(input: Uint8Array): Promise<NormalizeResult> {
+  return oneDecodeAtATime(() => normalize(input));
 }
 
 // Re-encoding drops every metadata block (EXIF, GPS). sharp decodes only the

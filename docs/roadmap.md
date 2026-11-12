@@ -112,8 +112,9 @@ com as decisões do spike. Quatro entregas, cada uma usável na mesa:
 1. **Cena e mapa — em andamento.** O mestre cria cenas, envia o mapa
    (normalizado no servidor), abre uma cena para a mesa e configura o grid; os
    jogadores veem a cena aberta com pan e zoom, inclusive no celular. Já
-   prontos: regras do grid e limites do mapa em `shared/`, contrato da API e
-   schema das cenas.
+   prontos: regras do grid e limites do mapa em `shared/`, contrato da API,
+   schema das cenas e o servidor (normalização do mapa com `sharp`, rotas com
+   RBAC, cena aberta para a mesa e `scene.updated`/`scene.closed` no socket).
 2. **Tokens.** Tokens de personagem, de combatente (ancorados no id estável do
    combatente) e do bestiário ou livres, com tamanho pela criatura, arrasto ao
    vivo com trava, posse por papel, tokens ocultos fora do payload do jogador

@@ -719,16 +719,15 @@ export type SceneView = {
   mapWidth: number;
   mapHeight: number;
   grid: GridSettings;
-  /** Grows with every saved change; the client drops an older one. */
+  /** Open for the table. Always true for a player, who sees no other scene. */
+  active: boolean;
+  /** Grows with every saved change, opening and closing included; the client drops an older one. */
   version: number;
   createdAt: string;
 };
 
 /** A row of the master's scene list. */
-export type SceneSummary = Pick<SceneView, 'id' | 'name' | 'mapUrl' | 'mapWidth' | 'mapHeight' | 'createdAt'> & {
-  /** Open for the table: the one the players see. */
-  active: boolean;
-};
+export type SceneSummary = Pick<SceneView, 'id' | 'name' | 'mapUrl' | 'mapWidth' | 'mapHeight' | 'active' | 'createdAt'>;
 
 /**
  * What the master changes on a scene (`PATCH`). Creating a scene and swapping

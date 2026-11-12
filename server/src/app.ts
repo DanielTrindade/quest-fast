@@ -11,6 +11,7 @@ import { diceRoutes } from './dice/routes.ts';
 import { feedRoutes } from './feed/routes.ts';
 import { statblockRoutes } from './statblocks/routes.ts';
 import { encounterRoutes } from './combat/routes.ts';
+import { sceneRoutes } from './scenes/routes.ts';
 import type { Context, Deps } from './context.ts';
 import { requireAuth } from './middleware.ts';
 
@@ -48,11 +49,12 @@ export function createApp({ serveClient = true, inviteAttempts, ...deps }: AppOp
   app.route('/api/campaigns/:campaignId/feed', feedRoutes());
   app.route('/api/campaigns/:campaignId/statblocks', statblockRoutes());
   app.route('/api/campaigns/:campaignId/encounters', encounterRoutes());
+  app.route('/api/campaigns/:campaignId/scenes', sceneRoutes());
 
   // Any missing route under /api is an API error, never the SPA's HTML.
   app.all('/api/*', (c) => c.json({ error: 'Rota não encontrada.' }, 404));
 
-  // Uploaded assets (avatars today, maps in a later change) come from disk.
+  // Uploaded assets (avatars and maps) come from disk.
   // The public URL keeps the /uploads prefix, but the files sit directly under
   // uploadsDir (`<uploadsDir>/campaigns/...`), so the prefix is dropped first.
   app.use('/uploads/*', serveStatic({

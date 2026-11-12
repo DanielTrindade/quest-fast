@@ -124,9 +124,10 @@ src/
   characters/     ficha, estado de sessão e rolagens pela ficha
   statblocks/     bestiário da campanha (só o mestre)
   combat/         encontros, iniciativa, turnos e a projeção por papel
+  scenes/         cenas do VTT: mapa, grid, cena aberta e a projeção por papel
   dice/           rolagem livre
   feed/           leitura paginada do feed
-  assets/         upload de imagens (store em disco, no R2 ou em memória)
+  assets/         upload e normalização de imagens (store em disco, no R2 ou em memória)
   events/         EventHub, persistência e redação do feed, WebSocket
   validation.ts   parsers de entrada compartilhados (InputError, ataques)
   testing.ts      helpers dos testes de integração
@@ -147,6 +148,7 @@ montado em `app.ts`:
 | `/api/campaigns/:campaignId/feed` | `feed/` |
 | `/api/campaigns/:campaignId/statblocks` | `statblocks/` |
 | `/api/campaigns/:campaignId/encounters` | `combat/` |
+| `/api/campaigns/:campaignId/scenes` | `scenes/` |
 | `/api/campaigns/:campaignId/ws` | `events/ws.ts` (upgrade) |
 
 As dependências chegam por injeção (`createApp(deps)`), não por import de
@@ -260,7 +262,8 @@ O WebSocket autoriza **antes** do upgrade (sessão e papel); um socket nunca
 troca de campanha. O hub guarda o papel e o `userId` de cada conexão: eventos
 do feed passam por `redactEvent` (o mesmo filtro da leitura paginada) e o
 combate sai por `publishCombat`, que chama `projectEncounter` para cada
-socket. Como o papel é conferido só no upgrade, toda rota que encerra uma
+socket; a cena do VTT, por `publishScene` com `projectScene`, e
+`publishSceneClosed` avisa a sala inteira que a cena aberta saiu da mesa. Como o papel é conferido só no upgrade, toda rota que encerra uma
 filiação (o mestre remove o membro ou ele sai) chama `hub.kick`, que tira os
 sockets daquele usuário da sala e os fecha com o código 4404; uma rota futura
 que mude o papel precisa fazer o mesmo, para a reconexão passar pela
@@ -303,9 +306,12 @@ turno adiante, como remover o combatente, antes de o cascade apagá-lo.
 
 As escolhas da fase 4 foram fechadas por medição no
 [spike do VTT](history/2026-11-12-vtt-spike.md) e detalhadas na
-[spec da fase 4](history/2026-11-12-vtt-battlefield-phase4.md). Regras do grid
-e limites do mapa já estão em `shared/src/battlefield.ts`, e a tabela `scenes`
-no schema; rotas, socket e telas chegam nas próximas seções da entrega 1.
+[spec da fase 4](history/2026-11-12-vtt-battlefield-phase4.md). Já
+implementados: regras do grid e limites do mapa em `shared/src/battlefield.ts`,
+a tabela `scenes` e as rotas de cena em `server/src/scenes/` (criar com o
+mapa, editar nome e grid, trocar o mapa, excluir, abrir e fechar para a mesa),
+com `scene.updated` e `scene.closed` no socket. As telas chegam nas próximas
+seções da entrega 1; tokens e fog, nas entregas seguintes.
 
 - **Canvas 2D direto**, sem biblioteca: pan, zoom, pinça e hit-test escritos à
   mão. A lista de tokens e o movimento por teclado ficam em DOM, fora do canvas.
@@ -386,9 +392,15 @@ processo, como o `better-sqlite3`; no Windows, instala com `--ignore-scripts`.
   do GIF animado fica só o primeiro quadro. O banco guarda o tipo e o tamanho
   da cópia, não do arquivo enviado. Avatares enviados antes disso não foram
   reprocessados.
-- **Mapas do VTT** (decidido no [spike](history/2026-11-12-vtt-spike.md),
-  ainda não implementado): entrada de 64 a 8192 px de lado e até 25 MB; saída em
-  JPEG mozjpeg q82 com até 4096 px de lado, sem metadados.
+- **Mapas do VTT** (`server/src/assets/maps.ts`, decidido no
+  [spike](history/2026-11-12-vtt-spike.md)): entrada JPEG, PNG ou WebP de 64 a
+  8192 px de lado e até 25 MB (o corpo maior que isso é recusado com 413 antes
+  de ser lido); saída em JPEG mozjpeg q82 com até 4096 px de lado, sem
+  metadados, orientação EXIF aplicada e transparência sobre branco. A largura e
+  a altura da cópia são o espaço do grid, dos tokens e do fog. Mapas e avatares
+  dividem a mesma fila de decodificação. Ao trocar o mapa ou excluir a cena, a
+  linha em `assets` sai, mas o arquivo fica no armazenamento, como o avatar
+  substituído.
 
 ### Por que R2, e por que opcional
 
