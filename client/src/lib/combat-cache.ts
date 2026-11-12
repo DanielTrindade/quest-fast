@@ -189,3 +189,18 @@ export function removeEncounter(queryClient: QueryClient, campaignId: string, en
   dropFromList(queryClient, campaignId, encounterId);
   queryClient.removeQueries({ queryKey: encounterKey(campaignId, encounterId) });
 }
+
+/**
+ * Requests in flight, counted per combatant. A card stays busy until every
+ * request of its own has settled, whatever happens on the other cards.
+ */
+export type InFlight = Readonly<Record<string, number>>;
+
+export function startRequest(inFlight: InFlight, combatantId: string): InFlight {
+  return { ...inFlight, [combatantId]: (inFlight[combatantId] ?? 0) + 1 };
+}
+
+export function settleRequest(inFlight: InFlight, combatantId: string): InFlight {
+  const { [combatantId]: count = 0, ...rest } = inFlight;
+  return count > 1 ? { ...rest, [combatantId]: count - 1 } : rest;
+}

@@ -355,19 +355,20 @@ function RowActions({ combatant, own, master, editable, busy, tie, ...actions }:
  * hidden combatant). The list shows and asks; it neither sorts nor decides
  * who may see what. Ties are reordered with Antes/Depois, one step at a time.
  */
-export function InitiativeList({ combatants, activeCombatantId, viewerId, master, editable = true, busyId = null, ...actions }: InitiativeActions & {
+export function InitiativeList({ combatants, activeCombatantId, viewerId, master, editable = true, busyIds = [], ...actions }: InitiativeActions & {
   combatants: CombatantView[];
   activeCombatantId: string | null;
   viewerId: string;
   master: boolean;
   /** False once the encounter has ended: read-only for everyone. */
   editable?: boolean;
-  /** The combatant with a request in flight. */
-  busyId?: string | null;
+  /** Combatants with a request in flight: each stays busy until its own requests settle. */
+  busyIds?: readonly string[];
 }) {
   if (combatants.length === 0) {
     return <p className="text-text-secondary">Nenhum combatente no encontro ainda.</p>;
   }
+  const busy = new Set(busyIds);
   return (
     <ol className="m-0 grid min-w-0 list-none gap-2 p-0" aria-label="Ordem de iniciativa">
       {combatants.map((combatant, index) => (
@@ -378,7 +379,7 @@ export function InitiativeList({ combatants, activeCombatantId, viewerId, master
           own={combatant.ownerId === viewerId}
           master={master}
           editable={editable}
-          busy={busyId === combatant.id}
+          busy={busy.has(combatant.id)}
           tie={master ? tiedWith(combatants, index) : { up: false, down: false }}
           {...actions}
         />
