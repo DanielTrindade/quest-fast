@@ -21,6 +21,7 @@ import {
 } from './turn.ts';
 
 const CELL = 50;
+const GRID = { cellSize: CELL };
 const at = (column: number, row: number) => ({ x: (column + 0.5) * CELL, y: (row + 0.5) * CELL });
 
 function spent(result: ReturnType<typeof spendTurn>): TurnBudget {
@@ -29,15 +30,35 @@ function spent(result: ReturnType<typeof spendTurn>): TurnBudget {
 }
 
 test('every square costs 1.5 m, diagonals included', () => {
-  assert.equal(squaresBetween(at(0, 0), at(3, 0), CELL), 3);
-  assert.equal(squaresBetween(at(0, 0), at(3, 3), CELL), 3);
-  assert.equal(squaresBetween(at(0, 0), at(3, 2), CELL), 3);
-  assert.equal(movementCost(at(2, 2), at(0, 7), CELL), 5 * SQUARE_METERS);
-  assert.equal(movementCost(at(4, 4), at(4, 4), CELL), 0);
+  assert.equal(squaresBetween(at(0, 0), at(3, 0), GRID), 3);
+  assert.equal(squaresBetween(at(0, 0), at(3, 3), GRID), 3);
+  assert.equal(squaresBetween(at(0, 0), at(3, 2), GRID), 3);
+  assert.equal(movementCost(at(2, 2), at(0, 7), GRID), 5 * SQUARE_METERS);
+  assert.equal(movementCost(at(4, 4), at(4, 4), GRID), 0);
 });
 
-test('a position a little off the grid rounds to the nearest square', () => {
-  assert.equal(squaresBetween(at(0, 0), { x: at(2, 0).x + 10, y: at(0, 0).y - 12 }, CELL), 2);
+test('a position off the centre counts the square it lies in', () => {
+  assert.equal(squaresBetween(at(0, 0), { x: at(2, 0).x + 10, y: at(0, 0).y - 12 }, GRID), 2);
+  // The grid's offset moves where squares start.
+  assert.equal(squaresBetween({ x: 5, y: 5 }, { x: 15, y: 5 }, { cellSize: 20, offsetX: 10, offsetY: 0 }), 1);
+});
+
+test('a path split into small steps costs every square it enters, never less', () => {
+  // Thirty steps of 9 px on a 20 px grid, without snapping: from square 0 to square 14.
+  const grid = { cellSize: 20 };
+  let at = { x: 10, y: 10 };
+  let squares = 0;
+  for (let step = 0; step < 30; step += 1) {
+    const next = { x: at.x + 9, y: at.y };
+    squares += squaresBetween(at, next, grid);
+    at = next;
+  }
+  assert.equal(squares, squaresBetween({ x: 10, y: 10 }, at, grid));
+  assert.equal(squares, 14);
+});
+
+test('a large token on a junction moves whole squares', () => {
+  assert.equal(squaresBetween({ x: 2 * CELL, y: 2 * CELL }, { x: 4 * CELL, y: 2 * CELL }, GRID), 2);
 });
 
 test('the metres left cover whole squares only', () => {

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { eq } from 'drizzle-orm';
-import { characters } from '@quest-fast/db';
+import { characters, scenes } from '@quest-fast/db';
 import type { EncounterView, SceneResponse, SceneView, TokenView } from '@quest-fast/shared';
 import { body, testImageBytes } from '../testing.ts';
 import { advance, byName, encounterOf, runningEncounter, send, setup, type Setup } from '../combat/test-setup.ts';
@@ -133,4 +133,51 @@ test('a free token has no reach', async () => {
   const { s, scene } = await battle();
   const placed = await sceneOf(await send(s.master, `${scene}/tokens`, 'POST', { kind: 'free', label: 'Barril', size: 'medium', x: 300, y: 300 }), 201);
   assert.equal(named(placed, 'Barril').reach, null);
+});
+
+test('small steps off the grid cost every square they enter', async () => {
+  const { s, scene, path, id, move, fight } = await battle();
+  s.app.db.update(scenes).set({ snapToGrid: false }).where(eq(scenes.id, scene.split('/').at(-1)!)).run();
+  await encounterOf(await advance(s.master, path, id('Goblin 1')));
+
+  // Kaelen starts at x = 50 (square 2); 9 m reach square 8, which starts at x = 160.
+  let x = 50;
+  let refused = 0;
+  for (let step = 0; step < 30; step += 1) {
+    const response = await move('Kaelen', x + 9, 50, s.player);
+    if (response.status === 200) x += 9;
+    else refused += 1;
+  }
+  assert.ok(x < 180, `stopped inside square 8, at x = ${x}`);
+  assert.ok(refused > 0);
+  assert.equal(byName(await fight(), 'Kaelen').turn?.movementLeft, 0);
+});
+
+test('the turn passing lets go of a drag the player began on it', async () => {
+  const { s, scene, path, id, token, move, view } = await battle();
+  await encounterOf(await advance(s.master, path, id('Goblin 1')));
+  await sceneOf(await send(s.player, `${scene}/tokens/${token('Kaelen')}/grab`, 'POST'));
+  assert.notEqual(named(await view(), 'Kaelen').movingBy, null);
+
+  await encounterOf(await advance(s.master, path, id('Kaelen')));
+  assert.equal(named(await view(), 'Kaelen').movingBy, null);
+  assert.equal((await move('Kaelen', 50, 70, s.player)).status, 403);
+});
+
+test("a move spent on one scene updates the reach on every scene the character is on", async () => {
+  const { s, path, id, move } = await battle();
+  const form = new FormData();
+  form.set('name', 'Mapa da masmorra');
+  form.set('image', new Blob([await testImageBytes('png', 600, 400)], { type: 'image/png' }), 'mapa.png');
+  const other = await sceneOf(await s.master(`${s.root}/scenes`, { method: 'POST', body: form }), 201);
+  const otherPath = `${s.root}/scenes/${other.id}`;
+  const placed = await sceneOf(await send(s.master, `${otherPath}/tokens`, 'POST', { kind: 'character', characterId: s.kaelen.id, x: 50, y: 50 }), 201);
+  assert.deepEqual(named(placed, 'Kaelen').reach, { speed: 9, left: 9 });
+
+  await encounterOf(await advance(s.master, path, id('Goblin 1')));
+  const before = await sceneOf(await s.master(otherPath));
+  await sceneOf(await move('Kaelen', 50 + 2 * CELL, 50, s.player));
+  const after = await sceneOf(await s.master(otherPath));
+  assert.deepEqual(named(after, 'Kaelen').reach, { speed: 9, left: 6 });
+  assert.ok(after.version > before.version, 'the other scene has a new version');
 });

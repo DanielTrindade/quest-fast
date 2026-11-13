@@ -212,6 +212,7 @@ export {
   speedFromText,
   squaresBetween,
   squaresFor,
+  type SquareGrid,
   type TurnBudget,
   type TurnSpend,
 } from './turn.ts';

@@ -26,21 +26,32 @@ type Point = { x: number; y: number };
 
 // --- Distance ------------------------------------------------------------------
 
+/** The grid as distance reads it: the size of a square and where the first one starts. */
+export type SquareGrid = Pick<GridSettings, 'cellSize'> & Partial<Pick<GridSettings, 'offsetX' | 'offsetY'>>;
+
+/** The square a point lies in, counted from the grid's offset. */
+function squareOf(value: number, offset: number, cellSize: number): number {
+  // A token on a junction sits exactly on a line: floating point must not tip it back.
+  return Math.floor((value - offset) / cellSize + EPSILON);
+}
+
 /**
- * Squares between two token positions (centres, in map pixels). Every square
- * costs the same, diagonals included, so the distance is the larger of the
- * columns and the rows crossed. Positions off the grid round to the nearest
- * square.
+ * Squares between two token positions (centres, in map pixels): the squares
+ * the token leaves and enters, not the distance rounded. Every square costs
+ * the same, diagonals included, so the distance is the larger of the columns
+ * and the rows crossed. A move inside one square costs nothing, and a path
+ * split into small steps costs the squares it enters, never less.
  */
-export function squaresBetween(from: Point, to: Point, cellSize: number): number {
-  const columns = Math.round(Math.abs(to.x - from.x) / cellSize);
-  const rows = Math.round(Math.abs(to.y - from.y) / cellSize);
+export function squaresBetween(from: Point, to: Point, grid: SquareGrid): number {
+  const { cellSize, offsetX = 0, offsetY = 0 } = grid;
+  const columns = Math.abs(squareOf(to.x, offsetX, cellSize) - squareOf(from.x, offsetX, cellSize));
+  const rows = Math.abs(squareOf(to.y, offsetY, cellSize) - squareOf(from.y, offsetY, cellSize));
   return Math.max(columns, rows);
 }
 
 /** What moving from `from` to `to` costs, in metres. */
-export function movementCost(from: Point, to: Point, cellSize: number): number {
-  return squaresBetween(from, to, cellSize) * SQUARE_METERS;
+export function movementCost(from: Point, to: Point, grid: SquareGrid): number {
+  return squaresBetween(from, to, grid) * SQUARE_METERS;
 }
 
 /** Whole squares `meters` of movement still cover. */
