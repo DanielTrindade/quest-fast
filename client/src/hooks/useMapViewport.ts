@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type RefObject } from 'react';
 import type { GridSettings } from '@quest-fast/shared';
 import { drawMap } from '../lib/map-draw';
 import { clampView, fitView, zoomViewAt, type MapView, type Size } from '../lib/map-view';
@@ -8,6 +8,21 @@ const PAN_STEP = 64;
 const FRAME_MS = 220;
 
 type Point = { x: number; y: number };
+
+/**
+ * What draws over the map (the tokens) and may claim a press before it pans
+ * the map. Points are relative to the canvas, in CSS pixels.
+ */
+export type MapOverlay = {
+  /** Draws over the map; true asks for another frame (something is moving). */
+  draw(context: CanvasRenderingContext2D, view: MapView, now: number): boolean;
+  /** True when the overlay takes this press (a token was hit): the map does not pan. */
+  pointerDown(point: Point, view: MapView): boolean;
+  pointerMove(point: Point, view: MapView): void;
+  pointerUp(point: Point, view: MapView): void;
+  /** The press stops being the overlay's (a second finger arrived): drop nothing. */
+  cancel(): void;
+};
 
 const prefersReducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -25,11 +40,13 @@ function localPoint(event: PointerEvent<HTMLCanvasElement>): Point {
  * the next animation frame, so dragging never re-renders React; only the
  * zoom shown in the DOM is state.
  */
-export function useMapViewport({ imageUrl, mapWidth, mapHeight, grid }: {
+export function useMapViewport({ imageUrl, mapWidth, mapHeight, grid, overlayRef }: {
   imageUrl: string;
   mapWidth: number;
   mapHeight: number;
   grid: GridSettings;
+  /** Read on every frame and press, so the layer never restarts the map. */
+  overlayRef?: RefObject<MapOverlay | null>;
 }) {
   const frameRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -41,6 +58,13 @@ export function useMapViewport({ imageUrl, mapWidth, mapHeight, grid }: {
   const drawRequest = useRef(0);
   const animation = useRef(0);
   const pointers = useRef(new Map<number, Point>());
+  /** The pointer an overlay claimed; it never pans the map. */
+  const overlayPointer = useRef<number | null>(null);
+  /** Where the overlay's pointer last was, to hand it to the map for a pinch. */
+  const overlayPoint = useRef<Point | null>(null);
+  // The frame callback asks for the next frame through a ref: a callback
+  // cannot name itself while it is being declared.
+  const requestDrawRef = useRef<() => void>(() => {});
   const [loaded, setLoaded] = useState<{ url: string; ok: boolean } | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [zoom, setZoom] = useState<number | null>(null);
@@ -61,8 +85,15 @@ export function useMapViewport({ imageUrl, mapWidth, mapHeight, grid }: {
         grid: gridRef.current,
         themed: frameRef.current ?? context.canvas,
       });
+      const view = viewRef.current;
+      if (view && imageRef.current && overlayRef?.current?.draw(context, view, performance.now())) requestDrawRef.current();
     });
-  }, []);
+  }, [overlayRef]);
+  useEffect(() => {
+    requestDrawRef.current = requestDraw;
+  }, [requestDraw]);
+
+
 
   /** Every change of the view goes through here: clamped, drawn and reported. */
   const setView = useCallback((next: MapView) => {
@@ -188,11 +219,30 @@ export function useMapViewport({ imageUrl, mapWidth, mapHeight, grid }: {
     if (status !== 'ready' || (event.pointerType === 'mouse' && event.button !== 0)) return;
     event.currentTarget.setPointerCapture(event.pointerId);
     stopAnimation();
-    pointers.current.set(event.pointerId, localPoint(event));
+    const view = viewRef.current;
+    const point = localPoint(event);
+    // A second finger makes it the map's pinch, even if the first was on a token.
+    if (overlayPointer.current !== null) {
+      overlayRef?.current?.cancel();
+      if (overlayPoint.current) pointers.current.set(overlayPointer.current, overlayPoint.current);
+      overlayPointer.current = null;
+      overlayPoint.current = null;
+    } else if (view && pointers.current.size === 0 && overlayRef?.current?.pointerDown(point, view)) {
+      // One finger on a token the viewer may move drags the token.
+      overlayPointer.current = event.pointerId;
+      overlayPoint.current = point;
+      return;
+    }
+    pointers.current.set(event.pointerId, point);
     setDragging(true);
   };
 
   const onPointerMove = (event: PointerEvent<HTMLCanvasElement>) => {
+    if (event.pointerId === overlayPointer.current) {
+      overlayPoint.current = localPoint(event);
+      if (viewRef.current) overlayRef?.current?.pointerMove(overlayPoint.current, viewRef.current);
+      return;
+    }
     const previous = pointers.current.get(event.pointerId);
     const view = viewRef.current;
     if (!previous || !view) return;
@@ -216,6 +266,12 @@ export function useMapViewport({ imageUrl, mapWidth, mapHeight, grid }: {
   };
 
   const onPointerEnd = (event: PointerEvent<HTMLCanvasElement>) => {
+    if (event.pointerId === overlayPointer.current) {
+      overlayPointer.current = null;
+      overlayPoint.current = null;
+      if (viewRef.current) overlayRef?.current?.pointerUp(localPoint(event), viewRef.current);
+      return;
+    }
     pointers.current.delete(event.pointerId);
     if (pointers.current.size === 0) setDragging(false);
   };
@@ -247,6 +303,7 @@ export function useMapViewport({ imageUrl, mapWidth, mapHeight, grid }: {
     retry: () => setAttempt((count) => count + 1),
     zoomBy,
     frameMap,
+    requestDraw,
     frameHandlers: { onKeyDown },
     canvasHandlers: {
       onPointerDown,
