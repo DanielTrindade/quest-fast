@@ -185,6 +185,8 @@ export const characters = sqliteTable(
     shield: integer('shield', { mode: 'boolean' }).notNull().default(false),
     /** Meters, as the Portuguese sheet writes it. */
     speed: real('speed').notNull().default(9),
+    /** Attacks of one Attack action; null reads them from the class and level. */
+    attacksPerAction: integer('attacks_per_action'),
     hitDie: integer('hit_die').$type<HitDie>().notNull().default(8),
     initiativeBonus: integer('initiative_bonus').notNull().default(0),
     passivePerceptionBonus: integer('passive_perception_bonus').notNull().default(0),
@@ -283,6 +285,8 @@ export const statblocks = sqliteTable(
     traits: text('traits').notNull().default(''),
     actions: text('actions').notNull().default(''),
     reactions: text('reactions').notNull().default(''),
+    /** Multiattack: copied to each combatant made from this entry. */
+    attacksPerAction: integer('attacks_per_action').notNull().default(1),
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(now),
     updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(now),
   },
@@ -362,6 +366,20 @@ export const combatants = sqliteTable(
     reminders: text('reminders', { mode: 'json' }).$type<CombatReminder[]>().notNull().default([]),
     /** The round of the last death save rolled: a player rolls once per turn. */
     deathSaveRound: integer('death_save_round'),
+    /** Metres; a character's comes from the sheet. */
+    speed: real('speed').notNull().default(9),
+    /** Multiattack; a character's comes from the sheet. */
+    attacksPerAction: integer('attacks_per_action').notNull().default(1),
+    // The current turn (the reaction: since its own turn last began). Back to
+    // the defaults whenever this combatant's turn begins.
+    actionUsed: integer('action_used', { mode: 'boolean' }).notNull().default(false),
+    bonusActionUsed: integer('bonus_action_used', { mode: 'boolean' }).notNull().default(false),
+    reactionUsed: integer('reaction_used', { mode: 'boolean' }).notNull().default(false),
+    attacksLeft: integer('attacks_left').notNull().default(0),
+    extraActions: integer('extra_actions').notNull().default(0),
+    dashes: integer('dashes').notNull().default(0),
+    /** Metres walked this turn. */
+    movementUsed: real('movement_used').notNull().default(0),
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(now),
   },
   (table) => [

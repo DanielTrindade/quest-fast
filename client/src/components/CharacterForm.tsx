@@ -83,6 +83,7 @@ const ERROR_TAB: Record<keyof CharacterFieldErrors, FormTab> = {
   hp: 'identity',
   ac: 'identity',
   speed: 'identity',
+  attacksPerAction: 'identity',
   initiativeBonus: 'identity',
   passivePerceptionBonus: 'identity',
   abilityScores: 'abilities',

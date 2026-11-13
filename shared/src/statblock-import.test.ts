@@ -28,6 +28,7 @@ function sheet(overrides: Partial<ImportedSheet> = {}): ImportedSheet {
     ac: 16,
     shield: true,
     speed: 9,
+    attacksPerAction: null,
     hitDie: 10,
     initiativeBonus: 0,
     passivePerceptionBonus: 0,

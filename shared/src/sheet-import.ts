@@ -595,6 +595,8 @@ export function sheetFromOfficialPdf(raw: PdfFieldValues, unreadable: readonly s
       ac: parseInteger(text(FIELDS.ac)) ?? 10,
       shield: checked(FIELDS.shield),
       speed: parseSpeed(text(FIELDS.speed)) ?? 9,
+      // The official sheet has no field for it: the class and level decide.
+      attacksPerAction: null,
       hitDie,
       initiativeBonus: adjustment('Iniciativa', parseInteger(text(FIELDS.initiative)), modifier('dexterity')),
       passivePerceptionBonus: adjustment(

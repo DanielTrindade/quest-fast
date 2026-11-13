@@ -1,4 +1,4 @@
-import { healthBand, isDefeated, pendingReminders, type CombatantView, type EncounterView } from '@quest-fast/shared';
+import { effectiveSpeed, healthBand, isDefeated, movementLeft, pendingReminders, type CombatantView, type EncounterView, type TurnView } from '@quest-fast/shared';
 import type { Viewer } from '../events/hub.ts';
 import { attacksOf, queueOrder, type LoadedCombatant, type LoadedEncounter } from './state.ts';
 
@@ -6,8 +6,25 @@ function defeated(combatant: LoadedCombatant): boolean {
   return isDefeated({ source: combatant.row.source, hpCurrent: combatant.hpCurrent });
 }
 
-function projectCombatant(combatant: LoadedCombatant, master: boolean, round: number): CombatantView {
+/** What is left of a combatant's turn, as the server counts it. */
+export function turnOf(combatant: LoadedCombatant): TurnView {
   const { row } = combatant;
+  const speed = effectiveSpeed(combatant.speed, combatant.conditions);
+  const budget = {
+    actionUsed: row.actionUsed,
+    bonusActionUsed: row.bonusActionUsed,
+    reactionUsed: row.reactionUsed,
+    attacksLeft: row.attacksLeft,
+    extraActions: row.extraActions,
+    dashes: row.dashes,
+    movementUsed: row.movementUsed,
+  };
+  return { ...budget, speed, movementLeft: movementLeft(budget, speed), attacksPerAction: combatant.attacksPerAction };
+}
+
+function projectCombatant(combatant: LoadedCombatant, viewer: Viewer, round: number): CombatantView {
+  const { row } = combatant;
+  const master = viewer.role === 'master';
   // Allies are open to the whole table; a monster's numbers are the master's.
   const known = master || row.source === 'character';
   return {
@@ -38,6 +55,10 @@ function projectCombatant(combatant: LoadedCombatant, master: boolean, round: nu
       : [],
     // A statblock's attacks give its bonus and damage away.
     attacks: known ? attacksOf(combatant) : [],
+    speed: known ? combatant.speed : null,
+    attacksPerAction: known ? combatant.attacksPerAction : null,
+    // The turn is the master's and the owner's to manage, not the table's.
+    turn: master || (combatant.ownerId !== null && combatant.ownerId === viewer.userId) ? turnOf(combatant) : null,
   };
 }
 
@@ -68,7 +89,7 @@ export function projectEncounter(loaded: LoadedEncounter, viewer: Viewer): Encou
     createdAt: encounter.createdAt.toISOString(),
     startedAt: encounter.startedAt?.toISOString() ?? null,
     endedAt: encounter.endedAt?.toISOString() ?? null,
-    combatants: visible.map((combatant) => projectCombatant(combatant, master, encounter.round)),
+    combatants: visible.map((combatant) => projectCombatant(combatant, viewer, encounter.round)),
     summary:
       encounter.status === 'ended'
         ? {

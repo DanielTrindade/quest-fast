@@ -252,6 +252,7 @@ const worstStatblocks: Statblock[] = [
     hpAverage: S.hp.max,
     hpFormula: fit('20d20+20d12+20d10+20d8+20d6', S.hpFormula),
     speed: fit('9 m, escalada 9 m, natação 24 m, voo 36 m (pairar), escavar 3 m', S.speed),
+    attacksPerAction: 8,
     initiativeBonus: S.initiativeBonus.max,
     abilityScores: { strength: 30, dexterity: 1, constitution: 30, intelligence: 1, wisdom: 30, charisma: 30 },
     attacks: Array.from({ length: S.attacks }, (_, index) => ({
@@ -271,7 +272,8 @@ function combatant(id: string, name: string, extra: Partial<CombatantView> = {})
   return {
     id, source: 'statblock', characterId: null, ownerId: null, name, size: 'medium', hidden: false,
     initiative: 10, hasInitiative: true, dexModifier: 0, tieOrder: 0, ac: 15, hpMax: 30, hpCurrent: 30, hpTemp: 0,
-    healthBand: 'unhurt', defeated: false, conditions: [], concentrating: false, deathSaves: null, deathSaveRolled: false, reminders: [], attacks: [], ...extra,
+    healthBand: 'unhurt', defeated: false, conditions: [], concentrating: false, deathSaves: null, deathSaveRolled: false, reminders: [], attacks: [],
+    speed: 9, attacksPerAction: 1, turn: null, ...extra,
   };
 }
 

@@ -25,6 +25,9 @@ const base = {
   deathSaveRolled: false,
   reminders: [],
   attacks: [],
+  speed: 9,
+  attacksPerAction: 1,
+  turn: null,
 } satisfies Partial<CombatantView>;
 
 const SCIMITAR: Attack = { kind: 'attack', name: 'Cimitarra', bonus: 4, damage: '1d6+2', damageType: 'Cortante', notes: '' };

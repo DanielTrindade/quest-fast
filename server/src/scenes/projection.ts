@@ -49,6 +49,8 @@ export function projectToken(token: LoadedToken): TokenView {
     x: row.x,
     y: row.y,
     movingBy: token.movingBy,
+    // Filled with the turn rules (next section): the server alone knows what is left.
+    reach: null,
   };
 }
 

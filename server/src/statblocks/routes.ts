@@ -6,6 +6,8 @@ import {
   ABILITIES,
   CHARACTER_LIMITS as L,
   STATBLOCK_LIMITS as S,
+  TURN_LIMITS,
+  isAttacksPerAction,
   isChallengeRating,
   isSize,
   parseDiceExpression,
@@ -17,7 +19,9 @@ import type { Context } from '../context.ts';
 import { requireAuth, requireCampaignRole } from '../middleware.ts';
 import { boundedInteger, fail, isInputError, parseAttack, shortText, withInput } from '../validation.ts';
 
-type StatblockColumns = Omit<StatblockRow, 'id' | 'campaignId' | 'createdAt' | 'updatedAt'>;
+type StatblockColumns = Omit<StatblockRow, 'id' | 'campaignId' | 'createdAt' | 'updatedAt' | 'attacksPerAction'> & {
+  attacksPerAction?: number;
+};
 
 /** Absent or empty text becomes ''; anything else must fit the limit. */
 function optionalText(value: unknown, limit: number, label: string): string {
@@ -76,6 +80,12 @@ function parseStatblockInput(body: unknown): StatblockColumns {
     fail(`O bônus de iniciativa deve ser um número entre ${S.initiativeBonus.min} e ${S.initiativeBonus.max}.`);
   }
 
+  // Absent keeps what is stored on an edit; a new entry takes the column's default, 1.
+  const { attacksPerAction } = source;
+  if (attacksPerAction !== undefined && !isAttacksPerAction(attacksPerAction)) {
+    fail(`Ataques por ação deve ser um número entre ${TURN_LIMITS.attacksPerAction.min} e ${TURN_LIMITS.attacksPerAction.max}.`);
+  }
+
   const attacksInput = source.attacks ?? [];
   if (!Array.isArray(attacksInput) || attacksInput.length > S.attacks) fail(`Limite de ${S.attacks} ataques.`);
   const attacks = attacksInput.map((raw) => {
@@ -99,6 +109,7 @@ function parseStatblockInput(body: unknown): StatblockColumns {
     traits: optionalText(source.traits, S.text, 'Os traços'),
     actions: optionalText(source.actions, S.text, 'As ações'),
     reactions: optionalText(source.reactions, S.text, 'As reações'),
+    ...(attacksPerAction === undefined ? {} : { attacksPerAction: attacksPerAction as number }),
   };
 }
 

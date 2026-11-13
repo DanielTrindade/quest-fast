@@ -14,6 +14,7 @@ export const goblin: Statblock = {
   hpAverage: 7,
   hpFormula: '2d6',
   speed: '9 m',
+  attacksPerAction: 1,
   initiativeBonus: 0,
   abilityScores: { strength: 8, dexterity: 14, constitution: 10, intelligence: 10, wisdom: 8, charisma: 8 },
   attacks: [
@@ -37,6 +38,7 @@ export const wyrmDasCinzas: Statblock = {
   hpAverage: 256,
   hpFormula: '19d12+133',
   speed: '12 m, escalada 12 m, voo 24 m',
+  attacksPerAction: 1,
   initiativeBonus: 4,
   abilityScores: { strength: 27, dexterity: 10, constitution: 25, intelligence: 16, wisdom: 13, charisma: 21 },
   attacks: [
@@ -74,6 +76,7 @@ export const semExtras: Statblock = {
   hpAverage: 11,
   hpFormula: '',
   speed: '',
+  attacksPerAction: 1,
   initiativeBonus: 0,
   abilityScores: { strength: 12, dexterity: 15, constitution: 12, intelligence: 3, wisdom: 12, charisma: 6 },
   attacks: [],
@@ -100,7 +103,7 @@ export const npcSheetImport: SheetImportResult = {
     background: 'Soldado',
     alignment: 'Leal e Neutra', level: 3, experience: 900, size: 'medium',
     abilityScores: { strength: 16, dexterity: 14, constitution: 14, intelligence: 10, wisdom: 12, charisma: 8 },
-    hp: 28, ac: 16, shield: true, speed: 9, hitDie: 10, initiativeBonus: 0, passivePerceptionBonus: 0,
+    hp: 28, ac: 16, shield: true, speed: 9, attacksPerAction: null, hitDie: 10, initiativeBonus: 0, passivePerceptionBonus: 0,
     skills: ['athletics', 'perception'], expertise: [], saves: ['strength', 'constitution'],
     armorTraining: ['light', 'medium', 'heavy', 'shields'], weaponProficiencies: 'Simples e marciais', toolProficiencies: '',
     attacks: [

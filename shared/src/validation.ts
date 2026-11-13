@@ -8,6 +8,7 @@
 import { ABILITIES, isAbility } from './modifiers.ts';
 import { parseDiceExpression } from './dice.ts';
 import { CHARACTER_LIMITS as L, COINS, SPELL_SLOT_CAPS, isSpeed } from './sheet.ts';
+import { TURN_LIMITS, isAttacksPerAction } from './turn.ts';
 import { STATBLOCK_LIMITS as S, isChallengeRating } from './combat.ts';
 import type { AttackInput, CharacterInput, StatblockInput } from './api.ts';
 import type { ImportedAttack } from './sheet-import.ts';
@@ -25,6 +26,7 @@ export type CharacterFieldErrors = Partial<
     | 'hp'
     | 'ac'
     | 'speed'
+    | 'attacksPerAction'
     | 'initiativeBonus'
     | 'passivePerceptionBonus'
     | 'abilityScores'
@@ -111,6 +113,9 @@ export function validateCharacterInput(input: ValidatedInput): CharacterFieldErr
   if (input.speed !== undefined && !isSpeed(input.speed)) {
     errors.speed = `Deslocamento deve estar entre ${L.speed.min} e ${L.speed.max} metros.`;
   }
+  if (input.attacksPerAction !== undefined && input.attacksPerAction !== null && !isAttacksPerAction(input.attacksPerAction)) {
+    errors.attacksPerAction = `Ataques por ação deve ser um número entre ${TURN_LIMITS.attacksPerAction.min} e ${TURN_LIMITS.attacksPerAction.max}.`;
+  }
   for (const key of ['initiativeBonus', 'passivePerceptionBonus', 'spellBonus'] as const) {
     const value = input[key];
     if (value !== undefined && !inRange(value, L.adjustment.min, L.adjustment.max)) {
@@ -192,6 +197,7 @@ export type StatblockFieldErrors = Partial<
     | 'hpAverage'
     | 'hpFormula'
     | 'speed'
+    | 'attacksPerAction'
     | 'initiativeBonus'
     | 'abilityScores'
     | 'attacks'
@@ -224,6 +230,9 @@ export function validateStatblockInput(input: ValidatedStatblock): StatblockFiel
     errors.hpFormula = 'Use uma expressão de dados (ex.: 2d8+2) ou deixe em branco.';
   }
   if (tooLong(input.speed, S.speed)) errors.speed = `Use até ${S.speed} caracteres.`;
+  if (input.attacksPerAction !== undefined && !isAttacksPerAction(input.attacksPerAction)) {
+    errors.attacksPerAction = `Ataques por ação deve ser um número entre ${TURN_LIMITS.attacksPerAction.min} e ${TURN_LIMITS.attacksPerAction.max}.`;
+  }
   if (!inRange(input.initiativeBonus, S.initiativeBonus.min, S.initiativeBonus.max)) {
     errors.initiativeBonus = `O bônus deve ser um número entre ${S.initiativeBonus.min} e ${S.initiativeBonus.max}.`;
   }

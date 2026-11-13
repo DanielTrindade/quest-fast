@@ -8,7 +8,7 @@ import {
   type Db,
   type EncounterRow,
 } from '@quest-fast/db';
-import { sortInitiative, turnQueue, type ActiveCondition, type Attack, type QueueEntry, type TurnEntry } from '@quest-fast/shared';
+import { classAttacksPerAction, sortInitiative, turnQueue, type ActiveCondition, type Attack, type QueueEntry, type TurnEntry } from '@quest-fast/shared';
 
 /** The database or an open transaction: the helpers here run inside both. */
 export type Executor = Pick<Db, 'select' | 'insert' | 'update' | 'delete'>;
@@ -30,6 +30,10 @@ type SheetColumns = Pick<
   | 'abilityScores'
   | 'initiativeBonus'
   | 'attacks'
+  | 'speed'
+  | 'class'
+  | 'subclass'
+  | 'attacksPerAction'
 >;
 
 /**
@@ -47,6 +51,10 @@ export type LoadedCombatant = {
   hpTemp: number;
   conditions: ActiveCondition[];
   concentrating: boolean;
+  /** Walking speed in metres, before conditions. */
+  speed: number;
+  /** Attacks of one Attack action: the sheet's (or its class and level), or the row's. */
+  attacksPerAction: number;
 };
 
 export type LoadedEncounter = { encounter: EncounterRow; combatants: LoadedCombatant[] };
@@ -74,6 +82,10 @@ const sheetColumns = {
   abilityScores: characters.abilityScores,
   initiativeBonus: characters.initiativeBonus,
   attacks: characters.attacks,
+  speed: characters.speed,
+  class: characters.class,
+  subclass: characters.subclass,
+  attacksPerAction: characters.attacksPerAction,
 };
 
 function resolve(row: CombatantRow, sheet: SheetColumns | null): LoadedCombatant {
@@ -89,6 +101,8 @@ function resolve(row: CombatantRow, sheet: SheetColumns | null): LoadedCombatant
       hpTemp: sheet.hpTemp,
       conditions: sheet.conditions,
       concentrating: sheet.concentrating,
+      speed: sheet.speed,
+      attacksPerAction: sheet.attacksPerAction ?? classAttacksPerAction(sheet.class, sheet.subclass, sheet.level),
     };
   }
   return {
@@ -102,6 +116,8 @@ function resolve(row: CombatantRow, sheet: SheetColumns | null): LoadedCombatant
     hpTemp: row.hpTemp ?? 0,
     conditions: row.conditions ?? [],
     concentrating: row.concentrating ?? false,
+    speed: row.speed,
+    attacksPerAction: row.attacksPerAction,
   };
 }
 
