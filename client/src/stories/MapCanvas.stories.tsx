@@ -54,6 +54,45 @@ export const Padrao: Story = {
   },
 };
 
+/** The switch only: the screen decides what full screen means (the Mesa fills the window). */
+function FullscreenSwitch(props: MapCanvasProps) {
+  const { onFullscreenChange } = props;
+  const [fullscreen, setFullscreen] = useState(false);
+  return (
+    <MapCanvas {...props} imageUrl={props.imageUrl || syntheticMapUrl()} fullscreen={fullscreen}
+      onFullscreenChange={(next) => {
+        setFullscreen(next);
+        onFullscreenChange?.(next);
+      }} />
+  );
+}
+
+export const TelaCheia: Story = {
+  name: 'Botão de tela cheia',
+  args: { onFullscreenChange: fn() },
+  render: (args) => <FullscreenSwitch {...args} />,
+  play: async ({ canvasElement, args }) => {
+    const { map } = await readyMap(canvasElement);
+    await userEvent.click(map.getByRole('button', { name: 'Mapa em tela cheia' }));
+    await expect(args.onFullscreenChange).toHaveBeenCalledWith(true);
+    await userEvent.click(map.getByRole('button', { name: 'Sair da tela cheia' }));
+    await expect(args.onFullscreenChange).toHaveBeenLastCalledWith(false);
+  },
+};
+
+export const TelaCheiaComErro: Story = {
+  name: 'Tela cheia com o mapa em erro',
+  args: { imageUrl: '/mapa-que-nao-existe.jpg', fullscreen: true, onFullscreenChange: fn() },
+  render: (args) => <MapCanvas {...args} />,
+  play: async ({ canvasElement, args }) => {
+    const [region] = within(canvasElement).getAllByRole('region', { name: /^Tema / });
+    const frame = within(region).getByRole('group', { name: 'Salão em ruínas' });
+    await waitFor(() => expect(frame).toHaveAttribute('data-status', 'error'));
+    await userEvent.click(within(frame).getByRole('button', { name: 'Sair da tela cheia' }));
+    await expect(args.onFullscreenChange).toHaveBeenCalledWith(false);
+  },
+};
+
 export const GridAlinhado: Story = {
   name: 'Grid alinhado ao desenho',
   args: { grid: alignedSceneGrid },

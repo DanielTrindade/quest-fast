@@ -41,7 +41,7 @@ export function TableMap({ campaignId, isMaster }: { campaignId: string; isMaste
           )} />
       )}
       {scene && (
-        <SceneStage key={scene.id} campaignId={campaignId} scene={scene} isMaster={isMaster}
+        <SceneStage key={scene.id} campaignId={campaignId} scene={scene} isMaster={isMaster} allowFullscreen
           mapClassName="h-[min(70dvh,720px)] min-h-[320px]" />
       )}
     </section>
