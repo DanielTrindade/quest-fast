@@ -83,4 +83,8 @@ test('a bestiary entry stores its multiattack, 1 when not sent', async () => {
   assert.equal((await send(s.master, path, 'POST', { ...GOBLIN, name: 'Ogro', attacksPerAction: 9 })).status, 422);
   const ogre = (await body<StatblockResponse>(await send(s.master, path, 'POST', { ...GOBLIN, name: 'Ogro', attacksPerAction: 2 }))).statblock;
   assert.equal(ogre.attacksPerAction, 2);
+
+  // The bestiary editor does not send it: an edit keeps the multiattack stored.
+  const edited = (await body<StatblockResponse>(await send(s.master, `${path}/${ogre.id}`, 'PATCH', { ...GOBLIN, name: 'Ogro', ac: 11 }))).statblock;
+  assert.deepEqual([edited.ac, edited.attacksPerAction], [11, 2]);
 });

@@ -40,8 +40,9 @@ confirma a posição.
   deslocamento ("9 m, voo 18 m" → 9 m), copiado para o combatente; o mestre
   pode corrigir.
 - **Combatente manual:** 9 m por padrão, editável pelo mestre.
-- **Condições:** Agarrado e Contido zeram o deslocamento; cada nível de
-  Exaustão tira 1,5 m. Caído fica fora (sem regra de rastejar).
+- **Condições:** Agarrado, Contido, Paralisado, Petrificado e Inconsciente
+  zeram o deslocamento (Atordoado não, em 2024); cada nível de Exaustão tira
+  1,5 m. Caído fica fora (sem regra de rastejar).
 - **Disparada:** gasta a ação e soma o deslocamento outra vez no turno.
 
 ### Ações

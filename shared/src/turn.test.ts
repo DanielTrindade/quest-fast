@@ -81,10 +81,15 @@ test('the walking speed comes from the first number of the bestiary text', () =>
   assert.equal(speedFromText('voa muito rápido'), null);
 });
 
-test('Grappled and Restrained hold the speed at 0; each Exhaustion level takes 1.5 m', () => {
+test('Grappled, Restrained, Paralyzed, Petrified and Unconscious hold the speed at 0; each Exhaustion level takes 1.5 m', () => {
   assert.equal(effectiveSpeed(9, []), 9);
   assert.equal(effectiveSpeed(9, [{ condition: 'grappled' }]), 0);
   assert.equal(effectiveSpeed(9, [{ condition: 'restrained', roundsLeft: 2 }]), 0);
+  for (const condition of ['paralyzed', 'petrified', 'unconscious'] as const) {
+    assert.equal(effectiveSpeed(9, [{ condition }]), 0, condition);
+  }
+  // Stunned does not touch the speed in 2024.
+  assert.equal(effectiveSpeed(9, [{ condition: 'stunned' }]), 9);
   assert.equal(effectiveSpeed(9, [{ condition: 'exhaustion', level: 2 }]), 6);
   assert.equal(effectiveSpeed(3, [{ condition: 'exhaustion', level: 6 }]), 0);
   assert.equal(effectiveSpeed(9, [{ condition: 'prone' }]), 9);
