@@ -167,11 +167,13 @@ try {
         continue;
       }
       // Negative controls above never retry: they must fail exactly as before.
+      // Nor does a timeout that came with a page error: that error fails the
+      // story on the first attempt, as it would if the story had settled.
       let flaky;
       try {
         await visit(story.id);
       } catch (error) {
-        if (!(error instanceof SettleTimeout)) throw error;
+        if (!(error instanceof SettleTimeout) || error.diagnosis.pageErrors.length) throw error;
         flaky = error.summary;
         console.warn(`RETRY ${story.id}: ${error.message}`);
         await visit(story.id, 'both', 2);
