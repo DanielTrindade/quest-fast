@@ -12,6 +12,7 @@ import { feedRoutes } from './feed/routes.ts';
 import { statblockRoutes } from './statblocks/routes.ts';
 import { encounterRoutes } from './combat/routes.ts';
 import { sceneRoutes } from './scenes/routes.ts';
+import { settleAbandonedLock } from './scenes/tokens.ts';
 import type { Context, Deps } from './context.ts';
 import { requireAuth } from './middleware.ts';
 
@@ -26,6 +27,9 @@ export function createApp({ serveClient = true, inviteAttempts, ...deps }: AppOp
   // One budget for every route that takes an invite code, so alternating
   // between them does not multiply the guesses.
   const attempts = createAttemptLimiter(inviteAttempts);
+  // A lock left behind (socket closed, or no move in time) saves where the
+  // token was last seen and frees it for the table.
+  deps.locks.onAbandon((lock) => settleAbandonedLock(deps, lock));
 
   app.use('*', async (c, next) => {
     c.set('deps', deps);

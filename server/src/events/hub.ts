@@ -39,7 +39,19 @@ export type EventHub = {
   publishSceneClosed(campaignId: string, sceneId: string): void;
   /** Sends `characters.changed` to the whole room: the roster is public to its members. */
   publishCharactersChanged(campaignId: string): void;
+  /**
+   * Relays where a dragged token is to each connection whose viewer `canSee`
+   * it, but the one that sent it. Never saved; the drop goes through REST.
+   */
+  publishTokenMoving(
+    campaignId: string,
+    moving: Omit<Extract<SocketMessage, { type: 'token.moving' }>, 'type'>,
+    canSee: (viewer: Viewer) => boolean,
+    except?: WebSocket,
+  ): void;
   join(campaignId: string, viewer: Viewer, socket: WebSocket): void;
+  /** Whether the user still has an open socket in the campaign's room. */
+  connected(campaignId: string, userId: string): boolean;
   leave(socket: WebSocket): void;
   /**
    * Drops every socket of the user in the campaign's room at once — the next
@@ -53,10 +65,11 @@ export function createEventHub(): EventHub {
   const rooms = new Map<string, Set<WebSocket>>();
   const connections = new WeakMap<WebSocket, Connection>();
 
-  function send(campaignId: string, message: (connection: Connection) => SocketMessage | null) {
+  function send(campaignId: string, message: (connection: Connection) => SocketMessage | null, except?: WebSocket) {
     const room = rooms.get(campaignId);
     if (!room) return;
     for (const socket of room) {
+      if (socket === except) continue;
       const connection = connections.get(socket);
       if (!connection || socket.readyState !== socket.OPEN) continue;
       const outgoing = message(connection);
@@ -74,6 +87,10 @@ export function createEventHub(): EventHub {
       }
       room.add(socket);
       socket.on('close', () => hub.leave(socket));
+    },
+
+    connected(campaignId, userId) {
+      return [...(rooms.get(campaignId) ?? [])].some((socket) => connections.get(socket)?.userId === userId);
     },
 
     leave(socket) {
@@ -120,6 +137,10 @@ export function createEventHub(): EventHub {
 
     publishCharactersChanged(campaignId) {
       send(campaignId, () => ({ type: 'characters.changed' }));
+    },
+
+    publishTokenMoving(campaignId, moving, canSee, except) {
+      send(campaignId, (connection) => (canSee(connection) ? { type: 'token.moving', ...moving } : null), except);
     },
 
     publishCombatDeleted(campaignId, encounterId, couldSee) {

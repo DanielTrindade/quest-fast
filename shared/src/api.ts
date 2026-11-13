@@ -2,7 +2,7 @@ import type { Role } from './role.ts';
 import type { DieResult, RollMode } from './dice.ts';
 import type { Ability, Skill } from './modifiers.ts';
 import type { ArmorTraining, Coins, DeathSaves, HitDie, Size, Spell, SpellSlot } from './sheet.ts';
-import type { GridSettings } from './battlefield.ts';
+import type { GridSettings, TokenKind } from './battlefield.ts';
 import type { ActiveCondition, COMBATANT_SOURCES, CombatReminder, ENCOUNTER_STATUSES, HealthBand, HpOperation } from './combat.ts';
 
 /**
@@ -425,7 +425,20 @@ export type SocketMessage =
    * A sheet of the campaign was created, changed, deleted or became the active
    * one. A hint with no data: the client asks the server for the roster again.
    */
-  | { type: 'characters.changed' };
+  | { type: 'characters.changed' }
+  /**
+   * Where a token is while someone drags it, about 30 times a second. Never
+   * saved: the drop arrives as `scene.updated`. Sent only to whoever sees the
+   * token; `ts` is the server's clock, for the receiver's interpolation.
+   */
+  | { type: 'token.moving'; tokenId: string; x: number; y: number; ts: number };
+
+/**
+ * What the client may send over the socket: only the position of the token it
+ * is dragging, and only while it holds the lock (`POST …/grab`). Anything else
+ * goes through REST.
+ */
+export type ClientSocketMessage = { type: 'token.move'; tokenId: string; x: number; y: number };
 
 // --- Phase 2: combat and bestiary --------------------------------------------
 
@@ -727,8 +740,8 @@ export const COMBAT_EVENT_TYPES = [
 /**
  * A scene as its receiver may see it, from the REST routes and the socket
  * alike. The map is served by URL; the client draws it at `mapWidth` ×
- * `mapHeight`, the space every coordinate is in. Tokens and fog arrive in
- * later deliveries.
+ * `mapHeight`, the space every coordinate is in. The fog arrives in a later
+ * delivery.
  */
 export type SceneView = {
   id: string;
@@ -740,10 +753,73 @@ export type SceneView = {
   grid: GridSettings;
   /** Open for the table. Always true for a player, who sees no other scene. */
   active: boolean;
+  /** Only the tokens the receiver may see: a player never gets a hidden one. */
+  tokens: TokenView[];
   /** Grows with every saved change, opening and closing included; the client drops an older one. */
   version: number;
   createdAt: string;
 };
+
+/**
+ * A token on a scene, with its name and size already read from the origin
+ * (the sheet, the combatant, or its own for a free token).
+ */
+export type TokenView = {
+  id: string;
+  kind: TokenKind;
+  name: string;
+  size: Size;
+  /** The character's avatar; null for everyone else, drawn with `initials`. */
+  avatarUrl: string | null;
+  /** Fallback when there is no avatar, or while it loads. */
+  initials: string;
+  characterId: string | null;
+  combatantId: string | null;
+  /** The bestiary entry a free token was copied from, kept as a reference. */
+  statblockId: string | null;
+  /** The player who may move it besides the master: the owner of the character. */
+  ownerId: string | null;
+  /** Hidden by the master. Always false for a player, who never receives one. */
+  hidden: boolean;
+  /** Centre of the token, in map pixels. */
+  x: number;
+  y: number;
+  /** Someone holds the lock and is dragging it. */
+  movingBy: { userId: string; name: string } | null;
+};
+
+/**
+ * What the master sends to put a token on the scene, at its centre (x, y):
+ * the client picks the middle of the area in view; the server snaps it. A
+ * bestiary entry becomes a free token with that entry's name and size.
+ */
+export type TokenInput = { x: number; y: number } & (
+  | { kind: 'character'; characterId: string }
+  | { kind: 'combatant'; combatantId: string }
+  | { kind: 'statblock'; statblockId: string }
+  | { kind: 'free'; label: string; size: Size }
+);
+
+/**
+ * Puts every combatant of an encounter that is not on the scene yet, in a row
+ * from (x, y). A character in the encounter is placed as its character token.
+ */
+export type PlaceEncounterRequest = { encounterId: string; x: number; y: number };
+
+/**
+ * A change to a token. Moving is open to whoever may move it (and releases
+ * their lock); hiding and renaming a free token are the master's.
+ */
+export type TokenPatch = {
+  x?: number;
+  y?: number;
+  hidden?: boolean;
+  /** Only on a free token. */
+  label?: string;
+};
+
+/** 409 when someone else holds the lock on the token. */
+export type TokenLockedResponse = ErrorResponse & { movingBy: { userId: string; name: string } };
 
 /** A row of the master's scene list. */
 export type SceneSummary = Pick<SceneView, 'id' | 'name' | 'mapUrl' | 'mapWidth' | 'mapHeight' | 'active' | 'createdAt'>;

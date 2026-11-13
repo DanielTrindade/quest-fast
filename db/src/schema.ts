@@ -6,6 +6,7 @@ import {
   ENCOUNTER_STATUSES,
   ROLES,
   SIZES,
+  TOKEN_KINDS,
   type Ability,
   type ActiveCondition,
   type AbilityScores,
@@ -410,3 +411,42 @@ export const scenes = sqliteTable(
 );
 
 export type SceneRow = typeof scenes.$inferSelect;
+
+/**
+ * A token on a scene. A character's and a combatant's read their name and size
+ * from the origin, so `label` and `size` are only set on a free token. A
+ * character has at most one token per scene, and so does a combatant; a
+ * character in an encounter keeps its character token, so nobody is drawn
+ * twice. Removing the origin removes the token. `x`/`y` are its centre in map
+ * pixels.
+ */
+export const tokens = sqliteTable(
+  'tokens',
+  {
+    id: text('id').primaryKey(),
+    sceneId: text('scene_id')
+      .notNull()
+      .references(() => scenes.id, { onDelete: 'cascade' }),
+    kind: text('kind', { enum: TOKEN_KINDS }).notNull(),
+    characterId: text('character_id').references(() => characters.id, { onDelete: 'cascade' }),
+    combatantId: text('combatant_id').references(() => combatants.id, { onDelete: 'cascade' }),
+    /** The bestiary entry a free token was copied from; kept only as a reference. */
+    statblockId: text('statblock_id').references(() => statblocks.id, { onDelete: 'set null' }),
+    label: text('label'),
+    size: text('size', { enum: SIZES }),
+    x: real('x').notNull(),
+    y: real('y').notNull(),
+    hidden: integer('hidden', { mode: 'boolean' }).notNull().default(false),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(now),
+  },
+  (table) => [
+    // Both also serve the scene's token list (`scene_id` leads them); SQLite
+    // lets the null of the other kinds repeat.
+    uniqueIndex('tokens_scene_character_idx').on(table.sceneId, table.characterId),
+    uniqueIndex('tokens_scene_combatant_idx').on(table.sceneId, table.combatantId),
+    index('tokens_character_id_idx').on(table.characterId),
+    index('tokens_combatant_id_idx').on(table.combatantId),
+  ],
+);
+
+export type TokenRow = typeof tokens.$inferSelect;

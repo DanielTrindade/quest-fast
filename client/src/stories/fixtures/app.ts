@@ -450,7 +450,7 @@ function openScene(state: DataState): SceneView | null {
   return {
     id: 's-hall', campaignId: CAMPAIGN_ID, name: 'Salão em ruínas', mapUrl: syntheticMapUrl(),
     mapWidth: SYNTHETIC_MAP.width, mapHeight: SYNTHETIC_MAP.height, grid: defaultSceneGrid,
-    active: true, version: 1, createdAt: '2026-11-12T21:00:00.000Z',
+    active: true, tokens: [], version: 1, createdAt: '2026-11-12T21:00:00.000Z',
   };
 }
 
