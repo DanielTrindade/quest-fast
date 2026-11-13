@@ -13,9 +13,6 @@ import { errorMessage } from './campaign-screen';
 
 type Point = { x: number; y: number };
 
-/** A move waiting for confirmation: dragged (the lock stays) or stepped with the arrows. */
-export type PendingMove = HeldMove & { by: 'drag' | 'keys' };
-
 /**
  * The tokens' movement on a scene: the drag (`createTokenDrag`: lock on the
  * first move, its position over the socket at 30 Hz while held, saved on the
@@ -23,8 +20,10 @@ export type PendingMove = HeldMove & { by: 'drag' | 'keys' };
  * and remove. A refused lock puts the token back and says who is moving it.
  *
  * In a fight, a move of the combatant whose turn it is (`confirms`) waits:
- * the drop or the arrows leave it pending, with its cost on the map, until it
- * is confirmed (the server spends it) or cancelled (the token goes back).
+ * the drop or the arrows leave it pending — locked, and seen by the table —
+ * until it is confirmed (the server spends it) or cancelled (the token goes
+ * back). If the turn passes meanwhile, the server lets go of the lock and the
+ * pending move is dropped here too.
  */
 export function useTokenMoves({ campaignId, scene, mapRef, confirms }: {
   campaignId: string;
@@ -38,7 +37,6 @@ export function useTokenMoves({ campaignId, scene, mapRef, confirms }: {
   const { send } = useCampaignChannel();
   const [busyIds, setBusyIds] = useState<ReadonlySet<string>>(() => new Set());
   const [held, setHeld] = useState<HeldMove | null>(null);
-  const [stepped, setStepped] = useState<HeldMove | null>(null);
   const [confirming, setConfirming] = useState(false);
   const latestScene = useRef(scene);
   const sceneId = scene.id;
@@ -63,13 +61,14 @@ export function useTokenMoves({ campaignId, scene, mapRef, confirms }: {
     controller.current ??= createTokenDrag({
       grab: (tokenId) => api.grabToken(campaignId, latestScene.current.id, tokenId).then((answer) => latest.current.merge(answer)),
       save: (tokenId, point, options) => api.updateToken(campaignId, latestScene.current.id, tokenId, { ...point, ...options })
-        .then((answer) => latest.current.merge(answer))
-        .finally(() => setConfirming(false)),
+        .then((answer) => latest.current.merge(answer)),
       throttle: createMoveThrottle((tokenId, point) => {
         send({ type: 'token.move', tokenId, ...point });
       }),
       refused: (tokenId, error) => latest.current.refused(tokenId, error),
       onHeld: setHeld,
+      // However a gesture ends — saved, put back, refused before the lock — the buttons are free again.
+      onSettled: () => setConfirming(false),
     });
     return controller.current;
   };
@@ -77,9 +76,22 @@ export function useTokenMoves({ campaignId, scene, mapRef, confirms }: {
   useEffect(() => {
     latest.current = { merge, refused };
     latestScene.current = scene;
+    const drags = controller.current;
+    const active = drags?.active();
+    if (!drags || !active) return;
+    const token = scene.tokens.find((candidate) => candidate.id === active);
     // Hidden from this player or removed mid-drag: nothing left to move.
-    const active = controller.current?.active();
-    if (active && !scene.tokens.some((token) => token.id === active)) controller.current?.lost(active);
+    if (!token) {
+      drags.lost(active);
+      return;
+    }
+    // The turn passed, or the server let go of the lock: the pending move is
+    // over, and the token is where the server says.
+    const lockLost = drags.granted(active) && token.movingBy === null;
+    if (held?.tokenId === active && (!confirms(active) || lockLost)) {
+      mapRef.current?.cancelDrag(active);
+      drags.forget(active);
+    }
   });
 
   // Leaving the map mid-drag puts the token back, which releases the lock.
@@ -90,10 +102,7 @@ export function useTokenMoves({ campaignId, scene, mapRef, confirms }: {
 
   const onGrab = (tokenId: string) => {
     const token = latestScene.current.tokens.find((candidate) => candidate.id === tokenId);
-    if (!token) return;
-    // Arrows left a move pending: the drag starts over from where it is saved.
-    setStepped(null);
-    drag().grab(tokenId, { x: token.x, y: token.y });
+    if (token) drag().grab(tokenId, { x: token.x, y: token.y });
   };
   const onDrag = (tokenId: string, x: number, y: number) => drag().drag(tokenId, { x, y });
   const onDrop = (tokenId: string, x: number, y: number) => drag().drop(tokenId, { x, y }, { hold: confirms(tokenId) });
@@ -114,41 +123,31 @@ export function useTokenMoves({ campaignId, scene, mapRef, confirms }: {
   const onStep = (tokenId: string, direction: Point) => {
     const current = latestScene.current;
     const token = current.tokens.find((candidate) => candidate.id === tokenId);
-    // A drag of this token still settling, or held, would be saved over.
-    if (!token || drag().settling(tokenId) || held?.tokenId === tokenId) return;
-    const from = stepped?.tokenId === tokenId ? stepped : token;
+    // A drag of this token still settling would be saved over.
+    if (!token || drag().settling(tokenId)) return;
+    const from = held?.tokenId === tokenId ? held : token;
     const next = stepToken(from, direction, current.grid, token.size, { width: current.mapWidth, height: current.mapHeight });
     if (next.x === from.x && next.y === from.y) return;
     if (confirms(tokenId)) {
-      setStepped({ tokenId, ...next });
+      // The same protocol as a drag: locked, seen by the table, held until confirmed.
+      // A held move is picked up again (same lock); a new one asks for the lock.
+      drag().grab(tokenId, { x: token.x, y: token.y });
+      drag().drop(tokenId, next, { hold: true });
       return;
     }
     void run(tokenId, () => api.updateToken(campaignId, sceneId, tokenId, next), 'Não foi possível mover o token');
   };
 
-  const pending: PendingMove | null = held ? { ...held, by: 'drag' } : stepped ? { ...stepped, by: 'keys' } : null;
-
   const confirm = ({ free = false } = {}) => {
-    if (!pending) return;
+    if (!held) return;
     setConfirming(true);
-    if (pending.by === 'drag') {
-      drag().confirm(pending.tokenId, { free });
-      return;
-    }
-    const { tokenId, x, y } = pending;
-    setStepped(null);
-    void run(tokenId, () => api.updateToken(campaignId, sceneId, tokenId, { x, y, ...(free ? { free } : {}) }), 'Não foi possível mover o token')
-      .finally(() => setConfirming(false));
+    drag().confirm(held.tokenId, { free });
   };
 
   const cancel = () => {
-    if (!pending) return;
-    if (pending.by === 'keys') {
-      setStepped(null);
-      return;
-    }
-    mapRef.current?.cancelDrag(pending.tokenId);
-    drag().cancel(pending.tokenId);
+    if (!held) return;
+    mapRef.current?.cancelDrag(held.tokenId);
+    drag().cancel(held.tokenId);
   };
 
   const onToggleHidden = (tokenId: string, hidden: boolean) =>
@@ -160,6 +159,6 @@ export function useTokenMoves({ campaignId, scene, mapRef, confirms }: {
   return {
     onGrab, onDrag, onDrop, onCancelDrag, onStep, onToggleHidden, onRemove, busyIds,
     settling: (tokenId: string) => controller.current?.settling(tokenId) ?? false,
-    pending, confirm, cancel, confirming,
+    pending: held, confirm, cancel, confirming,
   };
 }

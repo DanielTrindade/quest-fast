@@ -16,6 +16,8 @@ export type TokenDragDeps = {
   refused: (tokenId: string, error: unknown) => void;
   /** A drop held for confirmation appeared or ended (null). */
   onHeld?: (held: HeldMove | null) => void;
+  /** A gesture is over for good: saved, put back, refused or forgotten. */
+  onSettled?: (tokenId: string) => void;
 };
 
 /** One drag, from the press to the server's answer about the drop. */
@@ -33,6 +35,8 @@ type Gesture = {
   held: Point | null;
   /** The confirmed move spends nothing (the master's choice). */
   free: boolean;
+  /** Over without a word to the server: a late answer changes nothing. */
+  forgotten: boolean;
 };
 
 export type TokenDragController = {
@@ -50,6 +54,13 @@ export type TokenDragController = {
   cancel: (tokenId: string) => void;
   /** The token left the viewer's scene mid-drag (hidden, removed): nothing more is sent. */
   lost: (tokenId: string) => void;
+  /**
+   * The server already let go of the lock (the turn passed): the gesture ends
+   * here, with nothing sent — putting the token back would be refused too.
+   */
+  forget: (tokenId: string) => void;
+  /** The gesture holds the lock (it was granted). */
+  granted: (tokenId: string) => boolean;
 };
 
 /**
@@ -59,12 +70,13 @@ export type TokenDragController = {
  * drop is answered, so a late answer never saves over, or releases the lock
  * of, the next gesture on the same token.
  */
-export function createTokenDrag({ grab, save, throttle, refused, onHeld }: TokenDragDeps): TokenDragController {
+export function createTokenDrag({ grab, save, throttle, refused, onHeld, onSettled }: TokenDragDeps): TokenDragController {
   let current: Gesture | null = null;
   const settling = new Set<string>();
 
   const finish = (gesture: Gesture) => {
     settling.delete(gesture.tokenId);
+    onSettled?.(gesture.tokenId);
   };
 
   const release = (gesture: Gesture) => {
@@ -115,18 +127,20 @@ export function createTokenDrag({ grab, save, throttle, refused, onHeld }: Token
         return;
       }
       if (settling.has(tokenId)) return;
-      const gesture: Gesture = { tokenId, origin, granted: false, latest: null, dropped: null, cancelled: false, held: null, free: false };
+      const gesture: Gesture = { tokenId, origin, granted: false, latest: null, dropped: null, cancelled: false, held: null, free: false, forgotten: false };
       // A gesture left without a drop goes back: its token must not stay held.
       if (current) cancel(current.tokenId);
       current = gesture;
       settling.add(tokenId);
       grab(tokenId).then(
         () => {
+          if (gesture.forgotten) return;
           gesture.granted = true;
           if (gesture.cancelled || gesture.dropped) settle(gesture);
           else if (current === gesture) throttle.move(tokenId, gesture.latest ?? origin);
         },
         (error: unknown) => {
+          if (gesture.forgotten) return;
           end(gesture);
           finish(gesture);
           // Already put back by the viewer (a pinch), or gone: nothing to say.
@@ -170,5 +184,16 @@ export function createTokenDrag({ grab, save, throttle, refused, onHeld }: Token
 
     cancel,
     lost: cancel,
+
+    forget(tokenId) {
+      const gesture = current;
+      if (gesture?.tokenId !== tokenId) return;
+      end(gesture);
+      // A grant still on its way finds the gesture over and puts nothing back.
+      gesture.forgotten = true;
+      finish(gesture);
+    },
+
+    granted: (tokenId) => current?.tokenId === tokenId && current.granted,
   };
 }

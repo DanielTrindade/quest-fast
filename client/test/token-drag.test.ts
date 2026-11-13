@@ -229,3 +229,45 @@ test('a confirmed move the server refuses goes back, which releases the lock', a
   assert.equal(refusals.length, 1);
   assert.deepEqual(saves.map((save) => save.point), [{ x: 900, y: 100 }, origin]);
 });
+
+test('a gesture whose lock the server let go is forgotten: nothing is saved, and it is over', async () => {
+  const { drag, grabs, saves, held } = harness();
+  drag.grab('t1', origin);
+  grabs[0].answer.resolve();
+  await settle();
+  drag.drop('t1', { x: 150, y: 100 }, { hold: true });
+  drag.forget('t1');
+  await settle();
+  assert.equal(saves.length, 0);
+  assert.equal(held.at(-1), null);
+  assert.equal(drag.settling('t1'), false);
+  assert.equal(drag.active(), null);
+});
+
+test('a lock refused after the confirmation still ends the gesture, so the next one starts clean', async () => {
+  const settled: string[] = [];
+  const grabs: { answer: ReturnType<typeof deferred> }[] = [];
+  const saves: Point[] = [];
+  const drag = createTokenDrag({
+    grab: () => {
+      const answer = deferred();
+      grabs.push({ answer });
+      return answer.promise;
+    },
+    save: (_tokenId, point) => {
+      saves.push(point);
+      return Promise.resolve();
+    },
+    throttle: { move: () => {}, stop: () => {} },
+    refused: () => {},
+    onSettled: (tokenId) => settled.push(tokenId),
+  });
+  drag.grab('t1', origin);
+  drag.drop('t1', { x: 150, y: 100 }, { hold: true });
+  drag.confirm('t1');
+  grabs[0]!.answer.reject(new Error('Lia está movendo este token.'));
+  await settle();
+  assert.deepEqual(settled, ['t1']);
+  assert.equal(saves.length, 0);
+  assert.equal(drag.settling('t1'), false);
+});
