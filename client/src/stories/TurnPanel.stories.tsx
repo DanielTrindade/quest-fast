@@ -118,3 +118,16 @@ export const AjusteDaCriatura: Story = {
     await expect(args.adjust?.onSave).toHaveBeenLastCalledWith({ speed: 6, attacksPerAction: 2 });
   },
 };
+
+/** Action spent, then Action Surge: the extra one is there to use, and the base one can still be given back. */
+export const AcaoExtraConcedida: Story = {
+  name: 'Ação extra concedida (mestre)',
+  args: { master: true, turn: { ...fresh, actionUsed: true, extraActions: 1 } },
+  play: async ({ canvasElement, args }) => {
+    const turn = panel(canvasElement);
+    await expect(turn.getByRole('button', { name: 'Usar ação de Hazin Dan' })).toBeEnabled();
+    await userEvent.click(turn.getByRole('button', { name: 'Devolver ação de Hazin Dan' }));
+    await expect(args.onRefund).toHaveBeenLastCalledWith('action');
+    await expect(turn.getByText('1 ação extra')).toBeVisible();
+  },
+};

@@ -64,7 +64,15 @@ function Adjust({ name, adjust, busy }: { name: string; adjust: NonNullable<Turn
   );
 }
 
-type Slot = { key: Exclude<TurnEconomy, 'dash'>; label: string; used: boolean; icon: typeof Sword };
+type Slot = {
+  key: Exclude<TurnEconomy, 'dash'>;
+  label: string;
+  /** Nothing of it is left to spend. */
+  used: boolean;
+  /** Something of it was spent and may be given back (the base action, even with a granted one left). */
+  spent: boolean;
+  icon: typeof Sword;
+};
 
 function SlotRow({ slot, usable, master, busy, name, onSpend, onRefund }: {
   slot: Slot;
@@ -88,7 +96,7 @@ function SlotRow({ slot, usable, master, busy, name, onSpend, onRefund }: {
             Usar<span className="sr-only"> {slot.label.toLowerCase()} de {name}</span>
           </Button>
         )}
-        {slot.used && master && onRefund && (
+        {slot.spent && master && onRefund && (
           <Button variant="ghost" disabled={busy} onClick={() => onRefund(slot.key)}>
             <ArrowCounterClockwise size={16} aria-hidden="true" /> Devolver<span className="sr-only"> {slot.label.toLowerCase()} de {name}</span>
           </Button>
@@ -191,9 +199,9 @@ export function TurnPanel({ name, turn, ownTurn, canAct, master, pending = null,
   const headingId = useId();
   const busy = pending !== null;
   const slots: Slot[] = [
-    { key: 'action', label: 'Ação', used: !hasAction(turn), icon: Sword },
-    { key: 'bonusAction', label: 'Ação bônus', used: turn.bonusActionUsed, icon: Lightning },
-    { key: 'reaction', label: 'Reação', used: turn.reactionUsed, icon: ShieldChevron },
+    { key: 'action', label: 'Ação', used: !hasAction(turn), spent: turn.actionUsed, icon: Sword },
+    { key: 'bonusAction', label: 'Ação bônus', used: turn.bonusActionUsed, spent: turn.bonusActionUsed, icon: Lightning },
+    { key: 'reaction', label: 'Reação', used: turn.reactionUsed, spent: turn.reactionUsed, icon: ShieldChevron },
   ];
   const spend = canAct ? onSpend : undefined;
 
