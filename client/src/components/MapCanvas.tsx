@@ -49,6 +49,15 @@ function describeGrid(grid: GridSettings, mapWidth: number, mapHeight: number): 
   return `Grid de ${cells.columns} por ${cells.rows} casas, casa de ${Math.round(grid.cellSize * 10) / 10} pixels.`;
 }
 
+function FullscreenButton({ fullscreen = false, onFullscreenChange }: Required<Pick<MapCanvasProps, 'onFullscreenChange'>> & Pick<MapCanvasProps, 'fullscreen'>) {
+  return (
+    <Button variant="ghost" size="icon" aria-label={fullscreen ? 'Sair da tela cheia' : 'Mapa em tela cheia'}
+      onClick={() => onFullscreenChange(!fullscreen)}>
+      {fullscreen ? <ArrowsIn size={20} aria-hidden="true" /> : <ArrowsOut size={20} aria-hidden="true" />}
+    </Button>
+  );
+}
+
 function MapControls({ zoom, onZoom, onFrame, fullscreen, onFullscreenChange }: {
   zoom: number; onZoom: (factor: number) => void; onFrame: () => void;
 } & Pick<MapCanvasProps, 'fullscreen' | 'onFullscreenChange'>) {
@@ -67,12 +76,7 @@ function MapControls({ zoom, onZoom, onFrame, fullscreen, onFullscreenChange }: 
         <Button variant="ghost" size="icon" aria-label="Enquadrar o mapa" onClick={onFrame}>
           <CornersOut size={20} aria-hidden="true" />
         </Button>
-        {onFullscreenChange && (
-          <Button variant="ghost" size="icon" aria-label={fullscreen ? 'Sair da tela cheia' : 'Mapa em tela cheia'}
-            onClick={() => onFullscreenChange(!fullscreen)}>
-            {fullscreen ? <ArrowsIn size={20} aria-hidden="true" /> : <ArrowsOut size={20} aria-hidden="true" />}
-          </Button>
-        )}
+        {onFullscreenChange && <FullscreenButton fullscreen={fullscreen} onFullscreenChange={onFullscreenChange} />}
       </div>
     </div>
   );
@@ -144,9 +148,14 @@ export function MapCanvas({
           <Button variant="secondary" onClick={retry}>Tentar de novo</Button>
         </div>
       )}
-      {status === 'ready' && zoom !== null && (
+      {status === 'ready' && zoom !== null ? (
         <MapControls zoom={zoom} onZoom={(factor) => zoomBy(factor)} onFrame={() => frameMap(true)}
           fullscreen={fullscreen} onFullscreenChange={onFullscreenChange} />
+      ) : fullscreen && onFullscreenChange && (
+        // Loading a new map, or failing to: the way out of full screen stays.
+        <div className="absolute right-2 bottom-2 rounded-panel border border-border bg-card p-1 edge-raised">
+          <FullscreenButton fullscreen onFullscreenChange={onFullscreenChange} />
+        </div>
       )}
     </div>
   );

@@ -122,7 +122,8 @@ export function SceneStage({ campaignId, scene, isMaster, mapClassName, allowFul
   /** The stage may fill the screen (not inside a dialog, whose frame would hold it). */
   allowFullscreen?: boolean;
 }) {
-  const [fullscreen, setFullscreen] = useFullscreenView();
+  const stageRef = useRef<HTMLDivElement>(null);
+  const [fullscreen, setFullscreen] = useFullscreenView(stageRef);
   const layout = stageLayout({ fullscreen, isMaster, mapClassName, name: scene.name });
   const gridPanelId = useId();
   const pickerId = useId();
@@ -144,7 +145,7 @@ export function SceneStage({ campaignId, scene, isMaster, mapClassName, allowFul
   const canMove = (token: TokenView) => canMoveToken(token, viewerId, isMaster) && !moves.settling(token.id);
 
   return (
-    <div {...layout.region} className={layout.stage}>
+    <div ref={stageRef} {...layout.region} className={layout.stage}>
       {isMaster && (
         <MasterBar campaignId={campaignId} scene={scene} panel={panel} gridPanelId={gridPanelId} pickerId={pickerId} onToggle={toggle} />
       )}

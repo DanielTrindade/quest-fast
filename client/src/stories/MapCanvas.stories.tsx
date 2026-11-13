@@ -80,6 +80,19 @@ export const TelaCheia: Story = {
   },
 };
 
+export const TelaCheiaComErro: Story = {
+  name: 'Tela cheia com o mapa em erro',
+  args: { imageUrl: '/mapa-que-nao-existe.jpg', fullscreen: true, onFullscreenChange: fn() },
+  render: (args) => <MapCanvas {...args} />,
+  play: async ({ canvasElement, args }) => {
+    const [region] = within(canvasElement).getAllByRole('region', { name: /^Tema / });
+    const frame = within(region).getByRole('group', { name: 'Salão em ruínas' });
+    await waitFor(() => expect(frame).toHaveAttribute('data-status', 'error'));
+    await userEvent.click(within(frame).getByRole('button', { name: 'Sair da tela cheia' }));
+    await expect(args.onFullscreenChange).toHaveBeenCalledWith(false);
+  },
+};
+
 export const GridAlinhado: Story = {
   name: 'Grid alinhado ao desenho',
   args: { grid: alignedSceneGrid },
