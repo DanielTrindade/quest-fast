@@ -141,7 +141,7 @@ export function useTokenLayer(options: TokenLayerOptions & LayerWiring): { cance
       const { cellSize } = current.grid;
       drawReach(context, { token: { ...saved, size: token.size }, meters: token.reach.left, cellSize, map: current.map, view, themed });
       const target = token.ghost ?? (current.pendingMove?.tokenId === token.id ? token.at : null);
-      if (target) drawMovePath(context, { from: saved, to: target, cellSize, metersLeft: token.reach.left, view, themed });
+      if (target) drawMovePath(context, { from: saved, to: target, grid: current.grid, metersLeft: token.reach.left, view, themed });
     };
 
     return {

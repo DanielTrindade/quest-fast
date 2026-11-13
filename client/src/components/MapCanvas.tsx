@@ -122,7 +122,7 @@ export function MapCanvas({
     onSelect, canMove, onGrab, onDrag, onDrop, onCancelDrag, motion, pendingMove, overlayRef, requestDraw, themedRef: frameRef,
   });
   const pendingToken = pendingMove ? tokens.find((token) => token.id === pendingMove.tokenId) : undefined;
-  const pendingCost = pendingToken && pendingMove ? describeMove(pendingToken, pendingMove, grid.cellSize) : null;
+  const pendingCost = pendingToken && pendingMove ? describeMove(pendingToken, pendingMove, grid) : null;
   useImperativeHandle(ref, () => ({ viewCentre, cancelDrag }), [viewCentre, cancelDrag]);
   const helpId = useId();
   const summaryId = useId();

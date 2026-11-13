@@ -1,4 +1,4 @@
-import { formatMeters, movementCost, reachArea, squaresBetween, type Size } from '@quest-fast/shared';
+import { formatMeters, movementCost, reachArea, squaresBetween, type Size, type SquareGrid } from '@quest-fast/shared';
 import type { MapView } from './map-view';
 import { toScreenPoint } from './token-geometry';
 
@@ -46,9 +46,9 @@ export function drawReach(
 }
 
 /** What a move costs, as the table reads it: "3 casas · 4,5 m". */
-export function describeMove(from: Point, to: Point, cellSize: number): { squares: number; meters: number; label: string } {
-  const squares = squaresBetween(from, to, cellSize);
-  const meters = movementCost(from, to, cellSize);
+export function describeMove(from: Point, to: Point, grid: SquareGrid): { squares: number; meters: number; label: string } {
+  const squares = squaresBetween(from, to, grid);
+  const meters = movementCost(from, to, grid);
   return { squares, meters, label: `${squares === 1 ? '1 casa' : `${squares} casas`} · ${formatMeters(meters)}` };
 }
 
@@ -59,9 +59,9 @@ export function describeMove(from: Point, to: Point, cellSize: number): { square
  */
 export function drawMovePath(
   context: CanvasRenderingContext2D,
-  input: { from: Point; to: Point; cellSize: number; metersLeft: number; view: MapView; themed: Element },
+  input: { from: Point; to: Point; grid: SquareGrid; metersLeft: number; view: MapView; themed: Element },
 ) {
-  const move = describeMove(input.from, input.to, input.cellSize);
+  const move = describeMove(input.from, input.to, input.grid);
   if (move.squares === 0) return;
   const palette = colours(input.themed);
   const tone = move.meters > input.metersLeft + 1e-6 ? palette.over : palette.reach;
