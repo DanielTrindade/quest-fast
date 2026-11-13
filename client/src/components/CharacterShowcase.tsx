@@ -67,8 +67,9 @@ export function CharacterShowcase({ character, onOpen, actions }: {
         avatarUrl && 'grid-cols-[minmax(160px,0.55fr)_minmax(0,1.45fr)] @max-[600px]:grid-cols-1',
       )}>
         {avatarUrl && (
-          <div className="relative m-1 mr-0 overflow-hidden rounded-l-[7px] border border-border @max-[600px]:mr-1 @max-[600px]:aspect-[4/3] @max-[600px]:rounded-r-[7px]">
+          <div className="relative m-1 mr-0 overflow-hidden rounded-l-[7px] border border-r-0 border-border @max-[600px]:mr-1 @max-[600px]:aspect-[4/3] @max-[600px]:rounded-r-[7px] @max-[600px]:border-r @max-[600px]:border-b-0">
             <img src={avatarUrl} alt={`Retrato de ${name}`} onError={portrait.onError} className="absolute inset-0 size-full object-cover object-top" />
+            <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0 w-2/5 bg-linear-to-r from-transparent to-card @max-[600px]:inset-x-0 @max-[600px]:top-auto @max-[600px]:h-2/5 @max-[600px]:w-auto @max-[600px]:bg-linear-to-b" />
           </div>
         )}
 

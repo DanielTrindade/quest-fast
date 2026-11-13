@@ -37,8 +37,11 @@ export function HeroCard({ character, onOpen, actions }: {
     <article data-slot="hero-card" aria-label={name}
       className="@container grid min-w-0 content-start overflow-hidden rounded-panel border border-border-strong bg-card shadow-[inset_0_0_0_3px_var(--color-surface-raised),inset_0_0_0_4px_var(--color-border-subtle)]">
       {portrait.src && (
-        <img src={portrait.src} alt={`Retrato de ${name}`} onError={portrait.onError}
-          className="m-1 mb-0 aspect-[16/10] w-[calc(100%-8px)] rounded-[7px] border border-border object-cover object-top" />
+        <div className="relative m-1 mb-0 aspect-[16/10] overflow-hidden rounded-t-[7px] border border-b-0 border-border">
+          <img src={portrait.src} alt={`Retrato de ${name}`} onError={portrait.onError}
+            className="absolute inset-0 size-full object-cover object-top" />
+          <span aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0 h-2/5 bg-linear-to-b from-transparent to-card" />
+        </div>
       )}
 
       <div className="grid min-w-0 gap-4 p-4">
