@@ -19,7 +19,8 @@ const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 function harness() {
   const grabs: { tokenId: string; answer: ReturnType<typeof deferred> }[] = [];
-  const saves: { tokenId: string; point: Point; answer: ReturnType<typeof deferred> }[] = [];
+  const saves: { tokenId: string; point: Point; free: boolean; answer: ReturnType<typeof deferred> }[] = [];
+  const held: ((Point & { tokenId: string }) | null)[] = [];
   const sent: { tokenId: string; point: Point }[] = [];
   const refusals: { tokenId: string; error: unknown }[] = [];
   let stops = 0;
@@ -33,15 +34,16 @@ function harness() {
       grabs.push({ tokenId, answer });
       return answer.promise;
     },
-    save: (tokenId, point) => {
+    save: (tokenId, point, options) => {
       const answer = deferred();
-      saves.push({ tokenId, point, answer });
+      saves.push({ tokenId, point, free: options?.free === true, answer });
       return answer.promise;
     },
     throttle,
     refused: (tokenId, error) => refusals.push({ tokenId, error }),
+    onHeld: (move) => held.push(move),
   });
-  return { drag, grabs, saves, sent, refusals, stops: () => stops };
+  return { drag, grabs, saves, sent, refusals, held, stops: () => stops };
 }
 
 const origin = { x: 100, y: 100 };
@@ -119,6 +121,11 @@ test('a failed drop is refused; a cancelled one goes back quietly', async () => 
   saves[0].answer.reject(new Error('falhou'));
   await settle();
   assert.equal(refusals.length, 1);
+  // The lock is still ours: going back releases it, and only then the token is free.
+  assert.deepEqual(saves[1].point, origin);
+  assert.equal(drag.settling('t1'), true);
+  saves[1].answer.resolve();
+  await settle();
   assert.equal(drag.settling('t1'), false);
 
   drag.grab('t1', origin);
@@ -126,8 +133,8 @@ test('a failed drop is refused; a cancelled one goes back quietly', async () => 
   grabs[1].answer.resolve();
   await settle();
   // Back to where it was saved, which releases the lock.
-  assert.deepEqual(saves[1].point, origin);
-  saves[1].answer.reject(new Error('sumiu'));
+  assert.deepEqual(saves[2].point, origin);
+  saves[2].answer.reject(new Error('sumiu'));
   await settle();
   assert.equal(refusals.length, 1);
   assert.equal(drag.settling('t1'), false);
@@ -154,4 +161,71 @@ test('a gesture left for another token goes back and frees its token', async () 
   saves[0].answer.resolve();
   await settle();
   assert.equal(drag.settling('t1'), false);
+});
+
+test('in a fight the drop is held: nothing is saved until it is confirmed, and the lock stays alive', async () => {
+  const { drag, grabs, saves, sent, held } = harness();
+  drag.grab('t1', origin);
+  grabs[0].answer.resolve();
+  await settle();
+  drag.drag('t1', { x: 150, y: 100 });
+  drag.drop('t1', { x: 150, y: 100 }, { hold: true });
+  assert.equal(saves.length, 0);
+  assert.deepEqual(held.at(-1), { tokenId: 't1', x: 150, y: 100 });
+  assert.deepEqual(sent.at(-1), { tokenId: 't1', point: { x: 150, y: 100 } });
+  // Held, the token may be picked up again to adjust the move.
+  assert.equal(drag.settling('t1'), false);
+
+  drag.confirm('t1');
+  assert.deepEqual(saves.map((save) => [save.point, save.free]), [[{ x: 150, y: 100 }, false]]);
+  assert.equal(held.at(-1), null);
+});
+
+test('the master confirms a held move without spending', async () => {
+  const { drag, grabs, saves } = harness();
+  drag.grab('t1', origin);
+  grabs[0].answer.resolve();
+  await settle();
+  drag.drop('t1', { x: 200, y: 100 }, { hold: true });
+  drag.confirm('t1', { free: true });
+  assert.equal(saves[0]?.free, true);
+});
+
+test('cancelling a held move puts the token back and releases the lock', async () => {
+  const { drag, grabs, saves, held } = harness();
+  drag.grab('t1', origin);
+  grabs[0].answer.resolve();
+  await settle();
+  drag.drop('t1', { x: 200, y: 100 }, { hold: true });
+  drag.cancel('t1');
+  assert.deepEqual(saves.map((save) => save.point), [origin]);
+  assert.equal(held.at(-1), null);
+});
+
+test('picking up a held token again adjusts the same move, with the same lock', async () => {
+  const { drag, grabs, saves, held } = harness();
+  drag.grab('t1', origin);
+  grabs[0].answer.resolve();
+  await settle();
+  drag.drop('t1', { x: 200, y: 100 }, { hold: true });
+  drag.grab('t1', { x: 200, y: 100 });
+  assert.equal(grabs.length, 1);
+  assert.equal(held.at(-1), null);
+  drag.drag('t1', { x: 130, y: 100 });
+  drag.drop('t1', { x: 130, y: 100 }, { hold: true });
+  drag.confirm('t1');
+  assert.deepEqual(saves.map((save) => save.point), [{ x: 130, y: 100 }]);
+});
+
+test('a confirmed move the server refuses goes back, which releases the lock', async () => {
+  const { drag, grabs, saves, refusals } = harness();
+  drag.grab('t1', origin);
+  grabs[0].answer.resolve();
+  await settle();
+  drag.drop('t1', { x: 900, y: 100 }, { hold: true });
+  drag.confirm('t1');
+  saves[0]!.answer.reject(new Error('O movimento custa 12 m e restam 9 m neste turno.'));
+  await settle();
+  assert.equal(refusals.length, 1);
+  assert.deepEqual(saves.map((save) => save.point), [{ x: 900, y: 100 }, origin]);
 });

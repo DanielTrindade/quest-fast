@@ -375,6 +375,15 @@ na entrega 3.
   publica `scene.updated`, que vence qualquer interpolação. O receptor
   interpola com um buffer de intervalo + jitter. A posse por papel é conferida
   no `grab` e de novo ao soltar.
+- **Movimento em combate** ([spec](history/2026-11-13-turn-and-movement.md)):
+  com o round 1 começado, o servidor só deixa o jogador pegar e mover o
+  próprio token na vez dele e cobra o custo em casas de 1,5 m (as casas que o
+  token deixa e entra) do orçamento do turno, guardado no combatente; o mestre
+  gasta o do combatente da vez ou move sem gastar. O cliente segura o soltar
+  numa posição pendente, com a trava viva, até a confirmação. Uma trava
+  abandonada ou a vez que passa devolvem o token, sem gastar. O alcance
+  (`TokenView.reach`) é calculado no servidor, e o de criatura não chega ao
+  jogador.
 - **Travas em memória, num só processo.** `createTokenLocks` guarda quem
   arrasta cada token e a última posição recebida. Uma trava que expira sem
   movimento, ou cujo dono fecha o último socket na campanha, é *abandonada*: o

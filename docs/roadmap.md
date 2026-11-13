@@ -143,12 +143,16 @@ com as decisões do spike. Cinco entregas, cada uma usável na mesa:
    soltar; se outra pessoa já está movendo, o token volta e o aviso diz quem.
    O jogador move só o próprio personagem, pelo mapa ou pelas setas da lista,
    e nunca recebe um token oculto.
-3. **Turno no mapa — em andamento.** Em combate, o servidor conta a ação, a
-   ação bônus, a reação e os ataques do Ataque Extra (pela classe e nível, ou
-   pelo valor da ficha) e o deslocamento em casas de 1,5 m, diagonais
-   inclusive. Clicar num token mostra toda a área que ele ainda alcança, e o
-   movimento só é gasto quando quem move confirma a posição. Entra antes do
-   fog e muda o escopo do VTT, que deixava medição de fora.
+3. **Turno no mapa — entregue.** Em combate, o servidor conta a ação, a ação
+   bônus, a reação e os ataques do Ataque Extra (pela classe e nível, ou pelo
+   valor da ficha) e o deslocamento em casas de 1,5 m, diagonais inclusive;
+   ataque fora da vez gasta a reação. Ao lado do mapa, o painel do turno
+   gasta e mostra o que resta, e o mestre devolve, concede ação e ajusta o
+   deslocamento das criaturas. Clicar num token mostra toda a área que ele
+   ainda alcança; o arrasto mostra o caminho e o custo, e o movimento só é
+   gasto quando quem move confirma a posição (pelo mapa ou pelas setas). O
+   jogador só move o próprio token na vez dele. Entrou antes do fog e mudou o
+   escopo do VTT, que deixava medição de fora.
    ([spec](history/2026-11-13-turn-and-movement.md))
 4. **Fog of war.** Revelar e ocultar com retângulo e polígono, regra em
    `shared/` e estado calculado no servidor; monstro na área oculta fora do
