@@ -1,9 +1,10 @@
-import { useState } from 'react';
-import { Skull } from '@phosphor-icons/react';
+import { useState, type ReactNode } from 'react';
+import { Skull, Sword } from '@phosphor-icons/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { EncounterListItem, Statblock } from '@quest-fast/shared';
 import { BestiaryList } from '../../components/BestiaryList';
 import { Button } from '../../components/Button';
+import { EmptyState } from '../../components/EmptyState';
 import { EncounterList } from '../../components/EncounterList';
 import { Skeleton } from '../../components/Skeleton';
 import { Surface } from '../../components/Surface';
@@ -135,16 +136,75 @@ function Bestiary({ campaignId, onNotice }: { campaignId: string; onNotice: (not
   );
 }
 
+function CombatFrame({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section className="grid min-w-0 gap-3" aria-labelledby="combat-title">
+      <div className={sectionHeading}>
+        <h2 id="combat-title">
+          <Skull size={20} aria-hidden="true" /> {title}
+        </h2>
+      </div>
+      {children}
+    </section>
+  );
+}
+
 /**
- * The campaign's combat. The master prepares and runs encounters and keeps
- * the bestiary; a player follows the fight in progress or the last one. What
- * each one receives was already projected by the server.
+ * The fight at the table: the one in progress or the last one, for everyone.
+ * Encounters still in preparation stay out of it; picking one of those is
+ * what prep is for.
  */
-export function CombatSection({ campaignId, isMaster, currentUserId }: {
-  campaignId: string;
-  isMaster: boolean;
-  currentUserId: string;
-}) {
+function TableCombat({ campaignId, isMaster, currentUserId }: { campaignId: string; isMaster: boolean; currentUserId: string }) {
+  const notify = useNotify();
+  const encounters = useQuery(encountersQuery(campaignId));
+  const list = (encounters.data?.encounters ?? []).filter((encounter) => encounter.status !== 'preparing');
+  const { openId, setChosenId } = useOpenEncounter(campaignId, list, false);
+
+  return (
+    <CombatFrame title="Combate">
+      <Surface>
+        {encounters.isPending && <Loading label="Carregando encontros" />}
+        {encounters.isError && <LoadError message="Não foi possível carregar os encontros." onRetry={() => encounters.refetch()} />}
+
+        {encounters.isSuccess && list.length === 0 && (
+          <EmptyState
+            icon={Sword}
+            title="Nenhum combate por enquanto"
+            description={isMaster
+              ? 'Prepare um encontro no Preparo e inicie quando a mesa estiver pronta. A luta aparece aqui para todos.'
+              : 'Quando o mestre iniciar um combate, ele aparece aqui para toda a mesa.'}
+            action={null}
+          />
+        )}
+
+        {encounters.isSuccess && openId && (
+          <EncounterPanel
+            key={openId}
+            campaignId={campaignId}
+            encounterId={openId}
+            isMaster={isMaster}
+            currentUserId={currentUserId}
+            onBack={list.length > 1 ? () => setChosenId(null) : undefined}
+            onDeleted={(name) => {
+              setChosenId(null);
+              notify({ variant: 'success', title: `${name} foi excluído.` });
+            }}
+          />
+        )}
+
+        {encounters.isSuccess && !openId && list.length > 0 && (
+          <div className={stack}>
+            <h3 className="mb-4 flex flex-wrap items-baseline justify-between gap-2 font-display text-h2 font-semibold">Encontros</h3>
+            <EncounterList encounters={list} onOpen={setChosenId} />
+          </div>
+        )}
+      </Surface>
+    </CombatFrame>
+  );
+}
+
+/** The master's preparation: every encounter, creating new ones and the bestiary. */
+function PrepCombat({ campaignId, currentUserId }: { campaignId: string; currentUserId: string }) {
   const queryClient = useQueryClient();
   const notify = useNotify();
   const setNotice = (title: string) => notify({ variant: 'success', title });
@@ -152,7 +212,7 @@ export function CombatSection({ campaignId, isMaster, currentUserId }: {
 
   const encounters = useQuery(encountersQuery(campaignId));
   const list = encounters.data?.encounters ?? [];
-  const { openId, setChosenId } = useOpenEncounter(campaignId, list, isMaster);
+  const { openId, setChosenId } = useOpenEncounter(campaignId, list, true);
 
   const create = useMutation({
     mutationFn: (name: string) => api.createEncounter(campaignId, name),
@@ -165,13 +225,7 @@ export function CombatSection({ campaignId, isMaster, currentUserId }: {
   });
 
   return (
-    <section className="grid min-w-0 gap-3" aria-labelledby="combat-title">
-      <div className={sectionHeading}>
-        <h2 id="combat-title">
-          <Skull size={20} aria-hidden="true" /> Combate
-        </h2>
-      </div>
-
+    <CombatFrame title="Encontros">
       <Surface>
         {encounters.isPending && <Loading label="Carregando encontros" />}
         {encounters.isError && <LoadError message="Não foi possível carregar os encontros." onRetry={() => encounters.refetch()} />}
@@ -181,9 +235,9 @@ export function CombatSection({ campaignId, isMaster, currentUserId }: {
             key={openId}
             campaignId={campaignId}
             encounterId={openId}
-            isMaster={isMaster}
+            isMaster
             currentUserId={currentUserId}
-            onBack={isMaster || list.length > 1 ? () => setChosenId(null) : undefined}
+            onBack={() => setChosenId(null)}
             onDeleted={(name) => {
               setChosenId(null);
               setNotice(`${name} foi excluído.`);
@@ -197,7 +251,7 @@ export function CombatSection({ campaignId, isMaster, currentUserId }: {
             <EncounterList
               encounters={list}
               onOpen={setChosenId}
-              onCreate={isMaster ? (name) => create.mutateAsync(name) : undefined}
+              onCreate={(name) => create.mutateAsync(name)}
               creating={create.isPending}
             />
             {createError && <p role="alert" className="text-body text-danger-text">{createError}</p>}
@@ -205,8 +259,22 @@ export function CombatSection({ campaignId, isMaster, currentUserId }: {
         )}
       </Surface>
 
-      {isMaster && <Bestiary campaignId={campaignId} onNotice={setNotice} />}
-
-    </section>
+      <Bestiary campaignId={campaignId} onNotice={setNotice} />
+    </CombatFrame>
   );
+}
+
+/**
+ * The campaign's combat, in one of two places: at the table everyone follows
+ * the fight; in prep the master prepares encounters and keeps the bestiary.
+ * What each one receives was already projected by the server.
+ */
+export function CombatSection({ campaignId, isMaster, currentUserId, view }: {
+  campaignId: string;
+  isMaster: boolean;
+  currentUserId: string;
+  view: 'table' | 'prep';
+}) {
+  if (view === 'prep') return isMaster ? <PrepCombat campaignId={campaignId} currentUserId={currentUserId} /> : null;
+  return <TableCombat campaignId={campaignId} isMaster={isMaster} currentUserId={currentUserId} />;
 }

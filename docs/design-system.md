@@ -34,7 +34,7 @@ Para auditar um Storybook já aberto, defina `STORYBOOK_URL` e execute `node scr
 - `Dialog`: título e descrição obrigatórios, foco modal e retorno ao gatilho; composição shadcn/ui sobre Radix (`components/ui/dialog.tsx`).
 - `Toaster`, `ToastCard` e `useNotify()` (Sonner): notificações de sucesso, erro e informação, com fechamento manual e pausa do tempo ao passar o mouse. Sucesso e erro tingem o toast inteiro (tokens `success-surface` e `danger-surface`, borda no tom do estado), não só o ícone, para o resultado ser lido de relance.
 - `CopyField`: usa o clipboard do navegador, confirma a cópia e orienta a seleção manual quando ela falha.
-- `AppShell`: menu lateral recolhível com seletor de campanha, navegação por seção e conta; no celular, barra superior e barra de seções embaixo (veja "Menu lateral recolhível"). Os callbacks e destinos de navegação são fornecidos pelo consumidor.
+- `AppShell`: menu lateral recolhível com seletor de campanha, navegação entre as telas da campanha (`CampaignNav`) e conta; no celular, barra superior e barra de telas embaixo (veja "Menu lateral recolhível" e "Telas da campanha"). Os callbacks e destinos de navegação são fornecidos pelo consumidor.
 - `DiceResult`: apresenta total, decomposição, dados descartados e naturais recebidos. Não rola dados nem calcula regras 5e.
 
 ## Tokens e temas
@@ -216,6 +216,19 @@ O que a rodada corrigiu:
 - **Plurais:** "1 criatura"; os espaços de magia concordam com os livres, "1 livre de 3".
 - **Cópias numeradas:** a numeração encurta o nome para caber no limite de 80 caracteres (`numberCopies` em `shared/`).
 
+## Telas da campanha (12 de novembro de 2026)
+
+A campanha deixou de ser uma página única com âncoras e virou um layout com uma rota por tela: Visão geral, Mesa, Preparo (só o mestre) e Jogadores. Esta é a fase 1 da [#88](https://github.com/DanielTrindade/quest-fast/issues/88): as seções de antes foram movidas sem redesenho. Sem token novo.
+
+- **`CampaignNav`** substitui o `SectionNav`. Os itens são telas, então o atual leva `aria-current="page"` (não mais `location`). A navegação vem do consumidor por `onNavigate(href)`: o link continua um `<a href>` de verdade, e clique com Ctrl, Shift, Alt ou botão do meio abre em outra aba como qualquer link. `icon`, `group`, `badge` e `shortLabel` seguem iguais. O `useActiveSection` saiu com as âncoras.
+- **Selo de rodada** fica no item Mesa ("Mesa, Rodada 3"), onde o combate é conduzido.
+- **Barra do celular:** Início, Mesa, Preparo (mestre) e Jogadores cabem em 320 px.
+- **Mesa** reúne o que se usa durante o jogo: fichas, o combate em andamento (ou o último encerrado), dados e o feed. Sem combate, um estado vazio diz onde ele vai aparecer.
+- **Preparo** é a lista de encontros, a criação e o bestiário do mestre, fora da Mesa. Para o jogador, a rota mostra "Esta página não existe".
+- **Jogadores** traz o painel de membros sem o `<details>` recolhível: aqui o convite e a lista são o assunto da tela. Convidar fica no cabeçalho (mestre); Sair da campanha também (jogador).
+- **Visão geral** mostra se há combate e leva à Mesa e a Jogadores. O grupo em medalhões chega na fase 2.
+- **Laboratório → Dados extremos** ganhou Visão geral, Preparo e Jogadores do mestre, nos dois temas; "Mesa do mestre/jogador" agora abrem `/table`.
+
 ## Cena e mapa do VTT (12 de novembro de 2026)
 
 Registro: [`history/2026-11-12-vtt-battlefield-phase4.md`](history/2026-11-12-vtt-battlefield-phase4.md), entrega 1. Nenhum token novo. As stories usam um mapa sintético desenhado em código (`stories/fixtures/maps.ts`), com as cores dos tokens e um grid impresso, nunca os mapas da mesa.
@@ -226,4 +239,3 @@ Registro: [`history/2026-11-12-vtt-battlefield-phase4.md`](history/2026-11-12-vt
 - **`SceneForm`** cria ou edita a cena. Confere tipo, peso e tamanho do mapa com os mesmos limites do servidor (`MAP_LIMITS` em `shared/`) antes de enviar 25 MB à toa. Mostra a prévia, o progresso do envio e depois "Preparando o mapa no servidor…", que é o tempo do `sharp`.
 - **`GridSettings`** liga e desliga o grid, recebe as casas de largura ou o tamanho da casa (um calcula o outro, para o mapa cujo grid desenhado não divide a largura) e o deslocamento, e o encaixe dos tokens. Os campos aceitam vírgula decimal. Cada mudança válida vai para a prévia no mapa; nada é salvo antes de "Salvar grid".
 - **Campos numéricos do grid são de texto** com `inputMode="decimal"`: aceitam "62,5", e o `userEvent` das stories digita neles como um usuário (num `type="number"` controlado, a digitação do teste não chegava ao `onChange`).
-

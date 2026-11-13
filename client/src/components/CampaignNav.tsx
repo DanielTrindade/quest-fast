@@ -1,3 +1,4 @@
+import type { MouseEvent } from 'react';
 import type { Icon } from '@phosphor-icons/react';
 import { cn } from '../lib/utils';
 import { Tooltip, TooltipProvider } from './Tooltip';
@@ -40,14 +41,19 @@ function navClasses(item: NavItem, bar: boolean, collapsed: boolean) {
   };
 }
 
-function NavLink({ item, active, variant, collapsed }: {
-  item: NavItem; active: boolean; variant: 'list' | 'bar'; collapsed: boolean;
+function NavLink({ item, active, variant, collapsed, onNavigate }: {
+  item: NavItem; active: boolean; variant: 'list' | 'bar'; collapsed: boolean; onNavigate?: (href: string) => void;
 }) {
   const Glyph = item.icon;
   const classes = navClasses(item, variant === 'bar', collapsed);
-  // The items are sections of one page, so "location", not "page".
   const name = item.badge ? `${item.label}, ${item.badge}` : undefined;
-  const anchor = <a href={item.href} aria-current={active ? 'location' : undefined} aria-label={name} className={classes.link}>
+  const onClick = (event: MouseEvent<HTMLAnchorElement>) => {
+    // Modified clicks keep the browser's own behaviour (new tab, new window).
+    if (!onNavigate || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    onNavigate(item.href);
+  };
+  const anchor = <a href={item.href} onClick={onClick} aria-current={active ? 'page' : undefined} aria-label={name} className={classes.link}>
     {Glyph && <Glyph size={20} aria-hidden="true" weight={active ? 'fill' : 'regular'} />}
     <span className={classes.label}>{classes.text}</span>
     {item.badge && <span className={classes.badge}>{item.badge}</span>}
@@ -56,17 +62,18 @@ function NavLink({ item, active, variant, collapsed }: {
 }
 
 /**
- * The campaign navigation: anchor links with the current section highlighted.
- * The active id is provided by the consumer (see useActiveSection); the nav
- * stays presentational so it works in the shell and in the catalog.
+ * The campaign navigation: one link per screen, the current one highlighted.
+ * The active id and the navigation itself come from the consumer (the
+ * router), so the nav stays presentational and works in the catalog.
  */
-export function SectionNav({ items, activeItem, ariaLabel, className, variant = 'list', collapsed = false }: {
+export function CampaignNav({ items, activeItem, ariaLabel, className, variant = 'list', collapsed = false, onNavigate }: {
   items: NavItem[];
   activeItem: string;
   ariaLabel: string;
   className?: string;
   variant?: 'list' | 'bar';
   collapsed?: boolean;
+  onNavigate?: (href: string) => void;
 }) {
   const bar = variant === 'bar';
   const groups = bar ? [{ label: undefined, items }] : groupItems(items);
@@ -79,7 +86,7 @@ export function SectionNav({ items, activeItem, ariaLabel, className, variant = 
             {group.label && <span aria-hidden="true" className={cn('overflow-hidden px-3 text-micro whitespace-nowrap text-text-muted',
               collapsed && 'mx-2 h-px bg-border p-0 text-transparent')}>{group.label}</span>}
             {group.items.map((item) => (
-              <NavLink key={item.id} item={item} active={activeItem === item.id} variant={variant} collapsed={collapsed} />
+              <NavLink key={item.id} item={item} active={activeItem === item.id} variant={variant} collapsed={collapsed} onNavigate={onNavigate} />
             ))}
           </div>
         ))}

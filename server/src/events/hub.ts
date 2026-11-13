@@ -1,15 +1,11 @@
 import type { WebSocket } from 'ws';
-import type { EncounterView, Role, SceneView, SessionEvent, SocketMessage } from '@quest-fast/shared';
+import { NOT_A_MEMBER_CLOSE_CODE, type EncounterView, type Role, type SceneView, type SessionEvent, type SocketMessage } from '@quest-fast/shared';
 import { redactEvent } from './redact.ts';
+
+export { NOT_A_MEMBER_CLOSE_CODE };
 
 /** Who sits behind a socket: what every projection and redaction needs. */
 export type Viewer = { role: Role; userId: string };
-
-/**
- * Close code for a socket whose user is no longer a member of the campaign.
- * In the private 4000 range, echoing the 404 the REST routes give non-members.
- */
-export const NOT_A_MEMBER_CLOSE_CODE = 4404;
 
 type Connection = Viewer & {
   campaignId: string;

@@ -67,8 +67,9 @@ try {
   await page.getByText(uniqueName).waitFor({ timeout: 15000 });
   ok('campanha criada aparece na listagem');
 
-  // 4) The new campaign opens, with members and the invite link for the master.
+  // 4) The new campaign opens; its Players screen has the members and the invite.
   await page.getByText(uniqueName).click();
+  await page.getByRole('link', { name: 'Jogadores', exact: true }).first().click();
   await page.getByRole('heading', { name: 'Membros' }).waitFor({ timeout: 15000 });
   const members = await page.locator('[data-slot="member-name"]').allTextContents();
   if (members.length !== 1) throw new Error(`campanha nova deveria ter 1 membro, tem ${members.length}`);
@@ -103,14 +104,15 @@ try {
   }
   ok('sem overflow horizontal em 320/390/768/1280');
 
-  // 7) Combat in the seed campaign, read-only: `verify:group` runs the
+  // 7) Prep in the seed campaign, read-only: `verify:group` runs the
   //    fight on the same encounter, so this leaves it in preparation.
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto(`${base}/campaigns`);
   await page.getByText('Ecos de Phandalin').first().click();
-  await page.getByRole('heading', { name: /Combate/ }).waitFor({ timeout: 15000 });
+  await page.getByRole('link', { name: 'Preparo', exact: true }).first().click();
+  await page.getByRole('heading', { name: 'Encontros' }).first().waitFor({ timeout: 15000 });
   await page.getByRole('list', { name: 'Criaturas do bestiário' }).getByText('Goblin xamã').waitFor({ timeout: 15000 });
-  ok('a seção de combate abre com o bestiário do seed');
+  ok('o Preparo do mestre abre com o bestiário do seed');
 
   await page.getByRole('button', { name: 'Adicionar criatura' }).first().click();
   const statblockDialog = page.getByRole('dialog');

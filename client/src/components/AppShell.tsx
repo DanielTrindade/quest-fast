@@ -2,19 +2,20 @@ import { useEffect, useEffectEvent, useId, type ReactNode } from 'react';
 import { SidebarSimple } from '@phosphor-icons/react';
 import { AccountMenu, type Account } from './AccountMenu';
 import { CampaignSwitcher, type CampaignOption } from './CampaignSwitcher';
-import { SectionNav, type NavItem } from './SectionNav';
+import { CampaignNav, type NavItem } from './CampaignNav';
 import { Tooltip, TooltipProvider } from './Tooltip';
 import { cn } from '../lib/utils';
 
 export type { CampaignOption } from './CampaignSwitcher';
-export type { NavItem } from './SectionNav';
+export type { NavItem } from './CampaignNav';
 
 export function AppShell({
-  campaigns, campaignId, onCampaignChange, onShowAllCampaigns, navigation, activeItem, account,
+  campaigns, campaignId, onCampaignChange, onShowAllCampaigns, navigation, activeItem, onNavigate, account,
   collapsed, onCollapsedChange, children,
 }: {
   campaigns: CampaignOption[]; campaignId: string; onCampaignChange: (id: string) => void;
-  onShowAllCampaigns?: () => void; navigation: NavItem[]; activeItem: string; account: Account;
+  onShowAllCampaigns?: () => void; navigation: NavItem[]; activeItem: string;
+  onNavigate?: (href: string) => void; account: Account;
   collapsed: boolean; onCollapsedChange: (collapsed: boolean) => void; children: ReactNode;
 }) {
   const id = useId();
@@ -49,7 +50,7 @@ export function AppShell({
           <Tooltip label="Trocar campanha" disabled={!collapsed}>
             <span className="block"><CampaignSwitcher {...switcher} compact={collapsed} /></span>
           </Tooltip>
-          <SectionNav items={navigation} activeItem={activeItem} ariaLabel="Navegação da campanha" collapsed={collapsed} />
+          <CampaignNav items={navigation} activeItem={activeItem} onNavigate={onNavigate} ariaLabel="Navegação da campanha" collapsed={collapsed} />
           <div className="mt-auto grid gap-1 border-t border-border pt-2">
             <AccountMenu {...account} compact={collapsed} side={collapsed ? 'right' : 'top'} />
             <Tooltip label={<>{collapseLabel} <kbd>Ctrl B</kbd></>} disabled={!collapsed}>{collapseButton}</Tooltip>
@@ -60,7 +61,7 @@ export function AppShell({
           <AccountMenu {...account} compact side="bottom" className="w-auto" />
         </header>
         <div id={`${id}-content`} tabIndex={-1} className="min-w-0 px-4 py-6 [overflow-wrap:anywhere] [grid-area:content] [&_[id]]:scroll-mt-20 @min-[760px]:p-8 @min-[760px]:[&_[id]]:scroll-mt-6">{children}</div>
-        <SectionNav items={navigation} activeItem={activeItem} ariaLabel="Navegação da campanha"
+        <CampaignNav items={navigation} activeItem={activeItem} onNavigate={onNavigate} ariaLabel="Navegação da campanha"
           variant="bar" className="sticky bottom-0 z-20 border-t border-border bg-surface-secret px-1 pt-1 pb-[calc(var(--spacing-1)+env(safe-area-inset-bottom,0px))] [grid-area:tabbar] @min-[760px]:hidden" />
       </div>
     </div>

@@ -161,9 +161,9 @@ provedor falso e o disco por um store em memória.
 src/
   main.tsx         QueryClient + RouterProvider
   router.tsx       rotas; o guard de autenticação consulta /api/auth/me
-  screens/         telas e seções que buscam dados (Login, Campaigns, Campaign...)
+  screens/         telas que buscam dados (Login, Campaigns, CampaignWorkspace e campaign/)
   components/      componentes presentacionais do design system
-  hooks/           useCampaignSocket, useActiveSection
+  hooks/           useCampaignSocket, useStoredFlag, useSignOut
   lib/             cliente da API, cache do feed, rótulos 5e, formatação
   styles/          tokens (index.css) e relevo dos primitivos (ui.css)
   stories/         Storybook: catálogo e fonte de verdade da interface
@@ -172,9 +172,20 @@ src/
 - **Dados:** TanStack Query para todo estado vindo do servidor. O cliente da
   API (`lib/api.ts`) só transporta e traduz erros; não calcula papel nem
   visibilidade.
-- **Tempo real:** `useCampaignSocket` abre o socket da campanha, reconecta com
-  backoff e, ao reconectar, refaz o fetch do feed. Eventos novos entram no
-  cache do Query via `lib/feed-cache.ts`.
+- **Telas da campanha:** `/campaigns/$campaignId` é uma rota de layout
+  (`CampaignWorkspace`: menu lateral e socket) com uma rota filha por tela:
+  Visão geral (`/`), Mesa (`/table`: fichas, combate em andamento, dados e
+  feed), Preparo (`/prep`: encontros e bestiário, só do mestre) e Jogadores
+  (`/players`: membros, convite, bloqueados). O item ativo do menu vem da rota
+  (`aria-current="page"`). Jogador em `/prep` vê "não encontrado", como o
+  servidor responde ao que não é dele. Rotas em inglês, texto em pt-BR.
+  Plano e próximas etapas na issue #88.
+- **Tempo real:** `useCampaignSocket` abre o socket da campanha no layout, uma
+  vez por campanha, para o selo de rodada e os caches seguirem vivos em
+  qualquer tela; o status chega às telas pelo contexto
+  `CampaignSocketStatus`. Reconecta com backoff e, ao reconectar, refaz o
+  fetch do feed. Eventos novos entram no cache do Query via
+  `lib/feed-cache.ts`.
 - **Componentes:** `components/` não busca dados; recebe props e é coberto por
   story. `screens/` compõe componentes e liga com a API.
 - **Estilo:** Tailwind 4 com tokens CSS próprios. Cor crua e paleta padrão do
@@ -312,6 +323,12 @@ a tabela `scenes` e as rotas de cena em `server/src/scenes/` (criar com o
 mapa, editar nome e grid, trocar o mapa, excluir, abrir e fechar para a mesa),
 com `scene.updated` e `scene.closed` no socket. As telas chegam nas próximas
 seções da entrega 1; tokens e fog, nas entregas seguintes.
+
+- **Onde as telas moram (#88).** Com a campanha dividida em rotas, a "seção
+  Mapa" da spec não volta à página única: a lista de cenas do mestre é uma aba
+  do Preparo (`/prep`), a miniatura da cena aberta para o jogador entra na
+  Visão geral, e a "tela do mapa" é a Mesa (`/campaigns/$campaignId/table`),
+  com o canvas no centro.
 
 - **Canvas 2D direto**, sem biblioteca: pan, zoom, pinça e hit-test escritos à
   mão. A lista de tokens e o movimento por teclado ficam em DOM, fora do canvas.

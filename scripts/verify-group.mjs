@@ -91,13 +91,16 @@ function ok(label) {
 }
 
 const campaignUrl = `${base}/campaigns/${campaign.id}`;
+// The game is played at the table; the overview and the players screen are
+// other routes of the same campaign.
+const tableUrl = `${campaignUrl}/table`;
 
 async function openUser(who, session) {
   const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
   await context.addCookies([{ name: 'qf_session', value: session, url: base }]);
   const page = await context.newPage();
   collectErrors(page, who);
-  await page.goto(campaignUrl, { waitUntil: 'domcontentloaded' });
+  await page.goto(tableUrl, { waitUntil: 'domcontentloaded' });
   return { context, page };
 }
 
@@ -250,15 +253,19 @@ try {
   }
   ok('a campanha e a ficha não cortam conteúdo em 320, 390, 768 e 1280 px');
 
-  // 13) No celular o jogo vem antes da administração da campanha.
+  // 13) A mesa é só jogo: a administração mora na tela Jogadores.
   await rafael.page.setViewportSize({ width: 390, height: 844 });
-  const dicePanel = await rafael.page.locator('[data-slot="dice-panel"]').boundingBox();
-  const admin = await rafael.page.locator('[data-slot="campaign-admin"]').boundingBox();
-  if (!dicePanel || !admin) throw new Error('painel de dados ou administração não encontrados em 390px');
-  if (dicePanel.y >= admin.y) {
-    throw new Error(`em 390px os dados (y=${Math.round(dicePanel.y)}) ainda vêm depois da administração (y=${Math.round(admin.y)})`);
-  }
-  ok('em 390px os dados e o histórico vêm antes da administração da campanha');
+  if (!(await rafael.page.locator('[data-slot="dice-panel"]').isVisible())) throw new Error('em 390px a mesa não mostra os dados');
+  if ((await rafael.page.locator('[data-slot="campaign-admin"]').count()) !== 0) throw new Error('a mesa ainda mostra a administração da campanha');
+  await rafael.page.getByRole('link', { name: 'Jogadores', exact: true }).first().click();
+  await rafael.page.locator('[data-slot="campaign-admin"]').waitFor({ timeout: 10000 });
+  if ((await rafael.page.getByRole('link', { name: 'Preparo', exact: true }).count()) !== 0) throw new Error('o menu do jogador oferece o Preparo');
+  await rafael.page.goto(`${campaignUrl}/prep`, { waitUntil: 'domcontentloaded' });
+  await rafael.page.getByText('Esta página não existe').waitFor({ timeout: 10000 });
+  if ((await rafael.page.getByText('Bestiário').count()) !== 0) throw new Error('o jogador vê o bestiário no Preparo');
+  await rafael.page.goto(tableUrl, { waitUntil: 'domcontentloaded' });
+  await rafael.page.locator('[data-slot="feed-status"][data-status="connected"]').waitFor({ timeout: 15000 });
+  ok('em 390px a mesa mostra os dados, a administração fica em Jogadores e o Preparo não existe para o jogador');
 
   // 14) Combate: o encontro em preparação não existe para os jogadores.
   await rafael.page.setViewportSize({ width: 1280, height: 900 });
@@ -283,8 +290,13 @@ try {
     [`${encounterApi}/combatants`, kaelen.id],
   );
   if (added !== 201) throw new Error(`o mestre não conseguiu pôr Kaelen no encontro (${added})`);
+  // The encounter is prepared and started in Prep; the fight is run at the table.
+  await master.page.getByRole('link', { name: 'Preparo', exact: true }).first().click();
   await master.page.getByRole('list', { name: 'Encontros' }).getByRole('button', { name: /Emboscada na estrada/ }).click();
   await master.page.getByRole('button', { name: 'Iniciar combate' }).click();
+  await master.page.getByRole('button', { name: 'Rolar iniciativa das criaturas' }).waitFor({ timeout: 15000 });
+  await master.page.getByRole('link', { name: /^Mesa/ }).first().click();
+  await master.page.locator('[data-slot="feed-status"][data-status="connected"]').waitFor({ timeout: 15000 });
   await master.page.getByRole('button', { name: 'Rolar iniciativa das criaturas' }).click();
   await master.page.getByRole('button', { name: 'Rolar iniciativa de Bram Linha Longa' }).click();
   for (const { page } of [rafael, ana]) {
