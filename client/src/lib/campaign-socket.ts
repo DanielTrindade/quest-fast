@@ -1,4 +1,4 @@
-import { NOT_A_MEMBER_CLOSE_CODE, type SocketMessage } from '@quest-fast/shared';
+import { NOT_A_MEMBER_CLOSE_CODE, type ClientSocketMessage, type SocketMessage } from '@quest-fast/shared';
 
 export type SocketStatus = 'connecting' | 'connected' | 'disconnected';
 
@@ -20,6 +20,7 @@ export type SocketLike = {
   onclose: ((event: { code: number }) => void) | null;
   onerror: (() => void) | null;
   close: () => void;
+  send: (data: string) => void;
 };
 
 export type SocketEnvironment = {
@@ -34,6 +35,14 @@ const browser: SocketEnvironment = {
   clearTimer: (id) => window.clearTimeout(id),
 };
 
+/** The room, while open: what the screens may send and how it ends. */
+export type CampaignSocket = {
+  /** False while the connection is down: a move then is lost, as it should be (the drop goes by REST). */
+  send: (message: ClientSocketMessage) => boolean;
+  /** The only way out: nothing the socket opens outlives it. */
+  close: () => void;
+};
+
 export function campaignSocketUrl(campaignId: string): string {
   const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
   return `${scheme}://${window.location.host}/api/campaigns/${campaignId}/ws`;
@@ -41,12 +50,13 @@ export function campaignSocketUrl(campaignId: string): string {
 
 /**
  * Owns the socket, the reconnect backoff and the teardown of one campaign
- * room. The returned disposer is the only way out: nothing the socket opens
- * outlives it. A transient drop reconnects with backoff; losing membership
+ * room. Its `close` is the only way out: nothing the socket opens outlives
+ * it. A transient drop reconnects with backoff; losing membership
  * does not, because the next handshake would be refused the same way.
  */
-export function openCampaignSocket(url: string, handlers: CampaignSocketHandlers, env: SocketEnvironment = browser): () => void {
+export function openCampaignSocket(url: string, handlers: CampaignSocketHandlers, env: SocketEnvironment = browser): CampaignSocket {
   let socket: SocketLike | null = null;
+  let open = false;
   let closed = false;
   let timer: number | undefined;
   let attempts = 0;
@@ -56,6 +66,7 @@ export function openCampaignSocket(url: string, handlers: CampaignSocketHandlers
     socket = env.connect(url);
 
     socket.onopen = () => {
+      open = true;
       const reconnected = attempts > 0;
       attempts = 0;
       handlers.onStatus('connected');
@@ -73,6 +84,7 @@ export function openCampaignSocket(url: string, handlers: CampaignSocketHandlers
     };
 
     socket.onclose = (event) => {
+      open = false;
       if (closed) return;
       handlers.onStatus('disconnected');
       if (event.code === NOT_A_MEMBER_CLOSE_CODE) {
@@ -91,9 +103,17 @@ export function openCampaignSocket(url: string, handlers: CampaignSocketHandlers
   };
 
   connect();
-  return () => {
-    closed = true;
-    env.clearTimer(timer);
-    socket?.close();
+  return {
+    send(message) {
+      if (!open || !socket) return false;
+      socket.send(JSON.stringify(message));
+      return true;
+    },
+    close() {
+      closed = true;
+      open = false;
+      env.clearTimer(timer);
+      socket?.close();
+    },
   };
 }

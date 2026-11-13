@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, type RefObject } from 'react';
+import { useCallback, useEffect, useMemo, useRef, type RefObject } from 'react';
 import type { GridSettings, TokenView } from '@quest-fast/shared';
 import type { MapOverlay } from './useMapViewport';
 import type { MapView, Size } from '../lib/map-view';
@@ -58,7 +58,7 @@ const prefersReducedMotion = () => window.matchMedia('(prefers-reduced-motion: r
  * it; the one dragged here follows the pointer and, dropped, stays at its
  * resting point until the server's answer brings it there (or gives up).
  */
-export function useTokenLayer(options: TokenLayerOptions & LayerWiring): void {
+export function useTokenLayer(options: TokenLayerOptions & LayerWiring): { cancelDrag: (tokenId: string) => void } {
   const latest = useRef(options);
   const drag = useRef<Drag | null>(null);
   const drops = useRef(new Map<string, Point & { until: number }>());
@@ -194,4 +194,17 @@ export function useTokenLayer(options: TokenLayerOptions & LayerWiring): void {
       overlayRef.current = null;
     };
   }, [overlayRef, overlay, requestDraw]);
+
+  /**
+   * The server said no (someone else holds it, or the drop failed): the token
+   * goes back to its saved place now, the pointer still down or not. What is
+   * left of the gesture neither moves it nor pans the map.
+   */
+  const cancelDrag = useCallback((tokenId: string) => {
+    if (drag.current?.token.id === tokenId) drag.current = null;
+    drops.current.delete(tokenId);
+    requestDraw();
+  }, [requestDraw]);
+
+  return { cancelDrag };
 }

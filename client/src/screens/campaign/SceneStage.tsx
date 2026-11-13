@@ -1,20 +1,27 @@
-import { useId, useState } from 'react';
-import { Broadcast, GridFour, XCircle } from '@phosphor-icons/react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import type { GridSettings as Grid, SceneView } from '@quest-fast/shared';
+import { useId, useRef, useState } from 'react';
+import { Broadcast, GridFour, MapPin, XCircle } from '@phosphor-icons/react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { GridSettings as Grid, SceneView, TokenView } from '@quest-fast/shared';
 import { Button } from '../../components/Button';
 import { GridSettings } from '../../components/GridSettings';
-import { MapCanvas } from '../../components/MapCanvas';
+import { MapCanvas, type MapCanvasHandle } from '../../components/MapCanvas';
 import { Surface } from '../../components/Surface';
+import { TokenList } from '../../components/TokenList';
+import { useCampaignChannel } from '../../hooks/useCampaignSocket';
 import { useNotify } from '../../hooks/use-notify';
 import { api } from '../../lib/api';
 import { activeSceneQuery, mergeScene, sceneListQuery, sceneQuery } from '../../lib/scene-cache';
+import { canMoveToken } from '../../lib/token-labels';
 import { cn } from '../../lib/utils';
 import { errorMessage } from './campaign-screen';
+import { TokenPickerPanel } from './TokenPickerPanel';
+import { useTokenMoves } from './useTokenMoves';
 
-/** The master's bar over the map: the table switch and the grid panel's. */
-function MasterBar({ campaignId, scene, gridOpen, gridPanelId, onToggleGrid }: {
-  campaignId: string; scene: SceneView; gridOpen: boolean; gridPanelId: string; onToggleGrid: () => void;
+type Panel = 'grid' | 'tokens' | null;
+
+/** The master's bar over the map: the table switch, the grid panel's and the token picker's. */
+function MasterBar({ campaignId, scene, panel, gridPanelId, pickerId, onToggle }: {
+  campaignId: string; scene: SceneView; panel: Panel; gridPanelId: string; pickerId: string; onToggle: (panel: 'grid' | 'tokens') => void;
 }) {
   const queryClient = useQueryClient();
   const notify = useNotify();
@@ -38,8 +45,11 @@ function MasterBar({ campaignId, scene, gridOpen, gridPanelId, onToggleGrid }: {
           ? <><XCircle size={18} aria-hidden="true" /> Fechar para a mesa</>
           : <><Broadcast size={18} aria-hidden="true" /> Abrir para a mesa</>}
       </Button>
-      <Button variant="secondary" aria-expanded={gridOpen} aria-controls={gridPanelId} onClick={onToggleGrid}>
-        <GridFour size={18} aria-hidden="true" /> {gridOpen ? 'Ocultar grid' : 'Ajustar grid'}
+      <Button variant="secondary" aria-expanded={panel === 'tokens'} aria-controls={pickerId} onClick={() => onToggle('tokens')}>
+        <MapPin size={18} aria-hidden="true" /> {panel === 'tokens' ? 'Fechar tokens' : 'Pôr tokens'}
+      </Button>
+      <Button variant="secondary" aria-expanded={panel === 'grid'} aria-controls={gridPanelId} onClick={() => onToggle('grid')}>
+        <GridFour size={18} aria-hidden="true" /> {panel === 'grid' ? 'Ocultar grid' : 'Ajustar grid'}
       </Button>
     </div>
   );
@@ -70,9 +80,11 @@ function GridPanel({ id, campaignId, scene, onPreview }: {
 }
 
 /**
- * The map with pan and zoom and, for the master, the table switch and the
- * grid panel. An unsaved grid previews on the map until it is saved or the
- * panel is hidden.
+ * The map with pan and zoom, its tokens and their list beside it (below on a
+ * narrow screen) and, for the master, the table switch, the token picker and
+ * the grid panel. An unsaved grid previews on the map until it is saved or
+ * the panel is hidden. Whoever may move a token drags it on the map or moves
+ * it with the arrows from the list.
  */
 export function SceneStage({ campaignId, scene, isMaster, mapClassName }: {
   campaignId: string; scene: SceneView; isMaster: boolean;
@@ -80,25 +92,44 @@ export function SceneStage({ campaignId, scene, isMaster, mapClassName }: {
   mapClassName: string;
 }) {
   const gridPanelId = useId();
-  const [gridOpen, setGridOpen] = useState(false);
+  const pickerId = useId();
+  const mapRef = useRef<MapCanvasHandle>(null);
+  const me = useQuery({ queryKey: ['me'], queryFn: api.me });
+  const viewerId = me.data?.user.id ?? null;
+  const { motion } = useCampaignChannel();
+  const moves = useTokenMoves({ campaignId, scene, mapRef });
+  const [panel, setPanel] = useState<Panel>(null);
+  const [selected, setSelected] = useState<string | null>(null);
+  const selectedId = scene.tokens.some((token) => token.id === selected) ? selected : null;
   const [preview, setPreview] = useState<{ sceneId: string; grid: Grid } | null>(null);
   const shownGrid = preview?.sceneId === scene.id ? preview.grid : scene.grid;
-  const toggleGrid = () => {
-    if (gridOpen) setPreview(null);
-    setGridOpen(!gridOpen);
+  const toggle = (next: 'grid' | 'tokens') => {
+    if (panel === 'grid') setPreview(null);
+    setPanel(panel === next ? null : next);
   };
+  const canMove = (token: TokenView) => canMoveToken(token, viewerId, isMaster);
 
   return (
-    <div className="grid min-w-0 gap-4">
-      {isMaster && <MasterBar campaignId={campaignId} scene={scene} gridOpen={gridOpen} gridPanelId={gridPanelId} onToggleGrid={toggleGrid} />}
-      <div className={cn('grid min-w-0 gap-4', gridOpen && '@min-[1000px]:grid-cols-[minmax(0,1fr)_20rem]')}>
+    <div className="@container/stage grid min-w-0 gap-4">
+      {isMaster && (
+        <MasterBar campaignId={campaignId} scene={scene} panel={panel} gridPanelId={gridPanelId} pickerId={pickerId} onToggle={toggle} />
+      )}
+      <div className="grid min-w-0 gap-4 @min-[52rem]/stage:grid-cols-[minmax(0,1fr)_18rem]">
         <div className={cn('min-w-0', mapClassName)}>
-          <MapCanvas imageUrl={scene.mapUrl} mapWidth={scene.mapWidth} mapHeight={scene.mapHeight} grid={shownGrid} label={scene.name} />
+          <MapCanvas ref={mapRef} imageUrl={scene.mapUrl} mapWidth={scene.mapWidth} mapHeight={scene.mapHeight} grid={shownGrid} label={scene.name}
+            tokens={scene.tokens} viewerId={viewerId} selectedTokenId={selectedId} onSelect={setSelected} canMove={canMove}
+            onGrab={moves.onGrab} onDrag={moves.onDrag} onDrop={moves.onDrop} onCancelDrag={moves.onCancelDrag} motion={motion} />
         </div>
-        {gridOpen && (
-          <GridPanel id={gridPanelId} campaignId={campaignId} scene={scene}
-            onPreview={(grid) => setPreview(grid ? { sceneId: scene.id, grid } : null)} />
-        )}
+        <div className="grid min-w-0 content-start gap-4">
+          {panel === 'grid' && (
+            <GridPanel id={gridPanelId} campaignId={campaignId} scene={scene}
+              onPreview={(grid) => setPreview(grid ? { sceneId: scene.id, grid } : null)} />
+          )}
+          {panel === 'tokens' && <TokenPickerPanel id={pickerId} campaignId={campaignId} scene={scene} mapRef={mapRef} />}
+          <TokenList tokens={scene.tokens} viewerId={viewerId} master={isMaster} selectedId={selectedId} onSelect={setSelected}
+            onStep={moves.onStep} busyIds={moves.busyIds}
+            onToggleHidden={isMaster ? moves.onToggleHidden : undefined} onRemove={isMaster ? moves.onRemove : undefined} />
+        </div>
       </div>
     </div>
   );
