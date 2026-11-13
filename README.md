@@ -188,6 +188,48 @@ limite novo a cada requisição. Por isso o exemplo publica a porta só em
 `127.0.0.1`, para um proxy no mesmo host. Com o proxy em outro container, não
 publique a porta: ponha os dois na mesma rede do Docker.
 
+### Numa VM com Caddy e backup no R2
+
+A pasta [`deploy/`](deploy/) monta esse arranjo numa VM Debian 12: o Caddy
+termina o HTTPS (certificado automático do Let's Encrypt) e é o único caminho
+até o app, que não publica porta. O banco e os uploads ficam em
+`/srv/quest-fast/dados`, e um timer do systemd manda um backup diário para um
+bucket **privado** do R2.
+
+| Arquivo | Papel |
+| --- | --- |
+| `compose.yaml`, `Caddyfile` | app e proxy; `SITE_ADDRESS` vem do `.env` ao lado |
+| `setup-vm.sh` | Docker, atualizações automáticas, pasta de dados e timer do backup |
+| `ship.sh` | builda a imagem na sua máquina e a sobe na VM pelo `gcloud` |
+| `backup.sh` | cópia consistente do SQLite (API de backup) e dos uploads para o R2 |
+| `app.env.example`, `backup.env.example` | segredos; na VM, `chmod 600`, um arquivo para cada |
+
+O token do backup fica fora do `app.env`, então o app nunca o enxerga.
+
+**Sem domínio**, use o [sslip.io](https://sslip.io): o IP `34.1.2.3` vira
+`34-1-2-3.sslip.io`, nome para o qual o Caddy consegue certificado. Reserve um
+IP estático para o nome não mudar. Os avatares ficam em disco: o R2 só serve
+avatares com domínio próprio (veja a seção seguinte).
+
+No GCP, a `e2-micro` entra no nível gratuito nas regiões `us-central1`,
+`us-east1` e `us-west1`, com disco `pd-standard` de até 30 GB. Ela não tem
+memória para o build, por isso o `ship.sh` builda localmente. Para a VM não
+expor SSH à internet, libere a porta 22 só para o IAP (`35.235.240.0/20`) e
+use `--tunnel-through-iap`; para a web, só 80 e 443.
+
+```sh
+gcloud compute scp --tunnel-through-iap deploy/setup-vm.sh <vm>:/tmp/
+gcloud compute ssh <vm> --tunnel-through-iap --command "sudo sh /tmp/setup-vm.sh"
+# na VM: /srv/quest-fast/.env (SITE_ADDRESS), app.env e backup.env
+sh deploy/ship.sh          # GCLOUD_CONFIG e VM escolhem a configuração e a VM
+```
+
+Para conferir o backup, rode `sudo systemctl start quest-fast-backup` na VM e
+veja `journalctl -u quest-fast-backup`. Para restaurar, pare o app, extraia o
+arquivo em `/srv/quest-fast/dados`, renomeie `backup.db` para
+`quest-fast.db` (apagando `-wal` e `-shm` antigos), acerte o dono para
+`1000:1000` e suba de novo.
+
 ### Avatares no Cloudflare R2 (opcional)
 
 Por padrão os avatares ficam em disco, ao lado do banco. Com

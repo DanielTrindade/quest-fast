@@ -1,0 +1,33 @@
+name: quest-fast
+
+services:
+  app:
+    image: quest-fast:latest
+    restart: unless-stopped
+    env_file: app.env
+    environment:
+      NODE_ENV: production
+      COOKIE_SECURE: "true"
+      # Seguro só porque o app não publica porta: o único caminho até ele é o Caddy.
+      TRUST_PROXY: "true"
+    volumes:
+      - /srv/quest-fast/dados:/dados
+
+  caddy:
+    image: caddy:2.10
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:?defina SITE_ADDRESS no .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  caddy_data:
+  caddy_config:
