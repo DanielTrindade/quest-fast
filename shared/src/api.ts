@@ -420,7 +420,12 @@ export type SocketMessage =
    */
   | { type: 'scene.updated'; scene: SceneView }
   /** The master closed the map, or deleted the scene that was open. */
-  | { type: 'scene.closed'; sceneId: string };
+  | { type: 'scene.closed'; sceneId: string }
+  /**
+   * A sheet of the campaign was created, changed, deleted or became the active
+   * one. A hint with no data: the client asks the server for the roster again.
+   */
+  | { type: 'characters.changed' };
 
 // --- Phase 2: combat and bestiary --------------------------------------------
 

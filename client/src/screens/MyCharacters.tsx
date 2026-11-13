@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowRight, Plus, UserCircle } from '@phosphor-icons/react';
+import { Plus, UserCircle } from '@phosphor-icons/react';
 import { useMutation, useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import type { CharacterSheet, MyCharacter, MyCharacterListResponse } from '@quest-fast/shared';
@@ -54,7 +54,7 @@ type Editing = { campaignId: string; character: CharacterSheet | null };
 function summary(list: MyCharacter[]) {
   if (list.length === 0) return 'Sua conta';
   const campaigns = new Set(list.map((character) => character.campaignId)).size;
-  return `Sua conta · ${plural(list.length, 'personagem', 'personagens')} em ${plural(campaigns, 'campanha', 'campanhas')}`;
+  return `${plural(list.length, 'personagem', 'personagens')} em ${plural(campaigns, 'campanha', 'campanhas')}`;
 }
 
 function GalleryStatus({ characters, noCampaign, canCreate, onCreate }: {
@@ -121,7 +121,7 @@ function SheetLayer({ viewing, editing, currentUserId, onClose, onEdit, onEditDo
   if (!viewing) return null;
   return (
     <CharacterSheetDialog campaignId={viewing.campaignId} characterId={viewing.id} currentUserId={currentUserId}
-      isMaster={false} canRoll={false} open
+      isMaster={false} context="gallery" open
       onOpenChange={(open) => { if (!open) onClose(); }}
       onEdit={(sheet) => onEdit({ campaignId: sheet.campaignId, character: sheet })}
       onDeleted={() => onChanged(viewing.campaignId)} />
@@ -167,7 +167,7 @@ export function MyCharacters({ currentUserId }: { currentUserId: string }) {
     ? (
       <Button asChild size="sm">
         <Link to="/campaigns/$campaignId/table" params={{ campaignId: character.campaignId }}>
-          Ir para a mesa <ArrowRight size={16} aria-hidden="true" />
+          Ir para a mesa
         </Link>
       </Button>
     )

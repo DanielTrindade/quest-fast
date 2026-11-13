@@ -188,15 +188,18 @@ src/
 - **Telas da conta:** Campanhas (`/campaigns`) e Meus personagens
   (`/characters`). O personagem é do jogador: criar (escolhendo a campanha),
   editar, trocar o retrato, importar o PDF, excluir e ativar acontecem na
-  galeria da conta. A ficha abre no modal de sempre com `canRoll={false}`;
-  rolar e gastar o turno acontecem na Mesa, que mostra só o personagem ativo de
-  cada jogador e não oferece edição. A Visão geral mostra o grupo (os ativos)
-  em medalhões, também só para ler.
+  galeria da conta. A ficha abre sempre no mesmo modal, e o `context` dele diz
+  o que ela oferece: na Mesa (`table`) se joga (rolagens e estado de sessão),
+  em Meus personagens (`gallery`) se gerencia (editar e excluir, sem jogar) e
+  na Visão geral (`read`) só se lê. A Mesa mostra só o personagem ativo de cada
+  jogador e não oferece edição; a Visão geral mostra o grupo (os ativos).
 - **Tempo real:** `useCampaignSocket` abre o socket da campanha no layout, uma
   vez por campanha, para o selo de rodada e os caches seguirem vivos em
   qualquer tela; o status chega às telas pelo contexto
   `CampaignSocketStatus`. Reconecta com backoff e, ao reconectar, refaz o
-  fetch do feed. Eventos novos entram no cache do Query via
+  fetch do feed. Criar, editar, mudar o estado, ativar ou excluir uma ficha
+  publica `characters.changed`, um aviso sem dados: quem está na sala refaz a
+  consulta do elenco, das fichas abertas e da galeria. Eventos novos entram no cache do Query via
   `lib/feed-cache.ts`.
 - **Componentes:** `components/` não busca dados; recebe props e é coberto por
   story. `screens/` compõe componentes e liga com a API.

@@ -166,7 +166,15 @@ try {
   if ((await gallerySheet.getByRole('button', { name: 'Teste' }).count()) !== 0) {
     throw new Error('a ficha aberta fora da mesa oferece rolagem');
   }
-  ok('a ficha aberta em Meus personagens não rola dados');
+  if ((await gallerySheet.getByRole('button', { name: 'Dano' }).count()) !== 0) {
+    throw new Error('a ficha aberta fora da mesa altera os pontos de vida');
+  }
+  ok('a ficha aberta em Meus personagens não rola dados nem muda o estado da sessão');
+
+  // 3c) A mesa do mestre já aberta recebe o personagem ativo pelo socket, sem
+  //     depender de rolagem, combate ou recarga.
+  await master.page.locator('[data-slot="character-row"]').filter({ hasText: 'Kaelen' }).first().waitFor({ timeout: 10000 });
+  ok('a mesa do mestre mostra Kaelen assim que Rafael o ativa, sem recarregar');
 
   // 4) Rafael rola e a mesa inteira vê na hora, sem recarregar.
   const before = {};

@@ -5,8 +5,10 @@ import type {
   CharacterResponse,
   CreatedCampaign,
   MyCharacterListResponse,
+  SocketMessage,
 } from '@quest-fast/shared';
-import { asUser, body, createTestApp, signIn } from '../testing.ts';
+import { asUser, body, createTestApp, createTestServer, signIn } from '../testing.ts';
+import { PROFILES as SOCKET_PROFILES, connect, send, setup as setupCombat, sheet, until } from '../combat/test-setup.ts';
 
 const PROFILES = {
   lia: { discordId: '111', name: 'Lia Martins', avatarUrl: null },
@@ -190,4 +192,28 @@ test('deleting the active character does not pick another one for the player', a
 
   const tobias = await create(player, phandalin.id, 'Tobias');
   assert.equal(tobias.active, true);
+});
+
+test('the table hears when a sheet is created or a player swaps the active character', async () => {
+  const server = await createTestServer(SOCKET_PROFILES);
+  try {
+    const s = await setupCombat(server);
+    const masterSocket = connect(server.port, s.campaign.id, await signIn(server, 'lia'));
+    await new Promise((resolve) => masterSocket.once('open', resolve));
+    let changes = 0;
+    masterSocket.on('message', (data) => {
+      if ((JSON.parse(data.toString()) as SocketMessage).type === 'characters.changed') changes += 1;
+    });
+
+    const reserve = (await body<CharacterResponse>(await send(s.player, `${s.root}/characters`, 'POST', sheet('Brom')))).character;
+    await until(() => changes === 1);
+    assert.equal(reserve.active, false);
+
+    assert.equal((await send(s.player, `${s.root}/characters/${reserve.id}/activate`, 'POST')).status, 200);
+    await until(() => changes === 2);
+
+    masterSocket.close();
+  } finally {
+    await server.close();
+  }
 });

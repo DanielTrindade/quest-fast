@@ -37,6 +37,8 @@ export type EventHub = {
   publishScene(campaignId: string, project: (viewer: Viewer) => SceneView | null): void;
   /** Sends `scene.closed` to the whole room: the table no longer has that scene open. */
   publishSceneClosed(campaignId: string, sceneId: string): void;
+  /** Sends `characters.changed` to the whole room: the roster is public to its members. */
+  publishCharactersChanged(campaignId: string): void;
   join(campaignId: string, viewer: Viewer, socket: WebSocket): void;
   leave(socket: WebSocket): void;
   /**
@@ -114,6 +116,10 @@ export function createEventHub(): EventHub {
 
     publishSceneClosed(campaignId, sceneId) {
       send(campaignId, () => ({ type: 'scene.closed', sceneId }));
+    },
+
+    publishCharactersChanged(campaignId) {
+      send(campaignId, () => ({ type: 'characters.changed' }));
     },
 
     publishCombatDeleted(campaignId, encounterId, couldSee) {

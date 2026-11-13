@@ -49,6 +49,12 @@ export function useCampaignSocket(campaignId: string, enabled: boolean): SocketS
         if (message.type === 'combat.updated') mergeEncounter(queryClient, campaignId, message.encounter);
         else if (message.type === 'combat.deleted') removeEncounter(queryClient, campaignId, message.encounterId);
         else if (message.type === 'session.event') mergeFeedEvent(queryClient, campaignId, message.event);
+        else if (message.type === 'characters.changed') {
+          // Only a hint: the roster, the open sheets and the gallery ask again.
+          void queryClient.invalidateQueries({ queryKey: ['characters', campaignId] });
+          void queryClient.invalidateQueries({ queryKey: ['character', campaignId] });
+          void queryClient.invalidateQueries({ queryKey: ['my-characters'] });
+        }
       },
     });
   }, [campaignId, enabled, queryClient]);

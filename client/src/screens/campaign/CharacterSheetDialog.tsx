@@ -6,7 +6,7 @@ import { Dialog } from '../../components/Dialog';
 import { Skeleton } from '../../components/Skeleton';
 import { ApiError, api } from '../../lib/api';
 import { mergeFeedEvent } from '../../lib/feed-cache';
-import { CharacterSheetView } from './CharacterSheetView';
+import { CharacterSheetView, type SheetContext } from './CharacterSheetView';
 import { dialogSheet, stack } from '../../components/layout-styles';
 
 function errorMessage(error: unknown) {
@@ -18,7 +18,7 @@ export function CharacterSheetDialog({
   characterId,
   currentUserId,
   isMaster,
-  canRoll = true,
+  context = 'table',
   open,
   onOpenChange,
   onEdit,
@@ -28,7 +28,7 @@ export function CharacterSheetDialog({
   characterId: string;
   currentUserId: string;
   isMaster: boolean;
-  canRoll?: boolean;
+  context?: SheetContext;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onEdit?: (sheet: CharacterSheet) => void;
@@ -121,7 +121,7 @@ export function CharacterSheetDialog({
           character={character}
           isOwner={isOwner}
           canDelete={isOwner || isMaster}
-          canRoll={canRoll}
+          context={context}
           rolling={roll.isPending}
           rollError={roll.isError ? errorMessage(roll.error) : null}
           lastRoll={lastRoll}

@@ -59,6 +59,35 @@ export const Convidado: Story = {
   args: { isOwner: false, canDelete: false },
 };
 
+export const NaGaleria: Story = {
+  name: 'Dono em Meus personagens: gerencia, não joga',
+  args: { context: 'gallery' },
+  play: async ({ canvasElement }) => {
+    const [region] = within(canvasElement).getAllByRole('region', { name: /^Tema / });
+    const sheet = within(region);
+    await expect(sheet.getByRole('button', { name: 'Editar' })).toBeVisible();
+    await expect(sheet.getByRole('button', { name: 'Excluir' })).toBeVisible();
+    await expect(sheet.queryByRole('button', { name: 'Dano' })).toBeNull();
+    await expect(sheet.queryByRole('form', { name: /Aplicar condição/ })).toBeNull();
+    await expect(sheet.queryByRole('button', { name: /^Teste de / })).toBeNull();
+    await expect(sheet.getByText(/mudam na Mesa da campanha/)).toBeVisible();
+  },
+};
+
+export const SoLeitura: Story = {
+  name: 'Dono na Visão geral: só leitura',
+  args: { context: 'read', canDelete: true },
+  play: async ({ canvasElement }) => {
+    const [region] = within(canvasElement).getAllByRole('region', { name: /^Tema / });
+    const sheet = within(region);
+    for (const name of ['Editar', 'Excluir', 'Dano', 'Cura']) {
+      await expect(sheet.queryByRole('button', { name })).toBeNull();
+    }
+    await expect(sheet.queryByRole('form', { name: /Aplicar condição/ })).toBeNull();
+    await expect(sheet.queryByRole('button', { name: /^Teste de / })).toBeNull();
+  },
+};
+
 export const Conjuradora: Story = {
   name: 'Magias (conjuradora)',
   args: { character: lyraVentoclaro },

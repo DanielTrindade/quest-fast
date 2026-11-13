@@ -446,23 +446,43 @@ function DeleteConfirmation({
  * below is reachable from a story.
  */
 /**
- * The API accepts an edit, a linked roll and a state change only from the
- * owner, so the sheet never offers them to anyone else; away from the table
- * it does not roll, and where it is not edited it offers no edit.
+ * Where the sheet opens decides what it offers. On the table it is played:
+ * rolls and session state. In the account gallery it is managed: edit and
+ * delete, no play. Anywhere else (the group on the overview) it is only read.
  */
-function sheetPermissions(isOwner: boolean, rollsHere: boolean, editable: boolean, stateful: boolean) {
+export type SheetContext = 'table' | 'gallery' | 'read';
+
+/**
+ * The API accepts an edit, a linked roll and a state change only from the
+ * owner, so the sheet never offers them to anyone else; the context then
+ * narrows what the owner (or the master, for deleting) gets here.
+ */
+function sheetPermissions(context: SheetContext, isOwner: boolean, deletable: boolean, editable: boolean, stateful: boolean) {
+  const playing = context === 'table';
   return {
-    canRoll: isOwner && rollsHere,
-    canEdit: isOwner && editable,
-    canChangeState: isOwner && stateful,
+    canRoll: isOwner && playing,
+    canChangeState: isOwner && stateful && playing,
+    canEdit: isOwner && editable && context !== 'read',
+    canDelete: deletable && context !== 'read',
   };
+}
+
+/** Says why the sheet offers less than it could: someone else's, or away from the table. */
+function ConsultationNotice({ ownerName, isOwner, context }: { ownerName: string; isOwner: boolean; context: SheetContext }) {
+  const text = !isOwner
+    ? `Consulta: só ${ownerName} edita e rola por esta ficha.`
+    : context !== 'table' ? 'Consulta: rolagens, pontos de vida, condições e recursos da sessão mudam na Mesa da campanha.' : null;
+  if (!text) return null;
+  return (
+    <p className="m-0 rounded-control border border-dashed border-input bg-card px-3 py-2 text-small text-text-secondary">{text}</p>
+  );
 }
 
 export function CharacterSheetView({
   character,
   isOwner,
-  canDelete,
-  canRoll: rollsHere = true,
+  canDelete: deletable,
+  context = 'table',
   rolling = false,
   rollError = null,
   lastRoll = null,
@@ -481,8 +501,7 @@ export function CharacterSheetView({
   character: CharacterSheet;
   isOwner: boolean;
   canDelete: boolean;
-  /** False away from the table: the sheet is for reading, play is on the table. */
-  canRoll?: boolean;
+  context?: SheetContext;
   rolling?: boolean;
   rollError?: string | null;
   lastRoll?: RollPayload | null;
@@ -500,7 +519,7 @@ export function CharacterSheetView({
   onCancelDelete: () => void;
   onConfirmDelete: () => void;
 }) {
-  const { canRoll, canEdit, canChangeState } = sheetPermissions(isOwner, rollsHere, Boolean(onEdit), Boolean(onStateChange));
+  const { canRoll, canEdit, canChangeState, canDelete } = sheetPermissions(context, isOwner, deletable, Boolean(onEdit), Boolean(onStateChange));
   const change = (state: CharacterStateInput) => onStateChange?.(state);
 
   const tabsId = useId();
@@ -528,11 +547,7 @@ export function CharacterSheetView({
           </p>
         )}
 
-        {!isOwner && (
-          <p className="m-0 rounded-control border border-dashed border-input bg-card px-3 py-2 text-small text-text-secondary">
-            Consulta: só {character.ownerName} edita e rola por esta ficha.
-          </p>
-        )}
+        <ConsultationNotice ownerName={character.ownerName} isOwner={isOwner} context={context} />
 
         {canRoll && (
           <div className="flex flex-wrap items-center gap-3 rounded-control border border-border bg-card p-3">

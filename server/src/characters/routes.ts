@@ -595,6 +595,7 @@ export function characterRoutes() {
         .get());
     });
     if (isInputError(result)) return c.json({ error: result.inputError }, 422);
+    c.var.deps.hub.publishCharactersChanged(c.var.campaignId);
     const row = characterSelect(db, c.var.campaignId, result.id)!;
     return c.json({ character: toSheet(row, c.var.deps.assets) }, 201);
   });
@@ -637,6 +638,7 @@ export function characterRoutes() {
     if (isInputError(result)) return c.json({ error: result.inputError }, 422);
     // Name, armor class and hit points show in the encounters the character is in.
     publishCharacterEncounters(c.var.deps, c.var.campaignId, current.id);
+    c.var.deps.hub.publishCharactersChanged(c.var.campaignId);
 
     const updated = characterSelect(db, c.var.campaignId, current.id)!;
     return c.json({ character: toSheet(updated, c.var.deps.assets) });
@@ -672,6 +674,7 @@ export function characterRoutes() {
     if (isInputError(result)) return c.json({ error: result.inputError }, 422);
     if (!result) return c.json({ error: 'Personagem não encontrado.' }, 404);
     publishCharacterEncounters(c.var.deps, c.var.campaignId, characterId);
+    c.var.deps.hub.publishCharactersChanged(c.var.campaignId);
 
     const updated = characterSelect(db, c.var.campaignId, characterId)!;
     return c.json({ character: toSheet(updated, c.var.deps.assets) });
@@ -693,6 +696,8 @@ export function characterRoutes() {
         .run();
       tx.update(characters).set({ active: true }).where(eq(characters.id, id)).run();
     });
+    // The others' table and overview show who each player brings.
+    c.var.deps.hub.publishCharactersChanged(campaignId);
     const updated = characterSelect(db, campaignId, id)!;
     return c.json({ character: toSheet(updated, c.var.deps.assets) });
   });
@@ -705,6 +710,7 @@ export function characterRoutes() {
       return c.json({ error: 'Apenas o dono ou o mestre podem excluir o personagem.' }, 403);
     }
     deleteCharacter(c.var.deps, c.var.campaignId, row.character.id);
+    c.var.deps.hub.publishCharactersChanged(c.var.campaignId);
     return c.body(null, 204);
   });
 
