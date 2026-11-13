@@ -289,6 +289,8 @@ export function sceneRoutes() {
     try {
       const form = await c.req.formData().catch(() => null);
       const { map, path } = await receiveMap(c, form);
+      // A drag in progress is in the old map's coordinates: it ends here.
+      c.var.deps.locks.clearScene(c.req.param('sceneId') ?? '');
       const loaded = db.transaction((tx) => {
         // Looked up again: the scene may have gone while the map was decoded.
         const { scene } = findScene(c, tx, { masterOnly: true });

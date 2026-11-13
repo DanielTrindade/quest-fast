@@ -213,7 +213,10 @@ export function settleAbandonedLock(deps: Deps, lock: HeldLock) {
     const current = loadScene(scope, tx, lock.sceneId);
     const token = current?.tokens.find((candidate) => candidate.row.id === lock.tokenId);
     if (!current || !token) return undefined;
-    if (lock.last) {
+    // A holder who lost sight of the token (hidden meanwhile) leaves it where it was.
+    const holder = { role: lock.role, userId: lock.userId };
+    const mayMove = lock.role === 'master' || (token.row.kind === 'character' && token.ownerId === lock.userId);
+    if (lock.last && mayMove && tokenVisibleTo(token, holder)) {
       const position = restingPoint(current.scene, token.size, lock.last.x, lock.last.y);
       tx.update(tokens).set(position).where(eq(tokens.id, token.row.id)).run();
     }
@@ -304,6 +307,7 @@ export function tokenRoutes() {
         tokenId: token.row.id,
         userId: c.var.user.id,
         userName: c.var.user.name,
+        role: c.var.role,
         mapWidth: loaded.scene.mapWidth,
         mapHeight: loaded.scene.mapHeight,
       });
@@ -324,7 +328,7 @@ export function tokenRoutes() {
   });
 
   routes.patch('/:tokenId', (c) => {
-    let release: (() => void) | undefined;
+    const releases: (() => void)[] = [];
     return change(
       c,
       (tx, loaded, body) => {
@@ -338,11 +342,18 @@ export function tokenRoutes() {
           requireNoOtherHolder(c, token.row.id);
           const point = parsePoint(body);
           Object.assign(changes, restingPoint(loaded.scene, token.size, point.x, point.y));
-          release = () => c.var.deps.locks.release(token.row.id, c.var.user.id);
+          releases.push(() => c.var.deps.locks.release(token.row.id, c.var.user.id));
         }
         if (body.hidden !== undefined) {
           if (typeof body.hidden !== 'boolean') refuse(422, 'Valor inválido para "escondido".');
           changes.hidden = body.hidden;
+          // A player dragging it no longer sees it: the drag ends where the token is.
+          if (body.hidden) {
+            releases.push(() => {
+              const holder = c.var.deps.locks.holder(token.row.id);
+              if (holder && holder.role !== 'master') c.var.deps.locks.clear(token.row.id);
+            });
+          }
         }
         if (body.label !== undefined) {
           if (token.row.kind !== 'free') refuse(422, 'O nome deste token vem da ficha ou do combate.');
@@ -353,7 +364,7 @@ export function tokenRoutes() {
         if (Object.keys(changes).length === 0) refuse(422, 'Informe a posição, a visibilidade ou o nome do token.');
         tx.update(tokens).set(changes).where(eq(tokens.id, token.row.id)).run();
       },
-      { after: () => release?.() },
+      { after: () => releases.forEach((release) => release()) },
     );
   });
 

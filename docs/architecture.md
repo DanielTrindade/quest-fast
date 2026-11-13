@@ -374,9 +374,13 @@ tokens vêm em seguida, e o fog na entrega 3.
   no `grab` e de novo ao soltar.
 - **Travas em memória, num só processo.** `createTokenLocks` guarda quem
   arrasta cada token e a última posição recebida. Uma trava que expira sem
-  movimento, ou cujo dono fecha o socket, é *abandonada*: o servidor grava a
-  última posição recebida (com encaixe no grid), sobe a `version` e publica a
-  cena, e o token fica livre. Pegar o token também publica a cena, com
+  movimento, ou cujo dono fecha o último socket na campanha, é *abandonada*: o
+  servidor grava a última posição recebida (com encaixe no grid, e só se o
+  dono ainda vê o token), sobe a `version` e publica a cena, e o token fica
+  livre. Ler uma trava nunca grava: a vencida encontrada numa leitura é
+  liquidada depois da transação em curso. Esconder o token, ou o combatente
+  dele, encerra o arrasto do jogador; trocar o mapa encerra os arrastos da
+  cena. Pegar o token também publica a cena, com
   `movingBy` dizendo quem move. Rodar mais de um processo exigiria levar as
   travas para fora da memória.
 - **O combate muda o mapa.** Um token de combatente lê nome, tamanho e

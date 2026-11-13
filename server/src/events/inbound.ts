@@ -62,6 +62,12 @@ export function receiveFrom(
     const { x, y } = clampToMap(message.x, message.y, lock.mapWidth, lock.mapHeight);
     const audience = movingAudience(deps.db, connection.campaignId, message.tokenId);
     if (!audience) return;
+    // Hidden meanwhile (on the map or in the encounter): the PATCH would be a
+    // 404 for this sender, so the socket cannot move it either.
+    if (!audience(connection)) {
+      deps.locks.release(message.tokenId, connection.userId);
+      return;
+    }
     deps.locks.move(message.tokenId, connection.userId, x, y);
     deps.hub.publishTokenMoving(connection.campaignId, { tokenId: message.tokenId, x, y, ts: Date.now() }, audience, connection.socket);
   };

@@ -48,6 +48,8 @@ export type EventHub = {
     except?: WebSocket,
   ): void;
   join(campaignId: string, viewer: Viewer, socket: WebSocket): void;
+  /** Whether the user still has an open socket in the campaign's room. */
+  connected(campaignId: string, userId: string): boolean;
   leave(socket: WebSocket): void;
   /**
    * Drops every socket of the user in the campaign's room at once — the next
@@ -83,6 +85,10 @@ export function createEventHub(): EventHub {
       }
       room.add(socket);
       socket.on('close', () => hub.leave(socket));
+    },
+
+    connected(campaignId, userId) {
+      return [...(rooms.get(campaignId) ?? [])].some((socket) => connections.get(socket)?.userId === userId);
     },
 
     leave(socket) {

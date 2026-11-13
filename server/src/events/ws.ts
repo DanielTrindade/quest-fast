@@ -39,8 +39,9 @@ function campaignRole(db: Db, campaignId: string, userId: string): Role | undefi
  * REST routes — 404-style refusal, no hint that the campaign exists.
  *
  * The socket receives one message, `token.move` (see `inbound.ts`); a frame
- * over `INBOUND_MAX_BYTES` closes it. When it closes, every lock its user
- * held in the campaign is abandoned: the token stays where it was last seen.
+ * over `INBOUND_MAX_BYTES` closes it. When the user's last socket in the
+ * campaign closes, every lock they held there is abandoned: the token stays
+ * where it was last seen.
  */
 export function attachWebSocket(server: ServerType, deps: { db: Db; hub: EventHub; locks: TokenLocks }) {
   const httpServer = server as Server;
@@ -62,7 +63,12 @@ export function attachWebSocket(server: ServerType, deps: { db: Db; hub: EventHu
     wss.handleUpgrade(request, socket, head, (ws: WebSocket) => {
       deps.hub.join(campaignId, { role, userId: user.id }, ws);
       ws.on('message', receiveFrom(deps, { campaignId, role, userId: user.id, socket: ws }));
-      ws.on('close', () => deps.locks.abandon(campaignId, user.id));
+      // The hub drops the socket first (its own 'close' listener came first),
+      // so this asks about the user's other tabs. Their drag goes on; a lock
+      // nobody renews runs out by itself.
+      ws.on('close', () => {
+        if (!deps.hub.connected(campaignId, user.id)) deps.locks.abandon(campaignId, user.id);
+      });
       // An oversized or malformed frame: ws closes the socket itself, and an
       // unheard 'error' would take the whole process down.
       ws.on('error', () => {});

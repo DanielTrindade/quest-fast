@@ -378,6 +378,108 @@ test('a lock with no move in time frees the token where it was last seen', () =>
     await sceneOf(await send(s.master, `${path}/tokens/${kaelen.id}/grab`, 'POST'));
   }));
 
+test('an expired lock read by a refused request is settled after it, and the table gets only what was saved', () => {
+  let time = 1_000_000;
+  // A long TTL keeps the timer out of the way; the clock decides the expiry.
+  return withServer({ locks: createTokenLocks({ ttlMs: 60_000, now: () => time }) }, async (_server, s, socketOf) => {
+    const { path } = await openScene(s);
+    const kaelen = named(await sceneOf(await add(s, path, { kind: 'character', characterId: s.kaelen.id }), 201), 'Kaelen');
+    const toMaster = collect(await socketOf('lia'));
+    const playerSocket = await socketOf('rafael');
+    await sceneOf(await send(s.player, `${path}/tokens/${kaelen.id}/grab`, 'POST'));
+    playerSocket.send(JSON.stringify({ type: 'token.move', tokenId: kaelen.id, x: 333, y: 205 }));
+    await until(() => moving(toMaster).length === 1);
+
+    time += 60_000;
+    assert.equal((await send(s.master, `${path}/tokens/${kaelen.id}`, 'PATCH', {})).status, 422);
+    await until(() => stored(s, kaelen.id)?.x === 330);
+    await until(() => lastScene(toMaster)?.tokens[0]?.x === 330);
+    const saved = await sceneOf(await s.master(path));
+    assert.equal(lastScene(toMaster)!.version, saved.version);
+    // No version was published that the database never kept.
+    const versions = toMaster.flatMap((message) => (message.type === 'scene.updated' ? [message.scene.version] : []));
+    assert.ok(versions.every((version) => version <= saved.version), JSON.stringify(versions));
+  });
+});
+
+test("closing one of the holder's tabs does not end the drag going on in another", () =>
+  withServer({}, async (_server, s, socketOf) => {
+    const { path } = await openScene(s);
+    const kaelen = named(await sceneOf(await add(s, path, { kind: 'character', characterId: s.kaelen.id }), 201), 'Kaelen');
+    const toMaster = collect(await socketOf('lia'));
+    const dragging = await socketOf('rafael');
+    const background = await socketOf('rafael');
+    await sceneOf(await send(s.player, `${path}/tokens/${kaelen.id}/grab`, 'POST'));
+
+    const closed = new Promise((resolve) => background.once('close', resolve));
+    background.close();
+    await closed;
+    dragging.send(JSON.stringify({ type: 'token.move', tokenId: kaelen.id, x: 333, y: 205 }));
+    await until(() => moving(toMaster).length === 1);
+    assert.equal(named(await sceneOf(await s.master(path)), 'Kaelen').movingBy?.name, 'Rafael Costa');
+    assert.deepEqual([stored(s, kaelen.id)?.x, stored(s, kaelen.id)?.y], [kaelen.x, kaelen.y]);
+  }));
+
+test('a player whose token is hidden mid-drag can no longer move it, over the socket or on close', () =>
+  withServer({}, async (_server, s, socketOf) => {
+    const { path } = await openScene(s);
+    const kaelen = named(await sceneOf(await add(s, path, { kind: 'character', characterId: s.kaelen.id }), 201), 'Kaelen');
+    const toMaster = collect(await socketOf('lia'));
+    const playerSocket = await socketOf('rafael');
+    await sceneOf(await send(s.player, `${path}/tokens/${kaelen.id}/grab`, 'POST'));
+
+    const hidden = await sceneOf(await send(s.master, `${path}/tokens/${kaelen.id}`, 'PATCH', { hidden: true }));
+    assert.equal(named(hidden, 'Kaelen').movingBy, null);
+    playerSocket.send(JSON.stringify({ type: 'token.move', tokenId: kaelen.id, x: 510, y: 310 }));
+    const closed = new Promise((resolve) => playerSocket.once('close', resolve));
+    playerSocket.close();
+    await closed;
+    // The token is free for the master: no lock was left behind.
+    await sceneOf(await send(s.master, `${path}/tokens/${kaelen.id}/grab`, 'POST'));
+    assert.deepEqual(moving(toMaster), []);
+    assert.deepEqual([stored(s, kaelen.id)?.x, stored(s, kaelen.id)?.y], [kaelen.x, kaelen.y]);
+  }));
+
+test('a player who loses sight of the token mid-drag leaves it where it was when the lock runs out', () =>
+  withServer({ locks: createTokenLocks({ ttlMs: 150 }) }, async (_server, s, socketOf) => {
+    const { path } = await openScene(s);
+    const kaelen = named(await sceneOf(await add(s, path, { kind: 'character', characterId: s.kaelen.id }), 201), 'Kaelen');
+    const toMaster = collect(await socketOf('lia'));
+    const playerSocket = await socketOf('rafael');
+    await sceneOf(await send(s.player, `${path}/tokens/${kaelen.id}/grab`, 'POST'));
+    playerSocket.send(JSON.stringify({ type: 'token.move', tokenId: kaelen.id, x: 251, y: 251 }));
+    await until(() => moving(toMaster).length === 1);
+    // Hidden directly in the database, as if by a path that keeps the lock.
+    s.app.db.update(tokens).set({ hidden: true }).where(eq(tokens.id, kaelen.id)).run();
+    await until(() => lastScene(toMaster)?.tokens[0]?.movingBy === null);
+    assert.deepEqual([stored(s, kaelen.id)?.x, stored(s, kaelen.id)?.y], [kaelen.x, kaelen.y]);
+  }));
+
+test('the master still may drag what a player cannot see', () =>
+  withServer({ locks: createTokenLocks({ ttlMs: 150 }) }, async (_server, s, socketOf) => {
+    const { path } = await openScene(s);
+    const { id, encounter } = await runningEncounter(s, { start: false });
+    await sceneOf(await send(s.master, `${path}/tokens/encounter`, 'POST', { encounterId: encounter.id, x: 30, y: 30 }), 201);
+    const goblin = named(await sceneOf(await s.master(path)), 'Goblin 1');
+    const masterSocket = await socketOf('lia');
+    await send(s.master, `${s.base}/${encounter.id}/combatants/${id('Goblin 1')}`, 'PATCH', { hidden: true });
+    await sceneOf(await send(s.master, `${path}/tokens/${goblin.id}/grab`, 'POST'));
+    masterSocket.send(JSON.stringify({ type: 'token.move', tokenId: goblin.id, x: 251, y: 251 }));
+    await until(() => stored(s, goblin.id)?.x === 250);
+  }));
+
+test('swapping the map ends the drags on it', async () => {
+  const s = await setup();
+  const { path } = await openScene(s);
+  const kaelen = named(await sceneOf(await add(s, path, { kind: 'character', characterId: s.kaelen.id }), 201), 'Kaelen');
+  await sceneOf(await send(s.player, `${path}/tokens/${kaelen.id}/grab`, 'POST'));
+  const form = new FormData();
+  form.set('image', new Blob([await testImageBytes('png', 300, 200)], { type: 'image/png' }), 'mapa.png');
+  const scene = await sceneOf(await s.master(`${path}/map`, { method: 'PUT', body: form }));
+  assert.equal(named(scene, 'Kaelen').movingBy, null);
+  await sceneOf(await send(s.master, `${path}/tokens/${kaelen.id}/grab`, 'POST'));
+});
+
 test('a frame over 1 KB closes the socket', () =>
   withServer({}, async (_server, _s, socketOf) => {
     const socket = await socketOf('rafael');
