@@ -169,3 +169,27 @@ test('an answer with nothing newer to compete with is kept', async () => {
   answer({ scene: scene(a, 4, { active: true }) });
   assert.equal((await pending)?.version, 4);
 });
+
+test('a map closed during the very first GET stays closed', async () => {
+  const { queryClient, a } = setup();
+  const answer = heldAnswer();
+  // Nothing cached yet: the table screen has just asked.
+  const pending = queryClient.fetchQuery(activeSceneQuery(CAMPAIGN));
+  closeScene(queryClient, CAMPAIGN, a);
+  answer({ scene: scene(a, 1, { active: true }) });
+  assert.equal(await pending, null);
+});
+
+test('a scene deleted in another tab leaves the list once the server says so', async () => {
+  const { queryClient, a } = setup();
+  const row = (({ id, name, mapUrl, mapWidth, mapHeight, active, createdAt }) =>
+    ({ id, name, mapUrl, mapWidth, mapHeight, active, createdAt }))(scene(a, 1, { active: true }));
+  queryClient.setQueryData<SceneListResponse>(sceneListQuery(CAMPAIGN).queryKey, { scenes: [row] });
+  mergeScene(queryClient, CAMPAIGN, scene(a, 1, { active: true }));
+  const answer = heldAnswer();
+  const pending = queryClient.fetchQuery(sceneListQuery(CAMPAIGN));
+  // The other tab deleted the open scene: this one only hears scene.closed.
+  closeScene(queryClient, CAMPAIGN, a);
+  answer({ scenes: [] });
+  assert.deepEqual((await pending).scenes, []);
+});

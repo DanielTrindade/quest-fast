@@ -21,8 +21,12 @@ let clock = 0;
 const seen = new Map<string, number>();
 /** Scenes deleted while this tab was open. */
 const deleted = new Set<string>();
-/** When each scene last changed here, by a push or a mutation's answer. */
-const changedAt = new Map<string, number>();
+/**
+ * When each scene last arrived here whole, by a push or a mutation's answer.
+ * Only a scene that arrived can be kept over an answer that lacks it; one
+ * merely closed (`scene.closed`) may have been deleted elsewhere.
+ */
+const mergedAt = new Map<string, number>();
 /** When the scene open for each campaign's table last changed here. */
 const tableChangedAt = new Map<string, number>();
 
@@ -40,8 +44,8 @@ export const sceneListQuery = (campaignId: string) => ({
     const fresh = await api.scenes(campaignId);
     const known = client.getQueryData<SceneListResponse>(listKey(campaignId))?.scenes ?? [];
     const knownRow = (id: string) => known.find((row) => row.id === id);
-    const changed = (id: string) => changedSince(changedAt, id, asked);
-    // Created while the GET was out: the answer does not have it yet.
+    const changed = (id: string) => changedSince(mergedAt, id, asked);
+    // Arrived while the GET was out (created, say): the answer does not have it yet.
     const added = known.filter((row) => changed(row.id) && !fresh.scenes.some((item) => item.id === row.id));
     let scenes = [...added, ...fresh.scenes]
       .filter((row) => !deleted.has(row.id))
@@ -78,7 +82,7 @@ export const sceneQuery = (campaignId: string, sceneId: string) => ({
     const fresh = await api.scene(campaignId, sceneId);
     if (deleted.has(sceneId)) throw new ApiError(404, 'Cena não encontrada.');
     const known = client.getQueryData<SceneResponse>(detailKey(campaignId, sceneId))?.scene;
-    if (known && (changedSince(changedAt, sceneId, asked) || known.version > fresh.scene.version)) return { scene: known };
+    if (known && (changedSince(mergedAt, sceneId, asked) || known.version > fresh.scene.version)) return { scene: known };
     see(fresh.scene);
     return fresh;
   },
@@ -97,7 +101,7 @@ function summarise(scene: SceneView): SceneSummary {
 export function mergeScene(queryClient: QueryClient, campaignId: string, scene: SceneView): void {
   if (deleted.has(scene.id) || (seen.get(scene.id) ?? -1) > scene.version) return;
   see(scene);
-  changedAt.set(scene.id, ++clock);
+  mergedAt.set(scene.id, ++clock);
 
   queryClient.setQueryData<SceneResponse>(detailKey(campaignId, scene.id), { scene });
 
@@ -122,27 +126,30 @@ export function mergeScene(queryClient: QueryClient, campaignId: string, scene: 
 }
 
 /**
- * The map left the table: closed, or its scene deleted. The detail is asked
- * again, so a player's screen learns it may no longer see it (404) and the
- * master's learns whether it still exists.
+ * The map left the table: closed, or its scene deleted (by this master in
+ * another tab, say). Nothing is open now, whatever the cache held, so even a
+ * first GET still on its way answers null. The detail and the list are asked
+ * again: a player's screen learns it may no longer see the scene (404), and
+ * the master's list learns whether it still exists.
  */
 export function closeScene(queryClient: QueryClient, campaignId: string, sceneId: string): void {
-  changedAt.set(sceneId, ++clock);
-  if (queryClient.getQueryData<SceneView | null>(activeKey(campaignId))?.id === sceneId) {
-    tableChangedAt.set(campaignId, clock);
+  const open = queryClient.getQueryData<SceneView | null>(activeKey(campaignId));
+  if (open === undefined || open?.id === sceneId) {
+    tableChangedAt.set(campaignId, ++clock);
     queryClient.setQueryData<SceneView | null>(activeKey(campaignId), null);
   }
   void queryClient.invalidateQueries({ queryKey: detailKey(campaignId, sceneId) });
+  void queryClient.invalidateQueries({ queryKey: listKey(campaignId) });
 }
 
 /** The master deleted a scene: it leaves the list, the table and its detail, for good. */
 export function removeScene(queryClient: QueryClient, campaignId: string, sceneId: string): void {
+  // Final: no answer, late or not, brings it back.
   deleted.add(sceneId);
-  changedAt.set(sceneId, ++clock);
   queryClient.setQueryData<SceneListResponse>(listKey(campaignId), (current) =>
     current && { scenes: current.scenes.filter((item) => item.id !== sceneId) });
   if (queryClient.getQueryData<SceneView | null>(activeKey(campaignId))?.id === sceneId) {
-    tableChangedAt.set(campaignId, clock);
+    tableChangedAt.set(campaignId, ++clock);
     queryClient.setQueryData<SceneView | null>(activeKey(campaignId), null);
   }
   queryClient.removeQueries({ queryKey: detailKey(campaignId, sceneId), exact: true });
