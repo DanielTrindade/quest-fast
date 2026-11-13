@@ -126,14 +126,14 @@ que detalha os requisitos de
 [`history/2026-09-04-vtt-battlefield.md`](history/2026-09-04-vtt-battlefield.md)
 com as decisões do spike. Quatro entregas, cada uma usável na mesa:
 
-1. **Cena e mapa — em andamento.** O mestre cria cenas, envia o mapa
-   (normalizado no servidor), abre uma cena para a mesa e configura o grid; os
-   jogadores veem a cena aberta com pan e zoom, inclusive no celular. Já
-   prontos: regras do grid e limites do mapa em `shared/`, contrato da API,
-   schema das cenas e o servidor (normalização do mapa com `sharp`, rotas com
-   RBAC, cena aberta para a mesa e `scene.updated`/`scene.closed` no socket)
-   e os componentes no Storybook (`MapCanvas` com pan, zoom e grid,
-   `SceneList`, `SceneForm` e `GridSettings`).
+1. **Cena e mapa — entregue.** O mestre cria cenas no Preparo, envia o mapa
+   (normalizado no servidor com `sharp`, com progresso do envio), confere a
+   cena num diálogo, abre uma para a mesa e ajusta o grid; os jogadores veem a
+   cena aberta no centro da Mesa, com pan e zoom, inclusive no celular, e a
+   miniatura na Visão geral. Fechar o mapa o tira de todas as telas na hora.
+   Regras do grid e limites do mapa em `shared/`, rotas com RBAC,
+   `scene.updated`/`scene.closed` no socket e os componentes no Storybook
+   (`MapCanvas`, `SceneList`, `SceneForm`, `GridSettings` e `OpenScene`).
 2. **Tokens.** Tokens de personagem, de combatente (ancorados no id estável do
    combatente) e do bestiário ou livres, com tamanho pela criatura, arrasto ao
    vivo com trava, posse por papel, tokens ocultos fora do payload do jogador
