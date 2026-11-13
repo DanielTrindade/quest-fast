@@ -1,4 +1,4 @@
-import { useId, useState } from 'react';
+import { useId, useState, type ReactNode } from 'react';
 import { ArrowCounterClockwise, ArrowRight, DiceFive, FlagCheckered, Play, Sword } from '@phosphor-icons/react';
 import type { EncounterStatus } from '@quest-fast/shared';
 import { Button } from './Button';
@@ -19,6 +19,20 @@ type ActionProps = {
   onAction: (action: TurnAction) => void;
 };
 
+/**
+ * The buttons in a row with a hint under them, both at the edge. The hint is
+ * a line of its own, not a flex item: as one it would widen the row and push
+ * the buttons under the title.
+ */
+function ActionRow({ hint, hintId, children }: { hint: string | null; hintId: string; children: ReactNode }) {
+  return (
+    <div className="grid min-w-0 justify-items-end gap-1">
+      <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">{children}</div>
+      {hint && <p id={hintId} className="m-0 text-end text-small text-text-secondary">{hint}</p>}
+    </div>
+  );
+}
+
 /** What the announcement says; the same sentence goes to screen readers. */
 function turnMessage({ status, round, activeName, activeHidden, ownTurn }: TurnState): string {
   if (status === 'preparing') return 'Encontro em preparação: só você vê.';
@@ -30,14 +44,19 @@ function turnMessage({ status, round, activeName, activeHidden, ownTurn }: TurnS
 }
 
 /** Round 0: monsters roll, characters roll their own, then round 1 opens. */
-function InitiativeActions({ missingInitiative, monstersWithoutInitiative, pending, onAction }: ActionProps & {
+function InitiativeActions({ missingInitiative, monstersWithoutInitiative, pending, onAction, leading }: ActionProps & {
   missingInitiative: number;
   monstersWithoutInitiative: number;
+  leading: ReactNode;
 }) {
   const missingId = useId();
   const busy = pending !== null;
+  const hint = missingInitiative === 0
+    ? null
+    : missingInitiative === 1 ? 'Falta a iniciativa de 1 combatente.' : `Falta a iniciativa de ${missingInitiative} combatentes.`;
   return (
-    <>
+    <ActionRow hint={hint} hintId={missingId}>
+      {leading}
       {monstersWithoutInitiative > 0 && (
         <Button variant="secondary" loading={pending === 'rollMonsters'} disabled={busy} onClick={() => onAction('rollMonsters')}>
           <DiceFive size={18} aria-hidden="true" /> Rolar iniciativa das criaturas
@@ -51,21 +70,17 @@ function InitiativeActions({ missingInitiative, monstersWithoutInitiative, pendi
       >
         <Play size={18} aria-hidden="true" /> Começar round 1
       </Button>
-      {missingInitiative > 0 && (
-        <p id={missingId} className="m-0 basis-full text-small text-text-secondary">
-          {missingInitiative === 1 ? 'Falta a iniciativa de 1 combatente.' : `Falta a iniciativa de ${missingInitiative} combatentes.`}
-        </p>
-      )}
-    </>
+    </ActionRow>
   );
 }
 
 /** The first turn of round 1 has nothing before it: going back stays off, with the reason. */
-function RoundActions({ canGoBack, pending, onAction }: ActionProps & { canGoBack: boolean }) {
+function RoundActions({ canGoBack, pending, onAction, leading }: ActionProps & { canGoBack: boolean; leading: ReactNode }) {
   const noPreviousId = useId();
   const busy = pending !== null;
   return (
-    <>
+    <ActionRow hint={canGoBack ? null : 'Ainda não há turno anterior.'} hintId={noPreviousId}>
+      {leading}
       <Button
         variant="secondary"
         loading={pending === 'previous'}
@@ -78,8 +93,7 @@ function RoundActions({ canGoBack, pending, onAction }: ActionProps & { canGoBac
       <Button loading={pending === 'next'} disabled={busy} onClick={() => onAction('next')}>
         Próximo turno <ArrowRight size={18} aria-hidden="true" />
       </Button>
-      {!canGoBack && <p id={noPreviousId} className="m-0 basis-full text-small text-text-secondary">Ainda não há turno anterior.</p>}
-    </>
+    </ActionRow>
   );
 }
 
@@ -118,16 +132,13 @@ function MasterActions({ status, round, canGoBack, missingInitiative, monstersWi
     );
   }
   if (status === 'ended') return null;
-  return (
-    <>
-      {round === 0 ? (
-        <InitiativeActions missingInitiative={missingInitiative} monstersWithoutInitiative={monstersWithoutInitiative}
-          pending={pending} onAction={onAction} />
-      ) : (
-        <RoundActions canGoBack={canGoBack} pending={pending} onAction={onAction} />
-      )}
-      <EndCombat pending={pending} onAction={onAction} />
-    </>
+  // Ending comes first, so "Próximo turno" stays the last, at the edge.
+  const end = <EndCombat pending={pending} onAction={onAction} />;
+  return round === 0 ? (
+    <InitiativeActions missingInitiative={missingInitiative} monstersWithoutInitiative={monstersWithoutInitiative}
+      pending={pending} onAction={onAction} leading={end} />
+  ) : (
+    <RoundActions canGoBack={canGoBack} pending={pending} onAction={onAction} leading={end} />
   );
 }
 
@@ -171,7 +182,7 @@ export function TurnBar({
   return (
     <div data-own-turn={yourTurn || undefined} className="group flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-3 rounded-panel border border-border-strong bg-popover px-4 py-3 edge-raised transition-[border-color,box-shadow] duration-(--duration-settle) ease-settle data-own-turn:border-accent-text data-own-turn:shadow-[inset_0_-3px_0_var(--color-accent-text),inset_0_1px_0_var(--color-edge-light)]">
       <div className="grid min-w-0 flex-[1_1_12rem] gap-1">
-        <p className="m-0 font-mono text-small tracking-[0.04em] text-text-secondary uppercase">{playing ? `Round ${round}` : ENCOUNTER_STATUS_LABELS[status]}</p>
+        <p className="m-0 text-small font-semibold text-text-secondary">{playing ? `Round ${round}` : ENCOUNTER_STATUS_LABELS[status]}</p>
         {/* Announced on every change of turn. */}
         <p className="m-0 flex items-center gap-2 font-display text-h2 font-semibold [overflow-wrap:anywhere] group-data-own-turn:text-accent-text" role="status" aria-live="polite">
           {yourTurn && <Sword size={18} aria-hidden="true" />}
@@ -179,7 +190,7 @@ export function TurnBar({
         </p>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="ms-auto flex min-w-0 flex-wrap items-center justify-end gap-2">
         {master ? (
           <MasterActions status={status} round={round} canGoBack={canGoBack} missingInitiative={missingInitiative}
             monstersWithoutInitiative={monstersWithoutInitiative} pending={pending} onAction={onAction} />
