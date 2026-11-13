@@ -213,12 +213,18 @@ export const characters = sqliteTable(
     // conditions and concentration, in and out of combat.
     conditions: text('conditions', { mode: 'json' }).$type<ActiveCondition[]>().notNull().default([]),
     concentrating: integer('concentrating', { mode: 'boolean' }).notNull().default(false),
+    // The one character a player brings to the table in this campaign; the
+    // others stay in the gallery (dead, retired or waiting).
+    active: integer('active', { mode: 'boolean' }).notNull().default(false),
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(now),
     updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(now),
   },
   (table) => [
     index('characters_campaign_id_idx').on(table.campaignId),
     index('characters_owner_id_idx').on(table.ownerId),
+    uniqueIndex('characters_one_active_idx')
+      .on(table.campaignId, table.ownerId)
+      .where(sql`active = 1`),
   ],
 );
 

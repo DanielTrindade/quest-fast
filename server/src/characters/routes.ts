@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
-import { and, eq } from 'drizzle-orm';
+import { and, asc, eq, ne } from 'drizzle-orm';
 import { Hono } from 'hono';
-import { assets, characters, users, type CharacterRow, type Db } from '@quest-fast/db';
+import { assets, campaignMembers, campaigns, characters, users, type CharacterRow, type Db } from '@quest-fast/db';
 import {
   ABILITIES,
   CHARACTER_LIMITS as L,
@@ -30,6 +30,7 @@ import {
   spellAttackBonus,
   type Ability,
   type ActiveCondition,
+  type MyCharacter,
   type ArmorTraining,
   type Attack,
   type CharacterSheet,
@@ -415,6 +416,7 @@ function toSummary(row: {
   hpCurrent: number;
   hpTemp: number;
   ac: number;
+  active: boolean;
   ownerId: string;
   ownerName: string;
   avatarPath: string | null;
@@ -432,6 +434,7 @@ function toSummary(row: {
     hpCurrent: row.hpCurrent,
     hpTemp: row.hpTemp,
     ac: row.ac,
+    active: row.active,
   };
 }
 
@@ -553,6 +556,7 @@ export function characterRoutes() {
         hpCurrent: characters.hpCurrent,
         hpTemp: characters.hpTemp,
         ac: characters.ac,
+        active: characters.active,
         ownerId: characters.ownerId,
         ownerName: users.name,
         avatarPath: assets.path,
@@ -573,8 +577,9 @@ export function characterRoutes() {
       const { core, official: sent } = parseCharacterInput(body);
       checkAvatar(db, c.var.campaignId, core.avatarAssetId);
       const official = checkExpertise({ ...officialDefaults(), ...sent }, core.skills, sent.expertise !== undefined);
-      // A new character starts rested: full hit points, nothing spent.
-      return db
+      // A new character starts rested: full hit points, nothing spent. The
+      // player's first one in the campaign is the one they bring to the table.
+      return db.transaction((tx) => tx
         .insert(characters)
         .values({
           id: randomUUID(),
@@ -584,9 +589,10 @@ export function characterRoutes() {
           ...officialColumns(official),
           spellSlots: official.spellSlotTotals.map((total) => ({ total, spent: 0 })),
           hpCurrent: core.hp,
+          active: !activeCharacterOf(tx, c.var.campaignId, c.var.user.id),
         })
         .returning({ id: characters.id })
-        .get();
+        .get());
     });
     if (isInputError(result)) return c.json({ error: result.inputError }, 422);
     const row = characterSelect(db, c.var.campaignId, result.id)!;
@@ -671,6 +677,26 @@ export function characterRoutes() {
     return c.json({ character: toSheet(updated, c.var.deps.assets) });
   });
 
+  routes.post('/:characterId/activate', requireCampaignRole(), (c) => {
+    const { db } = c.var.deps;
+    const row = characterSelect(db, c.var.campaignId, c.req.param('characterId'));
+    if (!row) return c.json({ error: 'Personagem não encontrado.' }, 404);
+    if (row.character.ownerId !== c.var.user.id) {
+      return c.json({ error: 'Apenas o dono pode escolher o personagem que leva à mesa.' }, 403);
+    }
+    const { id, campaignId, ownerId } = row.character;
+    // Clear first: the partial unique index rejects a second active row.
+    db.transaction((tx) => {
+      tx.update(characters)
+        .set({ active: false })
+        .where(and(eq(characters.campaignId, campaignId), eq(characters.ownerId, ownerId), ne(characters.id, id)))
+        .run();
+      tx.update(characters).set({ active: true }).where(eq(characters.id, id)).run();
+    });
+    const updated = characterSelect(db, campaignId, id)!;
+    return c.json({ character: toSheet(updated, c.var.deps.assets) });
+  });
+
   routes.delete('/:characterId', requireCampaignRole(), (c) => {
     const { db } = c.var.deps;
     const row = characterSelect(db, c.var.campaignId, c.req.param('characterId'));
@@ -703,6 +729,45 @@ export function characterRoutes() {
     });
     hub.publish(c.var.campaignId, event);
     return c.json({ event }, 201);
+  });
+
+  return routes;
+}
+
+function activeCharacterOf(db: Pick<Db, 'select'>, campaignId: string, ownerId: string) {
+  return db
+    .select({ id: characters.id })
+    .from(characters)
+    .where(and(eq(characters.campaignId, campaignId), eq(characters.ownerId, ownerId), eq(characters.active, true)))
+    .get();
+}
+
+/**
+ * The account gallery: every sheet of the signed-in player, in the campaigns
+ * they still belong to. Reading a sheet requires membership, even for its
+ * owner, so a campaign the player left takes its sheets out of the gallery.
+ */
+export function myCharacterRoutes() {
+  const routes = new Hono<Context>();
+  routes.use('*', requireAuth);
+
+  routes.get('/', (c) => {
+    const { db } = c.var.deps;
+    const rows = db
+      .select({ character: characters, ownerName: users.name, avatarPath: assets.path, campaignName: campaigns.name })
+      .from(characters)
+      .innerJoin(campaignMembers, and(
+        eq(campaignMembers.campaignId, characters.campaignId),
+        eq(campaignMembers.userId, c.var.user.id),
+      ))
+      .innerJoin(campaigns, eq(campaigns.id, characters.campaignId))
+      .innerJoin(users, eq(users.id, characters.ownerId))
+      .leftJoin(assets, eq(assets.id, characters.avatarAssetId))
+      .where(eq(characters.ownerId, c.var.user.id))
+      .orderBy(asc(characters.createdAt), asc(characters.id))
+      .all();
+    const mine: MyCharacter[] = rows.map(({ campaignName, ...row }) => ({ ...toSheet(row, c.var.deps.assets), campaignName }));
+    return c.json({ characters: mine });
   });
 
   return routes;

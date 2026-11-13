@@ -159,8 +159,10 @@ for (const sheet of charactersSeed) {
       level: sheet.level,
       abilityScores: sheet.abilityScores,
       hp: sheet.hp,
-      // A new sheet starts rested, as the API creates it.
+      // A new sheet starts rested, as the API creates it. Each owner has one
+      // sheet here, so each is the one they bring to the table.
       hpCurrent: sheet.hp,
+      active: true,
       ac: sheet.ac,
       skills: sheet.skills,
       saves: sheet.saves,
@@ -278,8 +280,9 @@ for (const sheet of charactersSeed) {
     .run();
 }
 // Copies as the server makes them: numbered, average hit points.
+const bestiaryByName = new Map(bestiary.map((entry) => [entry.name, entry]));
 for (const [creature, names] of [['Goblin', ['Goblin 1', 'Goblin 2']], ['Lobo', ['Lobo']]] as const) {
-  const statblock = bestiary.find((entry) => entry.name === creature)!;
+  const statblock = bestiaryByName.get(creature)!;
   for (const name of names) {
     db.insert(combatants)
       .values({

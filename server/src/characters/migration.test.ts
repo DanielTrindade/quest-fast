@@ -49,3 +49,33 @@ test('a sheet stored before the official sheet opens rested and with the default
   assert.deepEqual(JSON.parse(String(row.death_saves)), { successes: 0, failures: 0 });
   sqlite.close();
 });
+
+test('a player with several sheets in a campaign keeps the one changed last active', () => {
+  const migrations = readdirSync(MIGRATIONS, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .sort();
+  const activation = migrations.findIndex((name) => readFileSync(resolve(MIGRATIONS, name, 'migration.sql'), 'utf8').includes('characters_one_active_idx'));
+  assert.ok(activation > 0, 'the active character migration exists');
+
+  const sqlite = new Database(':memory:');
+  for (const file of migrations.slice(0, activation)) apply(sqlite, file);
+
+  sqlite.exec(`
+    INSERT INTO users (id, discord_id, name) VALUES ('u1', '222', 'Rafael Costa'), ('u2', '333', 'Ana Beatriz');
+    INSERT INTO campaigns (id, name, invite_code) VALUES ('c1', 'Ecos de Phandalin', 'ABC123'), ('c2', 'Mesa de quinta', 'DEF456');
+    INSERT INTO characters (id, campaign_id, owner_id, name, race, class, level, ability_scores, hp, ac, skills, saves, attacks, features, updated_at)
+    VALUES
+      ('old', 'c1', 'u1', 'Kaelen', 'Elfo', 'Ladino', 3, '{}', 24, 15, '[]', '[]', '[]', '[]', 100),
+      ('new', 'c1', 'u1', 'Brom', 'Anão', 'Guerreiro', 3, '{}', 30, 18, '[]', '[]', '[]', '[]', 200),
+      ('other', 'c2', 'u1', 'Elara', 'Elfa', 'Maga', 5, '{}', 27, 13, '[]', '[]', '[]', '[]', 50),
+      ('ana', 'c1', 'u2', 'Lyra', 'Humana', 'Clériga', 5, '{}', 38, 16, '[]', '[]', '[]', '[]', 10);
+  `);
+
+  for (const file of migrations.slice(activation)) apply(sqlite, file);
+
+  const active = sqlite.prepare('SELECT id FROM characters WHERE active = 1 ORDER BY id').all() as { id: string }[];
+  assert.deepEqual(active.map((row) => row.id), ['ana', 'new', 'other']);
+  assert.throws(() => sqlite.exec("UPDATE characters SET active = 1 WHERE id = 'old'"), /UNIQUE/);
+  sqlite.close();
+});
