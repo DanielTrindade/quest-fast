@@ -176,7 +176,12 @@ try {
   await master.page.locator('[data-slot="character-row"]').filter({ hasText: 'Kaelen' }).first().waitFor({ timeout: 10000 });
   ok('a mesa do mestre mostra Kaelen assim que Rafael o ativa, sem recarregar');
 
+  // The table's side panel: Ações, Dados and Feed tabs, kept mounted.
+  const tablePanel = (page) => page.getByRole('complementary', { name: 'Painel da mesa' });
+  const panelTab = (page, name) => tablePanel(page).getByRole('tab', { name: new RegExp(`^${name}`) }).click();
+
   // 4) Rafael rola e a mesa inteira vê na hora, sem recarregar.
+  await panelTab(rafael.page, 'Dados');
   const before = {};
   for (const [who, { page }] of Object.entries({ master: master, rafael: rafael, ana: ana })) {
     before[who] = await feedCount(page);
@@ -198,6 +203,7 @@ try {
   // 6) Rolagem secreta do mestre: só o mestre a vê.
   const rafaelBefore = await feedCount(rafael.page);
   const anaBefore = await feedCount(ana.page);
+  await panelTab(master.page, 'Dados');
   await master.page.getByLabel('Expressão de dados').fill('1d20');
   await master.page.getByLabel(/Rolar em segredo/).check();
   await master.page.getByRole('button', { name: 'Rolar' }).click();
@@ -307,6 +313,7 @@ try {
 
   // 13) A mesa é só jogo: a administração mora na tela Jogadores.
   await rafael.page.setViewportSize({ width: 390, height: 844 });
+  await panelTab(rafael.page, 'Dados');
   if (!(await rafael.page.locator('[data-slot="dice-panel"]').isVisible())) throw new Error('em 390px a mesa não mostra os dados');
   if ((await rafael.page.locator('[data-slot="campaign-admin"]').count()) !== 0) throw new Error('a mesa ainda mostra a administração da campanha');
   await rafael.page.getByRole('link', { name: 'Jogadores', exact: true }).first().click();
@@ -353,7 +360,8 @@ try {
   await master.page.getByRole('button', { name: 'Rolar iniciativa de Bram Linha Longa' }).click();
   for (const { page } of [rafael, ana]) {
     await page.getByRole('list', { name: 'Ordem de iniciativa' }).waitFor({ timeout: 15000 });
-    await page.getByRole('button', { name: 'Rolar iniciativa', exact: true }).click();
+    await panelTab(page, 'Ações');
+    await tablePanel(page).getByRole('button', { name: /^Rolar iniciativa de / }).click();
   }
   await master.page.getByRole('button', { name: 'Começar round 1' }).click({ timeout: 15000 });
   for (const { page } of [master, rafael, ana]) {
@@ -361,10 +369,17 @@ try {
   }
   ok('o mestre inicia, os jogadores rolam a própria iniciativa e a fila chega a todos ao vivo');
 
-  // Abre o painel de ataques de um combatente e escolhe o alvo.
+  // Na aba Ações do painel da mesa, escolhe quem ataca e o alvo.
   async function aim(page, attacker, target) {
-    const panel = page.locator('details').filter({ has: page.locator('summary', { hasText: new RegExp(`^\\s*Ataques\\s*de ${attacker}\\s*$`) }) });
-    if (!(await panel.evaluate((element) => element.open))) await panel.locator('summary').click();
+    await panelTab(page, 'Ações');
+    const panel = tablePanel(page);
+    // The master picks who attacks; a player acts with their own character.
+    const picker = panel.getByLabel('Combatente', { exact: true });
+    if (await picker.count()) {
+      const who = await picker.evaluate((element, name) => [...element.options].find((option) => option.text === name || option.text.startsWith(`${name} (`))?.value, attacker);
+      if (!who) throw new Error(`${attacker} não está entre os combatentes do mestre`);
+      await picker.selectOption(who);
+    }
     const select = panel.getByLabel(`Alvo de ${attacker}`);
     // The label carries hit points or the health band; the name starts it.
     const value = await select.evaluate((element, name) => [...element.options].find((option) => option.text.startsWith(`${name} — `))?.value, target);

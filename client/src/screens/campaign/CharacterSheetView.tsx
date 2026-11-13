@@ -50,6 +50,7 @@ import { TraitList } from '../../components/TraitList';
 import { conditionLabel } from '../../lib/combat-labels';
 import { contentKeys } from '../../lib/content-keys';
 import { ABILITY_ABBREVIATIONS, ABILITY_LABELS, SKILL_LABELS } from '../../lib/5e';
+import { rollActionLabel, rollDecomposition } from '../../lib/roll-labels';
 import { dialogActions, sheetEmpty } from '../../components/layout-styles';
 import { trackerLabel, trackerPanel } from '../../components/sheet-styles';
 
@@ -68,22 +69,6 @@ const TABS = [
   { id: 'spells', label: 'Magias' },
   { id: 'inventory', label: 'Inventário e história' },
 ] as const;
-
-function rollActionLabel(payload: RollPayload): string {
-  if (payload.rollKind === 'attack') return `Ataque (${payload.attackName})`;
-  if (payload.rollKind === 'skill') return `Teste de ${payload.skill ? SKILL_LABELS[payload.skill] : ''}`;
-  if (payload.rollKind === 'check') return `Teste de ${payload.ability ? ABILITY_LABELS[payload.ability] : ''}`;
-  if (payload.rollKind === 'save') return `Salvaguarda de ${payload.ability ? ABILITY_LABELS[payload.ability] : ''}`;
-  if (payload.rollKind === 'initiative') return 'Iniciativa';
-  if (payload.rollKind === 'spellAttack') return 'Ataque mágico';
-  return 'Rolagem';
-}
-
-function decompose(payload: RollPayload) {
-  const kept = payload.dice.filter((die) => !die.discarded).map((die) => `${die.value}`).join(' + ');
-  if (payload.modifier === 0) return kept;
-  return `${kept} ${payload.modifier > 0 ? '+' : '−'} ${Math.abs(payload.modifier)}`;
-}
 
 /** A linked roll: the sheet owns one mode for all of them, unless the roll says otherwise. */
 type SheetRoll = (request: LinkedRollRequest) => void;
@@ -396,7 +381,7 @@ function RollResult({
         <DiceResult
           label={`${rollActionLabel(lastRoll)} de ${character.name}`}
           total={lastRoll.total}
-          decomposition={decompose(lastRoll)}
+          decomposition={rollDecomposition(lastRoll)}
           dice={lastRoll.dice}
           mode={lastRoll.mode}
           natural={lastRoll.natural}

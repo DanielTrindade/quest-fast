@@ -184,6 +184,7 @@ function TableCombat({ campaignId, isMaster, currentUserId }: { campaignId: stri
             encounterId={openId}
             isMaster={isMaster}
             currentUserId={currentUserId}
+            onTable
             onBack={list.length > 1 ? () => setChosenId(null) : undefined}
             onDeleted={(name) => {
               setChosenId(null);

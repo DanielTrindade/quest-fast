@@ -103,8 +103,12 @@ mockups na [#88](https://github.com/DanielTrindade/quest-fast/issues/88).
    `/characters` (seleção com destaque no desktop, cartas no celular), criação
    escolhendo a campanha, a ficha no modal atual sem rolagem e o grupo em
    medalhões na Visão geral. A Mesa mostra só os ativos e não edita fichas.
-3. **Mesa.** Painel com Ações, Dados e Feed, ações por papel, convite em
-   destaque em Jogadores.
+3. **Mesa — entregue.** Painel lateral com o turno no topo e as abas Ações,
+   Dados e Feed; Ações por papel (o jogador com o personagem ativo, o mestre
+   com o dano pendente e o combatente escolhido), reaproveitando as regras e
+   as requisições da fila de iniciativa. Sem mapa aberto, o feed ocupa o
+   centro. Convite em destaque em Jogadores, com o código em peças para ditar
+   e o cartão da prévia do link.
 
 ### Fase 4 — campo de batalha (VTT)
 

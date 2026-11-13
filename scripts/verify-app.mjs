@@ -75,13 +75,10 @@ try {
   if (members.length !== 1) throw new Error(`campanha nova deveria ter 1 membro, tem ${members.length}`);
   ok(`campanha abre com o mestre como único membro (${members[0]})`);
 
-  await page.getByRole('button', { name: 'Convidar jogadores' }).first().click();
-  const inviteDialog = page.getByRole('dialog');
-  await inviteDialog.waitFor({ timeout: 10000 });
-  const inviteLink = await inviteDialog.locator('input[readonly]').first().inputValue();
+  // The invite is the subject of the Players screen, no dialog to open.
+  const inviteLink = await page.getByLabel('Link de convite').inputValue({ timeout: 10000 });
   if (!/\/invite\/[A-Z2-9]{6}$/.test(inviteLink)) throw new Error(`link de convite inesperado: ${inviteLink}`);
   ok('link de convite visível ao mestre');
-  await page.keyboard.press('Escape');
 
   // 5) Join dialog: also mounts a form, and rejects a malformed code.
   await page.goto(`${base}/campaigns`);

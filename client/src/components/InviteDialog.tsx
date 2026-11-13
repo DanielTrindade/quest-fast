@@ -15,7 +15,8 @@ type InviteDialogProps = {
   rotateError?: string;
 };
 
-function RotateArea({ code, onRotate, rotating = false, rotateError }: Pick<InviteDialogProps, 'code' | 'onRotate' | 'rotating' | 'rotateError'>) {
+/** "Gerar novo link", in two steps: the old link stops working. */
+export function RotateArea({ code, onRotate, rotating = false, rotateError }: Pick<InviteDialogProps, 'code' | 'onRotate' | 'rotating' | 'rotateError'>) {
   const [confirming, setConfirming] = useState(false);
   const [seenCode, setSeenCode] = useState(code);
   if (seenCode !== code) {

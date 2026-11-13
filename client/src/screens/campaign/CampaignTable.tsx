@@ -1,31 +1,39 @@
+import { useQuery } from '@tanstack/react-query';
+import { activeSceneQuery } from '../../lib/scene-cache';
 import { CampaignPage } from './CampaignPage';
 import { useCampaignScreen } from './campaign-screen';
 import { CharactersSection } from './CharactersSection';
 import { CombatSection } from './CombatSection';
-import { DiceRoller } from './DiceRoller';
 import { SessionFeed } from './SessionFeed';
+import { TableActionPanel } from './TableActionPanel';
 import { TableMap } from './TableMap';
 
 /**
- * Where the game is played: the sheets, the fight in progress, the dice and
- * the session feed, and the map open for the table.
+ * Where the game is played: the map in the middle (the feed, while no map is
+ * open), the side panel with the turn, each role's actions, the dice and the
+ * feed, and below the middle the queue of the fight and the group. On a
+ * narrow screen the panel comes right after the map.
  */
 export function CampaignTable({ campaignId }: { campaignId: string }) {
   const { campaign, isMaster, currentUserId } = useCampaignScreen(campaignId);
+  const scene = useQuery(activeSceneQuery(campaignId));
+  const feedInMiddle = scene.data === null;
 
   return (
     <CampaignPage campaign={campaign} title="Mesa">
-      <div className="grid grid-cols-[minmax(0,1fr)] gap-6 @min-[1000px]:grid-cols-[minmax(0,1fr)_320px] @min-[1000px]:items-start">
-        <div className="grid min-w-0 gap-8">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-6 @min-[860px]:grid-cols-[minmax(0,1fr)_minmax(300px,340px)] @min-[860px]:items-start">
+        <div className="grid min-w-0 gap-6">
           <TableMap campaignId={campaignId} isMaster={isMaster} />
-          <CharactersSection campaignId={campaignId} currentUserId={currentUserId} isMaster={isMaster} />
-          <CombatSection campaignId={campaignId} isMaster={isMaster} currentUserId={currentUserId} view="table" />
+          {feedInMiddle && <SessionFeed campaignId={campaignId} currentUserId={currentUserId} />}
         </div>
 
-        <aside className="grid min-w-0 content-start gap-6" aria-label="Dados e sessão">
-          <DiceRoller campaignId={campaignId} isMaster={isMaster} />
-          <SessionFeed campaignId={campaignId} currentUserId={currentUserId} />
-        </aside>
+        <TableActionPanel campaignId={campaignId} isMaster={isMaster} currentUserId={currentUserId} withFeed={!feedInMiddle}
+          className="@min-[860px]:sticky @min-[860px]:top-4 @min-[860px]:col-start-2 @min-[860px]:row-span-2 @min-[860px]:row-start-1 @min-[860px]:max-h-[calc(100dvh-2rem)] @min-[860px]:overflow-y-auto @min-[860px]:overscroll-contain" />
+
+        <div className="grid min-w-0 gap-8 @min-[860px]:col-start-1">
+          <CombatSection campaignId={campaignId} isMaster={isMaster} currentUserId={currentUserId} view="table" />
+          <CharactersSection campaignId={campaignId} currentUserId={currentUserId} isMaster={isMaster} />
+        </div>
       </div>
     </CampaignPage>
   );
