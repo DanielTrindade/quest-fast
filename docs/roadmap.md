@@ -131,7 +131,9 @@ com as decisões do spike. Quatro entregas, cada uma usável na mesa:
    jogadores veem a cena aberta com pan e zoom, inclusive no celular. Já
    prontos: regras do grid e limites do mapa em `shared/`, contrato da API,
    schema das cenas e o servidor (normalização do mapa com `sharp`, rotas com
-   RBAC, cena aberta para a mesa e `scene.updated`/`scene.closed` no socket).
+   RBAC, cena aberta para a mesa e `scene.updated`/`scene.closed` no socket)
+   e os componentes no Storybook (`MapCanvas` com pan, zoom e grid,
+   `SceneList`, `SceneForm` e `GridSettings`).
 2. **Tokens.** Tokens de personagem, de combatente (ancorados no id estável do
    combatente) e do bestiário ou livres, com tamanho pela criatura, arrasto ao
    vivo com trava, posse por papel, tokens ocultos fora do payload do jogador
