@@ -52,7 +52,7 @@ export function CampaignWorkspace({ campaignId, user }: {
     onCampaignChange={id => { void navigate({ to: '/campaigns/$campaignId', params: { campaignId: id } }); }}
     onShowAllCampaigns={() => { void navigate({ to: '/campaigns' }); }}
     navigation={items} activeItem={activeItem} onNavigate={href => { void navigate({ href }); }}
-    account={{ ...user, onSignOut: () => signOut.mutate(), signingOut: signOut.isPending }}
+    account={{ ...user, onSignOut: () => signOut.mutate(), signingOut: signOut.isPending, onShowCharacters: () => { void navigate({ to: '/characters' }); } }}
     collapsed={collapsed} onCollapsedChange={setCollapsed}>
     <CampaignSocketStatus value={socketStatus}>
       <Outlet />

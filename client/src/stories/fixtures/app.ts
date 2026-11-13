@@ -398,8 +398,8 @@ const huge: Dataset = {
 const DATASETS: Record<DataState, Dataset> = { demo, worst, empty, one, huge };
 
 function summary(sheet: CharacterSheet): CharacterSummary {
-  const { id, name, race, class: className, level, ownerId, ownerName, avatarUrl, hp, hpCurrent, hpTemp, ac } = sheet;
-  return { id, name, race, class: className, level, ownerId, ownerName, avatarUrl, hp, hpCurrent, hpTemp, ac };
+  const { id, name, race, class: className, level, ownerId, ownerName, avatarUrl, hp, hpCurrent, hpTemp, ac, active } = sheet;
+  return { id, name, race, class: className, level, ownerId, ownerName, avatarUrl, hp, hpCurrent, hpTemp, ac, active };
 }
 
 function statblockSummary({ id, name, size, creatureType, challengeRating, ac, hpAverage, hpFormula }: Statblock): StatblockSummary {
@@ -459,6 +459,12 @@ export function respond(state: DataState, role: Role, method: string, path: stri
 
   if (invite && pathname.startsWith('/api/invites/')) return inviteReply(data, invite, pathname.slice('/api/invites/'.length));
   if (pathname === '/api/auth/me') return { status: 200, body: { user: me } };
+  // The gallery treats every sheet of the dataset as the viewer's, so the
+  // extremes reach the account screen too.
+  if (pathname === '/api/me/characters') {
+    const campaignName = data.campaigns.find((item) => item.id === CAMPAIGN_ID)?.name ?? 'Mesa';
+    return { status: 200, body: { characters: data.characters.map((item) => ({ ...item, ownerId: me.id, ownerName: me.name, campaignName })) } };
+  }
   if (pathname === '/api/campaigns') return { status: 200, body: { campaigns: data.campaigns.map((item) => item.id === CAMPAIGN_ID ? { ...item, role } : item) } };
   if (pathname === base) {
     const campaign = data.campaigns.find((item) => item.id === CAMPAIGN_ID);

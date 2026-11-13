@@ -69,6 +69,7 @@ export const hazinDan: CharacterSheet = {
   heroicInspiration: false,
   conditions: [],
   concentrating: false,
+  active: true,
   avatarUrl: null,
   avatarAssetId: null,
 };

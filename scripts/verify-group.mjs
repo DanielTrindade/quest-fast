@@ -133,16 +133,40 @@ try {
   await outsider.page.getByText('Campanha não encontrada.').waitFor({ timeout: 15000 });
   ok('o não-membro não vê a campanha (404)');
 
-  // 3) Rafael cria um personagem.
-  await rafael.page.getByRole('button', { name: 'Novo personagem' }).first().click();
-  const dialog = rafael.page.getByRole('dialog');
-  await dialog.waitFor({ timeout: 10000 });
+  // 3) Rafael cria o personagem em Meus personagens, escolhendo a campanha,
+  //    e o leva à mesa: é o ativo dele nesta campanha.
+  const gallery = await rafael.context.newPage();
+  collectErrors(gallery, 'Rafael (galeria)');
+  await gallery.goto(`${base}/characters`, { waitUntil: 'domcontentloaded' });
+  await gallery.getByRole('heading', { name: 'Meus personagens' }).waitFor({ timeout: 15000 });
+  await gallery.getByRole('button', { name: /Novo personagem|Criar personagem/ }).first().click();
+  await gallery.getByRole('dialog').getByLabel('Campanha').selectOption(campaign.id);
+  await gallery.getByRole('dialog').getByRole('button', { name: 'Continuar' }).click();
+  const dialog = gallery.getByRole('dialog');
+  await dialog.getByLabel('Nome do personagem').waitFor({ timeout: 10000 });
   await dialog.getByLabel('Nome do personagem').fill('Kaelen');
   await dialog.getByLabel('Espécie').fill('Elfo');
   await dialog.getByRole('textbox', { name: 'Classe', exact: true }).fill('Ladino');
   await dialog.getByRole('button', { name: 'Criar personagem' }).click();
-  await rafael.page.getByText('Kaelen', { exact: true }).first().waitFor({ timeout: 15000 });
-  ok('Rafael cria a ficha de Kaelen');
+  await dialog.waitFor({ state: 'detached', timeout: 15000 });
+  const kaelenSlot = gallery.getByRole('radio', { name: /^Kaelen, Ladino/ }).last();
+  await kaelenSlot.click();
+  const showcase = gallery.locator('[data-slot="character-showcase"]');
+  await showcase.getByRole('heading', { name: 'Kaelen' }).waitFor({ timeout: 10000 });
+  // A rerun on the same database finds an older Kaelen already active.
+  const activateButton = showcase.getByRole('button', { name: 'Ativar nesta campanha' });
+  if (await activateButton.count()) await activateButton.click();
+  await showcase.getByText('Ativo na mesa').waitFor({ timeout: 10000 });
+  ok('Rafael cria a ficha de Kaelen em Meus personagens e ela fica ativa na campanha');
+
+  // 3b) Fora da mesa a ficha é só para ver: sem botões de rolar.
+  await showcase.getByRole('button', { name: 'Abrir ficha' }).click();
+  const gallerySheet = gallery.getByRole('dialog');
+  await gallerySheet.getByText(/Atributos/).first().waitFor({ timeout: 10000 });
+  if ((await gallerySheet.getByRole('button', { name: 'Teste' }).count()) !== 0) {
+    throw new Error('a ficha aberta fora da mesa oferece rolagem');
+  }
+  ok('a ficha aberta em Meus personagens não rola dados');
 
   // 4) Rafael rola e a mesa inteira vê na hora, sem recarregar.
   const before = {};
@@ -215,28 +239,48 @@ try {
   await master.page.keyboard.press('Escape');
   ok('excluir personagem exige confirmação e desistir preserva a ficha');
 
-  // 10) Consulta e edição ocupam a mesma camada, sem empilhar diálogos.
+  // 10) Consulta e edição ocupam a mesma camada, sem empilhar diálogos. A
+  //     edição mora em Meus personagens; na mesa o dono só joga.
   await rafael.page.locator('[data-slot="character-row"]').filter({ hasText: 'Kaelen' }).click();
-  await rafael.page.getByRole('dialog').waitFor({ timeout: 10000 });
-  await rafael.page.getByRole('dialog').getByRole('button', { name: 'Editar' }).click();
-  await rafael.page.getByRole('heading', { name: 'Editar Kaelen' }).waitFor({ timeout: 10000 });
-  const layers = await rafael.page.locator('[role="dialog"]').count();
+  await rafael.page.getByRole('dialog').getByText(/Atributos/).first().waitFor({ timeout: 10000 });
+  if ((await rafael.page.getByRole('dialog').getByRole('button', { name: 'Editar' }).count()) !== 0) {
+    throw new Error('a mesa oferece editar a ficha, que agora mora em Meus personagens');
+  }
+  await gallerySheet.getByRole('button', { name: 'Editar' }).click();
+  await gallery.getByRole('heading', { name: 'Editar Kaelen' }).waitFor({ timeout: 10000 });
+  const layers = await gallery.locator('[role="dialog"]').count();
   if (layers !== 1) throw new Error(`a edição empilhou ${layers} diálogos sobre a ficha`);
-  ok('editar substitui a ficha em vez de empilhar um segundo diálogo');
+  ok('editar substitui a ficha em vez de empilhar um segundo diálogo, e a mesa não oferece edição');
 
   // 11) Um formulário longo não perde trabalho por um Escape distraído.
-  const editor = rafael.page.getByRole('dialog');
+  const editor = gallery.getByRole('dialog');
   await editor.getByLabel('Nome do personagem').fill('Kaelen, o Silencioso');
-  await rafael.page.keyboard.press('Escape');
+  await gallery.keyboard.press('Escape');
   await editor.getByText('Há alterações que ainda não foram salvas.').waitFor({ timeout: 5000 });
   await editor.getByRole('button', { name: 'Continuar editando' }).click();
   if ((await editor.getByLabel('Nome do personagem').inputValue()) !== 'Kaelen, o Silencioso') {
     throw new Error('continuar editando perdeu o que estava digitado');
   }
-  await rafael.page.keyboard.press('Escape');
+  await gallery.keyboard.press('Escape');
   await editor.getByRole('button', { name: 'Descartar alterações' }).click();
-  await rafael.page.getByRole('dialog').getByText(/Atributos/).waitFor({ timeout: 10000 });
+  await gallery.getByRole('dialog').getByText(/Atributos/).first().waitFor({ timeout: 10000 });
   ok('sair de uma edição alterada pede confirmação e volta para a consulta');
+
+  // 11b) A galeria não corta conteúdo, com e sem a ficha aberta.
+  for (const width of [320, 390, 768, 1280]) {
+    await gallery.setViewportSize({ width, height: 900 });
+    const scrollWidth = await gallery.evaluate(() => document.documentElement.scrollWidth);
+    if (scrollWidth > width) throw new Error(`Meus personagens com a ficha aberta: overflow em ${width}px (${scrollWidth})`);
+  }
+  await gallery.keyboard.press('Escape');
+  await gallery.getByRole('dialog').waitFor({ state: 'detached', timeout: 10000 });
+  for (const width of [320, 390, 768, 1280]) {
+    await gallery.setViewportSize({ width, height: 900 });
+    const scrollWidth = await gallery.evaluate(() => document.documentElement.scrollWidth);
+    if (scrollWidth > width) throw new Error(`Meus personagens: overflow em ${width}px (${scrollWidth})`);
+  }
+  await gallery.close();
+  ok('Meus personagens não corta conteúdo em 320, 390, 768 e 1280 px');
 
   // 12) Nenhum corte nas larguras que a mesa usa — com a ficha aberta inclusive.
   for (const width of [320, 390, 768, 1280]) {

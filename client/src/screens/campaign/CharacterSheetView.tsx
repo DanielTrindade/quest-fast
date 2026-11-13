@@ -445,10 +445,24 @@ function DeleteConfirmation({
  * sheet. Data, mutations and the dialog shell stay outside, so every state
  * below is reachable from a story.
  */
+/**
+ * The API accepts an edit, a linked roll and a state change only from the
+ * owner, so the sheet never offers them to anyone else; away from the table
+ * it does not roll, and where it is not edited it offers no edit.
+ */
+function sheetPermissions(isOwner: boolean, rollsHere: boolean, editable: boolean, stateful: boolean) {
+  return {
+    canRoll: isOwner && rollsHere,
+    canEdit: isOwner && editable,
+    canChangeState: isOwner && stateful,
+  };
+}
+
 export function CharacterSheetView({
   character,
   isOwner,
   canDelete,
+  canRoll: rollsHere = true,
   rolling = false,
   rollError = null,
   lastRoll = null,
@@ -467,6 +481,8 @@ export function CharacterSheetView({
   character: CharacterSheet;
   isOwner: boolean;
   canDelete: boolean;
+  /** False away from the table: the sheet is for reading, play is on the table. */
+  canRoll?: boolean;
   rolling?: boolean;
   rollError?: string | null;
   lastRoll?: RollPayload | null;
@@ -478,16 +494,13 @@ export function CharacterSheetView({
   onRoll: (request: LinkedRollRequest) => void;
   /** Absent means read-only state, as for anyone but the owner. */
   onStateChange?: (state: CharacterStateInput) => void;
-  onEdit: () => void;
+  /** Absent where the sheet is not edited, as on the table. */
+  onEdit?: () => void;
   onAskDelete: () => void;
   onCancelDelete: () => void;
   onConfirmDelete: () => void;
 }) {
-  // The API accepts an edit, a linked roll and a state change only from the
-  // owner, so the sheet never offers them to anyone else.
-  const canRoll = isOwner;
-  const canEdit = isOwner;
-  const canChangeState = isOwner && Boolean(onStateChange);
+  const { canRoll, canEdit, canChangeState } = sheetPermissions(isOwner, rollsHere, Boolean(onEdit), Boolean(onStateChange));
   const change = (state: CharacterStateInput) => onStateChange?.(state);
 
   const tabsId = useId();

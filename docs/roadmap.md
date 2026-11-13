@@ -96,11 +96,13 @@ outro). Na campanha, cada tela tem rota própria: Visão geral, Mesa (onde se
 joga, e onde o mapa da fase 4 entra), Preparo do mestre e Jogadores. Spec e
 mockups na [#88](https://github.com/DanielTrindade/quest-fast/issues/88).
 
-1. **Rotas e reorganização — em andamento.** Layout com uma rota por tela, as
+1. **Rotas e reorganização — entregue.** Layout com uma rota por tela, as
    seções de antes movidas sem redesenho, menu por rota e socket no layout.
-2. **Meus personagens.** `GET /api/me/characters`, personagem ativo, galeria
-   (seleção no desktop, cartas no celular) e a ficha no modal atual sem
-   rolagem.
+2. **Meus personagens — entregue.** `GET /api/me/characters`, um personagem
+   ativo por jogador e campanha (índice único parcial), galeria em
+   `/characters` (seleção com destaque no desktop, cartas no celular), criação
+   escolhendo a campanha, a ficha no modal atual sem rolagem e o grupo em
+   medalhões na Visão geral. A Mesa mostra só os ativos e não edita fichas.
 3. **Mesa.** Painel com Ações, Dados e Feed, ações por papel, convite em
    destaque em Jogadores.
 

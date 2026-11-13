@@ -1,7 +1,9 @@
-import { ArrowRight, Skull, Users } from '@phosphor-icons/react';
+import { useState } from 'react';
+import { ArrowRight, Skull, Sword, Users } from '@phosphor-icons/react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { Button as RetryButton } from '../../components/Button';
+import { PartyStrip } from '../../components/PartyStrip';
 import { Skeleton } from '../../components/Skeleton';
 import { Surface } from '../../components/Surface';
 import { Button } from '../../components/ui/button';
@@ -9,6 +11,7 @@ import { sectionHeading } from '../../components/layout-styles';
 import { api } from '../../lib/api';
 import { encountersQuery } from '../../lib/combat-cache';
 import { CampaignPage } from './CampaignPage';
+import { CharacterSheetDialog } from './CharacterSheetDialog';
 import { useCampaignScreen } from './campaign-screen';
 import { useInviteDialog } from './useInviteDialog';
 
@@ -21,9 +24,44 @@ function Retry({ message, retrying, onRetry }: { message: string; retrying: bool
   );
 }
 
+/** The group: each player's active character, to look at. */
+function PartySection({ campaignId }: { campaignId: string }) {
+  const { isMaster, currentUserId } = useCampaignScreen(campaignId);
+  const [viewingId, setViewingId] = useState<string | null>(null);
+  const characters = useQuery({ queryKey: ['characters', campaignId], queryFn: () => api.characters(campaignId) });
+  const party = characters.data?.characters.filter((character) => character.active) ?? [];
+
+  return (
+    <section className="grid min-w-0 gap-3 @min-[1000px]:col-span-2" aria-labelledby="overview-party-title">
+      <div className={sectionHeading}>
+        <h2 id="overview-party-title">
+          <Sword size={20} aria-hidden="true" /> O grupo
+        </h2>
+        {characters.data && <span>{party.length} na mesa</span>}
+      </div>
+      <Surface className="grid justify-items-start gap-3">
+        {!characters.data && characters.isError && (
+          <Retry message="Não foi possível carregar o grupo." retrying={characters.isFetching} onRetry={() => characters.refetch()} />
+        )}
+        {!characters.data && !characters.isError && <Skeleton width="60%" label="Carregando o grupo" />}
+        {characters.data && party.length === 0 && (
+          <p className="text-body text-text-secondary">Ninguém trouxe um personagem ainda. Cada jogador ativa o seu em Meus personagens.</p>
+        )}
+        {party.length > 0 && <PartyStrip characters={party} currentUserId={currentUserId} onOpen={(character) => setViewingId(character.id)} />}
+      </Surface>
+      {viewingId && (
+        <CharacterSheetDialog campaignId={campaignId} characterId={viewingId} currentUserId={currentUserId}
+          isMaster={isMaster} canRoll={false} open
+          onOpenChange={(open) => { if (!open) setViewingId(null); }}
+          onDeleted={() => { void characters.refetch(); }} />
+      )}
+    </section>
+  );
+}
+
 /**
  * Where a campaign opens: what is happening now and the way to it. A fight in
- * progress leads; the group and the session summary arrive in later steps.
+ * progress leads, then the group; the session summary arrives in a later step.
  */
 export function CampaignOverview({ campaignId }: { campaignId: string }) {
   const { campaign } = useCampaignScreen(campaignId);
@@ -96,6 +134,8 @@ export function CampaignOverview({ campaignId }: { campaignId: string }) {
             </Button>
           </Surface>
         </section>
+
+        <PartySection campaignId={campaignId} />
       </div>
       {invite.dialog}
     </CampaignPage>

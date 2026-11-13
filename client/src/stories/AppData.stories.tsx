@@ -98,6 +98,7 @@ const player = { role: 'player', path: `/campaigns/${CAMPAIGN_ID}/table` } as co
 const overview = { role: 'master', path: `/campaigns/${CAMPAIGN_ID}` } as const;
 const prep = { role: 'master', path: `/campaigns/${CAMPAIGN_ID}/prep` } as const;
 const players = { role: 'master', path: `/campaigns/${CAMPAIGN_ID}/players` } as const;
+const gallery = { role: 'player', path: '/characters' } as const;
 
 export const Campanhas: Story = { args: campaigns, globals: dark };
 export const CampanhasClaro: Story = { name: 'Campanhas (claro)', args: campaigns, globals: light };
@@ -109,6 +110,8 @@ export const MesaDoJogador: Story = { name: 'Mesa do jogador', args: player, glo
 export const MesaDoJogadorClaro: Story = { name: 'Mesa do jogador (claro)', args: player, globals: light };
 export const Preparo: Story = { name: 'Preparo do mestre', args: prep, globals: dark };
 export const PreparoClaro: Story = { name: 'Preparo do mestre (claro)', args: prep, globals: light };
+export const MeusPersonagens: Story = { name: 'Meus personagens', args: gallery, globals: dark };
+export const MeusPersonagensClaro: Story = { name: 'Meus personagens (claro)', args: gallery, globals: light };
 export const Jogadores: Story = { name: 'Jogadores do mestre', args: players, globals: dark };
 export const JogadoresClaro: Story = { name: 'Jogadores do mestre (claro)', args: players, globals: light };
 

@@ -226,7 +226,7 @@ A campanha deixou de ser uma página única com âncoras e virou um layout com u
 - **Mesa** reúne o que se usa durante o jogo: fichas, o combate em andamento (ou o último encerrado), dados e o feed. Sem combate, um estado vazio diz onde ele vai aparecer.
 - **Preparo** é a lista de encontros, a criação e o bestiário do mestre, fora da Mesa. Para o jogador, a rota mostra "Esta página não existe".
 - **Jogadores** traz o painel de membros sem o `<details>` recolhível: aqui o convite e a lista são o assunto da tela. Convidar fica no cabeçalho (mestre); Sair da campanha também (jogador).
-- **Visão geral** mostra se há combate e leva à Mesa e a Jogadores. O grupo em medalhões chega na fase 2.
+- **Visão geral** mostra se há combate e leva à Mesa e a Jogadores. O grupo em medalhões chegou na fase 2 (abaixo).
 - **Laboratório → Dados extremos** ganhou Visão geral, Preparo e Jogadores do mestre, nos dois temas; "Mesa do mestre/jogador" agora abrem `/table`.
 
 ## Cena e mapa do VTT (12 de novembro de 2026)
@@ -239,3 +239,18 @@ Registro: [`history/2026-11-12-vtt-battlefield-phase4.md`](history/2026-11-12-vt
 - **`SceneForm`** cria ou edita a cena. Confere tipo, peso e tamanho do mapa com os mesmos limites do servidor (`MAP_LIMITS` em `shared/`) antes de enviar 25 MB à toa. Mostra a prévia, o progresso do envio e depois "Preparando o mapa no servidor…", que é o tempo do `sharp`.
 - **`GridSettings`** liga e desliga o grid, recebe as casas de largura ou o tamanho da casa (um calcula o outro, para o mapa cujo grid desenhado não divide a largura) e o deslocamento, e o encaixe dos tokens. Os campos aceitam vírgula decimal. Cada mudança válida vai para a prévia no mapa; nada é salvo antes de "Salvar grid".
 - **Campos numéricos do grid são de texto** com `inputMode="decimal"`: aceitam "62,5", e o `userEvent` das stories digita neles como um usuário (num `type="number"` controlado, a digitação do teste não chegava ao `onChange`).
+
+## Meus personagens (13 de novembro de 2026)
+
+Fase 2 da [#88](https://github.com/DanielTrindade/quest-fast/issues/88): a galeria da conta e o grupo em medalhões. Sem token novo. As stories usam as fixtures de `stories/fixtures/my-characters.ts`, com um pior caso de 80 caracteres sem espaço e 30 em todos os atributos.
+
+- **`CharacterShowcase`** é o painel de destaque: o retrato se dissolve no painel (degradê para `card`), o nome em `display`, a faixa de defesa no desenho do `StatblockCard` (CA, PV com barra, iniciativa, deslocamento) e os seis atributos como barras de 0 a 20, físicos numa coluna e mentais na outra, com o maior realçado. Empilha por container query abaixo de 600 px.
+- **`HeroCard`** é a mesma pessoa como carta: retrato, nível, PV, CA/iniciativa/percepção passiva, a campanha e o selo **Ativo na mesa** ou **Na reserva**. A parte de cima é um botão que abre a ficha; as ações (ativar, ir para a mesa) vêm da tela.
+- **`CharacterGallery`** troca de layout pelo container: a partir de 760 px, uma fileira de retratos (`radiogroup`, setas movem, uma parada no Tab) escolhe quem aparece no destaque; abaixo disso, todos viram cartas. O "Novo" fica no fim das duas.
+- **`PartyStrip`** mostra o grupo na Visão geral: medalhão com o retrato, faixa com o primeiro nome, classe e nível, e a barra de PV. O personagem de quem vê tem o anel em `accent-text`. Tocar abre a ficha só para leitura.
+- **`HpMeter`** é a barra de PV só visual (`aria-hidden`): `success-text` acima de 60%, `accent-text` até 25% e `danger-text` abaixo; os PV temporários entram numa faixa em `text-secondary`. O número ao lado leva o significado, com o texto completo em `sr-only`.
+- **Selos sobre o retrato** (nível) são opacos: sobre imagem, o axe não consegue medir contraste de fundo translúcido.
+- **Movimento (Emil Kowalski):** carta e "Novo" encolhem para 0,99 ao pressionar; retrato da fileira e medalhão, para 0,97 (só com `motion-safe`). Trocar o destaque pelas setas não anima: é ação de teclado e repetida.
+- **Ficha fora da Mesa:** `CharacterSheetDialog` ganhou `canRoll` (padrão `true`) e `onEdit` opcional. A galeria abre com `canRoll={false}`; a Mesa abre sem `onEdit`, porque a edição mora em Meus personagens.
+- **Conta:** a barra da conta ganhou Campanhas e Meus personagens (`aria-current="page"` pela rota), e o menu da conta dentro da campanha ganhou "Meus personagens".
+- **Laboratório → Dados extremos** ganhou Meus personagens nos dois temas.
