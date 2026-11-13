@@ -1,111 +1,43 @@
 import { randomUUID } from 'node:crypto';
-import { and, desc, eq, sql } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { Hono, type Context as HonoContext } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
-import { assets, campaigns, scenes, type SceneRow } from '@quest-fast/db';
+import { assets, campaigns, scenes, tokens, type SceneRow } from '@quest-fast/db';
 import {
   MAP_LIMITS as M,
   SCENE_LIMITS as S,
+  clampToMap,
   defaultGrid,
   validateGrid,
   type GridSettings,
   type SceneListResponse,
-  type SceneResponse,
 } from '@quest-fast/shared';
 import type { Context } from '../context.ts';
 import type { Executor } from '../combat/state.ts';
-import type { Viewer } from '../events/hub.ts';
 import { normaliseMap, type NormalizedMap } from '../assets/maps.ts';
 import { requireAuth, requireCampaignRole } from '../middleware.ts';
 import { shortText } from '../validation.ts';
-import { projectScene, summariseScene, type LoadedScene } from './projection.ts';
+import { summariseScene } from './projection.ts';
+import {
+  MASTER_ONLY,
+  NOT_FOUND,
+  activeSceneId,
+  answer,
+  bodyOf,
+  bumpVersion,
+  findScene,
+  gridOf,
+  loadScene,
+  loadScenes,
+  publish,
+  refuse,
+  refused,
+  requireMaster,
+  scopeOf,
+} from './store.ts';
+import { tokenRoutes } from './tokens.ts';
 
-type Status = 403 | 404 | 413 | 422 | 502;
-
-/** Why a scene request was refused. Thrown inside the transaction, so nothing it touched is kept. */
-class Refusal extends Error {
-  readonly status: Status;
-
-  constructor(status: Status, message: string) {
-    super(message);
-    this.status = status;
-  }
-}
-
-function refuse(status: Status, message: string): never {
-  throw new Refusal(status, message);
-}
-
-const MASTER_ONLY = 'Ação permitida apenas ao mestre.';
-const NOT_FOUND = 'Cena não encontrada.';
 const MAP_TOO_LARGE = `O mapa deve ter até ${M.maxBytes / (1024 * 1024)} MB.`;
-
-function viewerOf(c: HonoContext<Context>): Viewer {
-  return { role: c.var.role, userId: c.var.user.id };
-}
-
-function activeSceneId(db: Executor, campaignId: string): string | null {
-  const campaign = db.select({ activeSceneId: campaigns.activeSceneId }).from(campaigns).where(eq(campaigns.id, campaignId)).get();
-  return campaign?.activeSceneId ?? null;
-}
-
-function loadScenes(c: HonoContext<Context>, db: Executor, where: ReturnType<typeof and>): LoadedScene[] {
-  const active = activeSceneId(db, c.var.campaignId);
-  return db
-    .select({ scene: scenes, path: assets.path })
-    .from(scenes)
-    .innerJoin(assets, eq(assets.id, scenes.mapAssetId))
-    .where(where)
-    .orderBy(desc(scenes.createdAt), desc(sql`${scenes}.rowid`))
-    .all()
-    .map(({ scene, path }) => ({ scene, mapUrl: c.var.deps.assets.urlFor(path), active: scene.id === active }));
-}
-
-function loadScene(c: HonoContext<Context>, db: Executor, sceneId: string): LoadedScene | undefined {
-  return loadScenes(c, db, and(eq(scenes.campaignId, c.var.campaignId), eq(scenes.id, sceneId)))[0];
-}
-
-/**
- * The scene a request is about. A player cannot tell a scene that is not
- * open for the table from a missing one (404); on the open one, an action
- * reserved to the master is a 403.
- */
-function findScene(c: HonoContext<Context>, db: Executor, { masterOnly = false } = {}): LoadedScene {
-  const loaded = loadScene(c, db, c.req.param('sceneId') ?? '');
-  const master = c.var.role === 'master';
-  if (!loaded || (!master && !loaded.active)) refuse(404, NOT_FOUND);
-  if (masterOnly && !master) refuse(403, MASTER_ONLY);
-  return loaded;
-}
-
-function requireMaster(c: HonoContext<Context>) {
-  if (c.var.role !== 'master') refuse(403, MASTER_ONLY);
-}
-
-function bumpVersion(db: Executor, sceneId: string, changes: Partial<SceneRow> = {}) {
-  db.update(scenes)
-    .set({ ...changes, version: sql`${scenes.version} + 1` })
-    .where(eq(scenes.id, sceneId))
-    .run();
-}
-
-function publish(c: HonoContext<Context>, loaded: LoadedScene) {
-  c.var.deps.hub.publishScene(c.var.campaignId, (viewer) => projectScene(loaded, viewer));
-}
-
-function answer(c: HonoContext<Context>, loaded: LoadedScene, status: 200 | 201 = 200) {
-  const response: SceneResponse = { scene: projectScene(loaded, viewerOf(c))! };
-  return c.json(response, status);
-}
-
-function refused(c: HonoContext<Context>, error: unknown) {
-  if (!(error instanceof Refusal)) throw error;
-  return c.json({ error: error.message }, error.status);
-}
-
-function bodyOf(value: unknown): Record<string, unknown> {
-  return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {};
-}
 
 function parseName(value: unknown): string {
   const name = shortText(value, S.name);
@@ -122,16 +54,6 @@ function columnsOf(grid: GridSettings): GridColumns {
     gridOffsetX: grid.offsetX,
     gridOffsetY: grid.offsetY,
     snapToGrid: grid.snap,
-  };
-}
-
-function gridOf(scene: SceneRow): GridSettings {
-  return {
-    enabled: scene.gridEnabled,
-    cellSize: scene.gridCellSize,
-    offsetX: scene.gridOffsetX,
-    offsetY: scene.gridOffsetY,
-    snap: scene.snapToGrid,
   };
 }
 
@@ -201,6 +123,20 @@ function insertAsset(c: HonoContext<Context>, db: Executor, map: NormalizedMap, 
   return id;
 }
 
+/**
+ * Tokens follow a new map in proportion, as the grid does: the master usually
+ * swaps a map for a better copy of the same one.
+ */
+function rescaleTokens(db: Executor, scene: SceneRow, map: NormalizedMap) {
+  const ratioX = map.width / scene.mapWidth;
+  const ratioY = map.height / scene.mapHeight;
+  if (ratioX === 1 && ratioY === 1) return;
+  for (const token of db.select({ id: tokens.id, x: tokens.x, y: tokens.y }).from(tokens).where(eq(tokens.sceneId, scene.id)).all()) {
+    const position = clampToMap(token.x * ratioX, token.y * ratioY, map.width, map.height);
+    db.update(tokens).set(position).where(eq(tokens.id, token.id)).run();
+  }
+}
+
 /** The whole body is refused before it is read: a map is never larger than this. */
 const mapBody = bodyLimit({
   // Room for the multipart envelope and the name around the file itself.
@@ -217,13 +153,14 @@ const mapBody = bodyLimit({
 export function sceneRoutes() {
   const routes = new Hono<Context>();
   routes.use('*', requireAuth, requireCampaignRole());
+  routes.route('/:sceneId/tokens', tokenRoutes());
 
   routes.get('/', (c) => {
     try {
       requireMaster(c);
       const { db } = c.var.deps;
       const response: SceneListResponse = {
-        scenes: loadScenes(c, db, eq(scenes.campaignId, c.var.campaignId)).map(summariseScene),
+        scenes: loadScenes(scopeOf(c), db, eq(scenes.campaignId, c.var.campaignId)).map(summariseScene),
       };
       return c.json(response);
     } catch (error) {
@@ -254,7 +191,7 @@ export function sceneRoutes() {
             ...columnsOf(defaultGrid(map.width)),
           })
           .run();
-        return loadScene(c, tx, id)!;
+        return loadScene(scopeOf(c), tx, id)!;
       });
       // A new scene is closed: only the master's list changes.
       publish(c, loaded);
@@ -267,7 +204,7 @@ export function sceneRoutes() {
   routes.get('/active', (c) => {
     const { db } = c.var.deps;
     const active = activeSceneId(db, c.var.campaignId);
-    const loaded = active ? loadScene(c, db, active) : undefined;
+    const loaded = active ? loadScene(scopeOf(c), db, active) : undefined;
     if (!loaded) return c.body(null, 204);
     return answer(c, loaded);
   });
@@ -286,16 +223,16 @@ export function sceneRoutes() {
 
       const { opened, closed } = db.transaction((tx) => {
         const previous = activeSceneId(tx, c.var.campaignId);
-        if (sceneId !== null && !loadScene(c, tx, sceneId)) refuse(404, NOT_FOUND);
+        if (sceneId !== null && !loadScene(scopeOf(c), tx, sceneId)) refuse(404, NOT_FOUND);
         if (previous === sceneId) {
-          return { opened: sceneId ? loadScene(c, tx, sceneId)! : null, closed: null };
+          return { opened: sceneId ? loadScene(scopeOf(c), tx, sceneId)! : null, closed: null };
         }
         tx.update(campaigns).set({ activeSceneId: sceneId }).where(eq(campaigns.id, c.var.campaignId)).run();
         if (previous) bumpVersion(tx, previous);
         if (sceneId) bumpVersion(tx, sceneId);
         return {
-          opened: sceneId ? loadScene(c, tx, sceneId)! : null,
-          closed: previous ? (loadScene(c, tx, previous) ?? null) : null,
+          opened: sceneId ? loadScene(scopeOf(c), tx, sceneId)! : null,
+          closed: previous ? (loadScene(scopeOf(c), tx, previous) ?? null) : null,
         };
       });
 
@@ -331,7 +268,7 @@ export function sceneRoutes() {
         // An empty change would still bump the version and reach the whole table.
         if (Object.keys(changes).length === 0) refuse(422, 'Informe o nome ou o grid a alterar.');
         bumpVersion(tx, scene.id, changes);
-        return loadScene(c, tx, scene.id)!;
+        return loadScene(scopeOf(c), tx, scene.id)!;
       });
       publish(c, loaded);
       return answer(c, loaded);
@@ -352,6 +289,8 @@ export function sceneRoutes() {
     try {
       const form = await c.req.formData().catch(() => null);
       const { map, path } = await receiveMap(c, form);
+      // A drag in progress is in the old map's coordinates: it ends here.
+      c.var.deps.locks.clearScene(c.req.param('sceneId') ?? '');
       const loaded = db.transaction((tx) => {
         // Looked up again: the scene may have gone while the map was decoded.
         const { scene } = findScene(c, tx, { masterOnly: true });
@@ -362,7 +301,8 @@ export function sceneRoutes() {
           ...columnsOf(regrid(gridOf(scene), scene.mapWidth, map.width)),
         });
         tx.delete(assets).where(eq(assets.id, scene.mapAssetId)).run();
-        return loadScene(c, tx, scene.id)!;
+        rescaleTokens(tx, scene, map);
+        return loadScene(scopeOf(c), tx, scene.id)!;
       });
       publish(c, loaded);
       return answer(c, loaded);

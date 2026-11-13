@@ -5,6 +5,7 @@ import type { DiscordClient } from './auth/discord.ts';
 import type { AssetStore } from './assets/store.ts';
 import type { Env } from './env.ts';
 import type { EventHub } from './events/hub.ts';
+import type { TokenLocks } from './scenes/locks.ts';
 
 export type Deps = {
   db: Db;
@@ -12,6 +13,8 @@ export type Deps = {
   discord: DiscordClient;
   hub: EventHub;
   assets: AssetStore;
+  /** Who is dragging which token; in memory, like the hub. */
+  locks: TokenLocks;
 };
 
 /**

@@ -13,6 +13,7 @@ import { DiscordFailure, type DiscordClient, type DiscordProfile } from './auth/
 import { SESSION_COOKIE, STATE_COOKIE } from './auth/session.ts';
 import { createEventHub } from './events/hub.ts';
 import { attachWebSocket } from './events/ws.ts';
+import { createTokenLocks, type TokenLocks } from './scenes/locks.ts';
 import type { Env } from './env.ts';
 import type { AttemptLimiterOptions } from './invites/attempt-limiter.ts';
 
@@ -68,11 +69,13 @@ type RequestApp = { app: TestApp['app'] };
  */
 export function createTestApp(
   profiles: Record<string, DiscordProfile>,
-  { assets = createMemoryAssetStore(), env = testEnv, serveClient = false, inviteAttempts }: {
+  { assets = createMemoryAssetStore(), env = testEnv, serveClient = false, inviteAttempts, locks = createTokenLocks() }: {
     assets?: AssetStore;
     env?: Env;
     serveClient?: boolean;
     inviteAttempts?: AttemptLimiterOptions;
+    /** A test of the lock's lifetime passes one with a short TTL. */
+    locks?: TokenLocks;
   } = {},
 ) {
   const db = createTestDb();
@@ -83,32 +86,35 @@ export function createTestApp(
     discord: createFakeDiscord(profiles),
     hub,
     assets,
+    locks,
     serveClient,
     inviteAttempts,
   });
-  return { db, app, hub };
+  return { db, app, hub, locks };
 }
 
 /**
  * A real listening server with the WebSocket attached — the only way to
  * exercise the upgrade and the socket broadcast. Caller owns `close`.
  */
-export function createTestServer(profiles: Record<string, DiscordProfile>) {
-  const { db, app, hub } = createTestApp(profiles);
+export function createTestServer(profiles: Record<string, DiscordProfile>, options: { locks?: TokenLocks } = {}) {
+  const { db, app, hub, locks } = createTestApp(profiles, options);
   const server = createServer(getRequestListener(app.fetch));
   return new Promise<{
     db: Db;
     hub: ReturnType<typeof createEventHub>;
+    locks: TokenLocks;
     app: TestApp['app'];
     port: number;
     close: () => Promise<void>;
   }>((resolveServer) => {
     server.listen(0, () => {
       const address = server.address() as AddressInfo;
-      attachWebSocket(server, { db, hub });
+      attachWebSocket(server, { db, hub, locks });
       resolveServer({
         db,
         hub,
+        locks,
         app,
         port: address.port,
         close: () => new Promise((done) => server.close(() => done())),
