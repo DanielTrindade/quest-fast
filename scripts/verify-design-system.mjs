@@ -1,4 +1,4 @@
-import { chromium, expect } from '@playwright/test';
+import { chromium, expect, errors as playwrightErrors } from '@playwright/test';
 import { mkdirSync, writeFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { spawn } from 'node:child_process';
@@ -39,6 +39,9 @@ try {
   const stories = Object.values(index.entries).filter(entry => entry.type === 'story' && entry.id.includes(filter));
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
+  // Console errors do not fail a story; they only explain a story that hangs.
+  const consoleErrors = [];
+  page.on('console', message => { if (message.type() === 'error') consoleErrors.push(message.text()); });
   // A failing play leaves the render phase at "finished", and storyFinished
   // reports "error" even for stories without a play, so the only reliable
   // signal is the channel event. The trap subscribes before any story runs.
@@ -66,12 +69,43 @@ try {
       this.failures = failures;
     }
   }
-  async function visit(id, theme = 'both') {
+  // The story never reached a final render phase. Only this failure earns a
+  // retry: it has shown up on random stories in long runs and passes alone.
+  class SettleTimeout extends Error {
+    constructor(summary, diagnosis) {
+      super(`tempo esgotado esperando a story assentar (${summary})`);
+      this.summary = summary;
+      this.diagnosis = diagnosis;
+    }
+  }
+  // A hung page can also hang evaluate and screenshot, so each probe is capped.
+  const capped = (promise, fallback) => Promise.race([promise.catch(error => `${fallback}: ${error.message.split('\n')[0]}`), new Promise(done => setTimeout(() => done(fallback), 5000))]);
+  async function diagnose(id, attempt) {
+    const state = await capped(page.evaluate(() => ({
+      phases: window.__STORYBOOK_PREVIEW__?.storyRenders?.map(render => render.phase) ?? null,
+      failures: window.__storyFailures ?? null,
+    })), 'página não respondeu');
+    const screenshot = resolve(output, `${id}-timeout-${attempt}.png`);
+    const shot = await capped(page.screenshot({ path: screenshot, fullPage: true, timeout: 5000 }).then(() => screenshot), 'captura falhou');
+    const diagnosis = { story: id, attempt, url: page.url(), ...(typeof state === 'string' ? { state } : state), pageErrors: [...errors], consoleErrors: [...consoleErrors], screenshot: shot };
+    writeFileSync(resolve(output, `${id}-timeout-${attempt}.json`), JSON.stringify(diagnosis, null, 2) + '\n');
+    const phases = typeof state === 'string' ? state : `fases [${state.phases?.join(', ') ?? 'sem preview'}]`;
+    const latest = list => (list.length ? ` (última: ${list.at(-1).replace(/\s+/g, ' ').slice(0, 160)})` : '');
+    const summary = `${phases}; erros de página: ${errors.length}${latest(errors)}; erros de console: ${consoleErrors.length}${latest(consoleErrors)}; detalhes em test-results/design-system/${id}-timeout-${attempt}.{json,png}`;
+    return new SettleTimeout(summary, diagnosis);
+  }
+  async function visit(id, theme = 'both', attempt = 1) {
     errors.length = 0;
+    consoleErrors.length = 0;
     await page.goto(`${base}/iframe.html?id=${id}&viewMode=story&globals=theme:${theme}`);
     const settled = () => window.__storyFailures?.length > 0
       || window.__STORYBOOK_PREVIEW__?.storyRenders?.some(render => ['completed', 'finished', 'errored'].includes(render.phase));
-    await page.waitForFunction(settled, undefined, { timeout: 30000 });
+    try {
+      await page.waitForFunction(settled, undefined, { timeout: Number(process.env.DESIGN_SETTLE_TIMEOUT_MS) || 30000 });
+    } catch (error) {
+      if (error instanceof playwrightErrors.TimeoutError) throw await diagnose(id, attempt);
+      throw error;
+    }
     const failures = await page.evaluate(() => window.__storyFailures);
     if (failures.length > 0) throw new StoryFailure(failures);
     await page.locator('.theme-frame__panel').first().waitFor({ timeout: 30000 });
@@ -132,7 +166,16 @@ try {
         console.log(`PASS ${story.id} (controle negativo reprovou como esperado)`);
         continue;
       }
-      await visit(story.id);
+      // Negative controls above never retry: they must fail exactly as before.
+      let flaky;
+      try {
+        await visit(story.id);
+      } catch (error) {
+        if (!(error instanceof SettleTimeout)) throw error;
+        flaky = error.summary;
+        console.warn(`RETRY ${story.id}: ${error.message}`);
+        await visit(story.id, 'both', 2);
+      }
       const a11y = await audit();
       expect(a11y.violations, story.id).toEqual([]);
       expect(a11y.incomplete, `${story.id}: verificações inconclusivas`).toEqual([]);
@@ -162,8 +205,8 @@ try {
           }));
         }
       }
-      results.push({ story: story.id, passed: true, themes: ['dark', 'light'], widths: [320, 390, 768, 1280] });
-      console.log(`PASS ${story.id}`);
+      results.push({ story: story.id, passed: true, themes: ['dark', 'light'], widths: [320, 390, 768, 1280], ...(flaky && { flaky }) });
+      console.log(flaky ? `PASS ${story.id} (passou na segunda tentativa: ${flaky})` : `PASS ${story.id}`);
     } catch (error) {
       results.push({ story: story.id, passed: false, error: error.message });
       console.error(`FAIL ${story.id}: ${error.message}`);
@@ -268,4 +311,6 @@ try {
   writeFileSync(resolve(output, 'results.json'), JSON.stringify(results, null, 2) + '\n');
   if (!results.length || results.some(result => !result.passed)) process.exitCode = 1;
   console.log(`${results.filter(result => result.passed).length}/${results.length} verificações aprovadas.`);
+  const flaky = results.filter(result => result.flaky).map(result => result.story);
+  if (flaky.length) console.log(`${flaky.length} instáveis (passaram na segunda tentativa): ${flaky.join(', ')}.`);
 }
