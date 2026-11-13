@@ -15,7 +15,9 @@ import { activeSceneQuery, mergeScene, sceneListQuery, sceneQuery } from '../../
 import { canMoveToken } from '../../lib/token-labels';
 import { cn } from '../../lib/utils';
 import { errorMessage } from './campaign-screen';
+import { FightTurn } from './FightTurn';
 import { TokenPickerPanel } from './TokenPickerPanel';
+import { useFight } from './useFight';
 import { useTokenMoves } from './useTokenMoves';
 
 type Panel = 'grid' | 'tokens' | null;
@@ -131,7 +133,17 @@ export function SceneStage({ campaignId, scene, isMaster, mapClassName, allowFul
   const me = useQuery({ queryKey: ['me'], queryFn: api.me });
   const viewerId = me.data?.user.id ?? null;
   const { motion } = useCampaignChannel();
-  const moves = useTokenMoves({ campaignId, scene, mapRef });
+  const fightState = useFight(campaignId);
+  const fight = fightState ?? null;
+  const fighterOfToken = (tokenId: string) => {
+    const token = scene.tokens.find((candidate) => candidate.id === tokenId);
+    return token && fight ? fight.fighterOf(token) : null;
+  };
+  // In a fight, a move of the combatant whose turn it is waits for confirmation: it spends the turn.
+  const confirms = (tokenId: string) => fight !== null && fighterOfToken(tokenId)?.id === fight.encounter.activeCombatantId;
+  // Whether a fight runs is not known yet: a token that may fight waits, or its move could spend a turn unasked.
+  const mayFight = (token: TokenView) => fightState === undefined && (token.characterId !== null || token.combatantId !== null);
+  const moves = useTokenMoves({ campaignId, scene, mapRef, confirms });
   const [panel, setPanel] = useState<Panel>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const selectedId = scene.tokens.some((token) => token.id === selected) ? selected : null;
@@ -141,8 +153,14 @@ export function SceneStage({ campaignId, scene, isMaster, mapClassName, allowFul
     if (panel === 'grid') setPreview(null);
     setPanel(panel === next ? null : next);
   };
-  // A token whose last drop is still unanswered waits for it before the next drag.
-  const canMove = (token: TokenView) => canMoveToken(token, viewerId, isMaster) && !moves.settling(token.id);
+  // A token whose last drop is still unanswered waits for it before the next drag;
+  // in a fight a player moves their own only on its turn (the server says the same).
+  const canMove = (token: TokenView) => {
+    if (!canMoveToken(token, viewerId, isMaster) || moves.settling(token.id) || mayFight(token)) return false;
+    const fighter = fight?.fighterOf(token);
+    return isMaster || !fighter || fighter.id === fight?.encounter.activeCombatantId;
+  };
+  const focus = selectedId ? fighterOfToken(selectedId) : null;
 
   return (
     <div ref={stageRef} {...layout.region} className={layout.stage}>
@@ -154,7 +172,14 @@ export function SceneStage({ campaignId, scene, isMaster, mapClassName, allowFul
           <MapCanvas ref={mapRef} imageUrl={scene.mapUrl} mapWidth={scene.mapWidth} mapHeight={scene.mapHeight} grid={shownGrid} label={scene.name}
             tokens={scene.tokens} viewerId={viewerId} selectedTokenId={selectedId} onSelect={setSelected} canMove={canMove}
             onGrab={moves.onGrab} onDrag={moves.onDrag} onDrop={moves.onDrop} onCancelDrag={moves.onCancelDrag} motion={motion}
-            fullscreen={fullscreen} onFullscreenChange={allowFullscreen ? setFullscreen : undefined} />
+            fullscreen={fullscreen} onFullscreenChange={allowFullscreen ? setFullscreen : undefined}
+            pendingMove={moves.pending}
+            moveConfirm={{
+              onConfirm: () => moves.confirm(),
+              onCancel: moves.cancel,
+              onFree: isMaster ? () => moves.confirm({ free: true }) : undefined,
+              busy: moves.confirming,
+            }} />
         </div>
         <div className={layout.side}>
           {panel === 'grid' && (
@@ -162,8 +187,13 @@ export function SceneStage({ campaignId, scene, isMaster, mapClassName, allowFul
               onPreview={(grid) => setPreview(grid ? { sceneId: scene.id, grid } : null)} />
           )}
           {panel === 'tokens' && <TokenPickerPanel id={pickerId} campaignId={campaignId} scene={scene} mapRef={mapRef} />}
+          {fight && <FightTurn campaignId={campaignId} fight={fight} focus={focus} viewerId={viewerId} isMaster={isMaster} />}
           <TokenList tokens={scene.tokens} viewerId={viewerId} master={isMaster} selectedId={selectedId} onSelect={setSelected}
-            onStep={moves.onStep} busyIds={moves.busyIds}
+            onStep={(tokenId, direction) => {
+              const token = scene.tokens.find((candidate) => candidate.id === tokenId);
+              if (token && !mayFight(token)) moves.onStep(tokenId, direction);
+            }}
+            busyIds={moves.busyIds}
             onToggleHidden={isMaster ? moves.onToggleHidden : undefined} onRemove={isMaster ? moves.onRemove : undefined} />
         </div>
       </div>
