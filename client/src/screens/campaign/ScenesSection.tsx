@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { MapTrifold } from '@phosphor-icons/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Button } from '../../components/Button';
 import { SceneList } from '../../components/SceneList';
 import { Skeleton } from '../../components/Skeleton';
 import { sectionHeading } from '../../components/layout-styles';
@@ -55,8 +56,14 @@ export function ScenesSection({ campaignId }: { campaignId: string }) {
       </div>
 
       {scenes.isPending && <Skeleton shape="panel" label="Carregando as cenas…" />}
-      {scenes.isError && <p role="alert" className="text-body text-danger-text">{errorMessage(scenes.error)}</p>}
-      {scenes.isSuccess && (
+      {/* A failed refresh keeps the list it already has, with the way to try again. */}
+      {scenes.isError && (
+        <div className="grid justify-items-start gap-3">
+          <p role="alert" className="text-body text-danger-text">{errorMessage(scenes.error)}</p>
+          <Button variant="secondary" loading={scenes.isFetching} onClick={() => { void scenes.refetch(); }}>Tentar novamente</Button>
+        </div>
+      )}
+      {scenes.data && (
         <SceneList scenes={scenes.data.scenes} pendingSceneId={pendingSceneId}
           onCreate={() => setEditing({ sceneId: null })}
           onEdit={(sceneId) => setEditing({ sceneId })}

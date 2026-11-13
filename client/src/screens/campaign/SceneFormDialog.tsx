@@ -63,7 +63,7 @@ export function SceneFormDialog({ campaignId, scene, onClose, onSaved }: {
     <Dialog open onOpenChange={(open) => { if (!open) close(); }} className={dialogWide}
       title={scene ? `Editar ${scene.name}` : 'Nova cena'}
       description="O mapa só aparece para os jogadores quando você abrir a cena para a mesa.">
-      <SceneForm scene={scene ?? undefined} upload={upload} serverError={failure}
+      <SceneForm scene={scene ?? undefined} upload={upload} saving={save.isPending} serverError={failure}
         onSubmit={(input) => save.mutate(input)} onCancel={close} />
     </Dialog>
   );

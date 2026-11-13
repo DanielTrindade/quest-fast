@@ -34,12 +34,13 @@ function OverviewMap({ campaignId, isMaster }: { campaignId: string; isMaster: b
         </h2>
       </div>
       {map.isPending && <Skeleton shape="panel" label="Verificando se há mapa aberto" />}
-      {map.isError && (
+      {map.isError && map.data === undefined && (
         <Surface>
           <Retry message="Não foi possível verificar se há mapa aberto." retrying={map.isFetching} onRetry={() => map.refetch()} />
         </Surface>
       )}
-      {map.isSuccess && (
+      {/* null is an answer: no map open. A failed refresh keeps the last one. */}
+      {map.data !== undefined && (
         <OpenScene scene={map.data} isMaster={isMaster}
           action={map.data ? (
             <Button asChild>

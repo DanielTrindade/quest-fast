@@ -1,4 +1,4 @@
-import test from 'node:test';
+import test, { afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { QueryClient } from '@tanstack/react-query';
 import type { SceneListResponse, SceneView } from '@quest-fast/shared';
@@ -97,4 +97,75 @@ test('removing a scene drops it from the list, the table and its detail', () => 
   assert.deepEqual(listOf(queryClient)?.scenes.map((row) => row.id), [b]);
   assert.equal(activeOf(queryClient), null);
   assert.equal(queryClient.getQueryData(sceneQuery(CAMPAIGN, a).queryKey), undefined);
+});
+
+// --- Answers that land after a newer change -----------------------------------
+
+const originalFetch = globalThis.fetch;
+afterEach(() => {
+  globalThis.fetch = originalFetch;
+});
+
+/** The next GET waits until `answer` is called with its body (`undefined` for 204). */
+function heldAnswer() {
+  let answer!: (body: unknown) => void;
+  const held = new Promise<unknown>((resolve) => { answer = resolve; });
+  globalThis.fetch = (async () => {
+    const body = await held;
+    return body === undefined ? new Response(null, { status: 204 }) : Response.json(body);
+  }) as typeof fetch;
+  return answer;
+}
+
+test('a late answer does not bring back a map closed meanwhile', async () => {
+  const { queryClient, a } = setup();
+  const answer = heldAnswer();
+  const pending = queryClient.fetchQuery(activeSceneQuery(CAMPAIGN));
+  mergeScene(queryClient, CAMPAIGN, scene(a, 1, { active: true }));
+  closeScene(queryClient, CAMPAIGN, a);
+  answer({ scene: scene(a, 1, { active: true }) });
+  assert.equal(await pending, null);
+  assert.equal(activeOf(queryClient), null);
+});
+
+test('a late answer does not replace a newer version of the scene', async () => {
+  const { queryClient, a } = setup();
+  const answer = heldAnswer();
+  const pending = queryClient.fetchQuery(sceneQuery(CAMPAIGN, a));
+  mergeScene(queryClient, CAMPAIGN, scene(a, 3, { name: 'Novo' }));
+  answer({ scene: scene(a, 1, { name: 'Antigo' }) });
+  assert.equal((await pending).scene.version, 3);
+});
+
+test('a late list does not bring back a scene deleted meanwhile, nor drop one created', async () => {
+  const { queryClient, a, b } = setup();
+  queryClient.setQueryData<SceneListResponse>(sceneListQuery(CAMPAIGN).queryKey, { scenes: [] });
+  const answer = heldAnswer();
+  const pending = queryClient.fetchQuery(sceneListQuery(CAMPAIGN));
+  mergeScene(queryClient, CAMPAIGN, scene(b, 1));
+  removeScene(queryClient, CAMPAIGN, a);
+  const { id, name, mapUrl, mapWidth, mapHeight, active, createdAt } = scene(a, 1);
+  answer({ scenes: [{ id, name, mapUrl, mapWidth, mapHeight, active, createdAt }] });
+  assert.deepEqual((await pending).scenes.map((row) => row.id), [b]);
+});
+
+test('a late list follows the table that changed meanwhile', async () => {
+  const { queryClient, a, b } = setup();
+  const rows = [scene(a, 1, { active: true }), scene(b, 1)].map(({ id, name, mapUrl, mapWidth, mapHeight, active, createdAt }) =>
+    ({ id, name, mapUrl, mapWidth, mapHeight, active, createdAt }));
+  queryClient.setQueryData<SceneListResponse>(sceneListQuery(CAMPAIGN).queryKey, { scenes: rows });
+  const answer = heldAnswer();
+  const pending = queryClient.fetchQuery(sceneListQuery(CAMPAIGN));
+  // Only the opened one arrives before the answer.
+  mergeScene(queryClient, CAMPAIGN, scene(b, 2, { active: true }));
+  answer({ scenes: rows });
+  assert.deepEqual((await pending).scenes.map((row) => [row.id, row.active]), [[a, false], [b, true]]);
+});
+
+test('an answer with nothing newer to compete with is kept', async () => {
+  const { queryClient, a } = setup();
+  const answer = heldAnswer();
+  const pending = queryClient.fetchQuery(activeSceneQuery(CAMPAIGN));
+  answer({ scene: scene(a, 4, { active: true }) });
+  assert.equal((await pending)?.version, 4);
 });

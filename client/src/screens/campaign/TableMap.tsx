@@ -1,6 +1,7 @@
 import { MapTrifold } from '@phosphor-icons/react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
+import { Button as ActionButton } from '../../components/Button';
 import { OpenScene } from '../../components/OpenScene';
 import { Skeleton } from '../../components/Skeleton';
 import { sectionHeading } from '../../components/layout-styles';
@@ -24,8 +25,14 @@ export function TableMap({ campaignId, isMaster }: { campaignId: string; isMaste
         <h2 id="table-map-title"><MapTrifold size={20} aria-hidden="true" /> {scene ? scene.name : 'Mapa'}</h2>
       </div>
       {active.isPending && <Skeleton shape="panel" label="Carregando o mapa…" />}
-      {!scene && active.isError && <p role="alert" className="text-body text-danger-text">{errorMessage(active.error)}</p>}
-      {active.isSuccess && !scene && (
+      {active.data === undefined && active.isError && (
+        <div className="grid justify-items-start gap-3">
+          <p role="alert" className="text-body text-danger-text">{errorMessage(active.error)}</p>
+          <ActionButton variant="secondary" loading={active.isFetching} onClick={() => { void active.refetch(); }}>Tentar novamente</ActionButton>
+        </div>
+      )}
+      {/* null is an answer: no map open. A failed refresh keeps the last one. */}
+      {active.data === null && (
         <OpenScene scene={null} isMaster={isMaster}
           action={isMaster && (
             <Button asChild variant="secondary">

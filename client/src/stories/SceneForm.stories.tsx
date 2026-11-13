@@ -62,6 +62,20 @@ export const Editar: Story = {
   },
 };
 
+/** Only the name changed: no map goes up, but the form still waits for the save. */
+export const SalvandoNome: Story = {
+  name: 'Salvando o nome',
+  args: { saving: true },
+  render: (args) => <SceneForm {...args} scene={{ name: 'Salão em ruínas', mapUrl: syntheticMapUrl() }} />,
+  play: async ({ canvasElement, args }) => {
+    const form = firstTheme(canvasElement);
+    await expect(form.getByLabelText(/Nome da cena/)).toBeDisabled();
+    await expect(form.getByRole('button', { name: 'Salvar cena' })).toBeDisabled();
+    await expect(form.queryByRole('progressbar')).toBeNull();
+    await expect(args.onSubmit).not.toHaveBeenCalled();
+  },
+};
+
 export const Enviando: Story = {
   args: { upload: { phase: 'uploading', percent: 42 } },
   render: (args) => <SceneForm {...args} scene={{ name: 'Estrada de Triboar', mapUrl: syntheticMapUrl() }} />,
