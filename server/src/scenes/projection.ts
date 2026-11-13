@@ -14,8 +14,8 @@ export type LoadedScene = {
 /**
  * The scene as one viewer may see it — the only shape that leaves the server,
  * over REST and over the socket. A player sees only the scene open for the
- * table (`null` for any other). This delivery carries the map and the grid;
- * tokens and fog join the projection in the next ones.
+ * table (`null` for any other). Tokens join the projection with their
+ * routes; the fog in its own delivery.
  */
 export function projectScene({ scene, mapUrl, active }: LoadedScene, viewer: Viewer): SceneView | null {
   if (viewer.role !== 'master' && !active) return null;
@@ -34,6 +34,7 @@ export function projectScene({ scene, mapUrl, active }: LoadedScene, viewer: Vie
       snap: scene.snapToGrid,
     },
     active,
+    tokens: [],
     version: scene.version,
     createdAt: scene.createdAt.toISOString(),
   };
