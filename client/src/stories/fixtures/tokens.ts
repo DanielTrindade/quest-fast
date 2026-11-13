@@ -33,7 +33,7 @@ export function syntheticAvatarUrl(): string {
 }
 
 /** The centre of the printed cell (column, row), as the server snaps a medium token. */
-function cell(column: number, row: number) {
+export function cell(column: number, row: number) {
   return { x: PRINTED_OFFSET + (column + 0.5) * PRINTED_CELL, y: PRINTED_OFFSET + (row + 0.5) * PRINTED_CELL };
 }
 
@@ -74,6 +74,29 @@ export function masterTokens(): TokenView[] {
     make('barrel', { name: 'Barril de pólvora', kind: 'free', ...cell(16, 7) }),
     make('bandit', { name: 'Bandido', kind: 'combatant', hidden: true, ...cell(24, 3) }),
   ];
+}
+
+/**
+ * The same party in a fight, on Kaelen's turn: Kaelen has walked half of
+ * his 9 m; the creatures still have all of theirs; the barrel walks nowhere.
+ */
+export function fightTokens(): TokenView[] {
+  const reach: Record<string, TokenView['reach']> = {
+    kaelen: { speed: 9, left: 4.5 },
+    mira: { speed: 9, left: 9 },
+    'goblin-1': { speed: 9, left: 9 },
+    'goblin-2': { speed: 9, left: 9 },
+    ogre: { speed: 12, left: 12 },
+    bandit: { speed: 9, left: 9 },
+  };
+  return masterTokens().map((candidate) => ({ ...candidate, movingBy: null, reach: reach[candidate.id] ?? null }));
+}
+
+/** What a player receives in the fight: no hidden token, and no creature's reach. */
+export function playerFightTokens(): TokenView[] {
+  return fightTokens()
+    .filter((candidate) => !candidate.hidden)
+    .map((candidate) => (candidate.kind === 'character' ? candidate : { ...candidate, reach: null }));
 }
 
 /** What a player receives: the server leaves the hidden ones out. */

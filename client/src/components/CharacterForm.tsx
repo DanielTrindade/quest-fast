@@ -10,6 +10,7 @@ import {
   SKILLS,
   SKILL_ABILITIES,
   SPELL_SLOT_CAPS,
+  classAttacksPerAction,
   skillBonus,
   skillProficiency,
   validateCharacterInput,
@@ -162,6 +163,8 @@ function freshState(character: SheetDraft | null) {
     ac: character ? String(character.ac) : '10',
     shield: character?.shield ?? false,
     speed: character ? String(character.speed) : '9',
+    /** Empty: the class and level decide. */
+    attacksPerAction: character?.attacksPerAction ? String(character.attacksPerAction) : '',
     hitDie: String(character?.hitDie ?? 8),
     initiativeBonus: String(character?.initiativeBonus ?? 0),
     passivePerceptionBonus: String(character?.passivePerceptionBonus ?? 0),
@@ -304,6 +307,10 @@ function IdentityPanel({
           </SelectField>
           <Field label="Deslocamento (m)" type="number" min={0} max={60} step={1.5} value={state.speed} error={errors.speed}
             onChange={(e) => { set('speed', e.target.value); clearError('speed'); }} />
+          <Field label="Ataques por ação" type="number" min={1} max={8} value={state.attacksPerAction} error={errors.attacksPerAction}
+            placeholder={String(classAttacksPerAction(state.className, state.subclass, Number(state.level) || 1))}
+            hint={`Vazio usa a classe e o nível: ${classAttacksPerAction(state.className, state.subclass, Number(state.level) || 1)}`}
+            onChange={(e) => { set('attacksPerAction', e.target.value); clearError('attacksPerAction'); }} />
           <SelectField label="Tamanho" value={state.size} onChange={(value) => set('size', value as Size)}>
             {SIZES.map((size) => <option key={size} value={size}>{SIZE_LABELS[size]}</option>)}
           </SelectField>
@@ -684,6 +691,7 @@ export function CharacterForm({ campaignId, character, onSaved, onSaveError, onR
     ac: Number(state.ac),
     shield: state.shield,
     speed: numberValue(state.speed),
+    attacksPerAction: state.attacksPerAction.trim() === '' ? null : Number(state.attacksPerAction),
     hitDie: Number(state.hitDie) as HitDie,
     initiativeBonus: numberValue(state.initiativeBonus),
     passivePerceptionBonus: numberValue(state.passivePerceptionBonus),

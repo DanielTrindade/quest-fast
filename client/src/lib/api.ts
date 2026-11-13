@@ -34,6 +34,7 @@ import type {
   StatblockResponse,
   TokenInput,
   TokenPatch,
+  TurnEconomyRequest,
   TurnRequest,
   ActiveSceneRequest,
   PlaceEncounterRequest,
@@ -329,6 +330,12 @@ export const api = {
     request<EncounterResponse>(`/api/campaigns/${campaignId}/encounters/${encounterId}/combatants/${combatantId}`, {
       method: 'PATCH',
       body: JSON.stringify(patch),
+    }),
+  /** Spends, gives back or grants a part of a combatant's turn. */
+  combatantEconomy: (campaignId: string, encounterId: string, combatantId: string, body: TurnEconomyRequest) =>
+    request<EncounterResponse>(`/api/campaigns/${campaignId}/encounters/${encounterId}/combatants/${combatantId}/economy`, {
+      method: 'POST',
+      body: JSON.stringify(body),
     }),
   removeCombatant: (campaignId: string, encounterId: string, combatantId: string) =>
     request<EncounterResponse>(`/api/campaigns/${campaignId}/encounters/${encounterId}/combatants/${combatantId}`, {

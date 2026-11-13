@@ -4,6 +4,7 @@ import {
   CHALLENGE_RATINGS,
   SIZES,
   STATBLOCK_LIMITS as S,
+  TURN_LIMITS,
   statblockFromSheet,
   validateStatblockInput,
   type Ability,
@@ -40,6 +41,7 @@ function freshState(statblock: StatblockDraft | null) {
     hpAverage: statblock ? String(statblock.hpAverage) : '',
     hpFormula: statblock?.hpFormula ?? '',
     speed: statblock?.speed ?? '9 m',
+    attacksPerAction: String(statblock?.attacksPerAction ?? 1),
     initiativeBonus: String(statblock?.initiativeBonus ?? 0),
     abilityScores: Object.fromEntries(
       ABILITIES.map((ability) => [ability, String(statblock?.abilityScores[ability] ?? 10)]),
@@ -63,6 +65,7 @@ function toInput(state: FormState): StatblockInput {
     hpAverage: numberValue(state.hpAverage),
     hpFormula: state.hpFormula.trim(),
     speed: state.speed.trim(),
+    attacksPerAction: numberValue(state.attacksPerAction),
     initiativeBonus: numberValue(state.initiativeBonus),
     abilityScores: Object.fromEntries(
       ABILITIES.map((ability) => [ability, numberValue(state.abilityScores[ability])]),
@@ -219,8 +222,11 @@ export function StatblockForm({ statblock, onSubmit, onRequestClose, pending = f
             <Field label="Bônus de iniciativa" hint="Somado ao modificador de Destreza." type="number"
               min={S.initiativeBonus.min} max={S.initiativeBonus.max} value={state.initiativeBonus}
               error={errors.initiativeBonus} onChange={(e) => edit('initiativeBonus', e.target.value)} />
-            <Field label="Deslocamento" hint="Ex.: 9 m, escalada 6 m" maxLength={S.speed} value={state.speed}
-              error={errors.speed} onChange={(e) => edit('speed', e.target.value)} />
+            <Field label="Deslocamento" hint="Ex.: 9 m, escalada 6 m. O primeiro número é o deslocamento no mapa." maxLength={S.speed}
+              value={state.speed} error={errors.speed} onChange={(e) => edit('speed', e.target.value)} />
+            <Field label="Ataques por ação" hint="Ataques Múltiplos: quantos ataques uma ação Atacar faz." type="number"
+              min={TURN_LIMITS.attacksPerAction.min} max={TURN_LIMITS.attacksPerAction.max} value={state.attacksPerAction}
+              error={errors.attacksPerAction} onChange={(e) => edit('attacksPerAction', e.target.value)} />
           </div>
         </fieldset>
 

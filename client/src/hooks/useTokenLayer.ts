@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, type RefObject } from 'react';
 import type { GridSettings, TokenView } from '@quest-fast/shared';
 import type { MapOverlay } from './useMapViewport';
 import type { MapView, Size } from '../lib/map-view';
+import { drawMovePath, drawReach } from '../lib/reach-draw';
 import { drawTokens, type DrawnToken } from '../lib/token-draw';
 import { DRAG_THRESHOLD, restingPoint, toMapPoint, tokenAt } from '../lib/token-geometry';
 import type { TokenMotionSource } from '../lib/token-motion';
@@ -30,6 +31,11 @@ export type TokenLayerOptions = {
   onCancelDrag?: (tokenId: string) => void;
   /** Where the tokens others drag are, fed by the socket. */
   motion?: TokenMotionSource;
+  /**
+   * A move dropped but not confirmed yet: the token waits there, with the path
+   * and the cost from where it is saved.
+   */
+  pendingMove?: { tokenId: string; x: number; y: number } | null;
 };
 
 type LayerWiring = {
@@ -64,7 +70,7 @@ export function useTokenLayer(options: TokenLayerOptions & LayerWiring): { cance
   const drops = useRef(new Map<string, Point & { until: number }>());
   const images = useRef(new Map<string, HTMLImageElement>());
   const loading = useRef(new Set<string>());
-  const { tokens, selectedId, viewerId, grid, map, motion, requestDraw, overlayRef } = options;
+  const { tokens, selectedId, viewerId, grid, map, motion, requestDraw, overlayRef, pendingMove } = options;
 
   useEffect(() => {
     latest.current = options;
@@ -91,7 +97,7 @@ export function useTokenLayer(options: TokenLayerOptions & LayerWiring): { cance
   // What the canvas must show at once: drawn on the next frame.
   useEffect(() => {
     requestDraw();
-  }, [tokens, selectedId, viewerId, grid, map.width, map.height, requestDraw]);
+  }, [tokens, selectedId, viewerId, grid, map.width, map.height, pendingMove, requestDraw]);
 
   // One layer for the component's life; it reads the props through `latest`.
   const overlay = useMemo<MapOverlay>(() => {
@@ -109,6 +115,8 @@ export function useTokenLayer(options: TokenLayerOptions & LayerWiring): { cance
         if (dragging) {
           return { ...token, at: dragging.at, lifted: true, ghost: restingPoint(dragging.at, current.grid, token.size, current.map) };
         }
+        const pending = current.pendingMove?.tokenId === token.id ? current.pendingMove : null;
+        if (pending) return { ...token, at: { x: pending.x, y: pending.y }, lifted: false, ghost: null };
         const dropped = drops.current.get(token.id);
         if (dropped && token.x === dropped.x && token.y === dropped.y) drops.current.delete(token.id);
         else if (dropped) return { ...token, at: dropped, lifted: false, ghost: null };
@@ -119,12 +127,31 @@ export function useTokenLayer(options: TokenLayerOptions & LayerWiring): { cance
       });
     };
 
+    /**
+     * Under the tokens: the area the token in focus can still reach (the one
+     * dragged, the one waiting for confirmation, else the selected one), then
+     * the path and the cost of a move on its way.
+     */
+    const drawMoving = (context: CanvasRenderingContext2D, view: MapView, themed: Element, tokens: readonly DrawnToken[]) => {
+      const current = latest.current;
+      const focusId = (drag.current?.started ? drag.current.token.id : null) ?? current.pendingMove?.tokenId ?? current.selectedId;
+      const token = tokens.find((candidate) => candidate.id === focusId);
+      if (!token?.reach) return;
+      const saved = { x: token.x, y: token.y };
+      const { cellSize } = current.grid;
+      drawReach(context, { token: { ...saved, size: token.size }, meters: token.reach.left, cellSize, map: current.map, view, themed });
+      const target = token.ghost ?? (current.pendingMove?.tokenId === token.id ? token.at : null);
+      if (target) drawMovePath(context, { from: saved, to: target, grid: current.grid, metersLeft: token.reach.left, view, themed });
+    };
+
     return {
       draw(context, view: MapView, now) {
         const current = latest.current;
         const themed = current.themedRef.current ?? context.canvas;
+        const tokens = drawn(now);
+        drawMoving(context, view, themed, tokens);
         drawTokens(context, {
-          tokens: drawn(now),
+          tokens,
           view,
           cellSize: current.grid.cellSize,
           selectedId: current.selectedId,

@@ -1,10 +1,12 @@
 import { useId, useImperativeHandle, useRef, type Ref } from 'react';
 import { ArrowsIn, ArrowsOut, CornersOut, MagnifyingGlassMinus, MagnifyingGlassPlus, Warning } from '@phosphor-icons/react';
-import type { GridSettings, TokenView } from '@quest-fast/shared';
+import { formatMeters, squaresFor, type GridSettings, type TokenView } from '@quest-fast/shared';
 import { useMapViewport, ZOOM_STEP, type MapOverlay } from '../hooks/useMapViewport';
 import { useTokenLayer, type TokenLayerOptions } from '../hooks/useTokenLayer';
 import { gridCells } from '../lib/map-view';
+import { describeMove } from '../lib/reach-draw';
 import { cn } from '../lib/utils';
+import { MoveConfirm } from './MoveConfirm';
 import { Button } from './ui/button';
 
 export type MapCanvasProps = {
@@ -25,9 +27,17 @@ export type MapCanvasProps = {
   fullscreen?: boolean;
   /** Shows the full-screen switch among the map's controls. */
   onFullscreenChange?: (fullscreen: boolean) => void;
+  /** A move in a fight waiting for confirmation, with what to do about it. */
+  moveConfirm?: {
+    onConfirm: () => void;
+    onCancel: () => void;
+    /** The master only: move without spending. */
+    onFree?: () => void;
+    busy?: boolean;
+  };
   /** What the screen asks of the map: where the viewer is looking, and putting a refused drag back. */
   ref?: Ref<MapCanvasHandle>;
-} & Pick<TokenLayerOptions, 'onSelect' | 'canMove' | 'onGrab' | 'onDrag' | 'onDrop' | 'onCancelDrag' | 'motion'>;
+} & Pick<TokenLayerOptions, 'onSelect' | 'canMove' | 'onGrab' | 'onDrag' | 'onDrop' | 'onCancelDrag' | 'motion' | 'pendingMove'>;
 
 export type MapCanvasHandle = {
   /** The middle of the area in view, in map pixels: where a new token lands. */
@@ -41,6 +51,13 @@ const NO_TOKENS: readonly TokenView[] = [];
 function describeTokens(count: number): string {
   if (count === 0) return 'Nenhum token no mapa.';
   return count === 1 ? '1 token no mapa.' : `${count} tokens no mapa.`;
+}
+
+/** The selected token's reach, which the canvas draws as a tinted area. */
+function describeReach(token: TokenView | undefined): string {
+  if (!token?.reach) return '';
+  const squares = squaresFor(token.reach.left);
+  return ` ${token.name} ainda alcança ${formatMeters(token.reach.left)}, ${squares === 1 ? '1 casa' : `${squares} casas`} em qualquer direção.`;
 }
 
 function describeGrid(grid: GridSettings, mapWidth: number, mapHeight: number): string {
@@ -94,6 +111,7 @@ function MapControls({ zoom, onZoom, onFrame, fullscreen, onFullscreenChange }: 
 export function MapCanvas({
   imageUrl, mapWidth, mapHeight, grid, label, className, tokens = NO_TOKENS, viewerId = null, selectedTokenId = null,
   onSelect, canMove, onGrab, onDrag, onDrop, onCancelDrag, motion, ref, fullscreen = false, onFullscreenChange,
+  pendingMove = null, moveConfirm,
 }: MapCanvasProps) {
   const overlayRef = useRef<MapOverlay | null>(null);
   const {
@@ -101,8 +119,10 @@ export function MapCanvas({
   } = useMapViewport({ imageUrl, mapWidth, mapHeight, grid, overlayRef });
   const { cancelDrag } = useTokenLayer({
     tokens, grid, map: { width: mapWidth, height: mapHeight }, viewerId, selectedId: selectedTokenId,
-    onSelect, canMove, onGrab, onDrag, onDrop, onCancelDrag, motion, overlayRef, requestDraw, themedRef: frameRef,
+    onSelect, canMove, onGrab, onDrag, onDrop, onCancelDrag, motion, pendingMove, overlayRef, requestDraw, themedRef: frameRef,
   });
+  const pendingToken = pendingMove ? tokens.find((token) => token.id === pendingMove.tokenId) : undefined;
+  const pendingCost = pendingToken && pendingMove ? describeMove(pendingToken, pendingMove, grid) : null;
   useImperativeHandle(ref, () => ({ viewCentre, cancelDrag }), [viewCentre, cancelDrag]);
   const helpId = useId();
   const summaryId = useId();
@@ -129,7 +149,7 @@ export function MapCanvas({
         {...canvasHandlers}
       />
 
-      <p id={summaryId} className="sr-only">Mapa de {mapWidth} por {mapHeight} pixels. {describeGrid(grid, mapWidth, mapHeight)} {describeTokens(tokens.length)}</p>
+      <p id={summaryId} className="sr-only">Mapa de {mapWidth} por {mapHeight} pixels. {describeGrid(grid, mapWidth, mapHeight)} {describeTokens(tokens.length)}{describeReach(tokens.find((token) => token.id === selectedTokenId))}</p>
       <p id={helpId} className="sr-only">
         Arraste para mover e use a roda do mouse ou dois dedos para aproximar. Pelo teclado, as setas movem o mapa, mais e menos aproximam e afastam, e zero enquadra o mapa inteiro.
       </p>
@@ -146,6 +166,13 @@ export function MapCanvas({
             Não foi possível carregar o mapa.
           </p>
           <Button variant="secondary" onClick={retry}>Tentar de novo</Button>
+        </div>
+      )}
+      {pendingToken && pendingCost && moveConfirm && (
+        <div className="pointer-events-none absolute inset-x-2 top-2 flex justify-center">
+          <MoveConfirm name={pendingToken.name} cost={pendingCost.label} left={pendingToken.reach?.left ?? Number.POSITIVE_INFINITY}
+            over={pendingCost.meters > (pendingToken.reach?.left ?? Number.POSITIVE_INFINITY) + 1e-6}
+            onConfirm={moveConfirm.onConfirm} onCancel={moveConfirm.onCancel} onFree={moveConfirm.onFree} busy={moveConfirm.busy} />
         </div>
       )}
       {status === 'ready' && zoom !== null ? (
