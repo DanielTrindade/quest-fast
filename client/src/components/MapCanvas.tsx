@@ -1,7 +1,8 @@
-import { useId } from 'react';
+import { useId, useRef } from 'react';
 import { CornersOut, MagnifyingGlassMinus, MagnifyingGlassPlus, Warning } from '@phosphor-icons/react';
-import type { GridSettings } from '@quest-fast/shared';
-import { useMapViewport, ZOOM_STEP } from '../hooks/useMapViewport';
+import type { GridSettings, TokenView } from '@quest-fast/shared';
+import { useMapViewport, ZOOM_STEP, type MapOverlay } from '../hooks/useMapViewport';
+import { useTokenLayer, type TokenLayerOptions } from '../hooks/useTokenLayer';
 import { gridCells } from '../lib/map-view';
 import { cn } from '../lib/utils';
 import { Button } from './ui/button';
@@ -15,7 +16,19 @@ export type MapCanvasProps = {
   /** The scene's name, for the accessible label. */
   label: string;
   className?: string;
-};
+  /** Drawn over the map, the last on top. The list beside the map is their accessible form. */
+  tokens?: readonly TokenView[];
+  /** Who is looking: their own drag carries no "being moved by" label. */
+  viewerId?: string | null;
+  selectedTokenId?: string | null;
+} & Pick<TokenLayerOptions, 'onSelect' | 'canMove' | 'onGrab' | 'onDrag' | 'onDrop' | 'motion'>;
+
+const NO_TOKENS: readonly TokenView[] = [];
+
+function describeTokens(count: number): string {
+  if (count === 0) return 'Nenhum token no mapa.';
+  return count === 1 ? '1 token no mapa.' : `${count} tokens no mapa.`;
+}
 
 function describeGrid(grid: GridSettings, mapWidth: number, mapHeight: number): string {
   if (!grid.enabled) return 'Sem grid.';
@@ -53,10 +66,18 @@ function MapControls({ zoom, onZoom, onFrame }: { zoom: number; onZoom: (factor:
  * The canvas has no text of its own, so what it shows is also in the DOM:
  * the label, the map's size and grid, how to move it, and the zoom.
  */
-export function MapCanvas({ imageUrl, mapWidth, mapHeight, grid, label, className }: MapCanvasProps) {
+export function MapCanvas({
+  imageUrl, mapWidth, mapHeight, grid, label, className, tokens = NO_TOKENS, viewerId = null, selectedTokenId = null,
+  onSelect, canMove, onGrab, onDrag, onDrop, motion,
+}: MapCanvasProps) {
+  const overlayRef = useRef<MapOverlay | null>(null);
   const {
-    frameRef, canvasRef, status, zoom, dragging, retry, zoomBy, frameMap, frameHandlers, canvasHandlers,
-  } = useMapViewport({ imageUrl, mapWidth, mapHeight, grid });
+    frameRef, canvasRef, status, zoom, dragging, retry, zoomBy, frameMap, frameHandlers, canvasHandlers, requestDraw,
+  } = useMapViewport({ imageUrl, mapWidth, mapHeight, grid, overlayRef });
+  useTokenLayer({
+    tokens, grid, map: { width: mapWidth, height: mapHeight }, viewerId, selectedId: selectedTokenId,
+    onSelect, canMove, onGrab, onDrag, onDrop, motion, overlayRef, requestDraw, themedRef: frameRef,
+  });
   const helpId = useId();
   const summaryId = useId();
 
@@ -82,7 +103,7 @@ export function MapCanvas({ imageUrl, mapWidth, mapHeight, grid, label, classNam
         {...canvasHandlers}
       />
 
-      <p id={summaryId} className="sr-only">Mapa de {mapWidth} por {mapHeight} pixels. {describeGrid(grid, mapWidth, mapHeight)}</p>
+      <p id={summaryId} className="sr-only">Mapa de {mapWidth} por {mapHeight} pixels. {describeGrid(grid, mapWidth, mapHeight)} {describeTokens(tokens.length)}</p>
       <p id={helpId} className="sr-only">
         Arraste para mover e use a roda do mouse ou dois dedos para aproximar. Pelo teclado, as setas movem o mapa, mais e menos aproximam e afastam, e zero enquadra o mapa inteiro.
       </p>
