@@ -205,6 +205,8 @@ export type {
   CharacterSheet,
   DamageRoll,
   CharacterSummary,
+  MyCharacter,
+  MyCharacterListResponse,
   CombatantInput,
   CombatantPatch,
   CombatantSource,

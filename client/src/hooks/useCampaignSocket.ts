@@ -89,6 +89,12 @@ export function useCampaignSocket(campaignId: string, enabled: boolean): { statu
           mergeScene(queryClient, campaignId, message.scene);
         } else if (message.type === 'scene.closed') closeScene(queryClient, campaignId, message.sceneId);
         else if (message.type === 'token.moving') motion.push(message, performance.now());
+        else if (message.type === 'characters.changed') {
+          // Only a hint: the roster, the open sheets and the gallery ask again.
+          void queryClient.invalidateQueries({ queryKey: ['characters', campaignId] });
+          void queryClient.invalidateQueries({ queryKey: ['character', campaignId] });
+          void queryClient.invalidateQueries({ queryKey: ['my-characters'] });
+        }
       },
     });
     socket.current = opened;

@@ -1,12 +1,16 @@
-import { CaretUpDown, SignOut } from '@phosphor-icons/react';
+import { CaretUpDown, SignOut, UserCircle } from '@phosphor-icons/react';
 import { Avatar } from './Avatar';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from './ui/dropdown-menu';
 import { cn } from '../lib/utils';
 import { trigger } from './shell-styles';
 
-export type Account = { name: string; avatarUrl: string | null; onSignOut: () => void; signingOut?: boolean };
+export type Account = {
+  name: string; avatarUrl: string | null; onSignOut: () => void; signingOut?: boolean;
+  /** Where the account's characters live, outside any campaign. */
+  onShowCharacters?: () => void;
+};
 
-export function AccountMenu({ name, avatarUrl, onSignOut, signingOut = false, compact = false, side = 'top', className }: Account & {
+export function AccountMenu({ name, avatarUrl, onSignOut, onShowCharacters, signingOut = false, compact = false, side = 'top', className }: Account & {
   compact?: boolean; side?: 'top' | 'bottom' | 'right'; className?: string;
 }) {
   return <DropdownMenu modal={false}>
@@ -17,6 +21,9 @@ export function AccountMenu({ name, avatarUrl, onSignOut, signingOut = false, co
     </DropdownMenuTrigger>
     <DropdownMenuContent side={side} align={side === 'bottom' ? 'end' : 'start'} collisionPadding={8}>
       <DropdownMenuLabel className="[overflow-wrap:anywhere]">{name}</DropdownMenuLabel>
+      {onShowCharacters && <DropdownMenuItem onSelect={onShowCharacters}>
+        <UserCircle size={20} aria-hidden="true" />Meus personagens
+      </DropdownMenuItem>}
       <DropdownMenuItem disabled={signingOut} onSelect={onSignOut}>
         <SignOut size={20} aria-hidden="true" />{signingOut ? 'Saindo…' : 'Sair'}
       </DropdownMenuItem>

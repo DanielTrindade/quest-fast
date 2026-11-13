@@ -5,6 +5,7 @@ import type {
   CampaignsResponse,
   CharacterInput,
   CharacterListResponse,
+  MyCharacterListResponse,
   CharacterResponse,
   CharacterStateInput,
   CombatantInput,
@@ -198,6 +199,9 @@ export const api = {
     }),
   deleteCharacter: (campaignId: string, characterId: string) =>
     request<void>(`/api/campaigns/${campaignId}/characters/${characterId}`, { method: 'DELETE' }),
+  activateCharacter: (campaignId: string, characterId: string) =>
+    request<CharacterResponse>(`/api/campaigns/${campaignId}/characters/${characterId}/activate`, { method: 'POST' }),
+  myCharacters: () => request<MyCharacterListResponse>('/api/me/characters'),
 
   uploadAsset: (campaignId: string, file: File) => {
     const form = new FormData();

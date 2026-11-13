@@ -97,6 +97,11 @@ Tudo aqui é função pura, com teste unitário ao lado (`*.test.ts`, rodando no
   eventos são colunas JSON. Um campo novo dentro delas não ganha migração: o
   servidor lê o JSON antigo com o padrão documentado (um ataque salvo sem
   `kind` é uma rolagem de ataque).
+- **Personagem ativo:** `characters.active` marca o personagem que o jogador
+  leva à mesa de uma campanha. O índice único parcial
+  `characters_one_active_idx` (`campaign_id`, `owner_id` onde `active = 1`)
+  garante no máximo um ativo por jogador e campanha, mesmo com requisições
+  simultâneas.
 - `migrations/`: SQL gerado pelo `drizzle-kit`, uma pasta por migração
   (`<timestamp>_<nome>/migration.sql` e `snapshot.json`). Mudou o schema: rode
   `npm run db:generate` e versione a migração gerada. Migrações já publicadas
@@ -161,7 +166,7 @@ provedor falso e o disco por um store em memória.
 src/
   main.tsx         QueryClient + RouterProvider
   router.tsx       rotas; o guard de autenticação consulta /api/auth/me
-  screens/         telas que buscam dados (Login, Campaigns, CampaignWorkspace e campaign/)
+  screens/         telas que buscam dados (Login, Campaigns, MyCharacters, CampaignWorkspace e campaign/)
   components/      componentes presentacionais do design system
   hooks/           useCampaignSocket, useStoredFlag, useSignOut
   lib/             cliente da API, caches do feed, do combate e das cenas, rótulos 5e, formatação
@@ -180,13 +185,24 @@ src/
   (`aria-current="page"`). Jogador em `/prep` vê "não encontrado", como o
   servidor responde ao que não é dele. Rotas em inglês, texto em pt-BR.
   Plano e próximas etapas na issue #88.
+- **Telas da conta:** Campanhas (`/campaigns`) e Meus personagens
+  (`/characters`). O personagem é do jogador: criar (escolhendo a campanha),
+  editar, trocar o retrato, importar o PDF, excluir e ativar acontecem na
+  galeria da conta. A ficha abre sempre no mesmo modal, e o `context` dele diz
+  o que ela oferece: na Mesa (`table`) se joga (rolagens e estado de sessão),
+  em Meus personagens (`gallery`) se gerencia (editar e excluir, sem jogar) e
+  na Visão geral (`read`) só se lê. A Mesa mostra só o personagem ativo de cada
+  jogador e não oferece edição; a Visão geral mostra o grupo (os ativos).
 - **Tempo real:** `useCampaignSocket` abre o socket da campanha no layout, uma
   vez por campanha, para o selo de rodada e os caches seguirem vivos em
   qualquer tela; o status chega às telas pelo contexto
   `CampaignSocketStatus`. Reconecta com backoff e, ao reconectar, refaz o
   fetch do feed. Eventos novos entram no cache do Query via
   `lib/feed-cache.ts`; `scene.updated` e `scene.closed`, via
-  `lib/scene-cache.ts`, que descarta `version` menor que a já vista.
+  `lib/scene-cache.ts`, que descarta `version` menor que a já vista. Criar,
+  editar, mudar o estado, ativar ou excluir uma ficha publica
+  `characters.changed`, um aviso sem dados: quem está na sala refaz a consulta
+  do elenco, das fichas abertas e da galeria.
 - **Componentes:** `components/` não busca dados; recebe props e é coberto por
   story. `screens/` compõe componentes e liga com a API.
 - **Estilo:** Tailwind 4 com tokens CSS próprios. Cor crua e paleta padrão do
@@ -246,6 +262,11 @@ digitado de uma vez.
   seria um vazamento.
 - Regras finas (dono da ficha edita, mestre exclui, etc.) ficam na rota, com
   teste de integração no formato "jogador não consegue X".
+- `GET /api/me/characters` filtra pelo usuário da sessão e só lista fichas das
+  campanhas de que ele ainda é membro: ler uma ficha exige filiação, mesmo
+  para o dono, então quem sai de uma campanha deixa de ver as fichas dela.
+  Ativar (`POST .../characters/:id/activate`) é só do dono; nem o mestre ativa
+  o personagem de outro.
 
 ### Rolagem e feed ao vivo
 
@@ -529,6 +550,7 @@ O raciocínio completo, com alternativas descartadas, está em
 | Discord OAuth como único login | O público já tem Discord; menos código que senha | [MVP, decisão 6](history/2026-09-04-mvp-campaign-management.md) |
 | WebSocket, não SSE | O arrasto de tokens do VTT vai exigir latência baixa nos dois sentidos | [MVP, decisão 8](history/2026-09-04-mvp-campaign-management.md) |
 | Personagem nasce dentro da campanha | Elimina vínculo e desvínculo e a questão do histórico | [MVP, decisão 9](history/2026-09-04-mvp-campaign-management.md) |
+| Um personagem ativo por jogador e campanha, por índice único parcial | O jogador guarda vários personagens (mortos, aposentados) e a mesa precisa saber qual ele traz; o banco recusa dois ativos mesmo com requisições simultâneas. A primeira ficha nasce ativa; excluir a ativa não promove outra; a migração ativou a ficha alterada por último | [#88](https://github.com/DanielTrindade/quest-fast/issues/88) |
 | Tabela `Asset` desde o MVP | Avatares hoje, mapas grandes no VTT | [MVP, decisão 11](history/2026-09-04-mvp-campaign-management.md) |
 | `SessionEvent` como união discriminada, com fallback | Combate e VTT adicionam tipos sem quebrar o cliente | [session-qol](history/2026-09-10-session-qol-foundations.md) |
 | Ficha oficial 2024, sem motor de regras | Valores derivados com ajuste manual; sem calcular CA por armadura | [ficha oficial](history/2026-09-13-official-character-sheet.md) |

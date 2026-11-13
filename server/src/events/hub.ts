@@ -37,6 +37,8 @@ export type EventHub = {
   publishScene(campaignId: string, project: (viewer: Viewer) => SceneView | null): void;
   /** Sends `scene.closed` to the whole room: the table no longer has that scene open. */
   publishSceneClosed(campaignId: string, sceneId: string): void;
+  /** Sends `characters.changed` to the whole room: the roster is public to its members. */
+  publishCharactersChanged(campaignId: string): void;
   /**
    * Relays where a dragged token is to each connection whose viewer `canSee`
    * it, but the one that sent it. Never saved; the drop goes through REST.
@@ -131,6 +133,10 @@ export function createEventHub(): EventHub {
 
     publishSceneClosed(campaignId, sceneId) {
       send(campaignId, () => ({ type: 'scene.closed', sceneId }));
+    },
+
+    publishCharactersChanged(campaignId) {
+      send(campaignId, () => ({ type: 'characters.changed' }));
     },
 
     publishTokenMoving(campaignId, moving, canSee, except) {

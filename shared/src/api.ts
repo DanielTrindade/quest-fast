@@ -169,6 +169,8 @@ export type CharacterSheet = {
   heroicInspiration: boolean;
   conditions: ActiveCondition[];
   concentrating: boolean;
+  /** The one character the owner brings to this campaign's table. */
+  active: boolean;
   avatarUrl: string | null;
   /** Kept so the editor can keep or replace the uploaded image. */
   avatarAssetId: string | null;
@@ -250,10 +252,15 @@ export type CharacterSummary = {
   hpCurrent: number;
   hpTemp: number;
   ac: number;
+  active: boolean;
 };
 
 export type CharacterListResponse = { characters: CharacterSummary[] };
 export type CharacterResponse = { character: CharacterSheet };
+
+/** A sheet in the account gallery, with the campaign it belongs to. */
+export type MyCharacter = CharacterSheet & { campaignName: string };
+export type MyCharacterListResponse = { characters: MyCharacter[] };
 
 export type Asset = {
   id: string;
@@ -414,6 +421,11 @@ export type SocketMessage =
   | { type: 'scene.updated'; scene: SceneView }
   /** The master closed the map, or deleted the scene that was open. */
   | { type: 'scene.closed'; sceneId: string }
+  /**
+   * A sheet of the campaign was created, changed, deleted or became the active
+   * one. A hint with no data: the client asks the server for the roster again.
+   */
+  | { type: 'characters.changed' }
   /**
    * Where a token is while someone drags it, about 30 times a second. Never
    * saved: the drop arrives as `scene.updated`. Sent only to whoever sees the

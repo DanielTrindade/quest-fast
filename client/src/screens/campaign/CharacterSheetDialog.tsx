@@ -6,7 +6,7 @@ import { Dialog } from '../../components/Dialog';
 import { Skeleton } from '../../components/Skeleton';
 import { ApiError, api } from '../../lib/api';
 import { mergeFeedEvent } from '../../lib/feed-cache';
-import { CharacterSheetView } from './CharacterSheetView';
+import { CharacterSheetView, type SheetContext } from './CharacterSheetView';
 import { dialogSheet, stack } from '../../components/layout-styles';
 
 function errorMessage(error: unknown) {
@@ -18,6 +18,7 @@ export function CharacterSheetDialog({
   characterId,
   currentUserId,
   isMaster,
+  context = 'table',
   open,
   onOpenChange,
   onEdit,
@@ -27,9 +28,10 @@ export function CharacterSheetDialog({
   characterId: string;
   currentUserId: string;
   isMaster: boolean;
+  context?: SheetContext;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onEdit: (sheet: CharacterSheet) => void;
+  onEdit?: (sheet: CharacterSheet) => void;
   onDeleted: () => void;
 }) {
   const [lastRoll, setLastRoll] = useState<RollPayload | null>(null);
@@ -61,6 +63,7 @@ export function CharacterSheetDialog({
     onSuccess: (response) => {
       queryClient.setQueryData(['character', campaignId, characterId], response);
       queryClient.invalidateQueries({ queryKey: ['characters', campaignId] });
+      queryClient.invalidateQueries({ queryKey: ['my-characters'] });
     },
   });
   const remove = useMutation({
@@ -118,6 +121,7 @@ export function CharacterSheetDialog({
           character={character}
           isOwner={isOwner}
           canDelete={isOwner || isMaster}
+          context={context}
           rolling={roll.isPending}
           rollError={roll.isError ? errorMessage(roll.error) : null}
           lastRoll={lastRoll}
@@ -128,7 +132,7 @@ export function CharacterSheetDialog({
           deleting={remove.isPending}
           deleteError={remove.isError ? errorMessage(remove.error) : null}
           onRoll={roll.mutate}
-          onEdit={() => onEdit(character)}
+          onEdit={onEdit && (() => onEdit(character))}
           onAskDelete={() => setConfirmingDelete(true)}
           onCancelDelete={() => setConfirmingDelete(false)}
           onConfirmDelete={() => remove.mutate()}

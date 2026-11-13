@@ -16,6 +16,7 @@ const base: CharacterSummary = {
   hpCurrent: 55,
   hpTemp: 0,
   ac: 17,
+  active: true,
 };
 
 const another: CharacterSummary = {

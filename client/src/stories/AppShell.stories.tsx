@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { House, MapTrifold, Sword, UserPlus } from '@phosphor-icons/react';
+import { Books, House, MapTrifold, Sword, UserCircle, UserPlus } from '@phosphor-icons/react';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { expect, fn, userEvent, within } from 'storybook/test';
 import { AppShell, type CampaignOption, type NavItem } from '../components/AppShell';
@@ -18,6 +18,11 @@ function navigation(round?: number): NavItem[] {
   ];
 }
 
+const ACCOUNT_LINKS: NavItem[] = [
+  { id: 'campaigns', label: 'Campanhas', href: '/campaigns', icon: Books, group: 'Sua conta' },
+  { id: 'characters', label: 'Meus personagens', href: '/characters', icon: UserCircle, group: 'Sua conta' },
+];
+
 function Example({ empty = false, startCollapsed = false, round, onSignOut = () => {} }: {
   empty?: boolean; startCollapsed?: boolean; round?: number; onSignOut?: () => void;
 }) {
@@ -28,7 +33,7 @@ function Example({ empty = false, startCollapsed = false, round, onSignOut = () 
   return <AppShell campaigns={empty ? [] : CAMPAIGNS} campaignId={empty ? '' : campaign} onCampaignChange={setCampaign}
     onShowAllCampaigns={() => {}} navigation={items} activeItem={active}
     onNavigate={(href) => setActive(items.find((item) => item.href === href)?.id ?? '')}
-    account={{ name: 'Lia Martins', avatarUrl: null, onSignOut }}
+    account={{ name: 'Lia Martins', avatarUrl: null, onSignOut }} accountLinks={ACCOUNT_LINKS}
     collapsed={collapsed} onCollapsedChange={setCollapsed}>
     <h1 className="font-display text-h1">{empty ? 'Suas campanhas' : CAMPAIGNS.find(item => item.id === campaign)?.name}</h1>
     <p className="mt-3 text-text-secondary">{empty ? 'Crie sua primeira campanha para reunir a mesa.' : 'Convide jogadores e organize quem participa da próxima sessão.'}</p>
@@ -43,6 +48,17 @@ export const Expandido: Story = {};
 export const Recolhido: Story = { args: { startCollapsed: true } };
 export const CombateEmAndamento: Story = { name: 'Combate em andamento', args: { round: 3 } };
 export const SemCampanhas: Story = { name: 'Sem campanhas', args: { empty: true } };
+
+export const AtalhosDaConta: Story = {
+  name: 'Meus personagens ao alcance dentro da campanha',
+  play: async ({ canvasElement }) => {
+    const canvas = within(within(canvasElement).getAllByRole('region', { name: /^Tema / })[0]);
+    // Sidebar on wide containers, phone header on narrow ones: either way it is there.
+    const account = canvas.getAllByRole('navigation', { name: 'Sua conta' }).find((nav) => nav.getClientRects().length > 0)!;
+    await expect(within(account).getByRole('link', { name: 'Meus personagens' })).toHaveAttribute('href', '/characters');
+    await expect(within(account).getByRole('link', { name: 'Campanhas' })).toHaveAttribute('href', '/campaigns');
+  },
+};
 
 export const RecolherEExpandir: Story = {
   name: 'Recolher e expandir',

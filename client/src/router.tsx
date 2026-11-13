@@ -19,6 +19,7 @@ import { CampaignTable } from './screens/campaign/CampaignTable';
 import { Campaigns } from './screens/Campaigns';
 import { Invite } from './screens/Invite';
 import { Login } from './screens/Login';
+import { MyCharacters } from './screens/MyCharacters';
 
 type RouterContext = { queryClient: QueryClient };
 
@@ -110,6 +111,15 @@ const campaignsRoute = createRoute({
   },
 });
 
+const myCharactersRoute = createRoute({
+  getParentRoute: () => authenticatedRoute,
+  path: '/characters',
+  component: function MyCharactersScreen() {
+    const { user } = authenticatedRoute.useRouteContext();
+    return <><AccountBar name={user.name} avatarUrl={user.avatarUrl} /><MyCharacters currentUserId={user.id} /></>;
+  },
+});
+
 /** The campaign layout; each screen of the campaign is a child route. */
 const campaignRoute = createRoute({
   getParentRoute: () => authenticatedRoute,
@@ -163,6 +173,7 @@ const routeTree = rootRoute.addChildren([
   inviteRoute,
   authenticatedRoute.addChildren([
     campaignsRoute,
+    myCharactersRoute,
     campaignRoute.addChildren([campaignOverviewRoute, campaignTableRoute, campaignPrepRoute, campaignPlayersRoute]),
   ]),
 ]);

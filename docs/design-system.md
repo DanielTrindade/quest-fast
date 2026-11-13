@@ -228,7 +228,7 @@ A campanha deixou de ser uma página única com âncoras e virou um layout com u
 - **Mesa** reúne o que se usa durante o jogo: fichas, o combate em andamento (ou o último encerrado), dados e o feed. Sem combate, um estado vazio diz onde ele vai aparecer.
 - **Preparo** é a lista de encontros, a criação e o bestiário do mestre, fora da Mesa. Para o jogador, a rota mostra "Esta página não existe".
 - **Jogadores** traz o painel de membros sem o `<details>` recolhível: aqui o convite e a lista são o assunto da tela. Convidar fica no cabeçalho (mestre); Sair da campanha também (jogador).
-- **Visão geral** mostra se há combate e leva à Mesa e a Jogadores. O grupo em medalhões chega na fase 2.
+- **Visão geral** mostra se há combate e leva à Mesa e a Jogadores. O grupo em medalhões chegou na fase 2 (abaixo).
 - **Laboratório → Dados extremos** ganhou Visão geral, Preparo e Jogadores do mestre, nos dois temas; "Mesa do mestre/jogador" agora abrem `/table`.
 
 ## Cena e mapa do VTT (12 de novembro de 2026)
@@ -243,6 +243,30 @@ Registro: [`history/2026-11-12-vtt-battlefield-phase4.md`](history/2026-11-12-vt
 - **Campos numéricos do grid são de texto** com `inputMode="decimal"`: aceitam "62,5", e o `userEvent` das stories digita neles como um usuário (num `type="number"` controlado, a digitação do teste não chegava ao `onChange`).
 - **`OpenScene`** resume a cena aberta para a mesa: miniatura, selo "Aberto para a mesa", nome e tamanho, com a ação que a tela passa (na Visão geral, "Ir para a Mesa"). Sem cena aberta, diz isso com as palavras de quem lê: o mestre é levado ao Preparo; o jogador fica sabendo que o mapa aparece na Mesa.
 - **Nas telas.** A Mesa põe o `MapCanvas` no centro, acima das fichas, com a altura de até 70% da tela; o mestre tem acima dele "Abrir/Fechar para a mesa" e "Ajustar grid", que abre o `GridSettings` ao lado do mapa (embaixo, em tela estreita) com a prévia ao vivo. No Preparo, "Ver mapa" abre o mesmo conjunto num diálogo largo, para preparar a cena antes de mostrá-la. O Laboratório de dados serve cenas: a mesa "demo" tem o mapa sintético aberto.
+
+## Meus personagens (13 de novembro de 2026)
+
+Fase 2 da [#88](https://github.com/DanielTrindade/quest-fast/issues/88): a galeria da conta e o grupo na Visão geral. Sem token novo. As stories usam as fixtures de `stories/fixtures/my-characters.ts`, com um pior caso de 80 caracteres sem espaço e 30 em todos os atributos.
+
+A pegada de RPG vem do vocabulário da ficha impressa, não de textura nem de fonte medieval: valor em cima e rótulo pequeno embaixo, como nos campos da ficha; atributos com o modificador grande e o valor no oval; e a CA dentro de um escudo. O escudo e o retrato que se funde à ficha são os únicos ornamentos dessas telas, e o resto fica quieto. Ficaram de fora os sinais de interface gerada: rótulo em caixa alta espaçada, metadados ligados por "·", mono em rótulo, seta nos botões e barra em degradê.
+
+- **`ArmorShield`** desenha a CA num escudo. São duas camadas de cor sólida recortadas por `clip-path` (borda em `border-strong`, miolo em `surface-secret`), não um SVG atrás do número: sobre fundo vetorial o axe não mede o contraste e a verificação fica inconclusiva. Tamanhos `sm`, `md` e `lg`.
+- **`CharacterShowcase`** é o cabeçalho da ficha em painel: nome em `display`, "Bárbaro de nível 5" numa frase (`lib/character-lines.ts`), o escudo, os campos de subclasse, espécie, antecedente e tendência (os vazios somem), PV com barra, iniciativa, deslocamento, percepção passiva e os seis atributos (`AbilityRow`). Com retrato, ele ocupa uma coluna e se funde à ficha num degradê até `card` nos 40% da direita (embaixo, quando o painel empilha), sem a borda desse lado; sem retrato, a coluna não existe, e o token (o `Avatar` de personagem, com o aro de base de miniatura, no tamanho novo `xl`) fica ao lado do nome. Nada de quadro escuro vazio com iniciais.
+- **`HeroCard`** é a versão de carta para o celular, no mesmo vocabulário. O retrato vira uma faixa no topo só quando existe, com o mesmo degradê até `card` nos 40% de baixo. "Abrir ficha" é um botão explícito, não a carta inteira.
+- **`CharacterGallery`**: a partir de 760 px de container, uma lista vertical de tokens (`radiogroup`, setas movem, uma parada no Tab) escolhe quem aparece no destaque. A linha escolhida leva o mesmo filete em `accent-text` do encontro ativo. Abaixo disso, todos viram cartas. "Novo personagem" fecha as duas.
+- **`PartyStrip`** é o grupo na Visão geral: uma ficha curta por personagem ativo, com token, nome, "Jogado por …" (ou "Seu personagem", com a borda em `accent-text`), escudo de CA e PV. Tocar abre a ficha só para leitura.
+- **`HpMeter`** é a barra de PV só visual (`aria-hidden`): `success-text` acima de 60%, `accent-text` até 25% e `danger-text` abaixo; os PV temporários entram numa faixa em `text-secondary`. O número ao lado leva o significado, com o texto completo em `sr-only`.
+- **Visão geral:** a Mesa virou uma faixa de estado numa linha (ícone, estado e o botão), que fica em `danger` com um combate em andamento. Abaixo dela, o Mapa aberto para a mesa (`OpenScene`, do VTT), com o título no mesmo desenho do grupo e sem seta no botão. O grupo é o assunto da tela, com "N jogadores" no cabeçalho levando a Jogadores, no lugar do cartão que só repetia o menu.
+- **Movimento (Emil Kowalski):** só o que responde ao toque. Botões encolhem ao pressionar (como sempre) e "Novo personagem", em carta, para 0,98. Linhas da lista e fichas do grupo mudam só fundo e borda, porque são navegação frequente. Trocar a seleção, pelo mouse ou pelas setas, não anima.
+- **Ficha fora da Mesa:** `CharacterSheetDialog` ganhou `context` e `onEdit` opcional. `table` (padrão) joga: rolagens e estado de sessão. `gallery` gerencia: editar e excluir, sem rolar nem mudar PV, condições e recursos, com um aviso de que isso muda na Mesa. `read` só mostra, sem nenhuma ação, nem para o dono ou o mestre. A Mesa abre sem `onEdit`, porque a edição mora em Meus personagens. As stories "Dono em Meus personagens" e "Dono na Visão geral" conferem os controles que somem.
+- **Conta:** a barra da conta ganhou Campanhas e Meus personagens (`aria-current="page"` pela rota). Dentro da campanha, as telas da conta continuam ao alcance pelo `accountLinks` do `AppShell`: no desktop, um grupo "Sua conta" no rodapé do menu lateral, acima da conta (ícones com tooltip quando o menu está recolhido); no celular, ícones no cabeçalho, porque a barra de baixo é só da campanha e já está cheia em 320 px. O menu da conta também tem "Meus personagens". Abaixo de 430 px a marca sai da barra (fica para leitor de tela) para os dois links caberem.
+- **Laboratório → Dados extremos** ganhou Meus personagens nos dois temas. Nele, as fichas se espalham pelas campanhas do dataset, com uma ativa por campanha e o resto na reserva.
+- **Pior caso (break-ui):**
+  - Retrato que não carrega (imagem do Discord expirada, upload removido) volta ao token com as iniciais (`hooks/usePortrait.ts`), nunca ao ícone de imagem quebrada.
+  - Com muitas fichas, o destaque fica `sticky` ao lado da lista, para a escolha nunca mudar fora da vista.
+  - Em carta estreita (container até 320 px), o nome ganha uma linha própria abaixo do token e do escudo, em vez de quebrar no meio da palavra; os campos caem para duas colunas.
+  - PV zerado aparece em `danger-text` e com "caído" no rótulo, para a cor não ser o único sinal.
+  - As iniciais ignoram sufixos de geração no fim do nome ("III", "Jr.", "Filho", "Neto"): "Sir Reginald Ashworth-Pemberton III" vira "SA", não "SI".
 
 ## Tokens do VTT (13 de novembro de 2026)
 

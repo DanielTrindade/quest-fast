@@ -6,7 +6,7 @@ import { inviteRoutes } from './invites/routes.ts';
 import { invitePageHandler } from './invites/meta.ts';
 import { campaignRoutes } from './campaigns/routes.ts';
 import { assetRoutes } from './assets/routes.ts';
-import { characterRoutes } from './characters/routes.ts';
+import { characterRoutes, myCharacterRoutes } from './characters/routes.ts';
 import { diceRoutes } from './dice/routes.ts';
 import { feedRoutes } from './feed/routes.ts';
 import { statblockRoutes } from './statblocks/routes.ts';
@@ -45,6 +45,7 @@ export function createApp({ serveClient = true, inviteAttempts, ...deps }: AppOp
     return c.json({ user: { id, name, avatarUrl } });
   });
 
+  app.route('/api/me/characters', myCharacterRoutes());
   app.route('/api/invites', inviteRoutes(attempts));
   app.route('/api/campaigns', campaignRoutes(attempts));
   app.route('/api/campaigns/:campaignId/characters', characterRoutes());

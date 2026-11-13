@@ -425,6 +425,7 @@ test('every character route requires a session', async (t) => {
     ['PATCH', `/api/campaigns/${campaign.id}/characters/${character.id}`],
     ['DELETE', `/api/campaigns/${campaign.id}/characters/${character.id}`],
     ['POST', `/api/campaigns/${campaign.id}/characters/${character.id}/rolls`],
+    ['POST', `/api/campaigns/${campaign.id}/characters/${character.id}/activate`],
   ];
   for (const [method, route] of routes) {
     await t.test(`${method} ${route}`, async () => {

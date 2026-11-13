@@ -1,18 +1,27 @@
 import { useState } from 'react';
-import { Plus, Sword } from '@phosphor-icons/react';
+import { Sword } from '@phosphor-icons/react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import type { CharacterSheet } from '@quest-fast/shared';
-import { Button } from '../../components/Button';
+import { Link } from '@tanstack/react-router';
+import { Button as RetryButton } from '../../components/Button';
 import { CharacterRow } from '../../components/CharacterRow';
 import { EmptyState } from '../../components/EmptyState';
 import { Skeleton } from '../../components/Skeleton';
 import { Surface } from '../../components/Surface';
-import { useNotify } from '../../hooks/use-notify';
+import { Button } from '../../components/ui/button';
 import { api } from '../../lib/api';
-import { CharacterFormDialog } from './CharacterFormDialog';
 import { CharacterSheetDialog } from './CharacterSheetDialog';
 import { memberRow, sectionHeading, stack } from '../../components/layout-styles';
 
+const toGallery = (
+  <Button asChild variant="secondary" size="sm">
+    <Link to="/characters">Meus personagens</Link>
+  </Button>
+);
+
+/**
+ * The group at the table: each player's active character. Sheets are created,
+ * edited and swapped in the account gallery; here they are played.
+ */
 export function CharactersSection({
   campaignId,
   currentUserId,
@@ -24,17 +33,17 @@ export function CharactersSection({
 }) {
   const queryClient = useQueryClient();
   const [viewingId, setViewingId] = useState<string | null>(null);
-  const [editing, setEditing] = useState<CharacterSheet | null | 'new'>(null);
-  const notify = useNotify();
 
   const characters = useQuery({
     queryKey: ['characters', campaignId],
     queryFn: () => api.characters(campaignId),
   });
+  const party = characters.data?.characters.filter((character) => character.active) ?? [];
 
   const reload = () => {
-    queryClient.invalidateQueries({ queryKey: ['characters', campaignId] });
-    queryClient.invalidateQueries({ queryKey: ['character', campaignId] });
+    void queryClient.invalidateQueries({ queryKey: ['characters', campaignId] });
+    void queryClient.invalidateQueries({ queryKey: ['character', campaignId] });
+    void queryClient.invalidateQueries({ queryKey: ['my-characters'] });
   };
 
   return (
@@ -44,11 +53,8 @@ export function CharactersSection({
           <Sword size={20} aria-hidden="true" /> Personagens
         </h2>
         <div className="flex flex-wrap items-center gap-3">
-          {characters.isSuccess && <span>{characters.data.characters.length} na mesa</span>}
-          <Button onClick={() => setEditing('new')}>
-            <Plus size={18} aria-hidden="true" />
-            Novo personagem
-          </Button>
+          {characters.isSuccess && <span>{party.length} na mesa</span>}
+          {toGallery}
         </div>
       </div>
 
@@ -73,30 +79,25 @@ export function CharactersSection({
               Não foi possível carregar os personagens.
             </p>
             <div>
-              <Button variant="secondary" onClick={() => characters.refetch()}>
+              <RetryButton variant="secondary" onClick={() => characters.refetch()}>
                 Tentar novamente
-              </Button>
+              </RetryButton>
             </div>
           </div>
         )}
 
-        {characters.isSuccess && characters.data.characters.length === 0 && (
+        {characters.isSuccess && party.length === 0 && (
           <EmptyState
-            title="Nenhum personagem ainda"
+            title="Nenhum personagem na mesa"
             icon={Sword}
-            description="Crie seu personagem; a mesa toda poderá ver a ficha e acompanhar suas rolagens."
-            action={
-              <Button onClick={() => setEditing('new')}>
-                <Plus size={18} aria-hidden="true" />
-                Criar personagem
-              </Button>
-            }
+            description="Cada jogador traz um personagem ativo por campanha. Crie ou ative o seu em Meus personagens."
+            action={toGallery}
           />
         )}
 
-        {characters.isSuccess && characters.data.characters.length > 0 && (
+        {party.length > 0 && (
           <ul data-slot="characters-list" className="m-0 list-none p-0 [&>li+li]:border-t [&>li+li]:border-border">
-            {characters.data.characters.map((character) => (
+            {party.map((character) => (
               <CharacterRow
                 key={character.id}
                 character={character}
@@ -108,9 +109,7 @@ export function CharactersSection({
         )}
       </Surface>
 
-      {/* Consultation and editing share one layer. Opening the editor replaces
-          the sheet instead of stacking over it, and closing it comes back. */}
-      {editing === null && viewingId && (
+      {viewingId && (
         <CharacterSheetDialog
           campaignId={campaignId}
           characterId={viewingId}
@@ -120,37 +119,9 @@ export function CharactersSection({
           onOpenChange={(open) => {
             if (!open) setViewingId(null);
           }}
-          onEdit={(sheet) => setEditing(sheet)}
           onDeleted={reload}
         />
       )}
-
-      {editing !== null && (
-        <CharacterFormDialog
-          campaignId={campaignId}
-          character={editing === 'new' ? null : editing}
-          open
-          onOpenChange={(open) => {
-            if (!open) setEditing(null);
-          }}
-          onSaved={() => {
-            reload();
-            notify(
-              editing === 'new'
-                ? { variant: 'success', title: 'Personagem criado', description: 'A mesa toda já pode ver a ficha.' }
-                : { variant: 'success', title: 'Ficha salva', description: 'As alterações já valem para as rolagens.' },
-            );
-          }}
-          onSaveError={(message) =>
-            notify({
-              variant: 'error',
-              title: editing === 'new' ? 'Não foi possível criar o personagem' : 'Não foi possível salvar a ficha',
-              description: message,
-            })
-          }
-        />
-      )}
-
     </section>
   );
 }

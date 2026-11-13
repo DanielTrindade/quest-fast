@@ -1,4 +1,4 @@
-import { House, MapTrifold, Sword, UserPlus } from '@phosphor-icons/react';
+import { Books, House, MapTrifold, Sword, UserCircle, UserPlus } from '@phosphor-icons/react';
 import { useQuery } from '@tanstack/react-query';
 import { Outlet, useLocation, useNavigate } from '@tanstack/react-router';
 import { AppShell, type NavItem } from '../components/AppShell';
@@ -18,6 +18,11 @@ function navigation(campaignId: string, isMaster: boolean, round: number | undef
   ];
   return items.filter((item): item is NavItem => item !== false);
 }
+
+const ACCOUNT_LINKS: NavItem[] = [
+  { id: 'campaigns', label: 'Campanhas', href: '/campaigns', icon: Books, group: 'Sua conta' },
+  { id: 'characters', label: 'Meus personagens', href: '/characters', icon: UserCircle, group: 'Sua conta' },
+];
 
 /**
  * The campaign layout: the shell, the one socket of the campaign room and the
@@ -52,7 +57,8 @@ export function CampaignWorkspace({ campaignId, user }: {
     onCampaignChange={id => { void navigate({ to: '/campaigns/$campaignId', params: { campaignId: id } }); }}
     onShowAllCampaigns={() => { void navigate({ to: '/campaigns' }); }}
     navigation={items} activeItem={activeItem} onNavigate={href => { void navigate({ href }); }}
-    account={{ ...user, onSignOut: () => signOut.mutate(), signingOut: signOut.isPending }}
+    accountLinks={ACCOUNT_LINKS}
+    account={{ ...user, onSignOut: () => signOut.mutate(), signingOut: signOut.isPending, onShowCharacters: () => { void navigate({ to: '/characters' }); } }}
     collapsed={collapsed} onCollapsedChange={setCollapsed}>
     <CampaignSocketStatus value={socketStatus}>
       <CampaignSocketChannel value={channel}>
