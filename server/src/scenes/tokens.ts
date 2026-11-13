@@ -21,15 +21,18 @@ import { tokenVisibleTo, type LoadedScene, type LoadedToken } from './projection
 import {
   answer,
   bodyOf,
+  bumpScenes,
   bumpVersion,
   findScene,
   gridOf,
   loadScene,
   publish,
   publishScene,
+  publishScenes,
   refuse,
   refused,
   requireMaster,
+  scenesShowing,
   scopeOf,
   viewerOf,
 } from './store.ts';
@@ -335,6 +338,7 @@ export function tokenRoutes() {
   routes.patch('/:tokenId', (c) => {
     const releases: (() => void)[] = [];
     let spentIn: string | null = null;
+    let otherScenes: string[] = [];
     return change(
       c,
       (tx, loaded, body) => {
@@ -353,9 +357,14 @@ export function tokenRoutes() {
           const point = parsePoint(body);
           const rest = restingPoint(loaded.scene, token.size, point.x, point.y);
           if (rule.spends) {
-            const refusedMove = spendMove(tx, rule.spends, token.row, rest, loaded.scene.gridCellSize);
+            const refusedMove = spendMove(tx, rule.spends, token.row, rest, gridOf(loaded.scene));
             if (refusedMove) refuse(422, refusedMove);
             spentIn = rule.spends.encounterId;
+            // The same turn feeds the reach of its tokens on every scene.
+            const { row } = rule.spends.combatant;
+            otherScenes = scenesShowing(tx, { combatantIds: [row.id], characterId: row.characterId ?? undefined })
+              .filter((sceneId) => sceneId !== loaded.scene.id);
+            bumpScenes(tx, otherScenes);
           }
           Object.assign(changes, rest);
           releases.push(() => c.var.deps.locks.release(token.row.id, c.var.user.id));
@@ -385,6 +394,7 @@ export function tokenRoutes() {
           releases.forEach((release) => release());
           // The combat screens show what is left of the turn.
           if (spentIn) publishEncounter(c.var.deps, c.var.campaignId, spentIn);
+          publishScenes(c.var.deps, c.var.campaignId, otherScenes);
         },
       },
     );

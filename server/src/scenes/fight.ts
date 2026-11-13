@@ -1,6 +1,6 @@
-import { and, eq, sql } from 'drizzle-orm';
-import { encounters, type TokenRow } from '@quest-fast/db';
-import { movementCost, spendMovement, type TurnView } from '@quest-fast/shared';
+import { and, eq, or, sql } from 'drizzle-orm';
+import { encounters, tokens, type TokenRow } from '@quest-fast/db';
+import { movementCost, spendMovement, type SquareGrid, type TurnView } from '@quest-fast/shared';
 import type { Deps } from '../context.ts';
 import { projectEncounter, turnOf } from '../combat/projection.ts';
 import { findEncounter, loadEncounter, type Executor, type LoadedCombatant } from '../combat/state.ts';
@@ -83,9 +83,9 @@ export function spendMove(
   fighter: Fighter,
   from: { x: number; y: number },
   to: { x: number; y: number },
-  cellSize: number,
+  grid: SquareGrid,
 ): string | null {
-  const cost = movementCost(from, to, cellSize);
+  const cost = movementCost(from, to, grid);
   const result = spendMovement(budgetOf(fighter.combatant.row), cost, fighter.turn.speed);
   if (!result.ok) return result.error;
   writeBudget(tx, fighter.combatant.row.id, result.budget);
@@ -99,4 +99,23 @@ export function publishEncounter(deps: Pick<Deps, 'db' | 'hub'>, campaignId: str
   if (!encounter) return;
   const loaded = loadEncounter(deps.db, encounter);
   deps.hub.publishCombat(campaignId, (viewer) => projectEncounter(loaded, viewer));
+}
+
+/** The tokens that stand for a combatant: its own, and its character's on any scene. */
+function tokensOf(db: Executor, combatantId: string, characterId: string | null): string[] {
+  const where = characterId ? or(eq(tokens.combatantId, combatantId), eq(tokens.characterId, characterId)) : eq(tokens.combatantId, combatantId);
+  return db.select({ id: tokens.id }).from(tokens).where(where).all().map(({ id }) => id);
+}
+
+/**
+ * The turn passed: a player still dragging the token of whoever had it lets
+ * go, and the token goes back to where it is saved. Without this, a drag
+ * begun on their turn would keep moving it on the next one. The master's
+ * drags stay: the master moves anyone at any time.
+ */
+export function releaseTurnDrags(deps: Pick<Deps, 'db' | 'locks'>, combatant: { id: string; characterId: string | null }) {
+  for (const tokenId of tokensOf(deps.db, combatant.id, combatant.characterId)) {
+    const holder = deps.locks.holder(tokenId);
+    if (holder && holder.role !== 'master') deps.locks.clear(tokenId);
+  }
 }

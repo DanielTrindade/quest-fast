@@ -59,6 +59,7 @@ import { recordCombatEvent, recordRollEvent } from '../events/feed.ts';
 import type { Viewer } from '../events/hub.ts';
 import { requireAuth, requireCampaignRole } from '../middleware.ts';
 import { boundedInteger, shortText } from '../validation.ts';
+import { releaseTurnDrags } from '../scenes/fight.ts';
 import { bumpScenes, publishScenes, scenesShowing } from '../scenes/store.ts';
 import { projectEncounter } from './projection.ts';
 import { attacksOf, findEncounter, loadEncounter, queueOrder, turnOrder, type Executor, type LoadedCombatant, type LoadedEncounter } from './state.ts';
@@ -1029,6 +1030,7 @@ async function mutate(
   const events: SessionEvent[] = [];
   const touched = new Set<string>();
   let shown: string[] = [];
+  let leaving: { id: string; characterId: string | null } | null = null;
 
   try {
     const loaded = db.transaction((tx) => {
@@ -1045,14 +1047,22 @@ async function mutate(
             combatant.row.characterId ? scenesShowing(tx, { characterId: combatant.row.characterId }) : []),
         ]),
       ];
+      const previousActive = before.combatants.find((combatant) => combatant.row.id === before.encounter.activeCombatantId);
       run({ tx, loaded: before, viewer, events, characters: touched, userName: c.var.user.name }, body);
       tx.update(encounters)
         .set({ version: sql`${encounters.version} + 1` })
         .where(eq(encounters.id, encounter.id))
         .run();
       bumpScenes(tx, shown);
-      return loadEncounter(tx, findEncounter(tx, c.var.campaignId, encounter.id)!);
+      const after = loadEncounter(tx, findEncounter(tx, c.var.campaignId, encounter.id)!);
+      if (previousActive && after.encounter.activeCombatantId !== previousActive.row.id) {
+        leaving = { id: previousActive.row.id, characterId: previousActive.row.characterId };
+      }
+      return after;
     });
+
+    // Before the scenes go out, so they show the token back and free.
+    if (leaving) releaseTurnDrags(c.var.deps, leaving);
 
     for (const event of events) hub.publish(c.var.campaignId, event);
     hub.publishCombat(c.var.campaignId, (connection) => projectEncounter(loaded, connection));
