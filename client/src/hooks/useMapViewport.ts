@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type RefObject } from 'react';
 import type { GridSettings } from '@quest-fast/shared';
 import { drawMap } from '../lib/map-draw';
-import { clampView, fitView, zoomViewAt, type MapView, type Size } from '../lib/map-view';
+import { clampView, fitView, visibleRect, zoomViewAt, type MapView, type Size } from '../lib/map-view';
 
 export const ZOOM_STEP = 1.25;
 const PAN_STEP = 64;
@@ -294,9 +294,19 @@ export function useMapViewport({ imageUrl, mapWidth, mapHeight, grid, overlayRef
     event.preventDefault();
   };
 
+  /** The middle of the part of the map in view, in map pixels; the map's middle before it is drawn. */
+  const viewCentre = useCallback(() => {
+    const map = mapRef.current;
+    const view = viewRef.current;
+    if (!view) return { x: map.width / 2, y: map.height / 2 };
+    const rect = visibleRect(view, map, viewportRef.current);
+    return { x: (rect.left + rect.right) / 2, y: (rect.top + rect.bottom) / 2 };
+  }, []);
+
   return {
     frameRef,
     canvasRef,
+    viewCentre,
     status,
     zoom,
     dragging,

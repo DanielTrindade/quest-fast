@@ -1,9 +1,11 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { campaignSocketUrl, openCampaignSocket, type SocketStatus } from '../lib/campaign-socket';
+import type { ClientSocketMessage } from '@quest-fast/shared';
+import { campaignSocketUrl, openCampaignSocket, type CampaignSocket, type SocketStatus } from '../lib/campaign-socket';
 import { mergeEncounter, removeEncounter } from '../lib/combat-cache';
 import { mergeFeedEvent } from '../lib/feed-cache';
 import { closeScene, mergeScene, scenesKey } from '../lib/scene-cache';
+import { createMotionStore, type TokenMotionSource } from '../lib/token-motion';
 
 export type { SocketStatus } from '../lib/campaign-socket';
 
@@ -18,6 +20,25 @@ export function useCampaignSocketStatus(): SocketStatus {
 }
 
 /**
+ * What the map needs of the socket: sending the position of the token being
+ * dragged, and where the tokens others drag are. Outside the Query cache, so
+ * 30 moves a second never re-render a screen.
+ */
+export type CampaignChannel = {
+  /** False when the socket is down: the move is lost, the drop still goes by REST. */
+  send: (message: ClientSocketMessage) => boolean;
+  motion: TokenMotionSource;
+};
+
+const offline: CampaignChannel = { send: () => false, motion: createMotionStore() };
+
+export const CampaignSocketChannel = createContext<CampaignChannel>(offline);
+
+export function useCampaignChannel(): CampaignChannel {
+  return useContext(CampaignSocketChannel);
+}
+
+/**
  * Connects to the campaign room and merges pushed events into the feed cache,
  * encounter updates into the combat cache and scene updates into the scenes.
  * Only while `enabled`: the layout passes whether the campaign answered, so a
@@ -26,13 +47,23 @@ export function useCampaignSocketStatus(): SocketStatus {
  * On a lost connection the feed is refetched from the server once the socket
  * is back: pushed events are a hint, never the source of truth.
  */
-export function useCampaignSocket(campaignId: string, enabled: boolean): SocketStatus {
+export function useCampaignSocket(campaignId: string, enabled: boolean): { status: SocketStatus; channel: CampaignChannel } {
   const queryClient = useQueryClient();
   const [status, setStatus] = useState<SocketStatus>('connecting');
+  const socket = useRef<CampaignSocket | null>(null);
+  // One store per campaign: another campaign's drags never show here.
+  const motion = useMemo(() => {
+    void campaignId;
+    return createMotionStore();
+  }, [campaignId]);
+  const channel = useMemo<CampaignChannel>(() => ({
+    send: (message) => socket.current?.send(message) ?? false,
+    motion,
+  }), [motion]);
 
   useEffect(() => {
     if (!enabled) return undefined;
-    return openCampaignSocket(campaignSocketUrl(campaignId), {
+    const opened = openCampaignSocket(campaignSocketUrl(campaignId), {
       onStatus: setStatus,
       onReconnected: () => {
         queryClient.invalidateQueries({ queryKey: ['feed', campaignId] });
@@ -52,13 +83,22 @@ export function useCampaignSocket(campaignId: string, enabled: boolean): SocketS
         if (message.type === 'combat.updated') mergeEncounter(queryClient, campaignId, message.encounter);
         else if (message.type === 'combat.deleted') removeEncounter(queryClient, campaignId, message.encounterId);
         else if (message.type === 'session.event') mergeFeedEvent(queryClient, campaignId, message.event);
-        else if (message.type === 'scene.updated') mergeScene(queryClient, campaignId, message.scene);
-        else if (message.type === 'scene.closed') closeScene(queryClient, campaignId, message.sceneId);
+        else if (message.type === 'scene.updated') {
+          // A token no one is moving rests where the scene says: its drag is over.
+          for (const token of message.scene.tokens) if (!token.movingBy) motion.clear(token.id);
+          mergeScene(queryClient, campaignId, message.scene);
+        } else if (message.type === 'scene.closed') closeScene(queryClient, campaignId, message.sceneId);
+        else if (message.type === 'token.moving') motion.push(message, performance.now());
       },
     });
-  }, [campaignId, enabled, queryClient]);
+    socket.current = opened;
+    return () => {
+      socket.current = null;
+      opened.close();
+    };
+  }, [campaignId, enabled, queryClient, motion]);
 
   // While the campaign is still loading the screens show "connecting"; when it
   // failed, the error replaces them and the status is never read.
-  return enabled ? status : 'connecting';
+  return { status: enabled ? status : 'connecting', channel };
 }

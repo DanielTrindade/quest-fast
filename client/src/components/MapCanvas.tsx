@@ -1,4 +1,4 @@
-import { useId, useRef } from 'react';
+import { useId, useImperativeHandle, useRef, type Ref } from 'react';
 import { CornersOut, MagnifyingGlassMinus, MagnifyingGlassPlus, Warning } from '@phosphor-icons/react';
 import type { GridSettings, TokenView } from '@quest-fast/shared';
 import { useMapViewport, ZOOM_STEP, type MapOverlay } from '../hooks/useMapViewport';
@@ -21,7 +21,16 @@ export type MapCanvasProps = {
   /** Who is looking: their own drag carries no "being moved by" label. */
   viewerId?: string | null;
   selectedTokenId?: string | null;
+  /** What the screen asks of the map: where the viewer is looking, and putting a refused drag back. */
+  ref?: Ref<MapCanvasHandle>;
 } & Pick<TokenLayerOptions, 'onSelect' | 'canMove' | 'onGrab' | 'onDrag' | 'onDrop' | 'onCancelDrag' | 'motion'>;
+
+export type MapCanvasHandle = {
+  /** The middle of the area in view, in map pixels: where a new token lands. */
+  viewCentre: () => { x: number; y: number };
+  /** The drag or drop of this token was refused: it goes back to its saved place. */
+  cancelDrag: (tokenId: string) => void;
+};
 
 const NO_TOKENS: readonly TokenView[] = [];
 
@@ -68,16 +77,17 @@ function MapControls({ zoom, onZoom, onFrame }: { zoom: number; onZoom: (factor:
  */
 export function MapCanvas({
   imageUrl, mapWidth, mapHeight, grid, label, className, tokens = NO_TOKENS, viewerId = null, selectedTokenId = null,
-  onSelect, canMove, onGrab, onDrag, onDrop, onCancelDrag, motion,
+  onSelect, canMove, onGrab, onDrag, onDrop, onCancelDrag, motion, ref,
 }: MapCanvasProps) {
   const overlayRef = useRef<MapOverlay | null>(null);
   const {
-    frameRef, canvasRef, status, zoom, dragging, retry, zoomBy, frameMap, frameHandlers, canvasHandlers, requestDraw,
+    frameRef, canvasRef, status, zoom, dragging, retry, zoomBy, frameMap, frameHandlers, canvasHandlers, requestDraw, viewCentre,
   } = useMapViewport({ imageUrl, mapWidth, mapHeight, grid, overlayRef });
-  useTokenLayer({
+  const { cancelDrag } = useTokenLayer({
     tokens, grid, map: { width: mapWidth, height: mapHeight }, viewerId, selectedId: selectedTokenId,
     onSelect, canMove, onGrab, onDrag, onDrop, onCancelDrag, motion, overlayRef, requestDraw, themedRef: frameRef,
   });
+  useImperativeHandle(ref, () => ({ viewCentre, cancelDrag }), [viewCentre, cancelDrag]);
   const helpId = useId();
   const summaryId = useId();
 
