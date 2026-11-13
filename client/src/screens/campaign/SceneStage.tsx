@@ -8,6 +8,7 @@ import { MapCanvas, type MapCanvasHandle } from '../../components/MapCanvas';
 import { Surface } from '../../components/Surface';
 import { TokenList } from '../../components/TokenList';
 import { useCampaignChannel } from '../../hooks/useCampaignSocket';
+import { useFullscreenView } from '../../hooks/useFullscreenView';
 import { useNotify } from '../../hooks/use-notify';
 import { api } from '../../lib/api';
 import { activeSceneQuery, mergeScene, sceneListQuery, sceneQuery } from '../../lib/scene-cache';
@@ -80,17 +81,49 @@ function GridPanel({ id, campaignId, scene, onPreview }: {
 }
 
 /**
+ * Where each part of the stage goes: in the page, or filling the window over
+ * the app's bars (under dialogs and toasts), the map taking what is left.
+ */
+function stageLayout({ fullscreen, isMaster, mapClassName, name }: {
+  fullscreen: boolean; isMaster: boolean; mapClassName: string; name: string;
+}) {
+  if (!fullscreen) {
+    return {
+      region: {},
+      stage: '@container/stage grid min-w-0 gap-4',
+      body: 'grid min-w-0 gap-4 @min-[52rem]/stage:grid-cols-[minmax(0,1fr)_18rem]',
+      map: cn('min-w-0', mapClassName),
+      side: 'grid min-w-0 content-start gap-4',
+    };
+  }
+  return {
+    region: { role: 'region', 'aria-label': `${name}, mapa em tela cheia` },
+    stage: cn(
+      '@container/stage fixed inset-0 z-30 grid min-w-0 gap-3 overflow-hidden bg-background p-3 pb-[calc(var(--spacing-3)+env(safe-area-inset-bottom,0px))]',
+      isMaster ? 'grid-rows-[auto_minmax(0,1fr)]' : 'grid-rows-[minmax(0,1fr)]',
+    ),
+    body: 'grid min-h-0 min-w-0 grid-rows-[minmax(0,1fr)_auto] gap-3 @min-[52rem]/stage:grid-cols-[minmax(0,1fr)_18rem] @min-[52rem]/stage:grid-rows-[minmax(0,1fr)]',
+    map: 'min-h-0 min-w-0',
+    side: 'grid max-h-[35dvh] min-h-0 min-w-0 content-start gap-4 overflow-y-auto overscroll-contain @min-[52rem]/stage:max-h-none',
+  };
+}
+
+/**
  * The map with pan and zoom, its tokens and their list beside it (below on a
  * narrow screen) and, for the master, the table switch, the token picker and
  * the grid panel. An unsaved grid previews on the map until it is saved or
  * the panel is hidden. Whoever may move a token drags it on the map or moves
  * it with the arrows from the list.
  */
-export function SceneStage({ campaignId, scene, isMaster, mapClassName }: {
+export function SceneStage({ campaignId, scene, isMaster, mapClassName, allowFullscreen = false }: {
   campaignId: string; scene: SceneView; isMaster: boolean;
   /** The map's height where it is shown. */
   mapClassName: string;
+  /** The stage may fill the screen (not inside a dialog, whose frame would hold it). */
+  allowFullscreen?: boolean;
 }) {
+  const [fullscreen, setFullscreen] = useFullscreenView();
+  const layout = stageLayout({ fullscreen, isMaster, mapClassName, name: scene.name });
   const gridPanelId = useId();
   const pickerId = useId();
   const mapRef = useRef<MapCanvasHandle>(null);
@@ -111,17 +144,18 @@ export function SceneStage({ campaignId, scene, isMaster, mapClassName }: {
   const canMove = (token: TokenView) => canMoveToken(token, viewerId, isMaster) && !moves.settling(token.id);
 
   return (
-    <div className="@container/stage grid min-w-0 gap-4">
+    <div {...layout.region} className={layout.stage}>
       {isMaster && (
         <MasterBar campaignId={campaignId} scene={scene} panel={panel} gridPanelId={gridPanelId} pickerId={pickerId} onToggle={toggle} />
       )}
-      <div className="grid min-w-0 gap-4 @min-[52rem]/stage:grid-cols-[minmax(0,1fr)_18rem]">
-        <div className={cn('min-w-0', mapClassName)}>
+      <div className={layout.body}>
+        <div className={layout.map}>
           <MapCanvas ref={mapRef} imageUrl={scene.mapUrl} mapWidth={scene.mapWidth} mapHeight={scene.mapHeight} grid={shownGrid} label={scene.name}
             tokens={scene.tokens} viewerId={viewerId} selectedTokenId={selectedId} onSelect={setSelected} canMove={canMove}
-            onGrab={moves.onGrab} onDrag={moves.onDrag} onDrop={moves.onDrop} onCancelDrag={moves.onCancelDrag} motion={motion} />
+            onGrab={moves.onGrab} onDrag={moves.onDrag} onDrop={moves.onDrop} onCancelDrag={moves.onCancelDrag} motion={motion}
+            fullscreen={fullscreen} onFullscreenChange={allowFullscreen ? setFullscreen : undefined} />
         </div>
-        <div className="grid min-w-0 content-start gap-4">
+        <div className={layout.side}>
           {panel === 'grid' && (
             <GridPanel id={gridPanelId} campaignId={campaignId} scene={scene}
               onPreview={(grid) => setPreview(grid ? { sceneId: scene.id, grid } : null)} />

@@ -1,5 +1,5 @@
 import { useId, useImperativeHandle, useRef, type Ref } from 'react';
-import { CornersOut, MagnifyingGlassMinus, MagnifyingGlassPlus, Warning } from '@phosphor-icons/react';
+import { ArrowsIn, ArrowsOut, CornersOut, MagnifyingGlassMinus, MagnifyingGlassPlus, Warning } from '@phosphor-icons/react';
 import type { GridSettings, TokenView } from '@quest-fast/shared';
 import { useMapViewport, ZOOM_STEP, type MapOverlay } from '../hooks/useMapViewport';
 import { useTokenLayer, type TokenLayerOptions } from '../hooks/useTokenLayer';
@@ -21,6 +21,10 @@ export type MapCanvasProps = {
   /** Who is looking: their own drag carries no "being moved by" label. */
   viewerId?: string | null;
   selectedTokenId?: string | null;
+  /** Whether the map fills the screen; the screen decides how. */
+  fullscreen?: boolean;
+  /** Shows the full-screen switch among the map's controls. */
+  onFullscreenChange?: (fullscreen: boolean) => void;
   /** What the screen asks of the map: where the viewer is looking, and putting a refused drag back. */
   ref?: Ref<MapCanvasHandle>;
 } & Pick<TokenLayerOptions, 'onSelect' | 'canMove' | 'onGrab' | 'onDrag' | 'onDrop' | 'onCancelDrag' | 'motion'>;
@@ -45,7 +49,9 @@ function describeGrid(grid: GridSettings, mapWidth: number, mapHeight: number): 
   return `Grid de ${cells.columns} por ${cells.rows} casas, casa de ${Math.round(grid.cellSize * 10) / 10} pixels.`;
 }
 
-function MapControls({ zoom, onZoom, onFrame }: { zoom: number; onZoom: (factor: number) => void; onFrame: () => void }) {
+function MapControls({ zoom, onZoom, onFrame, fullscreen, onFullscreenChange }: {
+  zoom: number; onZoom: (factor: number) => void; onFrame: () => void;
+} & Pick<MapCanvasProps, 'fullscreen' | 'onFullscreenChange'>) {
   return (
     <div className="pointer-events-none absolute inset-x-2 bottom-2 flex items-end justify-between gap-2">
       <p className="pointer-events-auto m-0 rounded-control border border-border bg-card px-2 py-1 font-mono text-small tabular-nums text-text-secondary edge-raised">
@@ -61,6 +67,12 @@ function MapControls({ zoom, onZoom, onFrame }: { zoom: number; onZoom: (factor:
         <Button variant="ghost" size="icon" aria-label="Enquadrar o mapa" onClick={onFrame}>
           <CornersOut size={20} aria-hidden="true" />
         </Button>
+        {onFullscreenChange && (
+          <Button variant="ghost" size="icon" aria-label={fullscreen ? 'Sair da tela cheia' : 'Mapa em tela cheia'}
+            onClick={() => onFullscreenChange(!fullscreen)}>
+            {fullscreen ? <ArrowsIn size={20} aria-hidden="true" /> : <ArrowsOut size={20} aria-hidden="true" />}
+          </Button>
+        )}
       </div>
     </div>
   );
@@ -77,7 +89,7 @@ function MapControls({ zoom, onZoom, onFrame }: { zoom: number; onZoom: (factor:
  */
 export function MapCanvas({
   imageUrl, mapWidth, mapHeight, grid, label, className, tokens = NO_TOKENS, viewerId = null, selectedTokenId = null,
-  onSelect, canMove, onGrab, onDrag, onDrop, onCancelDrag, motion, ref,
+  onSelect, canMove, onGrab, onDrag, onDrop, onCancelDrag, motion, ref, fullscreen = false, onFullscreenChange,
 }: MapCanvasProps) {
   const overlayRef = useRef<MapOverlay | null>(null);
   const {
@@ -133,7 +145,8 @@ export function MapCanvas({
         </div>
       )}
       {status === 'ready' && zoom !== null && (
-        <MapControls zoom={zoom} onZoom={(factor) => zoomBy(factor)} onFrame={() => frameMap(true)} />
+        <MapControls zoom={zoom} onZoom={(factor) => zoomBy(factor)} onFrame={() => frameMap(true)}
+          fullscreen={fullscreen} onFullscreenChange={onFullscreenChange} />
       )}
     </div>
   );
