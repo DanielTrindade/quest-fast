@@ -16,9 +16,30 @@ function errorMessage(error: unknown, fallback = 'Não foi possível carregar ev
   return error instanceof ApiError ? error.message : fallback;
 }
 
-export function SessionFeed({ campaignId, currentUserId }: { campaignId: string; currentUserId: string }) {
-  const queryClient = useQueryClient();
+/** "ao vivo" while the campaign socket is up: the feed is live only then. */
+function FeedHeading({ framed }: { framed: boolean }) {
   const status = useCampaignSocketStatus();
+  const line = (
+    <span data-slot="feed-status" className="data-[status=connected]:text-success-text" data-status={status} aria-live="polite">
+      {status === 'connected' ? 'ao vivo' : status === 'connecting' ? 'conectando' : 'reconectando'}
+    </span>
+  );
+  if (!framed) return <p className="m-0 text-small text-text-secondary">{line}</p>;
+  return (
+    <div className={sectionHeading}>
+      <h2 id="feed-title">Sessão</h2>
+      {line}
+    </div>
+  );
+}
+
+/**
+ * The session as it happens. `framed={false}` drops the heading and the
+ * surface for the table's panel, where the Feed tab names it; the live
+ * status stays.
+ */
+export function SessionFeed({ campaignId, currentUserId, framed = true }: { campaignId: string; currentUserId: string; framed?: boolean }) {
+  const queryClient = useQueryClient();
   const feed = useQuery({ queryKey: ['feed', campaignId], queryFn: () => api.feed(campaignId) });
 
   // Older pages are merged into the same cache the socket appends to, so the
@@ -49,16 +70,13 @@ export function SessionFeed({ campaignId, currentUserId }: { campaignId: string;
   const events = feed.data?.events ?? [];
   const nextCursor = feed.data?.nextCursor ?? null;
 
-  return (
-    <section className="grid min-w-0 gap-2" aria-labelledby="feed-title">
-      <div className={sectionHeading}>
-        <h2 id="feed-title">Sessão</h2>
-        <span data-slot="feed-status" className="data-[status=connected]:text-success-text" data-status={status} aria-live="polite">
-          {status === 'connected' ? 'ao vivo' : status === 'connecting' ? 'conectando' : 'reconectando'}
-        </span>
-      </div>
+  const Frame = framed ? Surface : 'div';
 
-      <Surface className="py-0">
+  return (
+    <section className="grid min-w-0 gap-2" aria-labelledby={framed ? 'feed-title' : undefined} aria-label={framed ? undefined : 'Sessão'}>
+      <FeedHeading framed={framed} />
+
+      <Frame className={framed ? 'py-0' : 'min-w-0'}>
         {feed.isPending && (
           <div className={stack} aria-busy="true" aria-label="Carregando a sessão">
             {[0, 1, 2].map((row) => (
@@ -100,7 +118,7 @@ export function SessionFeed({ campaignId, currentUserId }: { campaignId: string;
             </ol>
           </FeedFollow>
         )}
-      </Surface>
+      </Frame>
     </section>
   );
 }

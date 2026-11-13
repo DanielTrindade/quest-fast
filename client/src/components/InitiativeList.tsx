@@ -17,6 +17,7 @@ import { HpAdjuster } from './HpAdjuster';
 import { Input } from './Input';
 import { ReminderList } from './ReminderList';
 import { tiedWith } from '../lib/combat-labels';
+import { canRollDeathSave, canToggleConcentration, isDown } from '../lib/combatant-state';
 
 export type InitiativeActions = {
   /** Rolls on the server; the list only asks. */
@@ -92,11 +93,6 @@ function Tags({ combatant, active, own }: { combatant: CombatantView; active: bo
       {!combatant.hasInitiative && <span>Aguardando iniciativa</span>}
     </p>
   );
-}
-
-/** A character at 0 hit points: still in the queue, making death saves. */
-function down(combatant: CombatantView): boolean {
-  return combatant.deathSaves !== null && combatant.hpCurrent === 0;
 }
 
 function Vitals({ combatant }: { combatant: CombatantView }) {
@@ -259,8 +255,7 @@ function FightPanel({ combatant, busy, startOpen, onHitPoints, onConcentration, 
             full={combatant.hpCurrent !== null && combatant.hpMax !== null && combatant.hpCurrent >= combatant.hpMax}
             onApply={(operation, amount) => onHitPoints(id, operation, amount)} />
         )}
-        {/* At 0 hit points nobody starts concentrating; the server refuses it too. */}
-        {onConcentration && (combatant.concentrating || combatant.hpCurrent !== 0) && (
+        {onConcentration && canToggleConcentration(combatant) && (
           <div className="min-w-0 [&>[data-slot=button]]:max-w-full [&>[data-slot=button]]:whitespace-normal">
             <Button variant="ghost" aria-pressed={combatant.concentrating} disabled={busy}
               onClick={() => onConcentration(id, !combatant.concentrating)}>
@@ -291,7 +286,7 @@ function AttackPanel({ combatant, targets, master, busy, onAttack }: InitiativeA
   busy: boolean;
 }) {
   const { id, name } = combatant;
-  if (!onAttack || down(combatant) || combatant.defeated) return null;
+  if (!onAttack || isDown(combatant) || combatant.defeated) return null;
   return (
     <details className="group/attacks min-w-0 open:basis-full">
       <summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-1 rounded-control px-3 font-semibold text-accent-text transition-[background-color] duration-(--duration-quick) hover:bg-muted [&::-webkit-details-marker]:hidden">
@@ -327,7 +322,7 @@ function Pending({ combatant, acts, master, canRoll, busy, onDeathSave, onConcen
   const applyDamage = master ? when(onApplyDamage) : undefined;
   return (
     <>
-      {down(combatant) && (
+      {isDown(combatant) && (
         <DeathSaveTracker name={name} deathSaves={combatant.deathSaves!} pending={busy}
           canRoll={canRoll} onRoll={onDeathSave && ((mode) => onDeathSave(id, mode))} />
       )}
@@ -358,7 +353,7 @@ function InitiativeRow({ combatant, targets, active, own, master, editable, busy
       {/* Always on the card, so the table reads them at a glance; removable for whoever acts. */}
       <ConditionChips name={combatant.name} conditions={combatant.conditions} pending={busy}
         onRemove={acts && actions.onRemoveCondition ? (condition) => actions.onRemoveCondition!(combatant.id, condition) : undefined} />
-      <Pending combatant={combatant} acts={acts} master={master} canRoll={acts && (master || (active && !combatant.deathSaveRolled))} busy={busy} {...actions} />
+      <Pending combatant={combatant} acts={acts} master={master} canRoll={canRollDeathSave(combatant, { acts, master, active })} busy={busy} {...actions} />
 
       <RowActions combatant={combatant} targets={targets} own={own} master={master} editable={editable} busy={busy} tie={tie} {...actions} />
     </li>

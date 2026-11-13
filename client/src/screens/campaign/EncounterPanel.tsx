@@ -1,16 +1,17 @@
 import { useState } from 'react';
 import { ArrowLeft, Trash } from '@phosphor-icons/react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { hasPreviousTurn, type CombatantInput, type CombatantView, type EncounterResponse, type EncounterSummaryView, type EncounterView, type HpOperation } from '@quest-fast/shared';
+import { useQuery } from '@tanstack/react-query';
+import type { CombatantInput, EncounterSummaryView, EncounterView } from '@quest-fast/shared';
 import { Button } from '../../components/Button';
 import { EncounterSetup } from '../../components/EncounterSetup';
-import { InitiativeList, type InitiativeActions } from '../../components/InitiativeList';
+import { InitiativeList } from '../../components/InitiativeList';
 import { Skeleton } from '../../components/Skeleton';
 import { Surface } from '../../components/Surface';
-import { TurnBar, type TurnAction } from '../../components/TurnBar';
+import { TurnBar } from '../../components/TurnBar';
 import { ApiError, api } from '../../lib/api';
-import { encounterQuery, mergeEncounter, removeEncounter, settleRequest, startRequest, withHitPoints, type InFlight } from '../../lib/combat-cache';
+import { encounterQuery } from '../../lib/combat-cache';
 import { stack } from '../../components/layout-styles';
+import { canGoBack, fightActions, useEncounterActions, type EncounterActions } from './encounter-actions';
 
 function errorMessage(error: unknown) {
   return error instanceof ApiError ? error.message : 'Algo deu errado. Tente novamente.';
@@ -26,28 +27,6 @@ function reorderedTie(encounter: EncounterView, id: string, direction: 'up' | 'd
   const to = direction === 'up' ? from - 1 : from + 1;
   [ids[from], ids[to]] = [ids[to]!, ids[from]!];
   return ids;
-}
-
-/**
- * The server's rule for "Voltar turno", on what the master sees: the
- * combatants come in queue order, and a monster's band says whether it fell.
- */
-function canGoBack(encounter: EncounterView): boolean {
-  const order = encounter.combatants
-    .filter((combatant) => combatant.hasInitiative)
-    .map((combatant) => ({ id: combatant.id, defeated: combatant.source !== 'character' && combatant.healthBand === 'defeated' }));
-  return hasPreviousTurn(order, encounter.activeCombatantId, encounter.round);
-}
-
-function turnRequest(campaignId: string, encounter: EncounterView, action: TurnAction) {
-  if (action === 'start' || action === 'end') return api.encounterAction(campaignId, encounter.id, action);
-  if (action === 'rollMonsters') return api.encounterAction(campaignId, encounter.id, 'initiative', {});
-  return api.encounterAction(campaignId, encounter.id, 'turn', {
-    direction: action,
-    // The turn the screen shows; the server answers 409 if it already moved.
-    expectedActiveCombatantId: encounter.activeCombatantId,
-    expectedRound: encounter.round,
-  });
 }
 
 function Summary({ summary }: { summary: EncounterSummaryView }) {
@@ -114,132 +93,44 @@ function BackButton({ onBack }: { onBack?: () => void }) {
   );
 }
 
-/**
- * Every change the encounter screen asks for. The server answers with the
- * encounter as this viewer may see it; the socket pushes everyone else's
- * changes; both go through `mergeEncounter`, which keeps the newest version.
- * A refusal (a 409 on a turn that already moved, say) refetches the truth
- * instead of guessing.
- */
-function useEncounterActions(campaignId: string, encounterId: string) {
-  const queryClient = useQueryClient();
-  const [error, setError] = useState<string | null>(null);
-  const [inFlight, setInFlight] = useState<InFlight>({});
-  const start = (id: string) => setInFlight((current) => startRequest(current, id));
-  const settle = (id: string) => setInFlight((current) => settleRequest(current, id));
-  const [pendingTurn, setPendingTurn] = useState<TurnAction | null>(null);
-
-  const apply = (response: EncounterResponse) => {
-    setError(null);
-    mergeEncounter(queryClient, campaignId, response.encounter);
-  };
-  const fail = (failure: unknown) => {
-    setError(errorMessage(failure));
-    void queryClient.invalidateQueries({ queryKey: ['encounter', campaignId, encounterId] });
-  };
-
-  const combatant = useMutation({
-    mutationFn: ({ run }: { id: string; run: () => Promise<EncounterResponse> }) => run(),
-    onMutate: ({ id }) => start(id),
-    onSuccess: apply,
-    onError: fail,
-    onSettled: (_data, _error, { id }) => settle(id),
-  });
-  const turn = useMutation({
-    mutationFn: ({ encounter, action }: { encounter: EncounterView; action: TurnAction }) => turnRequest(campaignId, encounter, action),
-    onMutate: ({ action }) => setPendingTurn(action),
-    onSuccess: apply,
-    onError: fail,
-    onSettled: () => setPendingTurn(null),
-  });
-  const add = useMutation({
-    mutationFn: (input: CombatantInput) => api.addCombatant(campaignId, encounterId, input),
-    onSuccess: apply,
-    onError: fail,
-  });
-  const remove = useMutation({
-    mutationFn: () => api.deleteEncounter(campaignId, encounterId),
-    onSuccess: () => removeEncounter(queryClient, campaignId, encounterId),
-    onError: fail,
-  });
-  // Hit points change on screen at once; a refusal refetches the truth.
-  const hitPoints = useMutation({
-    mutationFn: ({ id, operation, amount }: { id: string; operation: HpOperation; amount: number; characterId: string | null }) =>
-      api.combatantAction(campaignId, encounterId, id, 'hp', 'POST', { operation, amount }),
-    onMutate: async ({ id, operation, amount }) => {
-      start(id);
-      const key = ['encounter', campaignId, encounterId];
-      // An answer already on its way must not undo what the screen shows.
-      await queryClient.cancelQueries({ queryKey: key });
-      queryClient.setQueryData<EncounterResponse>(key, (current) =>
-        current && { encounter: withHitPoints(current.encounter, id, operation, amount) },
-      );
-    },
-    onSuccess: (response, { characterId }) => {
-      apply(response);
-      // The screen already showed the change, so the comparison in
-      // `mergeEncounter` sees none: the sheet is told here.
-      if (characterId) {
-        void queryClient.invalidateQueries({ queryKey: ['character', campaignId, characterId] });
-        void queryClient.invalidateQueries({ queryKey: ['characters', campaignId] });
-      }
-    },
-    onError: fail,
-    onSettled: (_data, _error, { id }) => settle(id),
-  });
-
-  return {
-    error,
-    busyIds: Object.keys(inFlight),
-    pendingTurn,
-    run: (id: string, request: () => Promise<EncounterResponse>) => combatant.mutate({ id, run: request }),
-    turn: (encounter: EncounterView, action: TurnAction) => turn.mutate({ encounter, action }),
-    hitPoints: (target: CombatantView, operation: HpOperation, amount: number) =>
-      hitPoints.mutate({ id: target.id, operation, amount, characterId: target.characterId }),
-    add,
-    remove,
-  };
+/** The turn bar of one encounter, fed from what the viewer received. */
+export function EncounterTurnBar({ encounter, isMaster, currentUserId, actions }: {
+  encounter: EncounterView;
+  isMaster: boolean;
+  currentUserId: string;
+  actions: EncounterActions;
+}) {
+  const { combatants } = encounter;
+  const active = combatants.find((combatant) => combatant.id === encounter.activeCombatantId);
+  return (
+    <TurnBar
+      status={encounter.status}
+      round={encounter.round}
+      activeName={active?.name ?? null}
+      activeHidden={encounter.activeHidden}
+      master={isMaster}
+      ownTurn={active?.ownerId === currentUserId}
+      canGoBack={canGoBack(encounter)}
+      missingInitiative={combatants.filter((combatant) => !combatant.hasInitiative).length}
+      monstersWithoutInitiative={combatants.filter((combatant) => combatant.source !== 'character' && !combatant.hasInitiative).length}
+      pending={actions.pendingTurn}
+      onAction={(action) => actions.turn(encounter, action)}
+    />
+  );
 }
 
 /**
- * What happens to one combatant during the fight. Only while it runs: the
- * server refuses these before the first round and after the end.
+ * One encounter, live: the turn bar, the queue and, for the master, the
+ * setup. On the table (`onTable`) the turn bar and what each one does in the
+ * fight live on the action panel, so the queue here is for reading, plus the
+ * master's corrections: initiative, ties, hiding and removing.
  */
-function fightActions(
-  campaignId: string,
-  encounter: EncounterView,
-  actions: ReturnType<typeof useEncounterActions>,
-): InitiativeActions {
-  if (encounter.status !== 'active') return {};
-  const act = (id: string, path: string, method: 'POST' | 'PUT' | 'DELETE', body?: Parameters<typeof api.combatantAction>[5]) =>
-    actions.run(id, () => api.combatantAction(campaignId, encounter.id, id, path, method, body));
-  return {
-    onHitPoints: (id, operation, amount) => {
-      const target = encounter.combatants.find((combatant) => combatant.id === id);
-      if (target) actions.hitPoints(target, operation, amount);
-    },
-    onApplyCondition: (id, { condition, ...rest }) => act(id, `conditions/${condition}`, 'PUT', rest),
-    onRemoveCondition: (id, condition) => act(id, `conditions/${condition}`, 'DELETE'),
-    onConcentration: (id, concentrating) => act(id, 'concentration', 'PUT', { concentrating }),
-    onDeathSave: (id, mode) => act(id, 'death-save', 'POST', mode === 'normal' ? {} : { mode }),
-    onRecordFailure: (id, failures, reminderId) => act(id, 'death-save', 'POST', { failures, reminderId }),
-    onConcentrationSave: (id, reminderId) => act(id, 'concentration-save', 'POST', { reminderId }),
-    onDismissReminder: (id, reminderId) => act(id, `reminders/${reminderId}`, 'DELETE'),
-    // The roll reaches the feed over the socket; a hit leaves its damage pending on the target.
-    // `secret` always travels: left out, a monster's attack would fall back to secret.
-    onAttack: (id, attackIndex, { targetId, mode, secret }) => act(id, 'attack', 'POST', { attackIndex, targetId, mode, secret }),
-    // The target's card is the busy one: that is where the damage lands.
-    onApplyDamage: (id, reminderId, amount) =>
-      act(id, `reminders/${reminderId}/apply`, 'POST', amount === undefined ? {} : { amount }),
-  };
-}
-
-/** One encounter, live: the turn bar, the queue and, for the master, the setup. */
-export function EncounterPanel({ campaignId, encounterId, isMaster, currentUserId, onBack, onDeleted }: {
+export function EncounterPanel({ campaignId, encounterId, isMaster, currentUserId, onTable = false, onBack, onDeleted }: {
   campaignId: string;
   encounterId: string;
   isMaster: boolean;
   currentUserId: string;
+  onTable?: boolean;
   onBack?: () => void;
   onDeleted: (name: string) => void;
 }) {
@@ -268,7 +159,6 @@ export function EncounterPanel({ campaignId, encounterId, isMaster, currentUserI
   }
 
   const { combatants } = encounter;
-  const active = combatants.find((combatant) => combatant.id === encounter.activeCombatantId);
   const path = [campaignId, encounterId] as const;
 
   return (
@@ -278,21 +168,11 @@ export function EncounterPanel({ campaignId, encounterId, isMaster, currentUserI
         <h3 className="m-0 min-w-0 font-display text-h1 font-semibold [overflow-wrap:anywhere]">{encounter.name}</h3>
       </div>
 
-      <div className="sticky top-2 z-2">
-        <TurnBar
-          status={encounter.status}
-          round={encounter.round}
-          activeName={active?.name ?? null}
-          activeHidden={encounter.activeHidden}
-          master={isMaster}
-          ownTurn={active?.ownerId === currentUserId}
-          canGoBack={canGoBack(encounter)}
-          missingInitiative={combatants.filter((combatant) => !combatant.hasInitiative).length}
-          monstersWithoutInitiative={combatants.filter((combatant) => combatant.source !== 'character' && !combatant.hasInitiative).length}
-          pending={actions.pendingTurn}
-          onAction={(action) => actions.turn(encounter, action)}
-        />
-      </div>
+      {!onTable && (
+        <div className="sticky top-2 z-2">
+          <EncounterTurnBar encounter={encounter} isMaster={isMaster} currentUserId={currentUserId} actions={actions} />
+        </div>
+      )}
 
       {actions.error && <p role="alert" className="text-body text-danger-text">{actions.error}</p>}
       {encounter.summary && <Summary summary={encounter.summary} />}
@@ -304,12 +184,12 @@ export function EncounterPanel({ campaignId, encounterId, isMaster, currentUserI
         master={isMaster}
         editable={encounter.status !== 'ended'}
         busyIds={actions.busyIds}
-        onRoll={(id) => actions.run(id, () => api.combatantInitiative(...path, id, {}))}
+        onRoll={!onTable || isMaster ? (id) => actions.run(id, () => api.combatantInitiative(...path, id, {})) : undefined}
         onAssign={(id, value) => actions.run(id, () => api.combatantInitiative(...path, id, { value }))}
         onToggleHidden={(id, hidden) => actions.run(id, () => api.updateCombatant(...path, id, { hidden }))}
         onRemove={(id) => actions.run(id, () => api.removeCombatant(...path, id))}
         onMoveTie={(id, direction) => actions.run(id, () => api.setTieOrder(...path, reorderedTie(encounter, id, direction)))}
-        {...fightActions(campaignId, encounter, actions)}
+        {...(onTable ? {} : fightActions(campaignId, encounter, actions))}
       />
 
       {isMaster && encounter.status !== 'ended' && (

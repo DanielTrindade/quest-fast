@@ -17,7 +17,11 @@ function errorMessage(error: unknown) {
   return error instanceof ApiError ? error.message : 'Algo deu errado. Tente novamente.';
 }
 
-export function DiceRoller({ campaignId, isMaster }: { campaignId: string; isMaster: boolean }) {
+/**
+ * Free rolls for the table. `framed={false}` drops the heading and the
+ * surface: inside the table's panel, the Dados tab already names it.
+ */
+export function DiceRoller({ campaignId, isMaster, framed = true }: { campaignId: string; isMaster: boolean; framed?: boolean }) {
   const [expression, setExpression] = useState('');
   const [mode, setMode] = useState<RollMode>('normal');
   const [secret, setSecret] = useState(false);
@@ -37,6 +41,72 @@ export function DiceRoller({ campaignId, isMaster }: { campaignId: string; isMas
     },
   });
 
+  const content = (
+    <>
+      <form
+        className={stack}
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (parsed) roll.mutate();
+        }}
+      >
+        <QuickDice onPick={setExpression} lastExpression={lastExpression} disabled={roll.isPending} />
+
+        <Field
+          label="Expressão"
+          hint="Ex.: 1d20+5, 2d6+3, 1d8+3+1d6"
+          placeholder="1d20+5"
+          inputMode="text"
+          autoComplete="off"
+          spellCheck={false}
+          value={expression}
+          onChange={(event) => setExpression(event.target.value)}
+          error={
+            modeMismatch
+              ? 'Vantagem e desvantagem valem apenas para um d20.'
+              : roll.isError
+                ? errorMessage(roll.error)
+                : undefined
+          }
+          aria-label="Expressão de dados"
+        />
+
+        <RollModeControl value={mode} onChange={setMode} disabled={roll.isPending} />
+
+        {isMaster && (
+          <label className={checkLabel}>
+            <input
+              type="checkbox"
+              checked={secret}
+              onChange={(event) => setSecret(event.target.checked)}
+            />
+            <EyeSlash size={16} aria-hidden="true" />
+            <span>Rolar em segredo (só você vê)</span>
+          </label>
+        )}
+
+        <Button type="submit" loading={roll.isPending} disabled={!parsed || modeMismatch}>
+          <DiceFive size={18} aria-hidden="true" />
+          Rolar
+        </Button>
+      </form>
+
+      {roll.isSuccess && (
+        <div className="mt-4 border-t border-border">
+          <DiceResult
+            label={`${roll.data.event.userName} rolou ${roll.data.event.payload.expression}`}
+            total={roll.data.event.payload.total}
+            decomposition={`${roll.data.event.payload.dice.filter((d) => !d.discarded).map((d) => d.value).join(' + ')}${roll.data.event.payload.modifier !== 0 ? ` ${roll.data.event.payload.modifier > 0 ? '+' : '−'} ${Math.abs(roll.data.event.payload.modifier)}` : ''}`}
+            dice={roll.data.event.payload.dice}
+            mode={roll.data.event.payload.mode}
+            natural={roll.data.event.payload.natural}
+          />
+        </div>
+      )}
+    </>
+  );
+
+  if (!framed) return <div data-slot="dice-panel" className="grid min-w-0">{content}</div>;
   return (
     <section data-slot="dice-panel" aria-labelledby="dice-title">
       <div className={sectionHeading}>
@@ -44,69 +114,7 @@ export function DiceRoller({ campaignId, isMaster }: { campaignId: string; isMas
           <DiceFive size={20} weight="duotone" aria-hidden="true" /> Dados
         </h2>
       </div>
-
-      <Surface>
-        <form
-          className={stack}
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (parsed) roll.mutate();
-          }}
-        >
-          <QuickDice onPick={setExpression} lastExpression={lastExpression} disabled={roll.isPending} />
-
-          <Field
-            label="Expressão"
-            hint="Ex.: 1d20+5, 2d6+3, 1d8+3+1d6"
-            placeholder="1d20+5"
-            inputMode="text"
-            autoComplete="off"
-            spellCheck={false}
-            value={expression}
-            onChange={(event) => setExpression(event.target.value)}
-            error={
-              modeMismatch
-                ? 'Vantagem e desvantagem valem apenas para um d20.'
-                : roll.isError
-                  ? errorMessage(roll.error)
-                  : undefined
-            }
-            aria-label="Expressão de dados"
-          />
-
-          <RollModeControl value={mode} onChange={setMode} disabled={roll.isPending} />
-
-          {isMaster && (
-            <label className={checkLabel}>
-              <input
-                type="checkbox"
-                checked={secret}
-                onChange={(event) => setSecret(event.target.checked)}
-              />
-              <EyeSlash size={16} aria-hidden="true" />
-              <span>Rolar em segredo (só você vê)</span>
-            </label>
-          )}
-
-          <Button type="submit" loading={roll.isPending} disabled={!parsed || modeMismatch}>
-            <DiceFive size={18} aria-hidden="true" />
-            Rolar
-          </Button>
-        </form>
-
-        {roll.isSuccess && (
-          <div className="mt-4 border-t border-border">
-            <DiceResult
-              label={`${roll.data.event.userName} rolou ${roll.data.event.payload.expression}`}
-              total={roll.data.event.payload.total}
-              decomposition={`${roll.data.event.payload.dice.filter((d) => !d.discarded).map((d) => d.value).join(' + ')}${roll.data.event.payload.modifier !== 0 ? ` ${roll.data.event.payload.modifier > 0 ? '+' : '−'} ${Math.abs(roll.data.event.payload.modifier)}` : ''}`}
-              dice={roll.data.event.payload.dice}
-              mode={roll.data.event.payload.mode}
-              natural={roll.data.event.payload.natural}
-            />
-          </div>
-        )}
-      </Surface>
+      <Surface>{content}</Surface>
     </section>
   );
 }

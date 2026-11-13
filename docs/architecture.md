@@ -179,9 +179,10 @@ src/
   visibilidade.
 - **Telas da campanha:** `/campaigns/$campaignId` é uma rota de layout
   (`CampaignWorkspace`: menu lateral e socket) com uma rota filha por tela:
-  Visão geral (`/`), Mesa (`/table`: fichas, combate em andamento, dados e
-  feed), Preparo (`/prep`: encontros e bestiário, só do mestre) e Jogadores
-  (`/players`: membros, convite, bloqueados). O item ativo do menu vem da rota
+  Visão geral (`/`), Mesa (`/table`: mapa no centro, ou o feed sem mapa
+  aberto; painel lateral com o turno e as abas Ações, Dados e Feed; abaixo, a
+  fila do combate e o grupo), Preparo (`/prep`: encontros e bestiário, só do mestre) e Jogadores
+  (`/players`: o convite em destaque, membros, bloqueados). O item ativo do menu vem da rota
   (`aria-current="page"`). Jogador em `/prep` vê "não encontrado", como o
   servidor responde ao que não é dele. Rotas em inglês, texto em pt-BR.
   Plano e próximas etapas na issue #88.
@@ -193,6 +194,14 @@ src/
   em Meus personagens (`gallery`) se gerencia (editar e excluir, sem jogar) e
   na Visão geral (`read`) só se lê. A Mesa mostra só o personagem ativo de cada
   jogador e não oferece edição; a Visão geral mostra o grupo (os ativos).
+- **Onde se age na Mesa:** no painel lateral. A aba Ações do jogador é o
+  personagem ativo dele (no combate, o combatente dele); a do mestre, o dano
+  pendente do encontro inteiro e o combatente escolhido, que segue a vez até
+  o mestre escolher outro. A fila de iniciativa na Mesa fica para leitura,
+  mais as correções do mestre (iniciativa, empates, esconder, remover); no
+  Preparo ela continua completa. Painel e fila usam as mesmas requisições
+  (`screens/campaign/encounter-actions.ts`) e o mesmo encontro no cache do
+  TanStack Query, então nada do combate existe em duas cópias.
 - **Tempo real:** `useCampaignSocket` abre o socket da campanha no layout, uma
   vez por campanha, para o selo de rodada e os caches seguirem vivos em
   qualquer tela; o status chega às telas pelo contexto
