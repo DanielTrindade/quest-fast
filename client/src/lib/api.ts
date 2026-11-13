@@ -32,8 +32,11 @@ import type {
   StatblockInput,
   StatblockListResponse,
   StatblockResponse,
+  TokenInput,
+  TokenPatch,
   TurnRequest,
   ActiveSceneRequest,
+  PlaceEncounterRequest,
   SceneInput,
   SceneListResponse,
   SceneResponse,
@@ -232,6 +235,27 @@ export const api = {
     }),
   deleteScene: (campaignId: string, sceneId: string) =>
     request<void>(`/api/campaigns/${campaignId}/scenes/${sceneId}`, { method: 'DELETE' }),
+  /** Every token route answers with the whole scene, as the viewer may see it. */
+  createToken: (campaignId: string, sceneId: string, input: TokenInput) =>
+    request<SceneResponse>(`/api/campaigns/${campaignId}/scenes/${sceneId}/tokens`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  placeEncounter: (campaignId: string, sceneId: string, input: PlaceEncounterRequest) =>
+    request<SceneResponse>(`/api/campaigns/${campaignId}/scenes/${sceneId}/tokens/encounter`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  /** The lock to drag a token; 409 names who is moving it. */
+  grabToken: (campaignId: string, sceneId: string, tokenId: string) =>
+    request<SceneResponse>(`/api/campaigns/${campaignId}/scenes/${sceneId}/tokens/${tokenId}/grab`, { method: 'POST' }),
+  updateToken: (campaignId: string, sceneId: string, tokenId: string, patch: TokenPatch) =>
+    request<SceneResponse>(`/api/campaigns/${campaignId}/scenes/${sceneId}/tokens/${tokenId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(patch),
+    }),
+  deleteToken: (campaignId: string, sceneId: string, tokenId: string) =>
+    request<SceneResponse>(`/api/campaigns/${campaignId}/scenes/${sceneId}/tokens/${tokenId}`, { method: 'DELETE' }),
   /** Opens a scene for the table, or closes the map; answers with the opened scene, or null. */
   setActiveScene: async (campaignId: string, body: ActiveSceneRequest): Promise<SceneView | null> => {
     const response = await request<SceneResponse | undefined>(`/api/campaigns/${campaignId}/scenes/active`, {

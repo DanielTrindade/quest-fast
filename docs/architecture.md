@@ -353,8 +353,11 @@ mapa, editar nome e grid, trocar o mapa, excluir, abrir e fechar para a mesa),
 com `scene.updated` e `scene.closed` no socket, e as telas da entrega 1. Da
 entrega 2, o servidor dos tokens: a tabela `tokens`, as rotas em
 `server/src/scenes/tokens.ts`, as travas em memória
-(`server/src/scenes/locks.ts`) e o socket recebendo `token.move`; as telas dos
-tokens vêm em seguida, e o fog na entrega 3.
+(`server/src/scenes/locks.ts`) e o socket recebendo `token.move`; e as telas
+dos tokens: o socket da campanha expõe o envio e um store de movimento fora
+do cache do TanStack Query (`useCampaignChannel`), que o canvas lê a cada
+quadro, para 30 mensagens por segundo nunca renderizarem o React. O fog vem
+na entrega 3.
 
 - **Onde as telas moram (#88).** Com a campanha dividida em rotas, a "seção
   Mapa" da spec não volta à página única: a lista de cenas do mestre é uma

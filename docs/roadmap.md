@@ -136,10 +136,15 @@ com as decisões do spike. Quatro entregas, cada uma usável na mesa:
    Regras do grid e limites do mapa em `shared/`, rotas com RBAC,
    `scene.updated`/`scene.closed` no socket e os componentes no Storybook
    (`MapCanvas`, `SceneList`, `SceneForm`, `GridSettings` e `OpenScene`).
-2. **Tokens.** Tokens de personagem, de combatente (ancorados no id estável do
-   combatente) e do bestiário ou livres, com tamanho pela criatura, arrasto ao
-   vivo com trava, posse por papel, tokens ocultos fora do payload do jogador
-   e movimento por teclado.
+2. **Tokens — entregue.** O mestre põe no mapa personagens, combatentes de um
+   encontro (um a um ou todos em fileira), criaturas do bestiário e tokens
+   livres, no centro da área que está vendo; esconde, revela e remove pela
+   lista ao lado do mapa (abaixo no celular). O tamanho vem da criatura. O
+   arrasto pega a trava no servidor, mostra o token se movendo ao vivo para a
+   mesa (30 Hz pelo socket, com interpolação em quem assiste) e grava ao
+   soltar; se outra pessoa já está movendo, o token volta e o aviso diz quem.
+   O jogador move só o próprio personagem, pelo mapa ou pelas setas da lista,
+   e nunca recebe um token oculto.
 3. **Fog of war.** Revelar e ocultar com retângulo e polígono, regra em
    `shared/` e estado calculado no servidor; monstro na área oculta fora do
    payload do jogador.

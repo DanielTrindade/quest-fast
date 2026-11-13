@@ -2,7 +2,7 @@ import { Books, House, MapTrifold, Sword, UserCircle, UserPlus } from '@phosphor
 import { useQuery } from '@tanstack/react-query';
 import { Outlet, useLocation, useNavigate } from '@tanstack/react-router';
 import { AppShell, type NavItem } from '../components/AppShell';
-import { CampaignSocketStatus, useCampaignSocket } from '../hooks/useCampaignSocket';
+import { CampaignSocketChannel, CampaignSocketStatus, useCampaignSocket } from '../hooks/useCampaignSocket';
 import { useStoredFlag } from '../hooks/useStoredFlag';
 import { api } from '../lib/api';
 import { encountersQuery } from '../lib/combat-cache';
@@ -40,7 +40,7 @@ export function CampaignWorkspace({ campaignId, user }: {
   const campaign = useQuery({ queryKey: ['campaign', campaignId], queryFn: () => api.campaign(campaignId) });
   // No socket until the campaign answers: a 404 shows its error without a
   // connection retrying behind it.
-  const socketStatus = useCampaignSocket(campaignId, campaign.isSuccess);
+  const { status: socketStatus, channel } = useCampaignSocket(campaignId, campaign.isSuccess);
   const encounters = useQuery(encountersQuery(campaignId));
   const activeFight = encounters.data?.encounters.find((fight) => fight.status === 'active');
   const items = navigation(campaignId, campaign.data?.role === 'master', activeFight?.round);
@@ -61,7 +61,9 @@ export function CampaignWorkspace({ campaignId, user }: {
     account={{ ...user, onSignOut: () => signOut.mutate(), signingOut: signOut.isPending, onShowCharacters: () => { void navigate({ to: '/characters' }); } }}
     collapsed={collapsed} onCollapsedChange={setCollapsed}>
     <CampaignSocketStatus value={socketStatus}>
-      <Outlet />
+      <CampaignSocketChannel value={channel}>
+        <Outlet />
+      </CampaignSocketChannel>
     </CampaignSocketStatus>
   </AppShell>;
 }
