@@ -107,7 +107,8 @@ export function SceneStage({ campaignId, scene, isMaster, mapClassName }: {
     if (panel === 'grid') setPreview(null);
     setPanel(panel === next ? null : next);
   };
-  const canMove = (token: TokenView) => canMoveToken(token, viewerId, isMaster);
+  // A token whose last drop is still unanswered waits for it before the next drag.
+  const canMove = (token: TokenView) => canMoveToken(token, viewerId, isMaster) && !moves.settling(token.id);
 
   return (
     <div className="@container/stage grid min-w-0 gap-4">

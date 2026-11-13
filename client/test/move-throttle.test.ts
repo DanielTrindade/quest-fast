@@ -82,3 +82,25 @@ test('stopping drops a move still waiting for its slot', () => {
   advance(100);
   assert.deepEqual(sent.map((move) => move.x), [0]);
 });
+
+test('a resting pointer sends its last position again until the drag stops', () => {
+  const { env, timers, advance } = fakeClock();
+  const { sent, send } = recorder();
+  const throttle = createMoveThrottle(send, { intervalMs: 33, keepAliveMs: 500, env });
+
+  throttle.move('t1', { x: 7, y: 7 });
+  // Longer than the server's 3 s lock and the watcher's 1 s track.
+  for (let elapsed = 0; elapsed < 4000; elapsed += 100) advance(100);
+  assert.equal(sent.length, 1 + 8);
+  assert.ok(sent.every((move) => move.x === 7));
+
+  // Moving again after the pause goes out with the next slot, at the usual pace.
+  throttle.move('t1', { x: 8, y: 8 });
+  advance(33);
+  assert.deepEqual(sent.at(-1), { tokenId: 't1', x: 8, y: 8 });
+
+  throttle.stop();
+  assert.equal(timers.size, 0);
+  advance(2000);
+  assert.deepEqual(sent.at(-1), { tokenId: 't1', x: 8, y: 8 });
+});

@@ -1,6 +1,7 @@
 import { useMemo, type RefObject } from 'react';
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { TOKEN_LIMITS, type SceneView, type Size } from '@quest-fast/shared';
+import { Button } from '../../components/Button';
 import type { MapCanvasHandle } from '../../components/MapCanvas';
 import { Skeleton } from '../../components/Skeleton';
 import { Surface } from '../../components/Surface';
@@ -65,17 +66,26 @@ export function TokenPickerPanel({ id, campaignId, scene, mapRef }: {
     })),
   }));
 
-  const loading = characters.isPending || statblocks.isPending || encounterList.isPending;
-  const failed = characters.isError || statblocks.isError || encounterList.isError;
+  // The combatants come from each encounter's detail: one still loading or
+  // failed must not read as "all of them are on the map".
+  const sources = [characters, statblocks, encounterList, ...details];
+  const loading = sources.some((query) => query.isPending);
+  // Only a first load that failed: a failed refresh keeps what it had.
+  const failedQueries = sources.filter((query) => query.isLoadingError);
+  const failed = !loading && failedQueries.length > 0;
 
   return (
     <Surface id={id} className="min-w-0 self-start">
       <h3 className="mb-4 font-display text-h2 font-semibold">Pôr no mapa</h3>
       {loading && <Skeleton shape="panel" label="Carregando personagens, encontros e bestiário…" />}
-      {!loading && failed && (
-        <p role="alert" className="m-0 text-small text-danger-text">
-          {errorMessage(characters.error ?? statblocks.error ?? encounterList.error)}
-        </p>
+      {failed && (
+        <div className="grid justify-items-start gap-3">
+          <p role="alert" className="m-0 text-small text-danger-text">{errorMessage(failedQueries[0].error)}</p>
+          <Button variant="secondary" loading={failedQueries.some((query) => query.isFetching)}
+            onClick={() => { for (const query of failedQueries) void query.refetch(); }}>
+            Tentar novamente
+          </Button>
+        </div>
       )}
       {!loading && !failed && (
         <TokenPicker

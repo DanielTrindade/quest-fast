@@ -1,35 +1,23 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import type { SceneResponse, SceneView, TokenPatch } from '@quest-fast/shared';
+import type { SceneResponse, SceneView } from '@quest-fast/shared';
 import type { MapCanvasHandle } from '../../components/MapCanvas';
 import { useCampaignChannel } from '../../hooks/useCampaignSocket';
 import { useNotify } from '../../hooks/use-notify';
 import { ApiError, api } from '../../lib/api';
 import { createMoveThrottle } from '../../lib/move-throttle';
 import { mergeScene } from '../../lib/scene-cache';
+import { createTokenDrag, type TokenDragController } from '../../lib/token-drag';
 import { stepToken } from '../../lib/token-geometry';
 import { errorMessage } from './campaign-screen';
 
 type Point = { x: number; y: number };
 
-/** One drag, from the press to the server's answer about the drop. */
-type Drag = {
-  tokenId: string;
-  /** Where the token was saved: a cancelled drag goes back there. */
-  origin: Point;
-  granted: boolean;
-  latest: Point | null;
-  /** Dropped before the lock arrived: saved once it does. */
-  dropped: Point | null;
-  /** Cancelled before the lock arrived: put back once it does, which also releases it. */
-  cancelled: boolean;
-};
-
 /**
- * The tokens' movement on a scene: the drag (lock on the first move, its
- * position over the socket at 30 Hz while held, saved on the drop), the
- * arrows (one cell, saved at once) and the master's hide, reveal and remove.
- * A refused lock puts the token back and says who is moving it.
+ * The tokens' movement on a scene: the drag (`createTokenDrag`: lock on the
+ * first move, its position over the socket at 30 Hz while held, saved on the
+ * drop), the arrows (one cell, saved at once) and the master's hide, reveal
+ * and remove. A refused lock puts the token back and says who is moving it.
  */
 export function useTokenMoves({ campaignId, scene, mapRef }: {
   campaignId: string;
@@ -40,24 +28,8 @@ export function useTokenMoves({ campaignId, scene, mapRef }: {
   const notify = useNotify();
   const { send } = useCampaignChannel();
   const [busyIds, setBusyIds] = useState<ReadonlySet<string>>(() => new Set());
-  const drag = useRef<Drag | null>(null);
   const latestScene = useRef(scene);
   const sceneId = scene.id;
-  const [throttle] = useState(() => createMoveThrottle((tokenId, point) => {
-    send({ type: 'token.move', tokenId, ...point });
-  }));
-
-  useEffect(() => {
-    latestScene.current = scene;
-    // Hidden from this player or removed mid-drag: nothing left to move.
-    const current = drag.current;
-    if (current && !scene.tokens.some((token) => token.id === current.tokenId)) {
-      drag.current = null;
-      throttle.stop();
-    }
-  });
-
-  useEffect(() => () => throttle.stop(), [throttle]);
 
   const merge = ({ scene: saved }: SceneResponse) => mergeScene(queryClient, campaignId, saved);
 
@@ -71,65 +43,43 @@ export function useTokenMoves({ campaignId, scene, mapRef }: {
     });
   };
 
-  const save = (tokenId: string, patch: TokenPatch, { quiet = false } = {}) =>
-    api.updateToken(campaignId, sceneId, tokenId, patch).then(merge, (error: unknown) => {
-      if (quiet) return;
-      refused(tokenId, error);
+  // Built on the first drag, never during render; the requests read the
+  // scene and the callbacks through refs.
+  const latest = useRef({ merge, refused });
+  const controller = useRef<TokenDragController | null>(null);
+  const drag = () => {
+    controller.current ??= createTokenDrag({
+      grab: (tokenId) => api.grabToken(campaignId, latestScene.current.id, tokenId).then((answer) => latest.current.merge(answer)),
+      save: (tokenId, point) => api.updateToken(campaignId, latestScene.current.id, tokenId, point).then((answer) => latest.current.merge(answer)),
+      throttle: createMoveThrottle((tokenId, point) => {
+        send({ type: 'token.move', tokenId, ...point });
+      }),
+      refused: (tokenId, error) => latest.current.refused(tokenId, error),
     });
-
-  const settle = (current: Drag) => {
-    if (current.cancelled) void save(current.tokenId, current.origin, { quiet: true });
-    else if (current.dropped) void save(current.tokenId, current.dropped);
+    return controller.current;
   };
+
+  useEffect(() => {
+    latest.current = { merge, refused };
+    latestScene.current = scene;
+    // Hidden from this player or removed mid-drag: nothing left to move.
+    const active = controller.current?.active();
+    if (active && !scene.tokens.some((token) => token.id === active)) controller.current?.lost(active);
+  });
+
+  // Leaving the map mid-drag puts the token back, which releases the lock.
+  useEffect(() => () => {
+    const active = controller.current?.active();
+    if (active) controller.current?.cancel(active);
+  }, []);
 
   const onGrab = (tokenId: string) => {
     const token = latestScene.current.tokens.find((candidate) => candidate.id === tokenId);
-    if (!token) return;
-    const current: Drag = { tokenId, origin: { x: token.x, y: token.y }, granted: false, latest: null, dropped: null, cancelled: false };
-    drag.current = current;
-    throttle.stop();
-    api.grabToken(campaignId, sceneId, tokenId).then(
-      (answer) => {
-        merge(answer);
-        current.granted = true;
-        if (current.cancelled || current.dropped) settle(current);
-        else if (drag.current === current && current.latest) throttle.move(tokenId, current.latest);
-      },
-      (error: unknown) => {
-        if (drag.current === current) {
-          drag.current = null;
-          throttle.stop();
-        }
-        // Already put back by the user (a pinch): nothing to say.
-        if (!current.cancelled) refused(tokenId, error);
-      },
-    );
+    if (token) drag().grab(tokenId, { x: token.x, y: token.y });
   };
-
-  const onDrag = (tokenId: string, x: number, y: number) => {
-    const current = drag.current;
-    if (current?.tokenId !== tokenId) return;
-    current.latest = { x, y };
-    if (current.granted) throttle.move(tokenId, current.latest);
-  };
-
-  const onDrop = (tokenId: string, x: number, y: number) => {
-    const current = drag.current;
-    if (current?.tokenId !== tokenId) return;
-    drag.current = null;
-    throttle.stop();
-    current.dropped = { x, y };
-    if (current.granted) settle(current);
-  };
-
-  const onCancelDrag = (tokenId: string) => {
-    const current = drag.current;
-    if (current?.tokenId !== tokenId) return;
-    drag.current = null;
-    throttle.stop();
-    current.cancelled = true;
-    if (current.granted) settle(current);
-  };
+  const onDrag = (tokenId: string, x: number, y: number) => drag().drag(tokenId, { x, y });
+  const onDrop = (tokenId: string, x: number, y: number) => drag().drop(tokenId, { x, y });
+  const onCancelDrag = (tokenId: string) => drag().cancel(tokenId);
 
   /** A request about one token, with its row busy meanwhile. */
   const run = (tokenId: string, request: () => Promise<SceneResponse>, failure: string) => {
@@ -146,7 +96,8 @@ export function useTokenMoves({ campaignId, scene, mapRef }: {
   const onStep = (tokenId: string, direction: Point) => {
     const current = latestScene.current;
     const token = current.tokens.find((candidate) => candidate.id === tokenId);
-    if (!token) return;
+    // A drag of this token still settling would save over the step.
+    if (!token || drag().settling(tokenId)) return;
     const next = stepToken(token, direction, current.grid, token.size, { width: current.mapWidth, height: current.mapHeight });
     if (next.x === token.x && next.y === token.y) return;
     run(tokenId, () => api.updateToken(campaignId, sceneId, tokenId, next), 'Não foi possível mover o token');
@@ -158,5 +109,5 @@ export function useTokenMoves({ campaignId, scene, mapRef }: {
   const onRemove = (tokenId: string) =>
     run(tokenId, () => api.deleteToken(campaignId, sceneId, tokenId), 'Não foi possível remover o token');
 
-  return { onGrab, onDrag, onDrop, onCancelDrag, onStep, onToggleHidden, onRemove, busyIds };
+  return { onGrab, onDrag, onDrop, onCancelDrag, onStep, onToggleHidden, onRemove, busyIds, settling: (tokenId: string) => controller.current?.settling(tokenId) ?? false };
 }
