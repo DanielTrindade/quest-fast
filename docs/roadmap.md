@@ -124,7 +124,7 @@ ao cliente do jogador. A imagem do mapa, essa sim, é baixada inteira.
 [`history/2026-11-12-vtt-battlefield-phase4.md`](history/2026-11-12-vtt-battlefield-phase4.md),
 que detalha os requisitos de
 [`history/2026-09-04-vtt-battlefield.md`](history/2026-09-04-vtt-battlefield.md)
-com as decisões do spike. Quatro entregas, cada uma usável na mesa:
+com as decisões do spike. Cinco entregas, cada uma usável na mesa:
 
 1. **Cena e mapa — entregue.** O mestre cria cenas no Preparo, envia o mapa
    (normalizado no servidor com `sharp`, com progresso do envio), confere a
@@ -143,10 +143,17 @@ com as decisões do spike. Quatro entregas, cada uma usável na mesa:
    soltar; se outra pessoa já está movendo, o token volta e o aviso diz quem.
    O jogador move só o próprio personagem, pelo mapa ou pelas setas da lista,
    e nunca recebe um token oculto.
-3. **Fog of war.** Revelar e ocultar com retângulo e polígono, regra em
+3. **Turno no mapa — em andamento.** Em combate, o servidor conta a ação, a
+   ação bônus, a reação e os ataques do Ataque Extra (pela classe e nível, ou
+   pelo valor da ficha) e o deslocamento em casas de 1,5 m, diagonais
+   inclusive. Clicar num token mostra toda a área que ele ainda alcança, e o
+   movimento só é gasto quando quem move confirma a posição. Entra antes do
+   fog e muda o escopo do VTT, que deixava medição de fora.
+   ([spec](history/2026-11-13-turn-and-movement.md))
+4. **Fog of war.** Revelar e ocultar com retângulo e polígono, regra em
    `shared/` e estado calculado no servidor; monstro na área oculta fora do
    payload do jogador.
-4. **Acabamento.** Token ligado ao combate, reconexão com o estado completo da
+5. **Acabamento.** Token ligado ao combate, reconexão com o estado completo da
    cena, seed com cena, `verify:app` e o Owlbear fora do README.
 
 ### Fase 3 — mundo

@@ -6,6 +6,8 @@ import {
   ABILITIES,
   CHARACTER_LIMITS as L,
   STATBLOCK_LIMITS as S,
+  TURN_LIMITS,
+  isAttacksPerAction,
   isChallengeRating,
   isSize,
   parseDiceExpression,
@@ -76,6 +78,11 @@ function parseStatblockInput(body: unknown): StatblockColumns {
     fail(`O bônus de iniciativa deve ser um número entre ${S.initiativeBonus.min} e ${S.initiativeBonus.max}.`);
   }
 
+  const attacksPerAction = source.attacksPerAction === undefined ? 1 : source.attacksPerAction;
+  if (!isAttacksPerAction(attacksPerAction)) {
+    fail(`Ataques por ação deve ser um número entre ${TURN_LIMITS.attacksPerAction.min} e ${TURN_LIMITS.attacksPerAction.max}.`);
+  }
+
   const attacksInput = source.attacks ?? [];
   if (!Array.isArray(attacksInput) || attacksInput.length > S.attacks) fail(`Limite de ${S.attacks} ataques.`);
   const attacks = attacksInput.map((raw) => {
@@ -99,6 +106,7 @@ function parseStatblockInput(body: unknown): StatblockColumns {
     traits: optionalText(source.traits, S.text, 'Os traços'),
     actions: optionalText(source.actions, S.text, 'As ações'),
     reactions: optionalText(source.reactions, S.text, 'As reações'),
+    attacksPerAction,
   };
 }
 

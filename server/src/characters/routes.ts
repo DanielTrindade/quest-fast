@@ -5,6 +5,8 @@ import { assets, characters, users, type CharacterRow, type Db } from '@quest-fa
 import {
   ABILITIES,
   CHARACTER_LIMITS as L,
+  TURN_LIMITS,
+  isAttacksPerAction,
   COINS,
   SPELL_SLOT_CAPS,
   abilityModifier,
@@ -129,6 +131,7 @@ type OfficialFields = {
   size: Size;
   shield: boolean;
   speed: number;
+  attacksPerAction: number | null;
   hitDie: HitDie;
   initiativeBonus: number;
   passivePerceptionBonus: number;
@@ -158,6 +161,7 @@ function officialDefaults(): OfficialFields {
     size: 'medium',
     shield: false,
     speed: 9,
+    attacksPerAction: null,
     hitDie: 8,
     initiativeBonus: 0,
     passivePerceptionBonus: 0,
@@ -188,6 +192,7 @@ function officialFromSheet(sheet: CharacterSheet): OfficialFields {
     size: sheet.size,
     shield: sheet.shield,
     speed: sheet.speed,
+    attacksPerAction: sheet.attacksPerAction,
     hitDie: sheet.hitDie,
     initiativeBonus: sheet.initiativeBonus,
     passivePerceptionBonus: sheet.passivePerceptionBonus,
@@ -254,6 +259,13 @@ function parseOfficial(source: Record<string, unknown>): Partial<OfficialFields>
   if (source.speed !== undefined) {
     if (!isSpeed(source.speed)) fail(`Deslocamento deve estar entre ${L.speed.min} e ${L.speed.max} metros.`);
     official.speed = source.speed;
+  }
+  if (source.attacksPerAction !== undefined) {
+    // Null gives the count back to the class and level.
+    if (source.attacksPerAction !== null && !isAttacksPerAction(source.attacksPerAction)) {
+      fail(`Ataques por ação deve ser um número entre ${TURN_LIMITS.attacksPerAction.min} e ${TURN_LIMITS.attacksPerAction.max}.`);
+    }
+    official.attacksPerAction = source.attacksPerAction;
   }
   if (source.hitDie !== undefined) {
     if (!isHitDie(source.hitDie)) fail('Dado de vida deve ser d6, d8, d10 ou d12.');

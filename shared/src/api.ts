@@ -3,6 +3,7 @@ import type { DieResult, RollMode } from './dice.ts';
 import type { Ability, Skill } from './modifiers.ts';
 import type { ArmorTraining, Coins, DeathSaves, HitDie, Size, Spell, SpellSlot } from './sheet.ts';
 import type { GridSettings, TokenKind } from './battlefield.ts';
+import type { TurnBudget, TurnSpend } from './turn.ts';
 import type { ActiveCondition, COMBATANT_SOURCES, CombatReminder, ENCOUNTER_STATUSES, HealthBand, HpOperation } from './combat.ts';
 
 /**
@@ -134,6 +135,8 @@ export type CharacterSheet = {
   ac: number;
   shield: boolean;
   speed: number;
+  /** Attacks of one Attack action as the sheet sets it; null reads them from the class and level. */
+  attacksPerAction: number | null;
   hitDie: HitDie;
   initiativeBonus: number;
   passivePerceptionBonus: number;
@@ -200,6 +203,8 @@ export type CharacterInput = {
   size?: Size;
   shield?: boolean;
   speed?: number;
+  /** Null (or absent) reads the attacks from the class and level. */
+  attacksPerAction?: number | null;
   hitDie?: HitDie;
   initiativeBonus?: number;
   passivePerceptionBonus?: number;
@@ -453,9 +458,12 @@ export type StatblockInput = {
   traits: string;
   actions: string;
   reactions: string;
+  /** Multiattack: attacks of one Attack action. 1 when absent. */
+  attacksPerAction?: number;
 };
 
-export type Statblock = Omit<StatblockInput, 'attacks'> & {
+export type Statblock = Omit<StatblockInput, 'attacks' | 'attacksPerAction'> & {
+  attacksPerAction: number;
   id: string;
   campaignId: string;
   attacks: Attack[];
@@ -514,7 +522,35 @@ export type CombatantView = {
   reminders: CombatReminder[];
   /** What it attacks with. Always empty for a player looking at a monster. */
   attacks: Attack[];
+  /** Walking speed in metres, before conditions. Null for a player looking at a monster. */
+  speed: number | null;
+  /** Attacks of one Attack action. Null for a player looking at a monster. */
+  attacksPerAction: number | null;
+  /** What is left of its turn: for the master, and for the owner of the character. */
+  turn: TurnView | null;
 };
+
+/**
+ * A combatant's turn as the server counts it (the reaction: since its own
+ * turn last began), with the speed its conditions leave and the metres it
+ * still has.
+ */
+export type TurnView = TurnBudget & {
+  /** After conditions (Grappled, Restrained, Exhaustion). */
+  speed: number;
+  movementLeft: number;
+  attacksPerAction: number;
+};
+
+/**
+ * Spends a part of the turn, for the master or the owner on their turn (the
+ * reaction at any time). The master also gives back what was spent and
+ * grants an extra action (Action Surge, Haste).
+ */
+export type TurnEconomyRequest =
+  | { spend: Exclude<TurnSpend, 'attack'> }
+  | { refund: Exclude<TurnSpend, 'attack'> }
+  | { grant: 'action' };
 
 export type EncounterSummaryView = {
   rounds: number;
@@ -579,6 +615,10 @@ export type CombatantPatch = {
   /** Not for a character: the sheet holds it. */
   ac?: number;
   hpMax?: number;
+  /** Metres. Not for a character: the sheet holds it. */
+  speed?: number;
+  /** Not for a character: the sheet holds it. */
+  attacksPerAction?: number;
 };
 
 /** No `value` rolls on the server; a `value` is typed by the master. */
@@ -774,6 +814,12 @@ export type TokenView = {
   y: number;
   /** Someone holds the lock and is dragging it. */
   movingBy: { userId: string; name: string } | null;
+  /**
+   * How far it walks, in metres: `left` this turn in a fight, the whole speed
+   * outside one. Null when there is none to show, or the viewer may not know
+   * it (a player looking at a creature).
+   */
+  reach: { speed: number; left: number } | null;
 };
 
 /**
@@ -801,6 +847,8 @@ export type PlaceEncounterRequest = { encounterId: string; x: number; y: number 
 export type TokenPatch = {
   x?: number;
   y?: number;
+  /** Master only: move the combatant whose turn it is without spending its movement. */
+  free?: boolean;
   hidden?: boolean;
   /** Only on a free token. */
   label?: string;

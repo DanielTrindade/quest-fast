@@ -54,6 +54,7 @@ function make(id: string, fields: Partial<TokenView> & Pick<TokenView, 'name' | 
     ownerId: null,
     hidden: false,
     movingBy: null,
+    reach: null,
     ...fields,
   };
 }
