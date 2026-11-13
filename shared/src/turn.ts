@@ -93,12 +93,16 @@ export function speedFromText(text: string): number | null {
   return Math.min(TURN_LIMITS.speed.max, meters);
 }
 
+/** Conditions whose 2024 text reads "Speed 0" (Stunned does not). */
+const SPEED_ZERO: ReadonlySet<string> = new Set(['grappled', 'restrained', 'paralyzed', 'petrified', 'unconscious']);
+
 /**
- * The speed a combatant has under its conditions: Grappled and Restrained
- * hold it at 0; each level of Exhaustion takes 1.5 m (2024).
+ * The speed a combatant has under its conditions: Grappled, Restrained,
+ * Paralyzed, Petrified and Unconscious hold it at 0; each level of Exhaustion
+ * takes 1.5 m (2024).
  */
 export function effectiveSpeed(speed: number, conditions: readonly ActiveCondition[]): number {
-  if (conditions.some(({ condition }) => condition === 'grappled' || condition === 'restrained')) return 0;
+  if (conditions.some(({ condition }) => SPEED_ZERO.has(condition))) return 0;
   const exhaustion = conditions.find(({ condition }) => condition === 'exhaustion')?.level ?? 0;
   return Math.max(0, speed - exhaustion * SQUARE_METERS);
 }
