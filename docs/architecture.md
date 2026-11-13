@@ -164,7 +164,7 @@ src/
   screens/         telas que buscam dados (Login, Campaigns, CampaignWorkspace e campaign/)
   components/      componentes presentacionais do design system
   hooks/           useCampaignSocket, useStoredFlag, useSignOut
-  lib/             cliente da API, cache do feed, rótulos 5e, formatação
+  lib/             cliente da API, caches do feed, do combate e das cenas, rótulos 5e, formatação
   styles/          tokens (index.css) e relevo dos primitivos (ui.css)
   stories/         Storybook: catálogo e fonte de verdade da interface
 ```
@@ -185,7 +185,8 @@ src/
   qualquer tela; o status chega às telas pelo contexto
   `CampaignSocketStatus`. Reconecta com backoff e, ao reconectar, refaz o
   fetch do feed. Eventos novos entram no cache do Query via
-  `lib/feed-cache.ts`.
+  `lib/feed-cache.ts`; `scene.updated` e `scene.closed`, via
+  `lib/scene-cache.ts`, que descarta `version` menor que a já vista.
 - **Componentes:** `components/` não busca dados; recebe props e é coberto por
   story. `screens/` compõe componentes e liga com a API.
 - **Estilo:** Tailwind 4 com tokens CSS próprios. Cor crua e paleta padrão do
@@ -321,14 +322,21 @@ As escolhas da fase 4 foram fechadas por medição no
 implementados: regras do grid e limites do mapa em `shared/src/battlefield.ts`,
 a tabela `scenes` e as rotas de cena em `server/src/scenes/` (criar com o
 mapa, editar nome e grid, trocar o mapa, excluir, abrir e fechar para a mesa),
-com `scene.updated` e `scene.closed` no socket. As telas chegam nas próximas
-seções da entrega 1; tokens e fog, nas entregas seguintes.
+com `scene.updated` e `scene.closed` no socket, e as telas da entrega 1;
+tokens e fog chegam nas entregas seguintes.
 
 - **Onde as telas moram (#88).** Com a campanha dividida em rotas, a "seção
-  Mapa" da spec não volta à página única: a lista de cenas do mestre é uma aba
-  do Preparo (`/prep`), a miniatura da cena aberta para o jogador entra na
-  Visão geral, e a "tela do mapa" é a Mesa (`/campaigns/$campaignId/table`),
-  com o canvas no centro.
+  Mapa" da spec não volta à página única: a lista de cenas do mestre é uma
+  seção do Preparo (`/prep`), a miniatura da cena aberta entra na Visão geral,
+  e a "tela do mapa" é a Mesa (`/campaigns/$campaignId/table`), com o canvas
+  no centro e, para o mestre, abrir e fechar para a mesa e o grid. Não há rota
+  própria do mapa: "Ver mapa" no Preparo abre a cena num diálogo do mestre,
+  com o mesmo canvas, o grid e o botão de abrir para a mesa, para preparar uma
+  cena antes de mostrá-la.
+- **Upload do mapa com progresso.** O envio usa `XMLHttpRequest`, porque o
+  `fetch` não informa o progresso do upload; ao terminar o envio, a tela mostra
+  "Preparando o mapa no servidor…" até o `sharp` responder. Fechar o diálogo
+  cancela o envio.
 
 - **Canvas 2D direto**, sem biblioteca: pan, zoom, pinça e hit-test escritos à
   mão. A lista de tokens e o movimento por teclado ficam em DOM, fora do canvas.
