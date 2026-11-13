@@ -16,19 +16,23 @@ import type { Executor } from '../combat/state.ts';
 import type { Viewer } from '../events/hub.ts';
 import { shortText } from '../validation.ts';
 import type { HeldLock } from './locks.ts';
+import { moveRule, publishEncounter, spendMove } from './fight.ts';
 import { tokenVisibleTo, type LoadedScene, type LoadedToken } from './projection.ts';
 import {
   answer,
   bodyOf,
+  bumpScenes,
   bumpVersion,
   findScene,
   gridOf,
   loadScene,
   publish,
   publishScene,
+  publishScenes,
   refuse,
   refused,
   requireMaster,
+  scenesShowing,
   scopeOf,
   viewerOf,
 } from './store.ts';
@@ -216,7 +220,8 @@ export function settleAbandonedLock(deps: Deps, lock: HeldLock) {
     // A holder who lost sight of the token (hidden meanwhile) leaves it where it was.
     const holder = { role: lock.role, userId: lock.userId };
     const mayMove = lock.role === 'master' || (token.row.kind === 'character' && token.ownerId === lock.userId);
-    if (lock.last && mayMove && tokenVisibleTo(token, holder)) {
+    // A fighter's move counts only once confirmed: an abandoned one goes back.
+    if (lock.last && mayMove && !token.fighter && tokenVisibleTo(token, holder)) {
       const position = restingPoint(current.scene, token.size, lock.last.x, lock.last.y);
       tx.update(tokens).set(position).where(eq(tokens.id, token.row.id)).run();
     }
@@ -301,6 +306,9 @@ export function tokenRoutes() {
       const loaded = findScene(c, db);
       const token = findToken(c, loaded);
       requireMover(c, token);
+      // A player off their turn cannot even pick the token up.
+      const rule = moveRule(token.fighter, viewerOf(c), false);
+      if (!rule.ok) refuse(rule.status, rule.error);
       const grabbed = locks.grab({
         campaignId: c.var.campaignId,
         sceneId: loaded.scene.id,
@@ -329,6 +337,8 @@ export function tokenRoutes() {
 
   routes.patch('/:tokenId', (c) => {
     const releases: (() => void)[] = [];
+    let spentIn: string | null = null;
+    let otherScenes: string[] = [];
     return change(
       c,
       (tx, loaded, body) => {
@@ -340,8 +350,23 @@ export function tokenRoutes() {
         if (moving) {
           requireMover(c, token);
           requireNoOtherHolder(c, token.row.id);
+          if (body.free !== undefined && typeof body.free !== 'boolean') refuse(422, 'Valor inválido para "sem gastar".');
+          // In a fight the move is counted: on the combatant's turn, within what is left.
+          const rule = moveRule(token.fighter, viewerOf(c), body.free === true);
+          if (!rule.ok) refuse(rule.status, rule.error);
           const point = parsePoint(body);
-          Object.assign(changes, restingPoint(loaded.scene, token.size, point.x, point.y));
+          const rest = restingPoint(loaded.scene, token.size, point.x, point.y);
+          if (rule.spends) {
+            const refusedMove = spendMove(tx, rule.spends, token.row, rest, gridOf(loaded.scene));
+            if (refusedMove) refuse(422, refusedMove);
+            spentIn = rule.spends.encounterId;
+            // The same turn feeds the reach of its tokens on every scene.
+            const { row } = rule.spends.combatant;
+            otherScenes = scenesShowing(tx, { combatantIds: [row.id], characterId: row.characterId ?? undefined })
+              .filter((sceneId) => sceneId !== loaded.scene.id);
+            bumpScenes(tx, otherScenes);
+          }
+          Object.assign(changes, rest);
           releases.push(() => c.var.deps.locks.release(token.row.id, c.var.user.id));
         }
         if (body.hidden !== undefined) {
@@ -364,7 +389,14 @@ export function tokenRoutes() {
         if (Object.keys(changes).length === 0) refuse(422, 'Informe a posição, a visibilidade ou o nome do token.');
         tx.update(tokens).set(changes).where(eq(tokens.id, token.row.id)).run();
       },
-      { after: () => releases.forEach((release) => release()) },
+      {
+        after: () => {
+          releases.forEach((release) => release());
+          // The combat screens show what is left of the turn.
+          if (spentIn) publishEncounter(c.var.deps, c.var.campaignId, spentIn);
+          publishScenes(c.var.deps, c.var.campaignId, otherScenes);
+        },
+      },
     );
   });
 

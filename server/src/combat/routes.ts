@@ -33,7 +33,15 @@ import {
   rollDice,
   saveBonus,
   setCondition,
+  TURN_LIMITS,
+  grantAction,
+  isAttacksPerAction,
+  isSpeed,
+  refundTurn,
+  spendTurn,
+  speedFromText,
   tickConditions,
+  type TurnSpend,
   type ActiveCondition,
   healthBand,
   type CombatPayload,
@@ -51,9 +59,11 @@ import { recordCombatEvent, recordRollEvent } from '../events/feed.ts';
 import type { Viewer } from '../events/hub.ts';
 import { requireAuth, requireCampaignRole } from '../middleware.ts';
 import { boundedInteger, shortText } from '../validation.ts';
+import { releaseTurnDrags } from '../scenes/fight.ts';
 import { bumpScenes, publishScenes, scenesShowing } from '../scenes/store.ts';
 import { projectEncounter } from './projection.ts';
 import { attacksOf, findEncounter, loadEncounter, queueOrder, turnOrder, type Executor, type LoadedCombatant, type LoadedEncounter } from './state.ts';
+import { beginTurn, budgetOf, writeBudget } from './turn.ts';
 
 type Status = 403 | 404 | 409 | 422;
 
@@ -112,6 +122,8 @@ function findCombatant(mutation: Mutation, combatantId: string): LoadedCombatant
 
 function setEncounter(mutation: Mutation, changes: Partial<EncounterRow>) {
   mutation.tx.update(encounters).set(changes).where(eq(encounters.id, mutation.loaded.encounter.id)).run();
+  // Whoever takes the turn starts it whole, going back included.
+  if (changes.activeCombatantId !== undefined) beginTurn(mutation.tx, changes.activeCombatantId);
 }
 
 function rollInitiative(
@@ -253,6 +265,8 @@ function addCombatants(mutation: Mutation, body: Record<string, unknown>) {
           initiativeBonus: statblock.initiativeBonus,
           constitutionModifier: abilityModifier(statblock.abilityScores.constitution) ?? 0,
           attacks: statblock.attacks,
+          speed: speedFromText(statblock.speed) ?? TURN_LIMITS.defaultSpeed,
+          attacksPerAction: statblock.attacksPerAction,
           hidden,
         })
         .run();
@@ -304,9 +318,19 @@ function editCombatant(mutation: Mutation, combatant: LoadedCombatant, body: Rec
   const changes: Partial<typeof combatants.$inferInsert> = {};
   if (body.hidden !== undefined) changes.hidden = parseHidden(body.hidden);
 
-  const sheetFields = ['name', 'ac', 'hpMax'].filter((key) => body[key] !== undefined);
+  const sheetFields = ['name', 'ac', 'hpMax', 'speed', 'attacksPerAction'].filter((key) => body[key] !== undefined);
   if (sheetFields.length > 0 && row.source === 'character') {
-    refuse(422, 'Nome, CA e PV de um personagem são alterados na ficha.');
+    refuse(422, 'Nome, CA, PV, deslocamento e ataques de um personagem são alterados na ficha.');
+  }
+  if (body.speed !== undefined) {
+    if (!isSpeed(body.speed)) refuse(422, `Deslocamento deve estar entre ${TURN_LIMITS.speed.min} e ${TURN_LIMITS.speed.max} metros.`);
+    changes.speed = body.speed;
+  }
+  if (body.attacksPerAction !== undefined) {
+    if (!isAttacksPerAction(body.attacksPerAction)) {
+      refuse(422, `Ataques por ação deve ser um número entre ${TURN_LIMITS.attacksPerAction.min} e ${TURN_LIMITS.attacksPerAction.max}.`);
+    }
+    changes.attacksPerAction = body.attacksPerAction;
   }
   if (body.name !== undefined) {
     const name = shortText(body.name, S.name);
@@ -347,10 +371,9 @@ function handOffTurn(tx: Executor, loaded: LoadedEncounter, combatantId: string)
   const { encounter } = loaded;
   if (encounter.activeCombatantId !== combatantId) return;
   const next = nextTurn(turnOrder(loaded), encounter.activeCombatantId, encounter.round);
-  tx.update(encounters)
-    .set({ activeCombatantId: next.activeId === combatantId ? null : next.activeId, round: next.round })
-    .where(eq(encounters.id, encounter.id))
-    .run();
+  const activeId = next.activeId === combatantId ? null : next.activeId;
+  tx.update(encounters).set({ activeCombatantId: activeId, round: next.round }).where(eq(encounters.id, encounter.id)).run();
+  beginTurn(tx, activeId);
 }
 
 function removeCombatant(mutation: Mutation, combatant: LoadedCombatant) {
@@ -785,6 +808,81 @@ function sourceOf(combatant: LoadedCombatant): 'character' | 'monster' {
 }
 
 /**
+ * What an attack costs: on its own turn, one attack of an Attack action (the
+ * first one spends the action); out of turn it is an opportunity attack, the
+ * reaction. Before round 1 nobody's turn has begun, and nothing is counted.
+ */
+function attackCost(tx: Executor, encounter: EncounterRow, combatant: LoadedCombatant): string | null {
+  if (encounter.round === 0) return null;
+  const spend: TurnSpend = encounter.activeCombatantId === combatant.row.id ? 'attack' : 'reaction';
+  const result = spendTurn(budgetOf(combatant.row), spend, combatant.attacksPerAction);
+  if (!result.ok) return result.error;
+  writeBudget(tx, combatant.row.id, result.budget);
+  return null;
+}
+
+function spendOnAttack(mutation: Mutation, combatant: LoadedCombatant) {
+  const refused = attackCost(mutation.tx, mutation.loaded.encounter, combatant);
+  if (refused) refuse(422, refused);
+}
+
+/**
+ * An attack rolled from the sheet of a character fighting in the campaign's
+ * running encounter costs the same as one rolled from the combat. Returns
+ * why it is refused, or null; the caller publishes the encounter it changed.
+ */
+export function spendSheetAttack(tx: Executor, campaignId: string, characterId: string): string | null {
+  const running = tx
+    .select({ id: encounters.id })
+    .from(encounters)
+    .innerJoin(combatants, eq(combatants.encounterId, encounters.id))
+    .where(and(eq(encounters.campaignId, campaignId), eq(encounters.status, 'active'), eq(combatants.characterId, characterId)))
+    .get();
+  if (!running) return null;
+  const loaded = loadEncounter(tx, findEncounter(tx, campaignId, running.id)!);
+  const combatant = loaded.combatants.find((candidate) => candidate.row.characterId === characterId);
+  return combatant ? attackCost(tx, loaded.encounter, combatant) : null;
+}
+
+const ECONOMY = ['action', 'bonusAction', 'reaction', 'dash'] as const;
+type Economy = (typeof ECONOMY)[number];
+
+function parseEconomy(value: unknown): Economy {
+  if (!(ECONOMY as readonly unknown[]).includes(value)) refuse(422, 'Escolha ação, ação bônus, reação ou Disparada.');
+  return value as Economy;
+}
+
+/**
+ * The turn's economy outside the attack: spending an action, the bonus
+ * action, the reaction or a Dash (the owner on their own turn, the reaction at
+ * any time); giving one back and granting an extra action are the master's.
+ */
+function changeEconomy(mutation: Mutation, combatant: LoadedCombatant, body: Record<string, unknown>) {
+  const { encounter } = mutation.loaded;
+  if (encounter.round === 0) refuse(409, 'O primeiro round ainda não começou.');
+  const budget = budgetOf(combatant.row);
+  const master = mutation.viewer.role === 'master';
+
+  if (body.grant !== undefined) {
+    requireMaster(mutation.viewer);
+    if (body.grant !== 'action') refuse(422, 'Só uma ação pode ser concedida.');
+    writeBudget(mutation.tx, combatant.row.id, grantAction(budget));
+    return;
+  }
+  if (body.refund !== undefined) {
+    requireMaster(mutation.viewer);
+    writeBudget(mutation.tx, combatant.row.id, refundTurn(budget, parseEconomy(body.refund)));
+    return;
+  }
+  const spend = parseEconomy(body.spend);
+  const ownTurn = encounter.activeCombatantId === combatant.row.id;
+  if (!master && spend !== 'reaction' && !ownTurn) refuse(403, 'Fora do seu turno, só a reação pode ser usada.');
+  const result = spendTurn(budget, spend, combatant.attacksPerAction);
+  if (!result.ok) refuse(422, result.error);
+  writeBudget(mutation.tx, combatant.row.id, result.budget);
+}
+
+/**
  * An attack, rolled on the server. With a target, the attack roll is
  * compared with its AC and a hit rolls the damage, left pending on the
  * target for the master to apply. Without one, only the attack roll is made
@@ -806,6 +904,7 @@ function attack(mutation: Mutation, combatant: LoadedCombatant, body: Record<str
   if (body.secret !== undefined && typeof body.secret !== 'boolean') refuse(422, 'Valor inválido para "secreta".');
   const master = mutation.viewer.role === 'master';
   if (!master && body.secret === true) refuse(403, 'Apenas o mestre pode rolar em segredo.');
+  spendOnAttack(mutation, combatant);
 
   let target: LoadedCombatant | undefined;
   if (body.targetId !== undefined && body.targetId !== null) {
@@ -931,6 +1030,7 @@ async function mutate(
   const events: SessionEvent[] = [];
   const touched = new Set<string>();
   let shown: string[] = [];
+  let waiting: { id: string; characterId: string | null }[] = [];
 
   try {
     const loaded = db.transaction((tx) => {
@@ -939,15 +1039,33 @@ async function mutate(
       if (!encounter || (viewer.role !== 'master' && encounter.status === 'preparing')) refuse(404, NOT_FOUND);
       const before = loadEncounter(tx, encounter);
       // Read before the change: removing a combatant takes its token with it.
-      shown = scenesShowing(tx, { combatantIds: before.combatants.map((combatant) => combatant.row.id) });
+      // A character's token is the sheet's: its reach follows the turn too.
+      shown = [
+        ...new Set([
+          ...scenesShowing(tx, { combatantIds: before.combatants.map((combatant) => combatant.row.id) }),
+          ...before.combatants.flatMap((combatant) =>
+            combatant.row.characterId ? scenesShowing(tx, { characterId: combatant.row.characterId }) : []),
+        ]),
+      ];
       run({ tx, loaded: before, viewer, events, characters: touched, userName: c.var.user.name }, body);
       tx.update(encounters)
         .set({ version: sql`${encounters.version} + 1` })
         .where(eq(encounters.id, encounter.id))
         .run();
       bumpScenes(tx, shown);
-      return loadEncounter(tx, findEncounter(tx, c.var.campaignId, encounter.id)!);
+      const after = loadEncounter(tx, findEncounter(tx, c.var.campaignId, encounter.id)!);
+      // The turn moved (round 1 opening included): whoever does not hold it now waits.
+      const moved = after.encounter.activeCombatantId !== before.encounter.activeCombatantId || after.encounter.round !== before.encounter.round;
+      if (moved && after.encounter.status === 'active') {
+        waiting = after.combatants
+          .filter((combatant) => combatant.row.id !== after.encounter.activeCombatantId)
+          .map((combatant) => ({ id: combatant.row.id, characterId: combatant.row.characterId }));
+      }
+      return after;
     });
+
+    // Before the scenes go out, so they show the token back and free.
+    for (const combatant of waiting) releaseTurnDrags(c.var.deps, combatant);
 
     for (const event of events) hub.publish(c.var.campaignId, event);
     hub.publishCombat(c.var.campaignId, (connection) => projectEncounter(loaded, connection));
@@ -1252,6 +1370,7 @@ export function encounterRoutes() {
     duringFight(c, (mutation, target, body) => applyPendingDamage(mutation, target, c.req.param('reminderId'), body)),
   );
   routes.post(`${combatant}/attack`, (c) => duringFight(c, attack));
+  routes.post(`${combatant}/economy`, (c) => duringFight(c, changeEconomy));
 
   return routes;
 }

@@ -51,7 +51,7 @@ import type { AssetStore } from '../assets/store.ts';
 import type { Context } from '../context.ts';
 import { requireAuth, requireCampaignRole } from '../middleware.ts';
 import { recordRollEvent } from '../events/feed.ts';
-import { deleteCharacter, publishCharacterEncounters, publishCharacterScenes, settleCharacterReminders } from '../combat/routes.ts';
+import { deleteCharacter, publishCharacterEncounters, publishCharacterScenes, settleCharacterReminders, spendSheetAttack } from '../combat/routes.ts';
 import { boundedInteger, fail, isInputError, parseAttack, shortText, withInput } from '../validation.ts';
 
 function uniqueStrings<T>(values: T[]): T[] {
@@ -740,15 +740,26 @@ export function characterRoutes() {
     const parsed = parseLinkedRoll(body, toSheet(row, c.var.deps.assets));
     if ('error' in parsed) return c.json({ error: parsed.error }, 422);
 
-    const event = recordRollEvent(db, {
-      campaignId: c.var.campaignId,
-      userId: c.var.user.id,
-      userName: c.var.user.name,
-      secret: false,
-      payload: parsed.payload,
+    const characterId = row.character.id;
+    const fighting = body.kind === 'attack';
+    const outcome = db.transaction((tx) => {
+      // In a running fight the attack spends the turn as the combat's own does.
+      const refused = fighting ? spendSheetAttack(tx, c.var.campaignId, characterId) : null;
+      if (refused) return { error: refused };
+      return {
+        event: recordRollEvent(tx, {
+          campaignId: c.var.campaignId,
+          userId: c.var.user.id,
+          userName: c.var.user.name,
+          secret: false,
+          payload: parsed.payload,
+        }),
+      };
     });
-    hub.publish(c.var.campaignId, event);
-    return c.json({ event }, 201);
+    if ('error' in outcome) return c.json({ error: outcome.error }, 422);
+    hub.publish(c.var.campaignId, outcome.event);
+    if (fighting) publishCharacterEncounters(c.var.deps, c.var.campaignId, characterId);
+    return c.json({ event: outcome.event }, 201);
   });
 
   return routes;
