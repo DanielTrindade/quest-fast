@@ -19,6 +19,7 @@ uploads/
 *.log
 .env
 .env.*
+deploy/*.env
 !.env.example
 
 # SO e editor

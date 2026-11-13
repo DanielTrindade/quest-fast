@@ -224,6 +224,10 @@ gcloud compute ssh <vm> --tunnel-through-iap --command "sudo sh /tmp/setup-vm.sh
 sh deploy/ship.sh          # GCLOUD_CONFIG e VM escolhem a configuração e a VM
 ```
 
+O bucket de backup não tem acesso público (nem domínio, nem `r2.dev`). Em
+**Settings → Object lifecycle rules**, crie uma regra que apaga objetos com
+mais de 30 dias, para os backups não acumularem.
+
 Para conferir o backup, rode `sudo systemctl start quest-fast-backup` na VM e
 veja `journalctl -u quest-fast-backup`. Para restaurar, pare o app, extraia o
 arquivo em `/srv/quest-fast/dados`, renomeie `backup.db` para
