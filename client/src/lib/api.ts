@@ -33,6 +33,11 @@ import type {
   StatblockListResponse,
   StatblockResponse,
   TurnRequest,
+  ActiveSceneRequest,
+  SceneInput,
+  SceneListResponse,
+  SceneResponse,
+  SceneView,
 } from '@quest-fast/shared';
 
 /**
@@ -56,6 +61,14 @@ export class ApiError extends Error {
   }
 }
 
+/** The server's `{ error }`, or a fallback for what is not one (a proxy's HTML, a dropped connection). */
+function failureMessage(payload: unknown): string {
+  // Player-facing text, so it stays in Portuguese.
+  return payload && typeof payload === 'object' && typeof (payload as { error?: unknown }).error === 'string'
+    ? (payload as { error: string }).error
+    : 'Não foi possível falar com o servidor.';
+}
+
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   // A FormData body carries its own multipart boundary; forcing the JSON
   // header would break the parser on the server.
@@ -71,16 +84,61 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     // does not, and must not turn into "undefined" on screen. The fallback is
     // player-facing text, so it stays in Portuguese.
     const payload = await response.json().catch(() => null);
-    const message =
-      payload && typeof payload === 'object' && typeof (payload as { error?: unknown }).error === 'string'
-        ? (payload as { error: string }).error
-        : 'Não foi possível falar com o servidor.';
-    throw new ApiError(response.status, message);
+    throw new ApiError(response.status, failureMessage(payload));
   }
 
   if (response.status === 204) return undefined as T;
   return (await response.json()) as T;
 }
+
+/** Where a multipart upload is: sending the file, or waiting for the server to process it. */
+export type UploadProgress = { phase: 'uploading'; percent: number } | { phase: 'processing' };
+
+/** Thrown when the caller aborted an upload; nothing went wrong to show. */
+export class UploadAborted extends Error {}
+
+/**
+ * A multipart request with upload progress, which `fetch` does not report.
+ * Once the last byte is sent the server still decodes and converts the file,
+ * so the progress turns into `processing` until it answers.
+ */
+function upload<T>(method: 'POST' | 'PUT', path: string, form: FormData, options: {
+  onProgress?: (progress: UploadProgress) => void;
+  signal?: AbortSignal;
+} = {}): Promise<T> {
+  const { onProgress, signal } = options;
+  return new Promise<T>((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new UploadAborted());
+      return;
+    }
+    const xhr = new XMLHttpRequest();
+    xhr.open(method, path);
+    xhr.responseType = 'text';
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable) onProgress?.({ phase: 'uploading', percent: Math.min(100, Math.round((event.loaded / event.total) * 100)) });
+    };
+    xhr.upload.onload = () => onProgress?.({ phase: 'processing' });
+    const parse = () => {
+      try {
+        return JSON.parse(xhr.responseText) as unknown;
+      } catch {
+        return null;
+      }
+    };
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) resolve(parse() as T);
+      else reject(new ApiError(xhr.status, failureMessage(parse())));
+    };
+    xhr.onerror = () => reject(new ApiError(0, failureMessage(null)));
+    xhr.onabort = () => reject(new UploadAborted());
+    signal?.addEventListener('abort', () => xhr.abort(), { once: true });
+    onProgress?.({ phase: 'uploading', percent: 0 });
+    xhr.send(form);
+  });
+}
+
+type UploadOptions = Parameters<typeof upload>[3];
 
 export const api = {
   me: () => request<MeResponse>('/api/auth/me'),
@@ -146,6 +204,41 @@ export const api = {
     const form = new FormData();
     form.append('file', file);
     return request<AssetUploadResponse>(`/api/campaigns/${campaignId}/assets`, { method: 'POST', body: form });
+  },
+
+  scenes: (campaignId: string) => request<SceneListResponse>(`/api/campaigns/${campaignId}/scenes`),
+  scene: (campaignId: string, sceneId: string) =>
+    request<SceneResponse>(`/api/campaigns/${campaignId}/scenes/${sceneId}`),
+  /** The scene open for the table, or null when the map is closed (the server answers 204). */
+  activeScene: async (campaignId: string): Promise<SceneView | null> => {
+    const response = await request<SceneResponse | undefined>(`/api/campaigns/${campaignId}/scenes/active`);
+    return response?.scene ?? null;
+  },
+  createScene: (campaignId: string, name: string, image: File, options?: UploadOptions) => {
+    const form = new FormData();
+    form.append('name', name);
+    form.append('image', image);
+    return upload<SceneResponse>('POST', `/api/campaigns/${campaignId}/scenes`, form, options);
+  },
+  replaceSceneMap: (campaignId: string, sceneId: string, image: File, options?: UploadOptions) => {
+    const form = new FormData();
+    form.append('image', image);
+    return upload<SceneResponse>('PUT', `/api/campaigns/${campaignId}/scenes/${sceneId}/map`, form, options);
+  },
+  updateScene: (campaignId: string, sceneId: string, input: SceneInput) =>
+    request<SceneResponse>(`/api/campaigns/${campaignId}/scenes/${sceneId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(input),
+    }),
+  deleteScene: (campaignId: string, sceneId: string) =>
+    request<void>(`/api/campaigns/${campaignId}/scenes/${sceneId}`, { method: 'DELETE' }),
+  /** Opens a scene for the table, or closes the map; answers with the opened scene, or null. */
+  setActiveScene: async (campaignId: string, body: ActiveSceneRequest): Promise<SceneView | null> => {
+    const response = await request<SceneResponse | undefined>(`/api/campaigns/${campaignId}/scenes/active`, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    });
+    return response?.scene ?? null;
   },
 
   feed: (campaignId: string, cursor?: string) => {

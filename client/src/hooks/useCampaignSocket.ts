@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { campaignSocketUrl, openCampaignSocket, type SocketStatus } from '../lib/campaign-socket';
 import { mergeEncounter, removeEncounter } from '../lib/combat-cache';
 import { mergeFeedEvent } from '../lib/feed-cache';
+import { closeScene, mergeScene, scenesKey } from '../lib/scene-cache';
 
 export type { SocketStatus } from '../lib/campaign-socket';
 
@@ -17,8 +18,8 @@ export function useCampaignSocketStatus(): SocketStatus {
 }
 
 /**
- * Connects to the campaign room and merges pushed events into the feed cache
- * and encounter updates into the combat cache.
+ * Connects to the campaign room and merges pushed events into the feed cache,
+ * encounter updates into the combat cache and scene updates into the scenes.
  * Only while `enabled`: the layout passes whether the campaign answered, so a
  * campaign that is missing or not the viewer's never opens a socket that would
  * retry forever behind the error.
@@ -41,6 +42,8 @@ export function useCampaignSocket(campaignId: string, enabled: boolean): SocketS
         // A fight changes the sheets too, and those changes were missed with it.
         queryClient.invalidateQueries({ queryKey: ['characters', campaignId] });
         queryClient.invalidateQueries({ queryKey: ['character', campaignId] });
+        // The map may have opened, closed or changed meanwhile.
+        queryClient.invalidateQueries({ queryKey: scenesKey(campaignId) });
       },
       // Asking again turns the lost membership into the campaign's 404, which
       // the screen shows; that also switches this socket off.
@@ -49,6 +52,8 @@ export function useCampaignSocket(campaignId: string, enabled: boolean): SocketS
         if (message.type === 'combat.updated') mergeEncounter(queryClient, campaignId, message.encounter);
         else if (message.type === 'combat.deleted') removeEncounter(queryClient, campaignId, message.encounterId);
         else if (message.type === 'session.event') mergeFeedEvent(queryClient, campaignId, message.event);
+        else if (message.type === 'scene.updated') mergeScene(queryClient, campaignId, message.scene);
+        else if (message.type === 'scene.closed') closeScene(queryClient, campaignId, message.sceneId);
         else if (message.type === 'characters.changed') {
           // Only a hint: the roster, the open sheets and the gallery ask again.
           void queryClient.invalidateQueries({ queryKey: ['characters', campaignId] });

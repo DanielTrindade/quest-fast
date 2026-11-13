@@ -84,10 +84,12 @@ function UploadProgress({ upload }: { upload: SceneUpload }) {
  * upload's progress and then the server's processing, and the server's
  * refusal when there is one. Presentational: the screen sends the request.
  */
-export function SceneForm({ scene, upload, serverError, onSubmit, onCancel }: {
+export function SceneForm({ scene, upload, saving = false, serverError, onSubmit, onCancel }: {
   /** The scene being edited; absent to create one. */
   scene?: { name: string; mapUrl: string };
   upload?: SceneUpload;
+  /** The save is on its way, with or without a map: the form waits for it. */
+  saving?: boolean;
   serverError?: string;
   /** `file` is null when editing without swapping the map. */
   onSubmit: (input: { name: string; file: File | null }) => void;
@@ -100,7 +102,7 @@ export function SceneForm({ scene, upload, serverError, onSubmit, onCancel }: {
   const fileRef = useRef<HTMLInputElement>(null);
   const hintId = useId();
   const errorId = useId();
-  const busy = upload !== undefined;
+  const busy = saving || upload !== undefined;
   const pickedUrl = picked?.url;
 
   // The preview's object URL lives as long as it is the picked file's.

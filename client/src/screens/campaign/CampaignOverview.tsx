@@ -1,14 +1,16 @@
 import { useState } from 'react';
-import { Skull, Sword, Users } from '@phosphor-icons/react';
+import { MapTrifold, Skull, Sword, Users } from '@phosphor-icons/react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { Button as RetryButton } from '../../components/Button';
+import { OpenScene } from '../../components/OpenScene';
 import { PartyStrip } from '../../components/PartyStrip';
 import { Skeleton } from '../../components/Skeleton';
 import { Surface } from '../../components/Surface';
 import { Button } from '../../components/ui/button';
 import { api } from '../../lib/api';
 import { encountersQuery } from '../../lib/combat-cache';
+import { activeSceneQuery } from '../../lib/scene-cache';
 import { CampaignPage } from './CampaignPage';
 import { CharacterSheetDialog } from './CharacterSheetDialog';
 import { useCampaignScreen } from './campaign-screen';
@@ -70,6 +72,37 @@ function TableStatus({ campaignId }: { campaignId: string }) {
   );
 }
 
+/** The map open for the table, in short, and the way to it. */
+function OverviewMap({ campaignId, isMaster }: { campaignId: string; isMaster: boolean }) {
+  const map = useQuery(activeSceneQuery(campaignId));
+  return (
+    <section className="grid min-w-0 gap-3" aria-labelledby="overview-map-title">
+      <h2 id="overview-map-title" className="m-0 flex items-center gap-2 font-display text-h1 font-semibold">
+        <MapTrifold size={22} aria-hidden="true" className="text-text-secondary" /> Mapa
+      </h2>
+      {map.isPending && <Skeleton shape="panel" label="Verificando se há mapa aberto" />}
+      {map.isError && map.data === undefined && (
+        <Surface>
+          <Retry message="Não foi possível verificar se há mapa aberto." retrying={map.isFetching} onRetry={() => map.refetch()} />
+        </Surface>
+      )}
+      {/* null is an answer: no map open. A failed refresh keeps the last one. */}
+      {map.data !== undefined && (
+        <OpenScene scene={map.data} isMaster={isMaster}
+          action={map.data ? (
+            <Button asChild>
+              <Link to="/campaigns/$campaignId/table" params={{ campaignId }}>Ir para a Mesa</Link>
+            </Button>
+          ) : isMaster && (
+            <Button asChild variant="secondary">
+              <Link to="/campaigns/$campaignId/prep" params={{ campaignId }}>Ir para o Preparo</Link>
+            </Button>
+          )} />
+      )}
+    </section>
+  );
+}
+
 /** The group: each player's active character, to look at, and the way to the players. */
 function PartySection({ campaignId }: { campaignId: string }) {
   const { isMaster, currentUserId } = useCampaignScreen(campaignId);
@@ -111,17 +144,18 @@ function PartySection({ campaignId }: { campaignId: string }) {
 }
 
 /**
- * Where a campaign opens: whether a fight is running, then the group. The
- * session summary arrives in a later step.
+ * Where a campaign opens: whether a fight is running, the map open for the
+ * table, then the group. The session summary arrives in a later step.
  */
 export function CampaignOverview({ campaignId }: { campaignId: string }) {
-  const { campaign } = useCampaignScreen(campaignId);
+  const { campaign, isMaster } = useCampaignScreen(campaignId);
   const invite = useInviteDialog(campaignId, campaign.data);
 
   return (
     <CampaignPage campaign={campaign} actions={invite.button}>
       <div className="grid gap-8">
         <TableStatus campaignId={campaignId} />
+        <OverviewMap campaignId={campaignId} isMaster={isMaster} />
         <PartySection campaignId={campaignId} />
       </div>
       {invite.dialog}

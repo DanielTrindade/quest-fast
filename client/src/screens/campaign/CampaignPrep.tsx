@@ -5,9 +5,11 @@ import { Button } from '../../components/ui/button';
 import { CampaignPage } from './CampaignPage';
 import { useCampaignScreen } from './campaign-screen';
 import { CombatSection } from './CombatSection';
+import { ScenesSection } from './ScenesSection';
 
 /**
- * The master's preparation: encounters and the bestiary, away from the table.
+ * The master's preparation: scenes, encounters and the bestiary, away from
+ * the table.
  * A player gets "not found", as the server answers for what is not theirs;
  * the server still refuses every request behind this screen on its own.
  */
@@ -34,7 +36,12 @@ export function CampaignPrep({ campaignId }: { campaignId: string }) {
 
   return (
     <CampaignPage campaign={campaign} title="Preparo">
-      {isMaster && <CombatSection campaignId={campaignId} isMaster currentUserId={currentUserId} view="prep" />}
+      {isMaster && (
+        <div className="grid min-w-0 gap-10">
+          <ScenesSection campaignId={campaignId} />
+          <CombatSection campaignId={campaignId} isMaster currentUserId={currentUserId} view="prep" />
+        </div>
+      )}
     </CampaignPage>
   );
 }

@@ -10,6 +10,7 @@ import {
   type CampaignSummary,
   type CharacterSheet,
   type CharacterSummary,
+  type SceneView,
   type CombatantView,
   type EncounterView,
   type PublicUser,
@@ -21,6 +22,7 @@ import {
 } from '@quest-fast/shared';
 import { hazinDan, lyraVentoclaro } from './characters';
 import { masterCombatants } from './encounters';
+import { SYNTHETIC_MAP, defaultSceneGrid, syntheticMapUrl } from './maps';
 import { goblin, semExtras, wyrmDasCinzas } from './statblocks';
 
 export const DATA_STATES = ['demo', 'worst', 'empty', 'one', 'huge'] as const;
@@ -442,6 +444,16 @@ function inviteReply(data: Dataset, scenario: InviteScenario, code: string): Rep
  * Answers `/api/*` as the server would for this dataset and viewer, so the
  * real screens render the worst case through their own queries.
  */
+/** The demo table has a map open; the other datasets have none. */
+function openScene(state: DataState): SceneView | null {
+  if (state !== 'demo') return null;
+  return {
+    id: 's-hall', campaignId: CAMPAIGN_ID, name: 'Salão em ruínas', mapUrl: syntheticMapUrl(),
+    mapWidth: SYNTHETIC_MAP.width, mapHeight: SYNTHETIC_MAP.height, grid: defaultSceneGrid,
+    active: true, version: 1, createdAt: '2026-11-12T21:00:00.000Z',
+  };
+}
+
 export function respond(state: DataState, role: Role, method: string, path: string, invite?: InviteScenario): Reply {
   const data = DATASETS[state];
   const master = role === 'master';
@@ -498,6 +510,19 @@ export function respond(state: DataState, role: Role, method: string, path: stri
   if (pathname.startsWith(`${base}/encounters/`)) {
     const encounter = encounters.find((item) => item.id === pathname.slice(`${base}/encounters/`.length));
     return encounter ? { status: 200, body: { encounter } } : notFound;
+  }
+  if (pathname === `${base}/scenes/active`) {
+    const scene = openScene(state);
+    return scene ? { status: 200, body: { scene } } : { status: 204 };
+  }
+  if (pathname === `${base}/scenes`) {
+    const scene = openScene(state);
+    if (!master) return { status: 403, body: { error: 'Só o mestre pode fazer isso.' } };
+    return { status: 200, body: { scenes: scene ? [{ id: scene.id, name: scene.name, mapUrl: scene.mapUrl, mapWidth: scene.mapWidth, mapHeight: scene.mapHeight, active: true, createdAt: scene.createdAt }] : [] } };
+  }
+  if (pathname.startsWith(`${base}/scenes/`)) {
+    const scene = openScene(state);
+    return scene && pathname === `${base}/scenes/${scene.id}` ? { status: 200, body: { scene } } : notFound;
   }
   if (pathname === `${base}/feed`) {
     const events = data.feed.filter((event) => master || !event.secret);
