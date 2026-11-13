@@ -108,10 +108,11 @@ function tokensOf(db: Executor, combatantId: string, characterId: string | null)
 }
 
 /**
- * The turn passed: a player still dragging the token of whoever had it lets
- * go, and the token goes back to where it is saved. Without this, a drag
- * begun on their turn would keep moving it on the next one. The master's
- * drags stay: the master moves anyone at any time.
+ * The turn moved and this combatant does not hold it: a player still dragging
+ * its token lets go, and the token goes back to where it is saved. Without
+ * this, a drag begun on their turn — or before round 1, when the table places
+ * its tokens freely — would keep moving it off their turn. The master's drags
+ * stay: the master moves anyone at any time.
  */
 export function releaseTurnDrags(deps: Pick<Deps, 'db' | 'locks'>, combatant: { id: string; characterId: string | null }) {
   for (const tokenId of tokensOf(deps.db, combatant.id, combatant.characterId)) {
