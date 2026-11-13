@@ -1,6 +1,7 @@
 import type { SceneRow, TokenRow } from '@quest-fast/db';
 import { initials, isTokenVisible, type SceneSummary, type SceneView, type Size, type TokenView } from '@quest-fast/shared';
 import type { Viewer } from '../events/hub.ts';
+import type { Fighter } from './fight.ts';
 
 /** A token with what its projection reads from its origin and from the locks. */
 export type LoadedToken = {
@@ -14,6 +15,10 @@ export type LoadedToken = {
   /** The combatant behind the token is hidden in the encounter. */
   combatantHidden: boolean;
   movingBy: TokenView['movingBy'];
+  /** Its combatant in the running fight, once round 1 began. */
+  fighter: Fighter | null;
+  /** How far it walks: what is left of its turn in a fight, its whole speed outside one. */
+  reach: TokenView['reach'];
 };
 
 /** A scene with what its projection needs from outside the row. */
@@ -32,7 +37,12 @@ export function tokenVisibleTo(token: LoadedToken, viewer: Viewer): boolean {
   return isTokenVisible({ kind: token.row.kind, hidden: token.row.hidden, combatantHidden: token.combatantHidden }, viewer.role);
 }
 
-export function projectToken(token: LoadedToken): TokenView {
+/** The reach of a creature tells a player its speed: only characters' reach the table. */
+function reachFor(token: LoadedToken, viewer: Viewer): TokenView['reach'] {
+  return viewer.role === 'master' || token.row.kind === 'character' ? token.reach : null;
+}
+
+export function projectToken(token: LoadedToken, viewer: Viewer): TokenView {
   const { row } = token;
   return {
     id: row.id,
@@ -49,8 +59,7 @@ export function projectToken(token: LoadedToken): TokenView {
     x: row.x,
     y: row.y,
     movingBy: token.movingBy,
-    // Filled with the turn rules (next section): the server alone knows what is left.
-    reach: null,
+    reach: reachFor(token, viewer),
   };
 }
 
@@ -77,7 +86,7 @@ export function projectScene({ scene, mapUrl, active, tokens }: LoadedScene, vie
       snap: scene.snapToGrid,
     },
     active,
-    tokens: tokens.filter((token) => tokenVisibleTo(token, viewer)).map(projectToken),
+    tokens: tokens.filter((token) => tokenVisibleTo(token, viewer)).map((token) => projectToken(token, viewer)),
     version: scene.version,
     createdAt: scene.createdAt.toISOString(),
   };

@@ -2,10 +2,11 @@ import { and, asc, desc, eq, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/sqlite-core';
 import type { Context as HonoContext } from 'hono';
 import { assets, campaigns, characters, combatants, scenes, tokens, type SceneRow } from '@quest-fast/db';
-import type { GridSettings, SceneResponse } from '@quest-fast/shared';
+import { effectiveSpeed, type GridSettings, type SceneResponse } from '@quest-fast/shared';
 import type { Context, Deps } from '../context.ts';
 import type { Executor } from '../combat/state.ts';
 import type { Viewer } from '../events/hub.ts';
+import { fighterOf, runningFight } from './fight.ts';
 import { projectScene, type LoadedScene, type LoadedToken } from './projection.ts';
 
 /**
@@ -67,8 +68,13 @@ export function gridOf(scene: SceneRow): GridSettings {
 
 const avatars = alias(assets, 'avatars');
 
-/** The tokens of a scene with their name, size and owner read from the origin. */
-function loadTokens({ deps }: SceneScope, db: Executor, sceneId: string): LoadedToken[] {
+/**
+ * The tokens of a scene with their name, size and owner read from the origin,
+ * and how far each walks: what is left of its turn in the running fight, its
+ * whole speed outside one.
+ */
+function loadTokens({ deps, campaignId }: SceneScope, db: Executor, sceneId: string): LoadedToken[] {
+  const fight = runningFight(db, campaignId);
   return db
     .select({
       row: tokens,
@@ -79,6 +85,10 @@ function loadTokens({ deps }: SceneScope, db: Executor, sceneId: string): Loaded
       combatantName: combatants.name,
       combatantSize: combatants.size,
       combatantHidden: combatants.hidden,
+      characterSpeed: characters.speed,
+      characterConditions: characters.conditions,
+      combatantSpeed: combatants.speed,
+      combatantConditions: combatants.conditions,
     })
     .from(tokens)
     .leftJoin(characters, eq(characters.id, tokens.characterId))
@@ -90,7 +100,17 @@ function loadTokens({ deps }: SceneScope, db: Executor, sceneId: string): Loaded
     .map((found) => {
       const { row } = found;
       const lock = deps.locks.holder(row.id);
+      const fighter = fighterOf(fight, row);
+      const speed = found.characterSpeed ?? found.combatantSpeed;
+      const conditions = found.characterConditions ?? found.combatantConditions ?? [];
+      const reach = fighter
+        ? { speed: fighter.turn.speed, left: fighter.turn.movementLeft }
+        : speed === null
+          ? null
+          : { speed: effectiveSpeed(speed, conditions), left: effectiveSpeed(speed, conditions) };
       return {
+        fighter,
+        reach,
         row,
         name: found.characterName ?? found.combatantName ?? row.label ?? '',
         size: found.characterSize ?? found.combatantSize ?? row.size ?? 'medium',
