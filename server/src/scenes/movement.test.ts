@@ -181,3 +181,15 @@ test("a move spent on one scene updates the reach on every scene the character i
   assert.deepEqual(named(after, 'Kaelen').reach, { speed: 9, left: 6 });
   assert.ok(after.version > before.version, 'the other scene has a new version');
 });
+
+test("opening round 1 lets go of a drag begun before it, unless it is that character's turn", async () => {
+  const { s, scene, path, token, view } = await battle({ round: 0 });
+  // Before round 1 the table places its tokens freely.
+  await sceneOf(await send(s.player, `${scene}/tokens/${token('Kaelen')}/grab`, 'POST'));
+  assert.notEqual(named(await view(), 'Kaelen').movingBy, null);
+
+  await encounterOf(await send(s.master, `${path}/start`, 'POST'));
+  await encounterOf(await send(s.master, `${path}/turn`, 'POST', { direction: 'next', expectedActiveCombatantId: null, expectedRound: 0 }));
+  // Goblin 1 opens the round: Kaelen's drag is over.
+  assert.equal(named(await view(), 'Kaelen').movingBy, null);
+});
