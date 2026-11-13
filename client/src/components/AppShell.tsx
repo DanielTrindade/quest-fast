@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent, useId, type ReactNode } from 'react';
+import { useEffect, useEffectEvent, useId, type MouseEvent, type ReactNode } from 'react';
 import { SidebarSimple } from '@phosphor-icons/react';
 import { AccountMenu, type Account } from './AccountMenu';
 import { CampaignSwitcher, type CampaignOption } from './CampaignSwitcher';
@@ -9,13 +9,37 @@ import { cn } from '../lib/utils';
 export type { CampaignOption } from './CampaignSwitcher';
 export type { NavItem } from './CampaignNav';
 
+const NO_LINKS: NavItem[] = [];
+
+/** An account screen on the phone header, where only the icon fits. */
+function HeaderLink({ item, onNavigate }: { item: NavItem; onNavigate?: (href: string) => void }) {
+  const Glyph = item.icon;
+  const onClick = (event: MouseEvent<HTMLAnchorElement>) => {
+    if (!onNavigate || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    onNavigate(item.href);
+  };
+  return <Tooltip label={item.label}>
+    <a href={item.href} onClick={onClick} aria-label={item.label}
+      className="grid size-11 shrink-0 place-items-center rounded-control text-text-secondary transition-[background-color,color] duration-(--duration-quick) ease-settle hover:bg-card hover:text-foreground">
+      {Glyph ? <Glyph size={22} aria-hidden="true" /> : item.shortLabel ?? item.label}
+    </a>
+  </Tooltip>;
+}
+
 export function AppShell({
   campaigns, campaignId, onCampaignChange, onShowAllCampaigns, navigation, activeItem, onNavigate, account,
-  collapsed, onCollapsedChange, children,
+  accountLinks = NO_LINKS, collapsed, onCollapsedChange, children,
 }: {
   campaigns: CampaignOption[]; campaignId: string; onCampaignChange: (id: string) => void;
   onShowAllCampaigns?: () => void; navigation: NavItem[]; activeItem: string;
   onNavigate?: (href: string) => void; account: Account;
+  /**
+   * Screens of the account (campaigns, characters), always in reach from
+   * inside a campaign: in the sidebar beside the account, and as icons on the
+   * phone header, since the tab bar belongs to the campaign.
+   */
+  accountLinks?: NavItem[];
   collapsed: boolean; onCollapsedChange: (collapsed: boolean) => void; children: ReactNode;
 }) {
   const id = useId();
@@ -52,12 +76,20 @@ export function AppShell({
           </Tooltip>
           <CampaignNav items={navigation} activeItem={activeItem} onNavigate={onNavigate} ariaLabel="Navegação da campanha" collapsed={collapsed} />
           <div className="mt-auto grid gap-1 border-t border-border pt-2">
+            {accountLinks.length > 0 && (
+              <CampaignNav items={accountLinks} activeItem="" onNavigate={onNavigate} ariaLabel="Sua conta" collapsed={collapsed} className="mt-0 mb-1" />
+            )}
             <AccountMenu {...account} compact={collapsed} side={collapsed ? 'right' : 'top'} />
             <Tooltip label={<>{collapseLabel} <kbd>Ctrl B</kbd></>} disabled={!collapsed}>{collapseButton}</Tooltip>
           </div>
         </aside>
         <header className="sticky top-0 z-20 flex items-center gap-2 border-b border-border bg-surface-secret px-2 py-1 [grid-area:top] @min-[760px]:hidden">
-          <CampaignSwitcher {...switcher} className="flex-1" />
+          <CampaignSwitcher {...switcher} className="min-w-0 flex-1" />
+          {accountLinks.length > 0 && (
+            <nav aria-label="Sua conta" className="flex shrink-0 items-center">
+              {accountLinks.map((item) => <HeaderLink key={item.id} item={item} onNavigate={onNavigate} />)}
+            </nav>
+          )}
           <AccountMenu {...account} compact side="bottom" className="w-auto" />
         </header>
         <div id={`${id}-content`} tabIndex={-1} className="min-w-0 px-4 py-6 [overflow-wrap:anywhere] [grid-area:content] [&_[id]]:scroll-mt-20 @min-[760px]:p-8 @min-[760px]:[&_[id]]:scroll-mt-6">{children}</div>
