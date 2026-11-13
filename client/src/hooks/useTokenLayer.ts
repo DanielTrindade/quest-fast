@@ -26,6 +26,8 @@ export type TokenLayerOptions = {
   onDrag?: (tokenId: string, x: number, y: number) => void;
   /** Dropped where it will rest (on the grid, on the map). */
   onDrop?: (tokenId: string, x: number, y: number) => void;
+  /** A started drag ended without a drop (a second finger made it a pinch): the token goes back. */
+  onCancelDrag?: (tokenId: string) => void;
   /** Where the tokens others drag are, fed by the socket. */
   motion?: TokenMotionSource;
 };
@@ -96,13 +98,19 @@ export function useTokenLayer(options: TokenLayerOptions & LayerWiring): void {
     const drawn = (now: number): DrawnToken[] => {
       const current = latest.current;
       const reducedMotion = prefersReducedMotion();
+      // A drop whose token left the scene, or that waited too long, is over:
+      // left behind it would keep the canvas drawing every frame.
+      const present = new Set(current.tokens.map((token) => token.id));
+      for (const [id, dropped] of drops.current) {
+        if (!present.has(id) || now > dropped.until) drops.current.delete(id);
+      }
       return current.tokens.map((token) => {
         const dragging = drag.current?.started && drag.current.token.id === token.id ? drag.current : null;
         if (dragging) {
           return { ...token, at: dragging.at, lifted: true, ghost: restingPoint(dragging.at, current.grid, token.size, current.map) };
         }
         const dropped = drops.current.get(token.id);
-        if (dropped && (now > dropped.until || (token.x === dropped.x && token.y === dropped.y))) drops.current.delete(token.id);
+        if (dropped && token.x === dropped.x && token.y === dropped.y) drops.current.delete(token.id);
         else if (dropped) return { ...token, at: dropped, lifted: false, ghost: null };
         const moving = token.movingBy && token.movingBy.userId !== current.viewerId
           ? current.motion?.positionOf(token.id, now, { reducedMotion })
@@ -129,7 +137,8 @@ export function useTokenLayer(options: TokenLayerOptions & LayerWiring): void {
 
       pointerDown(point, view) {
         const current = latest.current;
-        const hit = tokenAt(drawn(performance.now()), point, view, current.grid.cellSize);
+        // Hit where the token is drawn: mid-drag by someone else, or waiting for the server after a drop.
+        const hit = tokenAt(drawn(performance.now()), point, view, current.grid.cellSize, (token) => token.at);
         if (!hit) return false;
         current.onSelect?.(hit.id);
         if (!current.canMove?.(hit)) return false;
@@ -160,10 +169,19 @@ export function useTokenLayer(options: TokenLayerOptions & LayerWiring): void {
         const current = latest.current;
         const active = drag.current;
         drag.current = null;
-        if (!active?.started) return;
+        // A token removed mid-drag has nowhere to drop.
+        if (!active?.started || !current.tokens.some((token) => token.id === active.token.id)) return;
         const rest = restingPoint(active.at, current.grid, active.token.size, current.map);
         drops.current.set(active.token.id, { ...rest, until: performance.now() + DROP_WAIT_MS });
         current.onDrop?.(active.token.id, rest.x, rest.y);
+        current.requestDraw();
+      },
+
+      cancel() {
+        const current = latest.current;
+        const active = drag.current;
+        drag.current = null;
+        if (active?.started) current.onCancelDrag?.(active.token.id);
         current.requestDraw();
       },
     };

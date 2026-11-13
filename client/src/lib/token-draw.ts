@@ -28,11 +28,13 @@ function palette(themed: Element) {
       combatant: read('--color-danger'),
       free: read('--color-border-strong'),
     } satisfies Record<TokenKind, string>,
-    disc: read('--color-card'),
+    // Source tokens only: an `@theme inline` alias (card, border) holds the
+    // root's value, which would ignore a themed section's colours.
+    disc: read('--color-surface-raised'),
     text: read('--color-text-primary'),
     halo: read('--color-surface-secret'),
     focus: read('--color-focus-ring'),
-    border: read('--color-border'),
+    border: read('--color-border-subtle'),
     shadow: read('--color-scrim'),
     font: read('--font-sans') || 'sans-serif',
   };

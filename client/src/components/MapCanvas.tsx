@@ -21,7 +21,7 @@ export type MapCanvasProps = {
   /** Who is looking: their own drag carries no "being moved by" label. */
   viewerId?: string | null;
   selectedTokenId?: string | null;
-} & Pick<TokenLayerOptions, 'onSelect' | 'canMove' | 'onGrab' | 'onDrag' | 'onDrop' | 'motion'>;
+} & Pick<TokenLayerOptions, 'onSelect' | 'canMove' | 'onGrab' | 'onDrag' | 'onDrop' | 'onCancelDrag' | 'motion'>;
 
 const NO_TOKENS: readonly TokenView[] = [];
 
@@ -68,7 +68,7 @@ function MapControls({ zoom, onZoom, onFrame }: { zoom: number; onZoom: (factor:
  */
 export function MapCanvas({
   imageUrl, mapWidth, mapHeight, grid, label, className, tokens = NO_TOKENS, viewerId = null, selectedTokenId = null,
-  onSelect, canMove, onGrab, onDrag, onDrop, motion,
+  onSelect, canMove, onGrab, onDrag, onDrop, onCancelDrag, motion,
 }: MapCanvasProps) {
   const overlayRef = useRef<MapOverlay | null>(null);
   const {
@@ -76,7 +76,7 @@ export function MapCanvas({
   } = useMapViewport({ imageUrl, mapWidth, mapHeight, grid, overlayRef });
   useTokenLayer({
     tokens, grid, map: { width: mapWidth, height: mapHeight }, viewerId, selectedId: selectedTokenId,
-    onSelect, canMove, onGrab, onDrag, onDrop, motion, overlayRef, requestDraw, themedRef: frameRef,
+    onSelect, canMove, onGrab, onDrag, onDrop, onCancelDrag, motion, overlayRef, requestDraw, themedRef: frameRef,
   });
   const helpId = useId();
   const summaryId = useId();

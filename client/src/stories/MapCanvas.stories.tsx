@@ -123,6 +123,11 @@ async function dragOnMap(frame: HTMLElement, from: { x: number; y: number }, to:
   await userEvent.pointer([{ keys: '[MouseLeft>]', target: canvas, coords: start }, ...steps, { keys: '[/MouseLeft]' }]);
 }
 
+/** A press and release in place: selects a token, never pans the map. */
+async function pressOnMap(frame: HTMLElement, point: { x: number; y: number }) {
+  await userEvent.pointer([{ keys: '[MouseLeft]', target: frame.querySelector('canvas')!, coords: onPage(frame, point) }]);
+}
+
 /** The map with selection kept in the story, as the screen keeps it. */
 function TokenMap(props: MapCanvasProps & { master: boolean }) {
   const { master, viewerId = null, onSelect } = props;
@@ -217,4 +222,38 @@ export const MovidoPorOutro: Story = {
   name: 'Token movido por outro jogador',
   args: { ...tokenArgs, tokens: playerTokens(), viewerId: PLAYER_ID },
   render: (args) => <RemoteDrag {...args} />,
+  play: async ({ canvasElement }) => {
+    const { frame } = await readyMap(canvasElement);
+    await waitFor(() => expect(painted(frame)).toBe(true));
+  },
+};
+
+/** Fed by the play, not by a timer: the press must find the token where it is drawn at that moment. */
+const heldMotion = createMotionStore();
+
+export const ToqueNoTokenEmMovimento: Story = {
+  name: 'Toque no token que outro jogador move',
+  args: { ...tokenArgs, tokens: playerTokens(), viewerId: PLAYER_ID },
+  render: (args) => <TokenMap {...args} master={false} motion={heldMotion} />,
+  play: async ({ canvasElement, args }) => {
+    const { frame } = await readyMap(canvasElement);
+    const mira = playerTokens().find((token) => token.id === 'mira')!;
+    const away = { x: mira.x + PRINTED_CELL * 5, y: mira.y + PRINTED_CELL * 3 };
+    // A drag goes quiet after a second; each press gets fresh samples.
+    const report = () => {
+      for (let index = 0; index < 4; index += 1) {
+        const now = performance.now() - (3 - index) * 33;
+        heldMotion.push({ tokenId: 'mira', ...away, ts: now }, now);
+      }
+    };
+
+    // Where she is saved there is only map now.
+    report();
+    await pressOnMap(frame, mira);
+    await expect(args.onSelect).not.toHaveBeenCalledWith('mira');
+    // Where she is drawn, she is found.
+    report();
+    await pressOnMap(frame, away);
+    await expect(args.onSelect).toHaveBeenCalledWith('mira');
+  },
 };

@@ -62,7 +62,11 @@ function TokenRow({ token, selected, own, movable, master, busy, helpId, onSelec
     const direction = ARROWS[event.key];
     if (!direction || !movable || busy) return;
     event.preventDefault();
-    if (!selected) onSelect(token.id);
+    // The first arrow on a row only selects: arriving by Tab must not move a token.
+    if (!selected) {
+      onSelect(token.id);
+      return;
+    }
     onStep(token.id, direction);
   };
   return (

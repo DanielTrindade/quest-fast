@@ -21,10 +21,19 @@ test('the token drawn on top wins the hit, with some slop around small ones', ()
     { id: 'below', x: 100, y: 100, size: 'large' as const },
     { id: 'above', x: 110, y: 100, size: 'medium' as const },
   ];
-  assert.equal(tokenAt(tokens, { x: 155, y: 70 }, VIEW, 50)?.id, 'above');
+  const saved = (token: { x: number; y: number }) => token;
+  assert.equal(tokenAt(tokens, { x: 155, y: 70 }, VIEW, 50, saved)?.id, 'above');
   // On the large one's edge, outside the medium one.
-  assert.equal(tokenAt(tokens, { x: 128, y: 70 }, VIEW, 50)?.id, 'below');
-  assert.equal(tokenAt(tokens, { x: 150 + 25 + HIT_SLOP + 1, y: 70 }, VIEW, 50), null);
+  assert.equal(tokenAt(tokens, { x: 128, y: 70 }, VIEW, 50, saved)?.id, 'below');
+  assert.equal(tokenAt(tokens, { x: 150 + 25 + HIT_SLOP + 1, y: 70 }, VIEW, 50, saved), null);
+});
+
+test('a token is hit where it is drawn, not where it is saved', () => {
+  // Someone else is dragging it: saved at (100, 100), drawn at (500, 300).
+  const tokens = [{ id: 'mira', x: 100, y: 100, size: 'medium' as const, at: { x: 500, y: 300 } }];
+  const drawn = (token: { at: { x: number; y: number } }) => token.at;
+  assert.equal(tokenAt(tokens, toScreenPoint(VIEW, { x: 500, y: 300 }), VIEW, 50, drawn)?.id, 'mira');
+  assert.equal(tokenAt(tokens, toScreenPoint(VIEW, { x: 100, y: 100 }), VIEW, 50, drawn), null);
 });
 
 test('a token rests on the grid and on the map', () => {

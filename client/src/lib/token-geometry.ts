@@ -26,15 +26,17 @@ export function screenRadius(size: CreatureSize, cellSize: number, scale: number
 }
 
 /**
- * The token under a screen point: the one drawn last (on top) wins. Each
- * token is `{ id, x, y, size }` at its drawn position.
+ * The token under a screen point: the one drawn last (on top) wins.
+ * `positionOf` says where each token is drawn, which may not be where it is
+ * saved (someone else's drag, a drop waiting for the server).
  */
-export function tokenAt<T extends Point & { id: string; size: CreatureSize }>(
+export function tokenAt<T extends { id: string; size: CreatureSize }>(
   tokens: readonly T[], point: Point, view: MapView, cellSize: number,
+  positionOf: (token: T) => Point,
 ): T | null {
   for (let index = tokens.length - 1; index >= 0; index -= 1) {
     const token = tokens[index];
-    const centre = toScreenPoint(view, token);
+    const centre = toScreenPoint(view, positionOf(token));
     const radius = screenRadius(token.size, cellSize, view.scale) + HIT_SLOP;
     if ((point.x - centre.x) ** 2 + (point.y - centre.y) ** 2 <= radius ** 2) return token;
   }

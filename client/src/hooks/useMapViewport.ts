@@ -20,6 +20,8 @@ export type MapOverlay = {
   pointerDown(point: Point, view: MapView): boolean;
   pointerMove(point: Point, view: MapView): void;
   pointerUp(point: Point, view: MapView): void;
+  /** The press stops being the overlay's (a second finger arrived): drop nothing. */
+  cancel(): void;
 };
 
 const prefersReducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -58,6 +60,8 @@ export function useMapViewport({ imageUrl, mapWidth, mapHeight, grid, overlayRef
   const pointers = useRef(new Map<number, Point>());
   /** The pointer an overlay claimed; it never pans the map. */
   const overlayPointer = useRef<number | null>(null);
+  /** Where the overlay's pointer last was, to hand it to the map for a pinch. */
+  const overlayPoint = useRef<Point | null>(null);
   // The frame callback asks for the next frame through a ref: a callback
   // cannot name itself while it is being declared.
   const requestDrawRef = useRef<() => void>(() => {});
@@ -216,19 +220,27 @@ export function useMapViewport({ imageUrl, mapWidth, mapHeight, grid, overlayRef
     event.currentTarget.setPointerCapture(event.pointerId);
     stopAnimation();
     const view = viewRef.current;
-    // One finger on a token drags the token; a second finger is always the map's.
-    if (view && pointers.current.size === 0 && overlayPointer.current === null
-      && overlayRef?.current?.pointerDown(localPoint(event), view)) {
+    const point = localPoint(event);
+    // A second finger makes it the map's pinch, even if the first was on a token.
+    if (overlayPointer.current !== null) {
+      overlayRef?.current?.cancel();
+      if (overlayPoint.current) pointers.current.set(overlayPointer.current, overlayPoint.current);
+      overlayPointer.current = null;
+      overlayPoint.current = null;
+    } else if (view && pointers.current.size === 0 && overlayRef?.current?.pointerDown(point, view)) {
+      // One finger on a token the viewer may move drags the token.
       overlayPointer.current = event.pointerId;
+      overlayPoint.current = point;
       return;
     }
-    pointers.current.set(event.pointerId, localPoint(event));
+    pointers.current.set(event.pointerId, point);
     setDragging(true);
   };
 
   const onPointerMove = (event: PointerEvent<HTMLCanvasElement>) => {
     if (event.pointerId === overlayPointer.current) {
-      if (viewRef.current) overlayRef?.current?.pointerMove(localPoint(event), viewRef.current);
+      overlayPoint.current = localPoint(event);
+      if (viewRef.current) overlayRef?.current?.pointerMove(overlayPoint.current, viewRef.current);
       return;
     }
     const previous = pointers.current.get(event.pointerId);
@@ -256,6 +268,7 @@ export function useMapViewport({ imageUrl, mapWidth, mapHeight, grid, overlayRef
   const onPointerEnd = (event: PointerEvent<HTMLCanvasElement>) => {
     if (event.pointerId === overlayPointer.current) {
       overlayPointer.current = null;
+      overlayPoint.current = null;
       if (viewRef.current) overlayRef?.current?.pointerUp(localPoint(event), viewRef.current);
       return;
     }
