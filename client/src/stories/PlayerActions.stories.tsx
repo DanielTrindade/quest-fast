@@ -87,3 +87,15 @@ export const FichaCarregando: Story = { name: 'Ficha carregando', args: { sheet:
 export const SemPersonagem: Story = { name: 'Sem personagem ativo', args: { character: null } };
 
 export const PiorCaso: Story = { name: 'Pior caso', args: { character: partyMember(worstCase), sheet: worstCase } };
+
+/** The sheet failed after the retries: say so and offer to try again, never an endless skeleton. */
+export const FichaComErro: Story = {
+  name: 'Ficha com erro',
+  args: { sheet: undefined, sheetError: 'Não foi possível carregar a ficha.', onRetrySheet: fn() },
+  play: async ({ canvasElement, args }) => {
+    const panel = firstTheme(canvasElement);
+    await expect(panel.getByRole('alert')).toHaveTextContent('Não foi possível carregar a ficha.');
+    await userEvent.click(panel.getByRole('button', { name: 'Tentar novamente' }));
+    await expect(args.onRetrySheet).toHaveBeenCalled();
+  },
+};

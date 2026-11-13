@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { DiceFive, Lightning, Scroll } from '@phosphor-icons/react';
 import { cn } from '../lib/utils';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
@@ -32,9 +32,11 @@ const TABS = [
 
 /**
  * The side panel of the table: whose turn it is on top, always in sight,
- * then Ações, Dados and Feed. The panels stay mounted while hidden, so a
- * typed expression or a scrolled feed survive a tab switch. Without `feed`
- * the tab is gone: the feed is already in the middle of the screen.
+ * then Ações, Dados and Feed. A panel mounts the first time it is shown and
+ * then stays mounted while hidden, so a typed expression or a scrolled feed
+ * survive a tab switch. Mounting it hidden would lay the feed out in a box
+ * with no height, and it would open on its oldest events. Without `feed` the
+ * tab is gone: the feed is already in the middle of the screen.
  */
 export function ActionPanel({ header, actions, dice, feed, tab, onTabChange, actionsSignal, className }: {
   header?: ReactNode;
@@ -49,6 +51,8 @@ export function ActionPanel({ header, actions, dice, feed, tab, onTabChange, act
   const content: Record<ActionPanelTab, ReactNode> = { actions, dice, feed };
   const tabs = TABS.filter(({ id }) => id !== 'feed' || feed !== undefined);
   const current = tabs.some(({ id }) => id === tab) ? tab : 'actions';
+  const [shown, setShown] = useState<ReadonlySet<ActionPanelTab>>(() => new Set([current]));
+  if (!shown.has(current)) setShown(new Set(shown).add(current));
 
   return (
     <aside aria-label="Painel da mesa"
@@ -66,7 +70,7 @@ export function ActionPanel({ header, actions, dice, feed, tab, onTabChange, act
         </TabsList>
         {tabs.map(({ id }) => (
           <TabsContent key={id} value={id} forceMount className="grid min-w-0 grid-cols-[minmax(0,1fr)] content-start gap-4 data-[state=inactive]:hidden">
-            {content[id]}
+            {shown.has(id) && content[id]}
           </TabsContent>
         ))}
       </Tabs>

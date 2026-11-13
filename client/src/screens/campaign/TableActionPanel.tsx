@@ -4,6 +4,7 @@ import { Link } from '@tanstack/react-router';
 import type { CombatantView, EncounterView, LinkedRollRequest, RollPayload } from '@quest-fast/shared';
 import { ActionPanel, type ActionPanelSignal, type ActionPanelTab } from '../../components/ActionPanel';
 import type { InitiativeActions } from '../../components/InitiativeList';
+import { Button as ActionButton } from '../../components/Button';
 import { MasterActions } from '../../components/MasterActions';
 import { pendingDamageCount } from '../../lib/combatant-state';
 import { PlayerActions } from '../../components/PlayerActions';
@@ -55,7 +56,16 @@ function useOwnCharacter(campaignId: string, currentUserId: string, enabled: boo
       mergeFeedEvent(queryClient, campaignId, event);
     },
   });
-  return { loaded: characters.isSuccess, own, sheet: sheet.data?.character, roll, lastRoll };
+  return { characters, own, sheet, roll, lastRoll };
+}
+
+function LoadFailure({ message, retrying, onRetry }: { message: string; retrying: boolean; onRetry: () => void }) {
+  return (
+    <div className="grid justify-items-start gap-3">
+      <p role="alert" className="m-0 text-body text-danger-text">{message}</p>
+      <ActionButton variant="secondary" loading={retrying} onClick={onRetry}>Tentar novamente</ActionButton>
+    </div>
+  );
 }
 
 type Fight = ReturnType<typeof useFight>;
@@ -112,13 +122,19 @@ function PlayerPanel({ campaignId, currentUserId, fight, player, ownCombatant }:
 }) {
   const [sheetOpen, setSheetOpen] = useState(false);
   const { encounter, actions, handlers } = fight;
-  if (!player.loaded) return <Skeleton shape="panel" label="Carregando seu personagem…" />;
-  const { own, roll } = player;
+  const { characters, own, sheet, roll } = player;
+  if (characters.isPending) return <Skeleton shape="panel" label="Carregando seu personagem…" />;
+  if (characters.isError) {
+    return <LoadFailure message="Não foi possível carregar seu personagem." retrying={characters.isFetching} onRetry={() => { void characters.refetch(); }} />;
+  }
   return (
     <>
       <PlayerActions
         character={own}
-        sheet={player.sheet}
+        sheet={sheet.data?.character}
+        sheetError={sheet.isError ? errorMessage(sheet.error) : null}
+        retryingSheet={sheet.isFetching}
+        onRetrySheet={() => { void sheet.refetch(); }}
         fight={ownCombatant && encounter ? {
           combatant: ownCombatant,
           targets: encounter.combatants.filter((combatant) => combatant.id !== ownCombatant.id),

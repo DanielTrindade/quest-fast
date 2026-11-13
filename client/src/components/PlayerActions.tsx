@@ -77,6 +77,9 @@ function RollOutcome({ name, rolling, rollError, lastRoll }: { name: string; rol
 export function PlayerActions({
   character,
   sheet,
+  sheetError = null,
+  retryingSheet = false,
+  onRetrySheet,
   fight = null,
   inOtherFight = false,
   rolling = false,
@@ -88,8 +91,12 @@ export function PlayerActions({
 }: {
   /** Null when the player has no active character in this campaign. */
   character: PlayerCharacter | null;
-  /** The full sheet, for tests and attacks; undefined while it loads. */
+  /** The full sheet, for tests and attacks; undefined while it loads or after it failed. */
   sheet?: CharacterSheet;
+  /** Why the sheet did not load, once the retries are over. */
+  sheetError?: string | null;
+  retryingSheet?: boolean;
+  onRetrySheet?: () => void;
   fight?: PlayerFight | null;
   /** A fight is on and this character is not in it. */
   inOtherFight?: boolean;
@@ -134,7 +141,16 @@ export function PlayerActions({
       )}
 
       <div className="grid min-w-0 gap-3 border-t border-border pt-4">
-        {sheet ? <QuickTests sheet={sheet} pending={rolling} onRoll={onRoll} /> : <Skeleton shape="panel" label="Carregando a ficha…" />}
+        {sheet
+          ? <QuickTests sheet={sheet} pending={rolling} onRoll={onRoll} />
+          : sheetError
+            ? (
+              <div className="grid justify-items-start gap-3">
+                <p role="alert" className="m-0 text-small text-danger-text">{sheetError}</p>
+                {onRetrySheet && <Button variant="secondary" loading={retryingSheet} onClick={onRetrySheet}>Tentar novamente</Button>}
+              </div>
+            )
+            : <Skeleton shape="panel" label="Carregando a ficha…" />}
         <RollOutcome name={character.name} rolling={rolling} rollError={rollError} lastRoll={lastRoll} />
       </div>
 
