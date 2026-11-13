@@ -1,36 +1,46 @@
 import type { CharacterSummary } from '@quest-fast/shared';
-import { initials } from '../lib/initials';
-import { CharacterPortrait } from './CharacterPortrait';
+import { classLine } from '../lib/character-lines';
 import { hpLabel } from '../lib/hit-points';
+import { ArmorShield } from './ArmorShield';
+import { Avatar } from './Avatar';
 import { HpMeter } from './HpMeter';
 
 /**
- * The group of a campaign as medallions: each player's active character, to
- * look at. A medallion opens the sheet for reading; play happens on the table.
+ * The group of a campaign: each player's active character as a short sheet,
+ * token, who plays it, armour class and hit points. Opening one shows the
+ * sheet for reading; play happens on the table.
  */
 export function PartyStrip({ characters, currentUserId, onOpen }: {
   characters: CharacterSummary[]; currentUserId?: string; onOpen: (character: CharacterSummary) => void;
 }) {
   return (
-    <ul data-slot="party-strip" aria-label="O grupo" className="m-0 flex list-none flex-wrap gap-x-6 gap-y-5 p-0">
+    <ul data-slot="party-strip" aria-label="O grupo"
+      className="m-0 grid list-none gap-3 p-0 [grid-template-columns:repeat(auto-fill,minmax(min(100%,240px),1fr))]">
       {characters.map((character) => {
         const mine = character.ownerId === currentUserId;
+        const { hp, hpCurrent, hpTemp } = character;
         return (
-          <li key={character.id} className="w-26">
+          <li key={character.id} className="min-w-0">
             <button type="button" onClick={() => onOpen(character)} data-mine={mine || undefined}
-              className="group grid w-full cursor-pointer justify-items-center gap-2 bg-transparent p-0 text-center text-foreground transition-transform duration-(--duration-quick) ease-settle motion-safe:active:scale-[0.97]">
-              <CharacterPortrait name={character.name} src={character.avatarUrl}
-                className="size-18 rounded-full shadow-[0_0_0_2px_var(--color-surface),0_0_0_3px_var(--color-border-strong)] transition-[box-shadow] duration-(--duration-quick) ease-settle group-hover:shadow-[0_0_0_2px_var(--color-surface),0_0_0_3px_var(--color-border-control)] group-data-mine:shadow-[0_0_0_2px_var(--color-surface),0_0_0_3px_var(--color-accent-text)]"
-                initialsClassName="text-h1" />
-              <span className="relative -mt-4.5 grid w-full gap-px rounded-control border border-border-strong bg-card px-2 py-1">
-                <b className="truncate font-display text-small font-semibold" title={character.name}>
-                  {character.name.split(' ')[0] || initials(character.name)}
-                </b>
-                <span className="truncate font-mono text-micro text-text-muted">{character.class} {character.level}</span>
+              className="relative grid w-full min-w-0 cursor-pointer gap-3 rounded-panel border border-border-strong bg-card p-3 text-start text-foreground edge-raised transition-[background-color,border-color] duration-(--duration-quick) ease-settle hover:border-input hover:bg-muted data-mine:border-accent-text/60">
+              <span className="flex min-w-0 items-center gap-3">
+                <Avatar name={character.name} src={character.avatarUrl ?? undefined} variant="character" />
+                <span className="grid min-w-0 flex-1 gap-0.5">
+                  <span className="truncate font-display font-semibold">{character.name}</span>
+                  <span className="truncate text-small text-text-secondary">{classLine(character)}</span>
+                  <span className="truncate text-micro text-text-muted">{mine ? 'Seu personagem' : `Jogado por ${character.ownerName}`}</span>
+                </span>
+                <ArmorShield value={character.ac} size="sm" />
               </span>
-              <HpMeter current={character.hpCurrent} max={character.hp} temp={character.hpTemp} className="h-1 w-full" />
-              <span className="sr-only">
-                {character.name}, de {character.ownerName}{mine ? ' (seu)' : ''}. {hpLabel(character.hpCurrent, character.hp, character.hpTemp)}. Abrir ficha.
+              <span className="grid gap-1">
+                <span className="flex items-baseline justify-between gap-2 text-micro text-text-muted">
+                  <span>Pontos de vida</span>
+                  <span className="font-mono text-small font-semibold text-foreground tabular-nums">
+                    <span aria-hidden="true">{hpCurrent}{hpTemp > 0 && ` +${hpTemp}`} / {hp}</span>
+                    <span className="sr-only">{hpLabel(hpCurrent, hp, hpTemp)}</span>
+                  </span>
+                </span>
+                <HpMeter current={hpCurrent} max={hp} temp={hpTemp} />
               </span>
             </button>
           </li>

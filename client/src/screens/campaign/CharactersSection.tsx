@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowRight, Sword } from '@phosphor-icons/react';
+import { Sword } from '@phosphor-icons/react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { Button as RetryButton } from '../../components/Button';
@@ -14,7 +14,7 @@ import { memberRow, sectionHeading, stack } from '../../components/layout-styles
 
 const toGallery = (
   <Button asChild variant="secondary" size="sm">
-    <Link to="/characters">Meus personagens <ArrowRight size={16} aria-hidden="true" /></Link>
+    <Link to="/characters">Meus personagens</Link>
   </Button>
 );
 

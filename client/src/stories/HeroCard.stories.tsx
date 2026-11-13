@@ -23,7 +23,7 @@ export const Ativo: Story = {
   play: async ({ canvasElement, args }) => {
     const card = firstTheme(canvasElement);
     await expect(card.getByText('Ativo na mesa')).toBeVisible();
-    await userEvent.click(card.getByRole('button', { name: /Hazin Dan/ }));
+    await userEvent.click(card.getByRole('button', { name: 'Abrir ficha de Hazin Dan' }));
     await expect(args.onOpen).toHaveBeenCalled();
   },
 };

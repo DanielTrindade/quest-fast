@@ -24,7 +24,8 @@ export const SemRetrato: Story = {
   play: async ({ canvasElement, args }) => {
     const panel = firstTheme(canvasElement);
     await expect(panel.getByRole('heading', { name: 'Hazin Dan' })).toBeVisible();
-    await expect(panel.getByText('Bárbaro · Berserker')).toBeVisible();
+    await expect(panel.getByText('Bárbaro de nível 4')).toBeVisible();
+    await expect(panel.getByText('Classe de armadura', { exact: false })).toBeInTheDocument();
     await userEvent.click(panel.getByRole('button', { name: 'Abrir ficha' }));
     await expect(args.onOpen).toHaveBeenCalled();
   },

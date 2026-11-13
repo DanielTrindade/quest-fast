@@ -19,7 +19,7 @@ function firstTheme(canvasElement: HTMLElement) {
 export const Grupo: Story = {
   play: async ({ canvasElement, args }) => {
     const strip = firstTheme(canvasElement);
-    await userEvent.click(strip.getByRole('button', { name: /Lyra Ventoclaro, de Ana Beatriz/ }));
+    await userEvent.click(strip.getByRole('button', { name: /Lyra Ventoclaro/ }));
     await expect(args.onOpen).toHaveBeenCalledWith(expect.objectContaining({ id: 'lyra' }));
   },
 };
