@@ -7,7 +7,7 @@ import { fitView } from '../lib/map-view';
 import { canMoveToken } from '../lib/token-labels';
 import { createMotionStore } from '../lib/token-motion';
 import { PRINTED_CELL, SYNTHETIC_MAP, alignedSceneGrid, defaultSceneGrid, syntheticMapUrl } from './fixtures/maps';
-import { MASTER_ID, PLAYER_ID, manyTokens, masterTokens, playerTokens } from './fixtures/tokens';
+import { MASTER_ID, PLAYER_ID, cell, fightTokens, manyTokens, masterTokens, playerFightTokens, playerTokens } from './fixtures/tokens';
 
 const meta = {
   title: 'Componentes/MapCanvas',
@@ -294,5 +294,63 @@ export const ToqueNoTokenEmMovimento: Story = {
     report();
     await pressOnMap(frame, away);
     await expect(args.onSelect).toHaveBeenCalledWith('mira');
+  },
+};
+
+/** In a fight, the selected token shows the whole area it can still reach. */
+export const AlcanceEmCombate: Story = {
+  name: 'Alcance em combate',
+  args: { ...tokenArgs, tokens: playerFightTokens(), viewerId: PLAYER_ID, selectedTokenId: 'kaelen' },
+  render: (args) => <TokenMap {...args} master={false} />,
+  play: async ({ canvasElement }) => {
+    const { frame, map } = await readyMap(canvasElement);
+    await expect(map.getByText(/Kaelen ainda alcança 4,5 m, 3 casas em qualquer direção\./)).toBeInTheDocument();
+    await waitFor(() => expect(painted(frame)).toBe(true));
+  },
+};
+
+const confirmArgs = { onConfirm: fn(), onCancel: fn(), onFree: fn() };
+
+/** Dropped two squares away: the cost fits, and confirming spends it. */
+export const MovimentoAConfirmar: Story = {
+  name: 'Movimento a confirmar',
+  args: {
+    ...tokenArgs,
+    tokens: playerFightTokens(),
+    viewerId: PLAYER_ID,
+    pendingMove: { tokenId: 'kaelen', ...cell(19, 4) },
+    moveConfirm: { onConfirm: confirmArgs.onConfirm, onCancel: confirmArgs.onCancel },
+  },
+  render: (args) => <TokenMap {...args} master={false} />,
+  play: async ({ canvasElement }) => {
+    const { map } = await readyMap(canvasElement);
+    const bar = within(map.getByRole('group', { name: 'Confirmar movimento de Kaelen' }));
+    await expect(bar.getByText(/2 casas · 3 m/)).toBeVisible();
+    await expect(bar.queryByRole('button', { name: /Mover sem gastar/ })).toBeNull();
+    await userEvent.click(bar.getByRole('button', { name: /Confirmar movimento/ }));
+    await expect(confirmArgs.onConfirm).toHaveBeenCalled();
+    await userEvent.keyboard('{Escape}');
+    await expect(confirmArgs.onCancel).toHaveBeenCalled();
+  },
+};
+
+/** Five squares is past the 4.5 m left: it cannot be confirmed, but the master may move without spending. */
+export const MovimentoAlemDoAlcance: Story = {
+  name: 'Movimento além do alcance (mestre)',
+  args: {
+    ...tokenArgs,
+    tokens: fightTokens(),
+    viewerId: MASTER_ID,
+    pendingMove: { tokenId: 'kaelen', ...cell(17, 9) },
+    moveConfirm: confirmArgs,
+  },
+  render: (args) => <TokenMap {...args} master />,
+  play: async ({ canvasElement }) => {
+    const { map } = await readyMap(canvasElement);
+    const bar = within(map.getByRole('group', { name: 'Confirmar movimento de Kaelen' }));
+    await expect(bar.getByText(/Passa do que resta \(4,5 m\)/)).toBeVisible();
+    await expect(bar.getByRole('button', { name: /Confirmar movimento/ })).toBeDisabled();
+    await userEvent.click(bar.getByRole('button', { name: /Mover sem gastar/ }));
+    await expect(confirmArgs.onFree).toHaveBeenCalled();
   },
 };
