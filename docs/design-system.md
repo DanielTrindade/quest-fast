@@ -24,6 +24,8 @@ npm run test:design
 
 Uma story é reprovada quando o `play` lança ou a renderização falha: o script escuta no canal do Storybook os eventos `playFunctionThrewException`, `storyErrored` e `storyThrewException`. As stories de `VerifierControls.stories.tsx` falham de propósito e ficam fora da barra lateral; são o controle negativo, e a execução reprova se alguma delas passar.
 
+Se uma story não chega a uma fase final de renderização em 30 s, o script registra em `test-results/design-system/<id>-timeout-<tentativa>.json` e `.png` a fase de cada render, as falhas do canal, os erros de página e de console e uma captura, e põe um resumo disso na mensagem. Esse tempo esgotado, e só ele, ganha uma segunda tentativa: a story é recarregada uma vez e, se passar, conta como aprovada com `PASS <id> (passou na segunda tentativa: …)`, e o fim da execução lista as instáveis. Falha do `play`, de renderização, de acessibilidade, de overflow ou erro de página reprova na primeira vez, e os controles negativos nunca são repetidos. Para testar o diagnóstico sem esperar 30 s, `DESIGN_SETTLE_TIMEOUT_MS` reduz o limite.
+
 Para auditar um Storybook já aberto, defina `STORYBOOK_URL` e execute `node scripts/verify-design-system.mjs`. Um argumento opcional filtra o ID da story. O argumento `--specs` executa apenas os cenários adicionais de teclado, clipboard, temas e movimento. Resultados e capturas ficam em `test-results/design-system/`, fora do versionamento.
 
 ## Composição
