@@ -462,8 +462,17 @@ export function respond(state: DataState, role: Role, method: string, path: stri
   // The gallery treats every sheet of the dataset as the viewer's, so the
   // extremes reach the account screen too.
   if (pathname === '/api/me/characters') {
-    const campaignName = data.campaigns.find((item) => item.id === CAMPAIGN_ID)?.name ?? 'Mesa';
-    return { status: 200, body: { characters: data.characters.map((item) => ({ ...item, ownerId: me.id, ownerName: me.name, campaignName })) } };
+    // Spread over the dataset's campaigns, one active per campaign and the
+    // rest in reserve, as a player with a long history has them.
+    const seen = new Set<string>();
+    const characters = data.characters.map((item, index) => {
+      const campaign = data.campaigns[index % Math.max(data.campaigns.length, 1)];
+      const campaignId = campaign?.id ?? CAMPAIGN_ID;
+      const active = !seen.has(campaignId);
+      seen.add(campaignId);
+      return { ...item, ownerId: me.id, ownerName: me.name, campaignId, campaignName: campaign?.name ?? 'Mesa', active };
+    });
+    return { status: 200, body: { characters } };
   }
   if (pathname === '/api/campaigns') return { status: 200, body: { campaigns: data.campaigns.map((item) => item.id === CAMPAIGN_ID ? { ...item, role } : item) } };
   if (pathname === base) {

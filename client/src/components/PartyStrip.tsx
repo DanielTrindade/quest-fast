@@ -1,6 +1,7 @@
 import type { CharacterSummary } from '@quest-fast/shared';
 import { classLine } from '../lib/character-lines';
-import { hpLabel } from '../lib/hit-points';
+import { hpLabel, isDown } from '../lib/hit-points';
+import { cn } from '../lib/utils';
 import { ArmorShield } from './ArmorShield';
 import { Avatar } from './Avatar';
 import { HpMeter } from './HpMeter';
@@ -19,6 +20,7 @@ export function PartyStrip({ characters, currentUserId, onOpen }: {
       {characters.map((character) => {
         const mine = character.ownerId === currentUserId;
         const { hp, hpCurrent, hpTemp } = character;
+        const down = isDown(hpCurrent);
         return (
           <li key={character.id} className="min-w-0">
             <button type="button" onClick={() => onOpen(character)} data-mine={mine || undefined}
@@ -34,8 +36,8 @@ export function PartyStrip({ characters, currentUserId, onOpen }: {
               </span>
               <span className="grid gap-1">
                 <span className="flex items-baseline justify-between gap-2 text-micro text-text-muted">
-                  <span>Pontos de vida</span>
-                  <span className="font-mono text-small font-semibold text-foreground tabular-nums">
+                  <span>Pontos de vida{down && ', caído'}</span>
+                  <span className={cn('font-mono text-small font-semibold tabular-nums', down ? 'text-danger-text' : 'text-foreground')}>
                     <span aria-hidden="true">{hpCurrent}{hpTemp > 0 && ` +${hpTemp}`} / {hp}</span>
                     <span className="sr-only">{hpLabel(hpCurrent, hp, hpTemp)}</span>
                   </span>

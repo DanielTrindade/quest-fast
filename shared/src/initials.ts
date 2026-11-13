@@ -1,5 +1,14 @@
 const graphemes = new Intl.Segmenter('pt-BR', { granularity: 'grapheme' });
 
+// "III" or "Jr." after a name is a generation, not a surname: never the last initial.
+const SUFFIX = /^(?:[IVX]{2,}|Jr\.?|Sr\.?|Filho|Neto|Sobrinho)$/u;
+
+function withoutSuffixes(words: string[]) {
+  const kept = [...words];
+  while (kept.length > 1 && SUFFIX.test(kept.at(-1)!)) kept.pop();
+  return kept;
+}
+
 function firstGrapheme(text: string) {
   return graphemes.segment(text)[Symbol.iterator]().next().value?.segment ?? '';
 }
@@ -11,7 +20,7 @@ function firstGrapheme(text: string) {
  * single letter, since joining two of them can form a different word.
  */
 export function initials(name: string, skip: (word: string) => boolean = () => false): string {
-  const words = name.trim().split(/\s+/u).filter(Boolean);
+  const words = withoutSuffixes(name.trim().split(/\s+/u).filter(Boolean));
   const lettered = words.filter((word) => /^\p{L}/u.test(firstGrapheme(word)));
   const meaningful = lettered.filter((word) => !skip(word));
   const letters = (meaningful.length ? meaningful : lettered).map(firstGrapheme);

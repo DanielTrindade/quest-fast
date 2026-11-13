@@ -3,7 +3,8 @@ import { FileText } from '@phosphor-icons/react';
 import { ABILITIES, abilityModifier, initiative, passivePerception, type MyCharacter } from '@quest-fast/shared';
 import { ABILITY_LABELS, signed } from '../lib/5e';
 import { classLine } from '../lib/character-lines';
-import { hpLabel } from '../lib/hit-points';
+import { usePortrait } from '../hooks/usePortrait';
+import { hpLabel, isDown } from '../lib/hit-points';
 import { formatSpeed } from '../lib/sheet-labels';
 import { cn } from '../lib/utils';
 import { ArmorShield } from './ArmorShield';
@@ -48,7 +49,10 @@ const fact = 'grid min-w-0 content-start gap-0.5 [&_dd]:m-0 [&_dd]:[overflow-wra
 export function CharacterShowcase({ character, onOpen, actions }: {
   character: MyCharacter; onOpen: () => void; actions?: ReactNode;
 }) {
-  const { name, hp, hpCurrent, hpTemp, avatarUrl } = character;
+  const { name, hp, hpCurrent, hpTemp } = character;
+  const portrait = usePortrait(character.avatarUrl);
+  const avatarUrl = portrait.src;
+  const down = isDown(hpCurrent);
   const facts = [
     ['Subclasse', character.subclass],
     ['Espécie', character.race],
@@ -64,7 +68,7 @@ export function CharacterShowcase({ character, onOpen, actions }: {
       )}>
         {avatarUrl && (
           <div className="relative m-1 mr-0 overflow-hidden rounded-l-[7px] border border-border @max-[600px]:mr-1 @max-[600px]:aspect-[4/3] @max-[600px]:rounded-r-[7px]">
-            <img src={avatarUrl} alt={`Retrato de ${name}`} className="absolute inset-0 size-full object-cover object-top" />
+            <img src={avatarUrl} alt={`Retrato de ${name}`} onError={portrait.onError} className="absolute inset-0 size-full object-cover object-top" />
           </div>
         )}
 
@@ -88,8 +92,8 @@ export function CharacterShowcase({ character, onOpen, actions }: {
 
           <dl className="m-0 grid grid-cols-[minmax(0,1.6fr)_repeat(3,minmax(0,1fr))] gap-4 @max-[480px]:grid-cols-3 [&_dd]:font-mono [&_dd]:text-h2 [&_dd]:font-semibold [&_dd]:tabular-nums">
             <div className={cn(fact, '@max-[480px]:col-span-3')}>
-              <dt>Pontos de vida{hpTemp > 0 && `, +${hpTemp} temporários`}</dt>
-              <dd>
+              <dt>Pontos de vida{hpTemp > 0 && `, +${hpTemp} temporários`}{down && ', caído'}</dt>
+              <dd className={cn(down && 'text-danger-text')}>
                 <span aria-hidden="true">{hpCurrent}<span className="text-small font-medium text-text-muted"> / {hp}</span></span>
                 <span className="sr-only">{hpLabel(hpCurrent, hp, hpTemp)}</span>
               </dd>

@@ -3,7 +3,9 @@ import { FileText } from '@phosphor-icons/react';
 import { initiative, passivePerception, type MyCharacter } from '@quest-fast/shared';
 import { signed } from '../lib/5e';
 import { classLine } from '../lib/character-lines';
-import { hpLabel } from '../lib/hit-points';
+import { usePortrait } from '../hooks/usePortrait';
+import { cn } from '../lib/utils';
+import { hpLabel, isDown } from '../lib/hit-points';
 import { formatSpeed } from '../lib/sheet-labels';
 import { ArmorShield } from './ArmorShield';
 import { Avatar } from './Avatar';
@@ -28,29 +30,34 @@ const fact = 'grid min-w-0 content-start gap-0.5 [&_dd]:m-0 [&_dd]:font-mono [&_
 export function HeroCard({ character, onOpen, actions }: {
   character: MyCharacter; onOpen: () => void; actions?: ReactNode;
 }) {
-  const { name, hp, hpCurrent, hpTemp, avatarUrl } = character;
+  const { name, hp, hpCurrent, hpTemp } = character;
+  const portrait = usePortrait(character.avatarUrl);
+  const down = isDown(hpCurrent);
   return (
     <article data-slot="hero-card" aria-label={name}
-      className="grid min-w-0 content-start overflow-hidden rounded-panel border border-border-strong bg-card shadow-[inset_0_0_0_3px_var(--color-surface-raised),inset_0_0_0_4px_var(--color-border-subtle)]">
-      {avatarUrl && (
-        <img src={avatarUrl} alt={`Retrato de ${name}`}
+      className="@container grid min-w-0 content-start overflow-hidden rounded-panel border border-border-strong bg-card shadow-[inset_0_0_0_3px_var(--color-surface-raised),inset_0_0_0_4px_var(--color-border-subtle)]">
+      {portrait.src && (
+        <img src={portrait.src} alt={`Retrato de ${name}`} onError={portrait.onError}
           className="m-1 mb-0 aspect-[16/10] w-[calc(100%-8px)] rounded-[7px] border border-border object-cover object-top" />
       )}
 
       <div className="grid min-w-0 gap-4 p-4">
-        <header className="flex min-w-0 items-center gap-3">
-          {!avatarUrl && <Avatar name={name} variant="character" size="md" />}
-          <div className="grid min-w-0 flex-1 gap-0.5">
+        {/* Narrow, the name gets a row of its own instead of breaking mid-word
+            between the token and the shield. */}
+        <header className={cn('grid min-w-0 items-center gap-3',
+          portrait.src ? 'grid-cols-[minmax(0,1fr)_auto]' : 'grid-cols-[auto_minmax(0,1fr)_auto] @max-[320px]:grid-cols-[auto_1fr]')}>
+          {!portrait.src && <Avatar name={name} variant="character" size="md" />}
+          <div className={cn('grid min-w-0 gap-0.5', !portrait.src && '@max-[320px]:col-span-2 @max-[320px]:row-start-2')}>
             <h3 className="m-0 font-display text-h2 font-semibold [overflow-wrap:anywhere]">{name}</h3>
             <p className="m-0 text-small text-text-secondary">{classLine(character)}</p>
           </div>
-          <ArmorShield value={character.ac} />
+          <ArmorShield value={character.ac} className={cn(!portrait.src && '@max-[320px]:col-start-2 @max-[320px]:row-start-1 @max-[320px]:justify-self-end')} />
         </header>
 
         <div className="grid gap-1">
           <p className="m-0 flex items-baseline justify-between gap-2 text-small text-text-muted">
-            <span>Pontos de vida{hpTemp > 0 && `, +${hpTemp} temporários`}</span>
-            <b className="font-mono font-semibold text-foreground tabular-nums">
+            <span>Pontos de vida{hpTemp > 0 && `, +${hpTemp} temporários`}{down && ', caído'}</span>
+            <b className={cn('font-mono font-semibold tabular-nums', down ? 'text-danger-text' : 'text-foreground')}>
               <span aria-hidden="true">{hpCurrent} / {hp}</span>
               <span className="sr-only">{hpLabel(hpCurrent, hp, hpTemp)}</span>
             </b>
@@ -58,7 +65,7 @@ export function HeroCard({ character, onOpen, actions }: {
           <HpMeter current={hpCurrent} max={hp} temp={hpTemp} />
         </div>
 
-        <dl className="m-0 grid grid-cols-3 gap-3">
+        <dl className="m-0 grid grid-cols-[repeat(auto-fit,minmax(5.5rem,1fr))] gap-3">
           <div className={fact}><dt>Iniciativa</dt><dd>{signed(initiative(character))}</dd></div>
           <div className={fact}><dt>Deslocamento</dt><dd>{formatSpeed(character.speed)}</dd></div>
           <div className={fact}><dt>Percepção passiva</dt><dd>{passivePerception(character)}</dd></div>

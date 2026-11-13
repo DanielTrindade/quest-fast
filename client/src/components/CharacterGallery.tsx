@@ -94,7 +94,10 @@ export function CharacterGallery({ characters, selectedId, onSelect, onOpen, onC
     <div data-slot="character-gallery" className="@container min-w-0">
       <div className="hidden @min-[760px]:grid @min-[760px]:grid-cols-[minmax(220px,0.55fr)_minmax(0,1.6fr)] @min-[760px]:items-start @min-[760px]:gap-6">
         <Roster characters={characters} selectedId={selected.id} onSelect={onSelect} onCreate={onCreate} />
-        <CharacterShowcase character={selected} onOpen={() => onOpen(selected)} actions={actions?.(selected)} />
+        {/* Sticky, so picking from a long list never changes it out of sight. */}
+        <div className="sticky top-4 min-w-0">
+          <CharacterShowcase character={selected} onOpen={() => onOpen(selected)} actions={actions?.(selected)} />
+        </div>
       </div>
       <div className="grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(min(100%,260px),1fr))] @min-[760px]:hidden">
         {characters.map((character) => (

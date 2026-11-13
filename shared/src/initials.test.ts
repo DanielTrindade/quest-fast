@@ -25,3 +25,11 @@ test('skipped words fall back to every lettered word', () => {
   assert.equal(initials('A névoa de Baróvia', connective), 'NB');
   assert.equal(initials('de e da', connective), 'DD');
 });
+
+test('a generational suffix is not the last initial', () => {
+  assert.equal(initials('Sir Reginald Ashworth-Pemberton III'), 'SA');
+  assert.equal(initials('Martin Luther King Jr.'), 'MK');
+  assert.equal(initials('Elizabeth II'), 'E');
+  assert.equal(initials('Ivo'), 'I');
+  assert.equal(initials('X'), 'X');
+});

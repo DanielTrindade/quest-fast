@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { expect, fn, userEvent, within } from 'storybook/test';
+import { expect, fn, userEvent, waitFor, within } from 'storybook/test';
 import { CharacterShowcase } from '../components/CharacterShowcase';
 import { Button } from '../components/ui/button';
 import { elara, hazin, tobias, worstCase } from './fixtures/my-characters';
@@ -44,4 +44,16 @@ export const NaReserva: Story = {
 export const PiorCaso: Story = {
   name: 'Pior caso',
   args: { character: worstCase },
+};
+
+export const RetratoQuebrado: Story = {
+  name: 'Retrato que não carrega',
+  args: { character: { ...tobias, avatarUrl: '/avatars/removido-do-discord.png' } },
+  play: async ({ canvasElement }) => {
+    const [region] = within(canvasElement).getAllByRole('region', { name: /^Tema / });
+    const view = within(region);
+    // The broken image gives way to the token with the initials.
+    await waitFor(() => expect(view.queryByRole('img', { name: /^Retrato de / })).toBeNull());
+    await expect(view.getAllByRole('img', { name: 'Tobias Pé-de-Vento' })[0]).toBeVisible();
+  },
 };
