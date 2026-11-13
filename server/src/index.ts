@@ -8,6 +8,7 @@ import { createDiskAssetStore, createR2AssetStore } from './assets/store.ts';
 import { InvalidEnv, readEnv } from './env.ts';
 import { createEventHub } from './events/hub.ts';
 import { attachWebSocket } from './events/ws.ts';
+import { createTokenLocks } from './scenes/locks.ts';
 
 try {
   const env = readEnv();
@@ -21,8 +22,9 @@ try {
   });
 
   const hub = createEventHub();
+  const locks = createTokenLocks();
   const assets = env.r2 ? createR2AssetStore(env.r2) : createDiskAssetStore(env.uploadsDir);
-  const app = createApp({ db, env, discord, hub, assets });
+  const app = createApp({ db, env, discord, hub, assets, locks });
 
   // One HTTP server carries REST, the SPA and the WebSocket — the upgrade
   // belongs to us, so the listener is built with getRequestListener (serve()
@@ -32,7 +34,7 @@ try {
     console.log(`quest-fast on http://localhost:${env.port}`);
     console.log(env.r2 ? `uploads: R2 bucket ${env.r2.bucket} (${env.r2.publicUrl})` : `uploads: disk (${env.uploadsDir})`);
   });
-  attachWebSocket(server, { db, hub });
+  attachWebSocket(server, { db, hub, locks });
 } catch (error) {
   if (error instanceof InvalidEnv) {
     console.error(error.message);

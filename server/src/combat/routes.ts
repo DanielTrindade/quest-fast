@@ -51,6 +51,7 @@ import { recordCombatEvent, recordRollEvent } from '../events/feed.ts';
 import type { Viewer } from '../events/hub.ts';
 import { requireAuth, requireCampaignRole } from '../middleware.ts';
 import { boundedInteger, shortText } from '../validation.ts';
+import { bumpScenes, publishScenes, scenesShowing } from '../scenes/store.ts';
 import { projectEncounter } from './projection.ts';
 import { attacksOf, findEncounter, loadEncounter, queueOrder, turnOrder, type Executor, type LoadedCombatant, type LoadedEncounter } from './state.ts';
 
@@ -929,22 +930,29 @@ async function mutate(
   const encounterId = c.req.param('encounterId') ?? '';
   const events: SessionEvent[] = [];
   const touched = new Set<string>();
+  let shown: string[] = [];
 
   try {
     const loaded = db.transaction((tx) => {
       const encounter = findEncounter(tx, c.var.campaignId, encounterId);
       // A player cannot tell an encounter in preparation from a missing one.
       if (!encounter || (viewer.role !== 'master' && encounter.status === 'preparing')) refuse(404, NOT_FOUND);
-      run({ tx, loaded: loadEncounter(tx, encounter), viewer, events, characters: touched, userName: c.var.user.name }, body);
+      const before = loadEncounter(tx, encounter);
+      // Read before the change: removing a combatant takes its token with it.
+      shown = scenesShowing(tx, { combatantIds: before.combatants.map((combatant) => combatant.row.id) });
+      run({ tx, loaded: before, viewer, events, characters: touched, userName: c.var.user.name }, body);
       tx.update(encounters)
         .set({ version: sql`${encounters.version} + 1` })
         .where(eq(encounters.id, encounter.id))
         .run();
+      bumpScenes(tx, shown);
       return loadEncounter(tx, findEncounter(tx, c.var.campaignId, encounter.id)!);
     });
 
     for (const event of events) hub.publish(c.var.campaignId, event);
     hub.publishCombat(c.var.campaignId, (connection) => projectEncounter(loaded, connection));
+    // A token reads its combatant: hidden, renamed or removed, the map changes too.
+    publishScenes(c.var.deps, c.var.campaignId, shown);
     // A sheet is shared: the other encounters it is in changed too.
     for (const characterId of touched) {
       publishCharacterEncounters(c.var.deps, c.var.campaignId, characterId, loaded.encounter.id);
@@ -958,7 +966,7 @@ async function mutate(
   }
 }
 
-type Deps = Pick<Context['Variables']['deps'], 'db' | 'hub'>;
+type Deps = Pick<Context['Variables']['deps'], 'db' | 'hub' | 'assets' | 'locks'>;
 
 /**
  * Drops for good the reminders a sheet change made meaningless, on every
@@ -1024,7 +1032,11 @@ export function publishCharacterEncounters(deps: Deps, campaignId: string, chara
  */
 export function deleteCharacter(deps: Deps, campaignId: string, characterId: string) {
   const { db, hub } = deps;
+  let shown: string[] = [];
   const changed = db.transaction((tx) => {
+    // Its token goes with it.
+    shown = scenesShowing(tx, { characterId });
+    bumpScenes(tx, shown);
     const ids = openEncountersOf(tx, campaignId, characterId);
     for (const id of ids) {
       const loaded = loadEncounter(tx, findEncounter(tx, campaignId, id)!);
@@ -1036,6 +1048,17 @@ export function deleteCharacter(deps: Deps, campaignId: string, characterId: str
     return ids.map((id) => loadEncounter(tx, findEncounter(tx, campaignId, id)!));
   });
   for (const loaded of changed) hub.publishCombat(campaignId, (viewer) => projectEncounter(loaded, viewer));
+  publishScenes(deps, campaignId, shown);
+}
+
+/** For a change to a sheet: the scenes where the character's token shows its name, size and avatar. */
+export function publishCharacterScenes(deps: Deps, campaignId: string, characterId: string) {
+  const shown = deps.db.transaction((tx) => {
+    const ids = scenesShowing(tx, { characterId });
+    bumpScenes(tx, ids);
+    return ids;
+  });
+  publishScenes(deps, campaignId, shown);
 }
 
 /**
@@ -1113,7 +1136,15 @@ export function encounterRoutes() {
     }
     if (c.var.role !== 'master') return c.json({ error: MASTER_ONLY }, 403);
     if (encounter.status === 'active') return c.json({ error: 'Encerre o combate antes de excluí-lo.' }, 409);
-    db.delete(encounters).where(eq(encounters.id, encounter.id)).run();
+    const shown = db.transaction((tx) => {
+      // Read before the delete, which takes the combatants and their tokens.
+      const combatantIds = tx.select({ id: combatants.id }).from(combatants).where(eq(combatants.encounterId, encounter.id)).all();
+      const ids = scenesShowing(tx, { combatantIds: combatantIds.map(({ id }) => id) });
+      tx.delete(encounters).where(eq(encounters.id, encounter.id)).run();
+      bumpScenes(tx, ids);
+      return ids;
+    });
+    publishScenes(c.var.deps, c.var.campaignId, shown);
     // Whoever has it open must learn it is gone; one in preparation was never a player's.
     c.var.deps.hub.publishCombatDeleted(
       c.var.campaignId,

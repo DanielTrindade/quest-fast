@@ -48,7 +48,7 @@ import type { AssetStore } from '../assets/store.ts';
 import type { Context } from '../context.ts';
 import { requireAuth, requireCampaignRole } from '../middleware.ts';
 import { recordRollEvent } from '../events/feed.ts';
-import { deleteCharacter, publishCharacterEncounters, settleCharacterReminders } from '../combat/routes.ts';
+import { deleteCharacter, publishCharacterEncounters, publishCharacterScenes, settleCharacterReminders } from '../combat/routes.ts';
 import { boundedInteger, fail, isInputError, parseAttack, shortText, withInput } from '../validation.ts';
 
 function uniqueStrings<T>(values: T[]): T[] {
@@ -631,6 +631,8 @@ export function characterRoutes() {
     if (isInputError(result)) return c.json({ error: result.inputError }, 422);
     // Name, armor class and hit points show in the encounters the character is in.
     publishCharacterEncounters(c.var.deps, c.var.campaignId, current.id);
+    // And its token on the map.
+    publishCharacterScenes(c.var.deps, c.var.campaignId, current.id);
 
     const updated = characterSelect(db, c.var.campaignId, current.id)!;
     return c.json({ character: toSheet(updated, c.var.deps.assets) });

@@ -280,7 +280,14 @@ filiação (o mestre remove o membro ou ele sai) chama `hub.kick`, que tira os
 sockets daquele usuário da sala e os fecha com o código 4404; uma rota futura
 que mude o papel precisa fazer o mesmo, para a reconexão passar pela
 autorização de novo. Não há replay de eventos: ao reconectar, o cliente refaz o
-fetch. Novos tipos de evento (combate, tokens) entram no mesmo canal, e o
+fetch.
+
+O socket recebe uma única mensagem do cliente, `token.move` (veja "Movimento"
+abaixo); todo o resto continua em REST, com o RBAC testado nas rotas. A
+entrada é validada em `server/src/events/inbound.ts`: frame de até 1 KB (acima
+disso o socket fecha com 1009), no máximo 40 mensagens por segundo por socket
+(o excedente é descartado sem resposta) e só quem tem a trava do token é
+repassado. Novos tipos de evento (combate, tokens) entram no mesmo canal, e o
 cliente tem fallback para tipos que ainda não sabe renderizar.
 
 ### Combate
@@ -322,8 +329,11 @@ As escolhas da fase 4 foram fechadas por medição no
 implementados: regras do grid e limites do mapa em `shared/src/battlefield.ts`,
 a tabela `scenes` e as rotas de cena em `server/src/scenes/` (criar com o
 mapa, editar nome e grid, trocar o mapa, excluir, abrir e fechar para a mesa),
-com `scene.updated` e `scene.closed` no socket, e as telas da entrega 1;
-tokens e fog chegam nas entregas seguintes.
+com `scene.updated` e `scene.closed` no socket, e as telas da entrega 1. Da
+entrega 2, o servidor dos tokens: a tabela `tokens`, as rotas em
+`server/src/scenes/tokens.ts`, as travas em memória
+(`server/src/scenes/locks.ts`) e o socket recebendo `token.move`; as telas dos
+tokens vêm em seguida, e o fog na entrega 3.
 
 - **Onde as telas moram (#88).** Com a campanha dividida em rotas, a "seção
   Mapa" da spec não volta à página única: a lista de cenas do mestre é uma
@@ -362,6 +372,19 @@ tokens e fog chegam nas entregas seguintes.
   publica `scene.updated`, que vence qualquer interpolação. O receptor
   interpola com um buffer de intervalo + jitter. A posse por papel é conferida
   no `grab` e de novo ao soltar.
+- **Travas em memória, num só processo.** `createTokenLocks` guarda quem
+  arrasta cada token e a última posição recebida. Uma trava que expira sem
+  movimento, ou cujo dono fecha o socket, é *abandonada*: o servidor grava a
+  última posição recebida (com encaixe no grid), sobe a `version` e publica a
+  cena, e o token fica livre. Pegar o token também publica a cena, com
+  `movingBy` dizendo quem move. Rodar mais de um processo exigiria levar as
+  travas para fora da memória.
+- **O combate muda o mapa.** Um token de combatente lê nome, tamanho e
+  visibilidade do combatente; toda mudança num encontro sobe a `version` e
+  republica as cenas que têm tokens dos seus combatentes, inclusive quando a
+  mudança os remove (o combatente removido ou o encontro excluído leva o token
+  junto, por cascata). Editar a ficha ou excluir o personagem faz o mesmo com o
+  token dele.
 
 ```mermaid
 sequenceDiagram
