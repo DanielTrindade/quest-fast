@@ -911,12 +911,61 @@ async function screenOf(page, scene) {
   const frame = mapFrame(page);
   await frame.scrollIntoViewIfNeeded();
   await frame.getByRole('button', { name: 'Enquadrar o mapa' }).click();
-  await sleep(500);
-  const box = await frame.locator('canvas').boundingBox();
-  const scale = Math.min(box.width / scene.mapWidth, box.height / scene.mapHeight);
+  // The framing glides for a few frames, slower in a busy window: wait until
+  // the zoom on screen is the framed one and the canvas holds still.
+  const canvas = frame.locator('canvas');
+  let box;
+  let scale;
+  let last = '';
+  for (let steady = 0, i = 0; steady < 2 && i < 50; i += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    box = await canvas.boundingBox();
+    scale = Math.min(box.width / scene.mapWidth, box.height / scene.mapHeight);
+    const shown = await zoomShown(page);
+    const key = `${box.x},${box.y},${box.width},${box.height},${shown}`;
+    steady = shown === Math.round(scale * 100) && key === last ? steady + 1 : 0;
+    last = key;
+  }
   const left = box.x + (box.width - scene.mapWidth * scale) / 2;
   const top = box.y + (box.height - scene.mapHeight * scale) / 2;
-  return (point) => ({ x: left + point.x * scale, y: top + point.y * scale });
+  const toScreen = (point) => ({ x: left + point.x * scale, y: top + point.y * scale });
+  toScreen.zoom = Math.round(scale * 100);
+  toScreen.box = box;
+  return toScreen;
+}
+
+/** The zoom the map shows ("38%"), as a number. */
+async function zoomShown(page) {
+  const text = await mapFrame(page).locator('p').filter({ hasText: /\d+%/ }).first().textContent().catch(() => '');
+  return Number(text.match(/(\d+)%/)?.[1] ?? NaN);
+}
+
+/**
+ * What was under the pointer when a drag started, to tell a missed token from
+ * one that refused the drag when the drop never comes.
+ */
+async function probePress(page, at) {
+  const under = await page.evaluate(({ x, y }) => {
+    const element = document.elementFromPoint(x, y);
+    if (!element) return 'nada';
+    const slot = element.closest('[data-slot]')?.getAttribute('data-slot');
+    return `${element.tagName.toLowerCase()}${slot ? ` em [data-slot=${slot}]` : ''}`;
+  }, at);
+  const box = await mapFrame(page).locator('canvas').boundingBox();
+  return { under, box, zoom: await zoomShown(page), image: await visibleCanvas(page, box) };
+}
+
+/**
+ * The part of the canvas inside the window. A locator screenshot would scroll
+ * the page to show the whole canvas, and the press, already aimed, would miss.
+ */
+async function visibleCanvas(page, box) {
+  const size = await page.evaluate(() => ({ width: window.innerWidth, height: window.innerHeight }));
+  const x = Math.max(0, box.x);
+  const y = Math.max(0, box.y);
+  const clip = { x, y, width: Math.min(box.x + box.width, size.width) - x, height: Math.min(box.y + box.height, size.height) - y };
+  if (clip.width <= 0 || clip.height <= 0) return null;
+  return page.screenshot({ clip }).catch(() => null);
 }
 
 /** Presses on (from), drags in steps to (to) and, unless holding, lets go. */
@@ -939,11 +988,16 @@ async function dragOnMap(page, from, to, { hold = false } = {}) {
  */
 async function moveToken(who, name, to, options = {}) {
   if (options.hold) return dragToken(who, name, to, options);
+  const probe = {};
   try {
-    return await dragToken(who, name, to, { ...options, patience: 8000 });
+    return await dragToken(who, name, to, { ...options, patience: 8000, probe });
   } catch {
-    // Seen now and then right after another drop: the press does not take the token.
+    // The drop never came: say what the press met, then try once more.
+    const after = probe.box ? await visibleCanvas(who.page, probe.box) : null;
+    const moved = probe.image && after ? (probe.image.equals(after) ? 'não' : 'sim') : '?';
     say(`    [AVISO] o arrasto de ${name} não pegou na tela de ${who.label}; nova tentativa.`);
+    say(`      sob o ponteiro: ${probe.under}; selecionado depois do toque: ${probe.selected ?? 'nenhum'}; /grab enviado: ${probe.grabbed ? 'sim' : 'não'}`);
+    say(`      zoom na tela ${probe.zoom}% (esperado ${probe.expectedZoom}%); canvas ${JSON.stringify(probe.box)}; reenquadrado antes do toque: ${probe.reframed ? 'sim' : 'não'}; o mapa mudou: ${moved}`);
     retriedDrags.push(`${name} (${who.label})`);
     await sleep(1000);
     return dragToken(who, name, to, options);
@@ -951,15 +1005,36 @@ async function moveToken(who, name, to, options = {}) {
 }
 
 const retriedDrags = [];
+const reaimedDrags = [];
 
-async function dragToken(who, name, to, { hold = false, confirm = null, patience } = {}) {
+async function dragToken(who, name, to, { hold = false, confirm = null, patience, probe = null } = {}) {
   const page = who.page;
   const scene = await readScene(who.session);
   const token = tokenNamed(scene, name);
   if (!token) throw new Error(`${name} não está no mapa de ${who.label}`);
-  const screen = await screenOf(page, scene);
+  let screen = await screenOf(page, scene);
+  // The layout may still shift between framing and pressing: aim again if the canvas moved.
+  const now = await mapFrame(page).locator('canvas').boundingBox();
+  if (['x', 'y', 'width', 'height'].some((key) => Math.abs(now[key] - screen.box[key]) > 0.5)) {
+    if (probe) probe.reframed = true;
+    reaimedDrags.push(`${name} (${who.label})`);
+    screen = await screenOf(page, scene);
+  }
+  const start = screen(token);
   const end = screen(to);
-  await dragOnMap(page, screen(token), end, { hold: true });
+  if (probe) {
+    Object.assign(probe, await probePress(page, start), { expectedZoom: screen.zoom });
+    const onGrab = (request) => { if (request.url().endsWith(`/tokens/${token.id}/grab`)) probe.grabbed = true; };
+    page.on('request', onGrab);
+    setTimeout(() => page.off('request', onGrab), 15000);
+  }
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down();
+  if (probe) probe.selected = await tokenPanel(page).locator('button[aria-pressed="true"]').first().textContent({ timeout: 1000 }).catch(() => null);
+  const steps = 12;
+  for (let i = 1; i <= steps; i += 1) {
+    await page.mouse.move(start.x + ((end.x - start.x) * i) / steps, start.y + ((end.y - start.y) * i) / steps);
+  }
   // Held still, the drag would read as over after a second: the hand wobbles a little.
   let held = hold;
   const wobble = (async () => {
@@ -1138,7 +1213,13 @@ async function partyTakesPositions() {
   say('  Cada jogador arrasta o próprio personagem para a trilha.');
   const scene = await readScene();
   const spots = [[8, 13], [7, 12], [7, 14], [6, 13]];
-  await Promise.all(players.map((player, index) => moveToken(player, player.characterName, cellCentre(scene, ...spots[index]))));
+  // They head west from a row, so each starts a moment after the one to their
+  // left: no one presses their own token while another token passes over it.
+  const fromWest = [...players].sort((a, b) => tokenNamed(scene, a.characterName).x - tokenNamed(scene, b.characterName).x);
+  await Promise.all(players.map(async (player, index) => {
+    await new Promise((resolve) => setTimeout(resolve, fromWest.indexOf(player) * 1500));
+    await moveToken(player, player.characterName, cellCentre(scene, ...spots[index]));
+  }));
   const after = await readScene();
   const moved = players.filter((player, index) => samePoint(tokenNamed(after, player.characterName), cellCentre(after, ...spots[index]))).length;
   check('cada jogador arrasta o próprio token', moved === players.length, `${moved} de ${players.length}`);
@@ -1981,6 +2062,7 @@ for (const label of expected) {
 }
 for (const [label, result] of checks) if (!expected.includes(label)) say(`  ${result.ok ? 'OK   ' : 'FALHA'} ${label}${result.detail ? ` (${result.detail})` : ''}`);
 
+if (reaimedDrags.length > 0) say(`\nArrastos remirados porque o canvas se moveu antes do toque: ${reaimedDrags.join(', ')}.`);
 if (retriedDrags.length > 0) say(`\nArrastos que precisaram de nova tentativa: ${retriedDrags.join(', ')}.`);
 
 say('\nSimulação concluída. Feche qualquer janela ou pressione Ctrl+C para sair.');
