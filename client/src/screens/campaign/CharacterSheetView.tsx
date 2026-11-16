@@ -33,7 +33,7 @@ import { CoinPurse } from '../../components/CoinPurse';
 import { ConditionPicker } from '../../components/ConditionPicker';
 import { DeathSaves } from '../../components/DeathSaves';
 import { DerivedStats } from '../../components/DerivedStats';
-import { DiceResult } from '../../components/DiceResult';
+import { LinkedRollResult } from '../../components/LinkedRollResult';
 import { EquipmentTraining } from '../../components/EquipmentTraining';
 import { HeroicInspiration } from '../../components/HeroicInspiration';
 import { HitDiceTracker } from '../../components/HitDiceTracker';
@@ -50,7 +50,6 @@ import { TraitList } from '../../components/TraitList';
 import { conditionLabel } from '../../lib/combat-labels';
 import { contentKeys } from '../../lib/content-keys';
 import { ABILITY_ABBREVIATIONS, ABILITY_LABELS, SKILL_LABELS } from '../../lib/5e';
-import { rollActionLabel, rollDecomposition } from '../../lib/roll-labels';
 import { dialogActions, sheetEmpty } from '../../components/layout-styles';
 import { trackerLabel, trackerPanel } from '../../components/sheet-styles';
 
@@ -378,14 +377,7 @@ function RollResult({
       )}
 
       {lastRoll && !rolling && !rollError && (
-        <DiceResult
-          label={`${rollActionLabel(lastRoll)} de ${character.name}`}
-          total={lastRoll.total}
-          decomposition={rollDecomposition(lastRoll)}
-          dice={lastRoll.dice}
-          mode={lastRoll.mode}
-          natural={lastRoll.natural}
-        />
+        <LinkedRollResult payload={lastRoll} name={character.name} />
       )}
     </div>
   );

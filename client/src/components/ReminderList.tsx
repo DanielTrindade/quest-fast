@@ -1,6 +1,6 @@
 import { useId, useState } from 'react';
-import { Brain, DiceFive, Skull, Sword } from '@phosphor-icons/react';
-import { COMBAT_LIMITS, halfDamage, type CombatReminder, type PendingDamage } from '@quest-fast/shared';
+import { Brain, Check, DiceFive, ShieldWarning, Skull, Sword } from '@phosphor-icons/react';
+import { COMBAT_LIMITS, halfDamage, type CombatReminder, type PendingDamage, type PendingSave } from '@quest-fast/shared';
 import { ABILITY_LABELS } from '../lib/5e';
 import { Button } from './Button';
 import { Input } from './ui/input';
@@ -24,6 +24,12 @@ function damageText(reminder: PendingDamage): string {
   return `Dano pendente: ${reminder.amount}${type}${critical} de ${reminder.attackerName} com ${reminder.attackName}.${save}`;
 }
 
+/** "Salvaguarda de Destreza CD 13 contra Graxa de Elara, sem dano. Cai se falhar." */
+function saveText(reminder: PendingSave): string {
+  const effect = reminder.notes ? ` ${reminder.notes.replace(/\.?$/, '.')}` : '';
+  return `Salvaguarda de ${ABILITY_LABELS[reminder.ability]} CD ${reminder.dc} contra ${reminder.attackName} de ${reminder.attackerName}, sem dano.${effect}`;
+}
+
 function text(reminder: CombatReminder, resolves: boolean): string {
   switch (reminder.kind) {
     case 'concentration':
@@ -32,12 +38,15 @@ function text(reminder: CombatReminder, resolves: boolean): string {
       return 'Sofreu dano caído: marque uma falha no teste contra a morte, ou duas se foi um crítico.';
     case 'pendingDamage':
       return resolves ? damageText(reminder) : `${damageText(reminder)} Aguardando o mestre.`;
+    case 'pendingSave':
+      return saveText(reminder);
   }
 }
 
 function Icon({ kind }: { kind: CombatReminder['kind'] }) {
   if (kind === 'concentration') return <Brain size={18} aria-hidden="true" className="mt-0.5 flex-none text-accent-text" />;
   if (kind === 'pendingDamage') return <Sword size={18} aria-hidden="true" className="mt-0.5 flex-none text-danger-text" />;
+  if (kind === 'pendingSave') return <ShieldWarning size={18} aria-hidden="true" className="mt-0.5 flex-none text-accent-text" />;
   return <Skull size={18} aria-hidden="true" className="mt-0.5 flex-none text-danger-text" />;
 }
 
@@ -141,6 +150,12 @@ export function ReminderList({ name, reminders, pending = false, master = false,
                   <DamageControls name={name} reminder={reminder} pending={pending}
                     onApply={(amount) => onApplyDamage(reminder.id, amount)}
                     onDismiss={dismiss && (() => dismiss(reminder.id))} />
+                ) : reminder.kind === 'pendingSave' ? (
+                  dismiss && (
+                    <Button variant="secondary" disabled={pending} onClick={() => dismiss(reminder.id)}>
+                      <Check size={18} aria-hidden="true" /> Resolvido<span className="sr-only"> a salvaguarda de {name}</span>
+                    </Button>
+                  )
                 ) : (
                   dismiss && (
                     <Button variant="ghost" disabled={pending} onClick={() => dismiss(reminder.id)}>

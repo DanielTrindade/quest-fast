@@ -251,6 +251,55 @@ test('an attack against a save rolls the damage and leaves it pending with the D
   assert.equal(reminder.critical, false);
 });
 
+function saves(reminders: CombatReminder[]) {
+  return reminders.filter((reminder) => reminder.kind === 'pendingSave');
+}
+
+test('a save without damage calls for the save and leaves it pending on the target, secret when the attack was', async () => {
+  const { s, at, id, path, view } = await fight();
+  const grease = { kind: 'save', name: 'Graxa', dc: 12, saveAbility: 'dexterity', damage: '', notes: 'Cai se falhar' };
+  const witch = (
+    await body<StatblockResponse>(
+      await send(s.master, `${s.root}/statblocks`, 'POST', {
+        name: 'Bruxa', size: 'medium', ac: 12, hpAverage: 20, hpFormula: '4d8+2', initiativeBonus: 0,
+        abilityScores: { strength: 8, dexterity: 12, constitution: 12, intelligence: 14, wisdom: 14, charisma: 10 },
+        attacks: [grease],
+      }),
+    )
+  ).statblock;
+  const added = await encounterOf(
+    await send(s.master, `${path}/combatants`, 'POST', { source: 'statblock', statblockId: witch.id, count: 2, hp: 'average' }),
+    201,
+  );
+  // Out of turn, an attack spends the reaction: each witch casts once.
+  const witchAt = (name: string) => `${path}/combatants/${byName(added, name).id}/attack`;
+
+  // A monster's attack is secret by default: the player does not learn of it.
+  await attacked(await send(s.master, witchAt('Bruxa 1'), 'POST', { attackIndex: 0, targetId: id('Kaelen') }));
+  const [hidden] = saves(byName(await view(s.master), 'Kaelen').reminders);
+  assert.ok(hidden?.kind === 'pendingSave');
+  assert.deepEqual(
+    { dc: hidden.dc, ability: hidden.ability, attackName: hidden.attackName, notes: hidden.notes, secret: hidden.secret },
+    { dc: 12, ability: 'dexterity', attackName: 'Graxa', notes: 'Cai se falhar', secret: true },
+  );
+  assert.deepEqual(saves(byName(await view(s.player), 'Kaelen').reminders), []);
+  const [roll] = await rolls(s, s.master);
+  assert.deepEqual(roll?.save, { dc: 12, ability: 'dexterity' });
+  assert.equal(roll?.damage, undefined);
+  assert.equal(pending(byName(await view(s.master), 'Kaelen').reminders).length, 0);
+
+  // In the open, the owner sees it and marks it resolved; nobody else may.
+  await attacked(await send(s.master, witchAt('Bruxa 2'), 'POST', { attackIndex: 0, targetId: id('Kaelen'), secret: false }));
+  const [open] = saves(byName(await view(s.player), 'Kaelen').reminders);
+  assert.ok(open?.kind === 'pendingSave' && !open.secret);
+  assert.equal((await send(s.otherPlayer, at('Kaelen', `/reminders/${open.id}`), 'DELETE')).status, 403);
+  const kaelen = byName(await encounterOf(await send(s.player, at('Kaelen', `/reminders/${open.id}`), 'DELETE')), 'Kaelen');
+  assert.deepEqual(saves(kaelen.reminders), []);
+  assert.deepEqual(saves(byName(await view(s.master), 'Kaelen').reminders).map((reminder) => reminder.id), [hidden.id]);
+  // Its effect is the table's: a player never reads a monster's save on a monster.
+  assert.deepEqual(byName(await view(s.player), 'Bruxa 1').reminders, []);
+});
+
 test('who may attack with whom, and at whom', async () => {
   const { s, at, id, path } = await fight();
   const kaelen = (payload: Record<string, unknown>) => send(s.player, at('Kaelen', '/attack'), 'POST', payload);
