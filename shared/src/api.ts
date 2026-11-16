@@ -472,10 +472,15 @@ export type StatblockInput = {
   reactions: string;
   /** Multiattack: attacks of one Attack action. 1 when absent. */
   attacksPerAction?: number;
+  /** An image uploaded to `/assets`; null removes it, absent keeps it. */
+  imageAssetId?: string | null;
 };
 
-export type Statblock = Omit<StatblockInput, 'attacks' | 'attacksPerAction'> & {
+export type Statblock = Omit<StatblockInput, 'attacks' | 'attacksPerAction' | 'imageAssetId'> & {
   attacksPerAction: number;
+  imageAssetId: string | null;
+  /** Where the browser loads the image from; its tokens show it too. */
+  imageUrl: string | null;
   id: string;
   campaignId: string;
   attacks: Attack[];
@@ -804,13 +809,24 @@ export type SceneView = {
  * A token on a scene, with its name and size already read from the origin
  * (the sheet, the combatant, or its own for a free token).
  */
+export type TokenVitality = 'up' | 'down' | 'defeated';
+
 export type TokenView = {
   id: string;
   kind: TokenKind;
   name: string;
   size: Size;
-  /** The character's avatar; null for everyone else, drawn with `initials`. */
+  /**
+   * The character's avatar, or the image of the bestiary entry a creature
+   * came from; null otherwise, drawn with `initials`.
+   */
   avatarUrl: string | null;
+  /**
+   * `down`: a character at 0 hit points, still making death saves.
+   * `defeated`: a creature of the fight at 0 hit points. A player learns no
+   * more than the health band already tells. A free token is always `up`.
+   */
+  vitality: TokenVitality;
   /** Fallback when there is no avatar, or while it loads. */
   initials: string;
   characterId: string | null;

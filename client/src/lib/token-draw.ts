@@ -1,6 +1,6 @@
 import type { TokenKind, TokenView } from '@quest-fast/shared';
 import type { MapView } from './map-view';
-import { screenRadius, toScreenPoint } from './token-geometry';
+import { inPaintOrder, screenRadius, toScreenPoint } from './token-geometry';
 
 type Point = { x: number; y: number };
 
@@ -28,6 +28,7 @@ function palette(themed: Element) {
       combatant: read('--color-danger'),
       free: read('--color-border-strong'),
     } satisfies Record<TokenKind, string>,
+    down: read('--color-danger'),
     // Source tokens only: an `@theme inline` alias (card, border) holds the
     // root's value, which would ignore a themed section's colours.
     disc: read('--color-surface-raised'),
@@ -77,6 +78,24 @@ function face(context: CanvasRenderingContext2D, token: DrawnToken, centre: Poin
   context.fillText(token.initials, centre.x, centre.y + radius * 0.04);
 }
 
+/** A defeated creature: an X across the disc, over a halo so it reads on any face. */
+function cross(context: CanvasRenderingContext2D, centre: Point, radius: number, colours: Palette) {
+  const reach = radius * 0.55;
+  context.beginPath();
+  context.moveTo(centre.x - reach, centre.y - reach);
+  context.lineTo(centre.x + reach, centre.y + reach);
+  context.moveTo(centre.x + reach, centre.y - reach);
+  context.lineTo(centre.x - reach, centre.y + reach);
+  context.lineCap = 'round';
+  context.lineWidth = Math.max(3, radius * 0.22);
+  context.strokeStyle = colours.halo;
+  context.stroke();
+  context.lineWidth = Math.max(2, radius * 0.12);
+  context.strokeStyle = colours.text;
+  context.stroke();
+  context.lineCap = 'butt';
+}
+
 function movingLabel(context: CanvasRenderingContext2D, name: string, centre: Point, radius: number, colours: Palette) {
   const size = 12;
   context.font = `500 ${size}px ${colours.font}`;
@@ -103,7 +122,9 @@ function movingLabel(context: CanvasRenderingContext2D, name: string, centre: Po
  * combatant or free. A hidden token (only the master gets one) has a dashed,
  * faded ring. The selected one has the focus ring around it. One someone else
  * is moving carries their name; the one being dragged here is lifted, with a
- * dashed outline on the cell it will rest on.
+ * dashed outline on the cell it will rest on. A defeated creature is grey,
+ * faded and crossed out, under the living; a character down is faded with a
+ * ring in the danger tone, still where it was: someone to help.
  */
 export function drawTokens(context: CanvasRenderingContext2D, scene: {
   tokens: readonly DrawnToken[];
@@ -119,7 +140,9 @@ export function drawTokens(context: CanvasRenderingContext2D, scene: {
   if (tokens.length === 0) return;
   const colours = palette(scene.themed);
 
-  for (const token of tokens) {
+  for (const token of inPaintOrder(tokens)) {
+    const defeated = token.vitality === 'defeated';
+    const down = token.vitality === 'down';
     const radius = screenRadius(token.size, cellSize, view.scale);
     const centre = toScreenPoint(view, token.at);
     const ringWidth = Math.max(2, Math.min(5, radius * 0.12));
@@ -132,7 +155,8 @@ export function drawTokens(context: CanvasRenderingContext2D, scene: {
     }
 
     context.save();
-    context.globalAlpha = token.hidden ? 0.55 : 1;
+    context.globalAlpha = (token.hidden ? 0.55 : 1) * (defeated ? 0.6 : down ? 0.75 : 1);
+    if (defeated) context.filter = 'grayscale(1)';
     if (token.lifted) {
       context.shadowColor = colours.shadow;
       context.shadowBlur = 14;
@@ -144,7 +168,8 @@ export function drawTokens(context: CanvasRenderingContext2D, scene: {
     context.globalAlpha = token.hidden ? 0.75 : 1;
     // A dark halo under the ring keeps it readable over any map, as the grid's does.
     ring(context, centre, radius, colours.halo, ringWidth + 2, false);
-    ring(context, centre, radius - 0.5, colours.rings[token.kind], ringWidth, token.hidden);
+    ring(context, centre, radius - 0.5, down ? colours.down : colours.rings[token.kind], ringWidth, token.hidden);
+    if (defeated) cross(context, centre, radius, colours);
     context.globalAlpha = 1;
 
     if (token.id === selectedId) ring(context, centre, radius + ringWidth + 3, colours.focus, 3, false);

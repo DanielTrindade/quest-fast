@@ -1,0 +1,1 @@
+ALTER TABLE `statblocks` ADD `image_asset_id` text REFERENCES assets(id) ON DELETE SET NULL;

@@ -3,6 +3,7 @@ import type { Meta, StoryObj } from '@storybook/react-vite';
 import { expect, fn, userEvent, within } from 'storybook/test';
 import { StatblockForm } from '../components/StatblockForm';
 import { goblin, npcSheetImport, wyrmDasCinzas } from './fixtures/statblocks';
+import { PORTRAIT } from './fixtures/my-characters';
 import { page } from '../components/layout-styles';
 
 const pdf = new File(['%PDF-1.7'], 'Ficha_Capita_Brisa.pdf', { type: 'application/pdf' });
@@ -155,5 +156,23 @@ export const EdicaoSemImportacao: Story = {
     for (const region of within(canvasElement).getAllByRole('region', { name: /^Tema / })) {
       await expect(within(region).queryByLabelText('Importar PDF')).toBeNull();
     }
+  },
+};
+
+/** The image is offered with an upload; removing it sends null on save. */
+export const EdicaoComImagem: Story = {
+  name: 'Edição com imagem',
+  args: {
+    statblock: { ...goblin, imageAssetId: 'img-goblin', imageUrl: PORTRAIT },
+    uploadImage: fn(async () => ({ id: 'img-new', url: PORTRAIT })),
+  },
+  play: async ({ canvasElement, args }) => {
+    const [region] = within(canvasElement).getAllByRole('region', { name: /^Tema / });
+    const form = within(region!);
+    await expect(form.getByText('Trocar imagem')).toBeVisible();
+    await userEvent.click(form.getByRole('button', { name: 'Remover imagem' }));
+    await expect(form.getByText('Enviar imagem')).toBeVisible();
+    await userEvent.click(form.getByRole('button', { name: /Salvar/ }));
+    await expect(args.onSubmit).toHaveBeenLastCalledWith(expect.objectContaining({ imageAssetId: null }));
   },
 };

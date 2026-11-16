@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { ABILITIES, abilityModifier, type Statblock } from '@quest-fast/shared';
 import { AttackCard } from './AttackCard';
+import { Avatar } from './Avatar';
 import { Surface } from './Surface';
 import { ABILITY_ABBREVIATIONS, ABILITY_LABELS, signed } from '../lib/5e';
 import { contentKeys } from '../lib/content-keys';
@@ -9,7 +10,7 @@ import { Badge } from './ui/badge';
 
 const aside = 'font-sans text-small font-normal text-text-muted';
 
-type StatblockView = Omit<Statblock, 'id' | 'campaignId' | 'createdAt' | 'updatedAt'>;
+type StatblockView = Omit<Statblock, 'id' | 'campaignId' | 'createdAt' | 'updatedAt' | 'imageAssetId' | 'imageUrl'> & Partial<Pick<Statblock, 'imageUrl'>>;
 
 function TextSection({ title, text, children }: { title: string; text: string; children?: ReactNode }) {
   if (!text.trim() && !children) return null;
@@ -35,6 +36,7 @@ export function StatblockCard({ statblock, actions }: { statblock: StatblockView
   return (
     <Surface variant="sheet" className="@container grid min-w-0 gap-4">
       <header className="flex flex-wrap items-start justify-between gap-3">
+        {statblock.imageUrl && <Avatar name={name} src={statblock.imageUrl} variant="character" size="lg" />}
         <div className="min-w-0 flex-[1_1_12rem]">
           <h3 className="font-display text-h1 font-semibold tracking-tight [overflow-wrap:anywhere]">{name}</h3>
           <p className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-text-secondary italic [overflow-wrap:anywhere]">

@@ -177,6 +177,8 @@ export {
   isMapType,
   isTokenKind,
   isTokenVisible,
+  tokenVitality,
+  type TokenVitalitySource,
   lockFor,
   maxGridColumns,
   snapToCell,
@@ -290,6 +292,7 @@ export type {
   TokenLockedResponse,
   TokenPatch,
   TokenView,
+  TokenVitality,
 } from './api.ts';
 export type {
   ErrorResponse,

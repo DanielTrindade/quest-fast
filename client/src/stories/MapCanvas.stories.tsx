@@ -7,7 +7,7 @@ import { fitView } from '../lib/map-view';
 import { canMoveToken } from '../lib/token-labels';
 import { createMotionStore } from '../lib/token-motion';
 import { PRINTED_CELL, SYNTHETIC_MAP, alignedSceneGrid, defaultSceneGrid, syntheticMapUrl } from './fixtures/maps';
-import { MASTER_ID, PLAYER_ID, cell, fightTokens, manyTokens, masterTokens, playerFightTokens, playerTokens } from './fixtures/tokens';
+import { MASTER_ID, PLAYER_ID, cell, fightTokens, manyTokens, masterTokens, playerFightTokens, playerTokens, vitalityTokens } from './fixtures/tokens';
 
 const meta = {
   title: 'Componentes/MapCanvas',
@@ -352,5 +352,17 @@ export const MovimentoAlemDoAlcance: Story = {
     await expect(bar.getByRole('button', { name: /Confirmar movimento/ })).toBeDisabled();
     await userEvent.click(bar.getByRole('button', { name: /Mover sem gastar/ }));
     await expect(confirmArgs.onFree).toHaveBeenCalled();
+  },
+};
+
+/** Mira is down (danger ring, faded); Goblin 1 is defeated (grey, crossed out, under the rest). */
+export const CaidoEDerrotado: Story = {
+  name: 'Caído e derrotado',
+  args: { ...tokenArgs, tokens: vitalityTokens(), viewerId: MASTER_ID },
+  render: (args) => <TokenMap {...args} master />,
+  play: async ({ canvasElement }) => {
+    const { frame, map } = await readyMap(canvasElement);
+    await expect(map.getByText(/7 tokens no mapa\. 1 caído, 1 derrotado\./)).toBeInTheDocument();
+    await waitFor(() => expect(painted(frame)).toBe(true));
   },
 };

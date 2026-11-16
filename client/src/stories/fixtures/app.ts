@@ -243,6 +243,8 @@ const guardian = fit('Guardião Esquecido das Catacumbas Submersas de Vel’Thar
 const worstStatblocks: Statblock[] = [
   {
     ...stamps,
+    imageAssetId: null,
+    imageUrl: null,
     id: 'guardian',
     name: guardian,
     size: 'gargantuan',

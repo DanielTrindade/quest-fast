@@ -1,5 +1,5 @@
 import { useId, useState, type KeyboardEvent } from 'react';
-import { Eye, EyeSlash, HandGrabbing, Trash } from '@phosphor-icons/react';
+import { Eye, EyeSlash, HandGrabbing, Heartbeat, Skull, Trash } from '@phosphor-icons/react';
 import type { TokenView } from '@quest-fast/shared';
 import { SIZE_LABELS } from '../lib/sheet-labels';
 import { TOKEN_KIND_LABELS, canMoveToken } from '../lib/token-labels';
@@ -97,6 +97,8 @@ function TokenTags({ token, own, viewerId }: { token: TokenView; own: boolean; v
       <span>{SIZE_LABELS[token.size]}</span>
       {own && <span className="font-semibold text-accent-text">Seu personagem</span>}
       {token.hidden && <span><EyeSlash size={14} aria-hidden="true" /> Escondido</span>}
+      {token.vitality === 'down' && <span className="font-semibold text-danger-text"><Heartbeat size={14} aria-hidden="true" /> Caído</span>}
+      {token.vitality === 'defeated' && <span><Skull size={14} aria-hidden="true" /> Derrotado</span>}
       {movingBy && <span><HandGrabbing size={14} aria-hidden="true" /> {movingBy} está movendo</span>}
     </span>
   );

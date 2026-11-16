@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { and, asc, eq, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
-import { statblocks, type Db, type StatblockRow } from '@quest-fast/db';
+import { assets, statblocks, type Db, type StatblockRow } from '@quest-fast/db';
 import {
   ABILITIES,
   CHARACTER_LIMITS as L,
@@ -15,13 +15,26 @@ import {
   type Statblock,
   type StatblockSummary,
 } from '@quest-fast/shared';
+import type { AssetStore } from '../assets/store.ts';
 import type { Context } from '../context.ts';
+import { bumpScenes, publishScenes, scenesShowing } from '../scenes/store.ts';
 import { requireAuth, requireCampaignRole } from '../middleware.ts';
 import { boundedInteger, fail, isInputError, parseAttack, shortText, withInput } from '../validation.ts';
 
-type StatblockColumns = Omit<StatblockRow, 'id' | 'campaignId' | 'createdAt' | 'updatedAt' | 'attacksPerAction'> & {
+type StatblockColumns = Omit<StatblockRow, 'id' | 'campaignId' | 'createdAt' | 'updatedAt' | 'attacksPerAction' | 'imageAssetId'> & {
   attacksPerAction?: number;
+  /** Absent keeps the image; null removes it. */
+  imageAssetId?: string | null;
 };
+
+/** The image must be an asset of this campaign, uploaded through `/assets`. */
+function parseImage(db: Db, campaignId: string, value: unknown): string | null | undefined {
+  if (value === undefined || value === null) return value;
+  if (typeof value !== 'string' || value.length === 0) fail('Imagem da criatura inválida.');
+  const asset = db.select({ campaignId: assets.campaignId }).from(assets).where(eq(assets.id, value)).get();
+  if (!asset || asset.campaignId !== campaignId) fail('Imagem da criatura inválida.');
+  return value;
+}
 
 /** Absent or empty text becomes ''; anything else must fit the limit. */
 function optionalText(value: unknown, limit: number, label: string): string {
@@ -47,8 +60,9 @@ function parseAbilityScores(value: unknown): AbilityScores {
  * The editor always sends the whole statblock, on create and on edit, so a
  * missing optional field means its default, never "keep the stored value".
  */
-function parseStatblockInput(body: unknown): StatblockColumns {
+function parseStatblockInput(db: Db, campaignId: string, body: unknown): StatblockColumns {
   const source = typeof body === 'object' && body !== null ? (body as Record<string, unknown>) : {};
+  const imageAssetId = parseImage(db, campaignId, source.imageAssetId);
 
   const name = shortText(source.name, S.name);
   if (!name) fail(`Informe o nome da criatura, com até ${S.name} caracteres.`);
@@ -110,11 +124,34 @@ function parseStatblockInput(body: unknown): StatblockColumns {
     actions: optionalText(source.actions, S.text, 'As ações'),
     reactions: optionalText(source.reactions, S.text, 'As reações'),
     ...(attacksPerAction === undefined ? {} : { attacksPerAction: attacksPerAction as number }),
+    ...(imageAssetId === undefined ? {} : { imageAssetId }),
   };
 }
 
-function toStatblock(row: StatblockRow): Statblock {
-  return { ...row, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() };
+function imagePath(db: Db, assetId: string | null): string | null {
+  if (!assetId) return null;
+  return db.select({ path: assets.path }).from(assets).where(eq(assets.id, assetId)).get()?.path ?? null;
+}
+
+function toStatblock(db: Db, store: AssetStore, row: StatblockRow): Statblock {
+  const path = imagePath(db, row.imageAssetId);
+  return {
+    ...row,
+    imageUrl: path ? store.urlFor(path) : null,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
+/** The tokens of this entry show its image: the scenes with them are told of a new one. */
+function publishStatblockScenes(c: { var: Context['Variables'] }, statblockId: string) {
+  const { deps, campaignId } = c.var;
+  const shown = deps.db.transaction((tx) => {
+    const ids = scenesShowing(tx, { statblockId });
+    bumpScenes(tx, ids);
+    return ids;
+  });
+  publishScenes(deps, campaignId, shown);
 }
 
 function findStatblock(db: Db, campaignId: string, statblockId: string) {
@@ -156,18 +193,18 @@ export function statblockRoutes() {
     const result = await withInput(() =>
       db
         .insert(statblocks)
-        .values({ id: randomUUID(), campaignId: c.var.campaignId, ...parseStatblockInput(body) })
+        .values({ id: randomUUID(), campaignId: c.var.campaignId, ...parseStatblockInput(db, c.var.campaignId, body) })
         .returning()
         .get(),
     );
     if (isInputError(result)) return c.json({ error: result.inputError }, 422);
-    return c.json({ statblock: toStatblock(result) }, 201);
+    return c.json({ statblock: toStatblock(db, c.var.deps.assets, result) }, 201);
   });
 
   routes.get('/:statblockId', (c) => {
     const row = findStatblock(c.var.deps.db, c.var.campaignId, c.req.param('statblockId'));
     if (!row) return c.json({ error: 'Criatura não encontrada.' }, 404);
-    return c.json({ statblock: toStatblock(row) });
+    return c.json({ statblock: toStatblock(c.var.deps.db, c.var.deps.assets, row) });
   });
 
   routes.patch('/:statblockId', async (c) => {
@@ -178,14 +215,15 @@ export function statblockRoutes() {
     const result = await withInput(() =>
       db
         .update(statblocks)
-        .set({ ...parseStatblockInput(body), updatedAt: new Date() })
+        .set({ ...parseStatblockInput(db, c.var.campaignId, body), updatedAt: new Date() })
         .where(eq(statblocks.id, row.id))
         .returning()
         // The row was found above, inside the same request.
         .get()!,
     );
     if (isInputError(result)) return c.json({ error: result.inputError }, 422);
-    return c.json({ statblock: toStatblock(result) });
+    if (result.imageAssetId !== row.imageAssetId) publishStatblockScenes(c, row.id);
+    return c.json({ statblock: toStatblock(db, c.var.deps.assets, result) });
   });
 
   routes.delete('/:statblockId', (c) => {

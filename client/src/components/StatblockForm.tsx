@@ -16,7 +16,10 @@ import {
   type StatblockFieldErrors,
   type StatblockInput,
 } from '@quest-fast/shared';
+import { ImageSquare } from '@phosphor-icons/react';
 import { AbilityInput } from './AbilityInput';
+import { Avatar } from './Avatar';
+import { Button } from './Button';
 import { AttackListEditor } from './AttackListEditor';
 import { Field } from './Field';
 import { FormFooter } from './FormFooter';
@@ -26,7 +29,7 @@ import { ABILITY_LABELS, SKILL_LABELS } from '../lib/5e';
 import { numberValue, toAttackInputs, toFormAttacks } from '../lib/form-attacks';
 import { UnreadableSheetError, readSheetPdf } from '../lib/sheet-pdf';
 import { SIZE_LABELS } from '../lib/sheet-labels';
-import { abilitiesGrid, fieldset, form, grid3, lock } from './form-styles';
+import { abilitiesGrid, fieldset, fileButton, form, grid3, lock } from './form-styles';
 
 /** A saved statblock, or one imported from an NPC sheet whose attacks may still have blanks. */
 type StatblockDraft = Omit<StatblockInput, 'attacks'> & { attacks: ReadonlyArray<Attack | ImportedAttack> };
@@ -50,6 +53,7 @@ function freshState(statblock: StatblockDraft | null) {
     traits: statblock?.traits ?? '',
     actions: statblock?.actions ?? '',
     reactions: statblock?.reactions ?? '',
+    imageAssetId: (statblock?.imageAssetId ?? null) as string | null,
   };
 }
 
@@ -74,6 +78,7 @@ function toInput(state: FormState): StatblockInput {
     traits: state.traits.trim(),
     actions: state.actions.trim(),
     reactions: state.reactions.trim(),
+    imageAssetId: state.imageAssetId,
   };
 }
 
@@ -90,7 +95,7 @@ export type StatblockFormHandle = { requestClose: () => void };
  * valid `StatblockInput` to `onSubmit`; saving is the consumer's job. The
  * dialog shell calls `requestClose` for every close attempt.
  */
-export function StatblockForm({ statblock, onSubmit, onRequestClose, pending = false, submitError, ref, readSheet = readSheetPdf }: {
+export function StatblockForm({ statblock, onSubmit, onRequestClose, pending = false, submitError, ref, readSheet = readSheetPdf, uploadImage }: {
   statblock: Statblock | null;
   onSubmit: (input: StatblockInput) => void;
   onRequestClose: () => void;
@@ -99,8 +104,30 @@ export function StatblockForm({ statblock, onSubmit, onRequestClose, pending = f
   ref?: Ref<StatblockFormHandle>;
   /** Reads an imported PDF; replaceable so stories can hold the read open. */
   readSheet?: (file: File) => Promise<SheetImportResult | null>;
+  /**
+   * Uploads the creature's image and answers with its asset; without it the
+   * image is kept as it is and not offered.
+   */
+  uploadImage?: (file: File) => Promise<{ id: string; url: string }>;
 }) {
   const [state, setState] = useState(() => freshState(statblock));
+  const [imageUrl, setImageUrl] = useState<string | null>(statblock?.imageUrl ?? null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const pickImage = async (file: File) => {
+    if (!uploadImage) return;
+    setUploading(true);
+    setUploadError(null);
+    try {
+      const asset = await uploadImage(file);
+      set('imageAssetId', asset.id);
+      setImageUrl(asset.url);
+    } catch (error) {
+      setUploadError(error instanceof Error && error.message ? error.message : 'Não foi possível enviar a imagem.');
+    } finally {
+      setUploading(false);
+    }
+  };
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setState((current) => ({ ...current, [key]: value }));
 
@@ -138,7 +165,8 @@ export function StatblockForm({ statblock, onSubmit, onRequestClose, pending = f
         return;
       }
       const { input, warnings } = statblockFromSheet(sheet, { abilities: ABILITY_LABELS, skills: SKILL_LABELS });
-      setState(freshState(input));
+      // The picture is not on the sheet: one already sent stays.
+      setState((current) => ({ ...freshState(input), imageAssetId: current.imageAssetId }));
       // What the bestiary would refuse is marked now, not only on submit.
       setErrors(validateStatblockInput(input));
       setImportStatus({ kind: 'done', fileName: file.name, warnings });
@@ -193,6 +221,30 @@ export function StatblockForm({ statblock, onSubmit, onRequestClose, pending = f
       <fieldset className={lock} disabled={importing}>
         <fieldset className={fieldset}>
           <legend>Identidade</legend>
+          {uploadImage && (
+            <div className="flex flex-wrap items-center gap-3">
+              <Avatar name={state.name || '?'} src={state.imageAssetId ? imageUrl ?? undefined : undefined} loading={uploading} variant="character" size="lg" />
+              <div className="flex flex-wrap items-center gap-2">
+                <label className={fileButton} aria-disabled={uploading || undefined}>
+                  <ImageSquare size={18} aria-hidden="true" />
+                  {state.imageAssetId ? 'Trocar imagem' : 'Enviar imagem'}
+                  <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" disabled={uploading}
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      event.target.value = '';
+                      if (file) void pickImage(file);
+                    }} />
+                </label>
+                {state.imageAssetId && (
+                  <Button variant="ghost" type="button" disabled={uploading} onClick={() => set('imageAssetId', null)}>
+                    Remover imagem
+                  </Button>
+                )}
+              </div>
+              <p className="m-0 basis-full text-small text-text-secondary">Os tokens da criatura no mapa mostram esta imagem.</p>
+              {uploadError && <p role="alert" className="m-0 basis-full text-small text-danger-text">{uploadError}</p>}
+            </div>
+          )}
           <Field label="Nome" required maxLength={S.name} value={state.name} error={errors.name}
             onChange={(e) => edit('name', e.target.value)} />
           <div className={grid3}>

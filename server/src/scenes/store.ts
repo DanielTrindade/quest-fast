@@ -1,8 +1,8 @@
-import { and, asc, desc, eq, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, or, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/sqlite-core';
 import type { Context as HonoContext } from 'hono';
-import { assets, campaigns, characters, combatants, scenes, tokens, type SceneRow } from '@quest-fast/db';
-import { effectiveSpeed, type GridSettings, type SceneResponse } from '@quest-fast/shared';
+import { assets, campaigns, characters, combatants, scenes, statblocks, tokens, type SceneRow } from '@quest-fast/db';
+import { effectiveSpeed, tokenVitality, type GridSettings, type SceneResponse } from '@quest-fast/shared';
 import type { Context, Deps } from '../context.ts';
 import type { Executor } from '../combat/state.ts';
 import type { Viewer } from '../events/hub.ts';
@@ -67,6 +67,8 @@ export function gridOf(scene: SceneRow): GridSettings {
 }
 
 const avatars = alias(assets, 'avatars');
+const images = alias(assets, 'images');
+const fighterSheets = alias(characters, 'fighter_sheets');
 
 /**
  * The tokens of a scene with their name, size and owner read from the origin,
@@ -89,11 +91,21 @@ function loadTokens({ deps, campaignId }: SceneScope, db: Executor, sceneId: str
       characterConditions: characters.conditions,
       combatantSpeed: combatants.speed,
       combatantConditions: combatants.conditions,
+      characterHp: characters.hpCurrent,
+      combatantSource: combatants.source,
+      combatantHp: combatants.hpCurrent,
+      fighterSheetHp: fighterSheets.hpCurrent,
+      imagePath: images.path,
     })
     .from(tokens)
     .leftJoin(characters, eq(characters.id, tokens.characterId))
     .leftJoin(avatars, eq(avatars.id, characters.avatarAssetId))
     .leftJoin(combatants, eq(combatants.id, tokens.combatantId))
+    // A character in a fight keeps its hit points on the sheet.
+    .leftJoin(fighterSheets, eq(fighterSheets.id, combatants.characterId))
+    // The bestiary entry: the copy's in a fight, or the one a free token came from.
+    .leftJoin(statblocks, eq(statblocks.id, sql`coalesce(${combatants.statblockId}, ${tokens.statblockId})`))
+    .leftJoin(images, eq(images.id, statblocks.imageAssetId))
     .where(eq(tokens.sceneId, sceneId))
     .orderBy(asc(tokens.createdAt), asc(sql`${tokens}.rowid`))
     .all()
@@ -114,7 +126,19 @@ function loadTokens({ deps, campaignId }: SceneScope, db: Executor, sceneId: str
         row,
         name: found.characterName ?? found.combatantName ?? row.label ?? '',
         size: found.characterSize ?? found.combatantSize ?? row.size ?? 'medium',
-        avatarUrl: found.avatarPath ? deps.assets.urlFor(found.avatarPath) : null,
+        avatarUrl: (() => {
+          const path = found.avatarPath ?? found.imagePath;
+          return path ? deps.assets.urlFor(path) : null;
+        })(),
+        vitality: tokenVitality(
+          found.characterHp !== null
+            ? { kind: 'character', hpCurrent: found.characterHp }
+            : found.combatantSource === 'character'
+              ? { kind: 'character', hpCurrent: found.fighterSheetHp ?? 1 }
+              : found.combatantSource !== null
+                ? { kind: 'creature', hpCurrent: found.combatantHp }
+                : { kind: 'free' },
+        ),
         ownerId: found.ownerId,
         combatantHidden: found.combatantHidden ?? false,
         movingBy: lock ? { userId: lock.userId, name: lock.userName } : null,
@@ -188,8 +212,21 @@ export function refused(c: HonoContext<Context>, error: unknown) {
  * The scenes that hold a token of these combatants or characters, read before
  * a change that may remove the token with its origin.
  */
-export function scenesShowing(db: Executor, origin: { combatantIds?: string[]; characterId?: string }): string[] {
+export function scenesShowing(
+  db: Executor,
+  origin: { combatantIds?: string[]; characterId?: string; statblockId?: string },
+): string[] {
   const ids = new Set<string>();
+  if (origin.statblockId) {
+    // A free token copied from the entry, or the token of a copy in a fight.
+    const rows = db
+      .select({ sceneId: tokens.sceneId })
+      .from(tokens)
+      .leftJoin(combatants, eq(combatants.id, tokens.combatantId))
+      .where(or(eq(tokens.statblockId, origin.statblockId), eq(combatants.statblockId, origin.statblockId)))
+      .all();
+    for (const { sceneId } of rows) ids.add(sceneId);
+  }
   for (const combatantId of origin.combatantIds ?? []) {
     for (const { sceneId } of db.select({ sceneId: tokens.sceneId }).from(tokens).where(eq(tokens.combatantId, combatantId)).all()) {
       ids.add(sceneId);

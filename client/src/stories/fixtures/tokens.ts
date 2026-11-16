@@ -47,6 +47,7 @@ function make(id: string, fields: Partial<TokenView> & Pick<TokenView, 'name' | 
     id,
     size: 'medium',
     avatarUrl: null,
+    vitality: 'up',
     initials: initials(fields.name),
     characterId: fields.kind === 'character' ? `c-${id}` : null,
     combatantId: fields.kind === 'combatant' ? `cb-${id}` : null,
@@ -90,6 +91,18 @@ export function fightTokens(): TokenView[] {
     bandit: { speed: 9, left: 9 },
   };
   return masterTokens().map((candidate) => ({ ...candidate, movingBy: null, reach: reach[candidate.id] ?? null }));
+}
+
+/**
+ * Late in the fight: Mira is down making death saves and Goblin 1 is
+ * defeated, lying on the cell the ogre is about to step on.
+ */
+export function vitalityTokens(): TokenView[] {
+  return fightTokens().map((candidate) => {
+    if (candidate.id === 'mira') return { ...candidate, vitality: 'down' as const };
+    if (candidate.id === 'goblin-1') return { ...candidate, vitality: 'defeated' as const, avatarUrl: syntheticAvatarUrl() };
+    return candidate;
+  });
 }
 
 /** What a player receives in the fight: no hidden token, and no creature's reach. */

@@ -44,6 +44,7 @@ export function StatblockFormDialog({ campaignId, statblock, onClose, onSaved }:
         submitError={save.isError ? errorMessage(save.error) : undefined}
         onSubmit={(input) => save.mutate(input)}
         onRequestClose={onClose}
+        uploadImage={async (file) => (await api.uploadAsset(campaignId, file)).asset}
       />
     </Dialog>
   );
