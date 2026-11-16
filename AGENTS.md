@@ -88,6 +88,22 @@ Conforme a área: `npm run test:design` (componentes e stories),
 `npm run verify:app <cookie>` e `npm run verify:group` (exigem o app rodando
 com seed). Não suprima achado do React Doctor sem um comentário com o porquê.
 
+## Ciclo do PR
+
+O Pullfrog revisa todo PR pronto e refaz o review a cada push (~15 min por
+rodada). Política e travas em [`docs/pullfrog.md`](docs/pullfrog.md).
+
+1. Abra o PR como rascunho (`gh pr create --draft`) e itere com o CI:
+   rascunho não é revisado.
+2. Antes de marcar como pronto, revise o próprio diff contra a seção
+   "Política de review" de `docs/pullfrog.md` e corrija o que encontrar.
+3. Marque como pronto uma vez (`gh pr ready`). Junte as correções de cada
+   rodada de review num único push.
+4. Não fique bloqueado esperando o bot. Sem achado bloqueante, ele aprova e
+   o auto-merge entra sozinho; achado `[P3]` é sugestão e não exige mudança.
+   Review que termina em "Precisa de merge humano:" fica com o mantenedor:
+   informe isso e encerre.
+
 ## Commits
 
 Conventional Commits em português, no presente: `feat(client): ...`,

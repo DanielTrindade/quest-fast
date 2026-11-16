@@ -229,13 +229,18 @@ Storybook e confere telas no Chrome headless. Ele também corrige o PR quando
 um review pede mudança, quando o CI quebra ou quando alguém comenta
 `@pullfrog <pedido>`.
 
-Quando o review não encontra nada e o CI está verde, o bot aprova e o PR é
-mesclado sozinho. Precisa de merge humano o PR com achado em aberto, o que
-adiciona dependência ou muda os `scripts` de um `package.json`, e o que toca
-um caminho de [`.github/CODEOWNERS`](.github/CODEOWNERS): CI, scripts de
-verificação, lint, `tsconfig`, instruções de agente e as regras do próprio
-bot. A política completa e o setup estão em
-[`docs/pullfrog.md`](docs/pullfrog.md).
+Quando o review não encontra defeito e o CI está verde, o bot aprova e o PR é
+mesclado sozinho; sugestões menores (nome, estilo, refatoração) vêm no mesmo
+review sem segurar o merge. Precisa de merge humano o PR com defeito em
+aberto, o que adiciona dependência, o que muda ou remove os scripts de
+verificação de um `package.json`, o que relaxa um princípio de
+`docs/architecture.md` e o que toca um caminho de
+[`.github/CODEOWNERS`](.github/CODEOWNERS): CI, validadores, lint,
+`tsconfig`, instruções de agente e as regras do próprio bot. A política
+completa e o setup estão em [`docs/pullfrog.md`](docs/pullfrog.md).
+
+Cada push num PR pronto dispara um review novo. Itere com o PR em rascunho
+(rascunho não é revisado) e marque como pronto quando terminar.
 
 ## Para onde olhar
 

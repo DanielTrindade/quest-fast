@@ -11,9 +11,9 @@ provedores de modelo.
 - Review automático quando o PR abre ou sai do rascunho, e re-review
   incremental a cada push.
 - Comentários inline com sugestões.
-- Aprova e faz auto-merge de todo PR em que não encontra nada; PR com achado
-  ou que muda as regras do próprio bot fica para merge humano (ver
-  [Política de merge](#política-de-merge)).
+- Aprova e faz auto-merge de todo PR sem achado bloqueante; sugestões menores
+  vão no review sem segurar o merge. PR com defeito ou que muda as regras do
+  próprio bot fica para merge humano (ver [Política de merge](#política-de-merge)).
 - Corrige o PR: aplica review que pede mudança, conserta CI quebrado e atende
   `@pullfrog <pedido>` em qualquer PR aberto.
 - Checagem visual com Chrome headless em mudança de frontend.
@@ -35,9 +35,11 @@ mesmo provedor). A cadeia fica em
   embrulhado em outro texto, a execução falha. Por isso o passo 1 é uma
   execução avulsa: o workflow lê do payload o número do PR e o tipo da tarefa
   e monta um prompt próprio.
-- O passo 1 só roda nos gatilhos de review (`event.trigger` do payload): PR
-  aberto, pronto para review, com push novo ou com review pedido ao bot, e
-  comentário com "review"/"revis" no texto. A lista é fechada no workflow,
+- O passo 1 só roda nos gatilhos do primeiro review (`event.trigger` do
+  payload): PR aberto, pronto para review ou com review pedido ao bot, e
+  comentário com "review"/"revis" no texto. Push novo não passa por ele: o
+  re-review incremental leva poucos minutos, e o primeiro parecer custava 11 a
+  14 min a cada push. O limite dele é de 8 min. A lista é fechada no workflow,
   porque o modelo não recusa sozinho uma tarefa que não é dele, e usa o
   gatilho em vez de `type`, que é vocabulário interno do servidor
   (`pr-created`, `pr-re-review`, `autofix`...). Ele devolve os achados em JSON, que o
@@ -48,15 +50,16 @@ mesmo provedor). A cadeia fica em
   assinatura esgotada, credencial recusada ou timeout.
 - Tarefas que não são review (CI quebrado, review a aplicar, menção sem
   "review") pulam o passo 1 e seguem o mesmo fallback Codex → Claude.
-- **A trava `pullfrog-approval` dispara "Fix CI".** Quando o Pullfrog não
-  aprova um PR, esse check fica vermelho na check suite do próprio app, e a
-  opção **Fix CI failures → PRs revisados** do console trata isso como CI
-  quebrado: dispara um `autofix` em todo PR que precisa de merge humano. O
-  workflow não pode simplesmente pular a execução, porque o app já criou o
-  comentário de progresso e o check `pullfrog`, que ficariam pendurados.
-  Por isso a política abaixo manda o agente encerrar logo nesse caso. Para
-  não gastar nem essa execução, desligue `fix-ci.reviewed-prs` no console, ao
-  custo de perder a correção de CI nos PRs de pessoas.
+- **O valor do passo 1 é medido.** O review publicado termina com um
+  comentário HTML oculto, `<!-- primeiro-parecer: C/T -->`, com quantos dos T
+  achados do DeepSeek o revisor confirmou. Se, depois de uns dez PRs, ele
+  quase nunca acrescentar achado confirmado, remova o passo.
+- **O check `pullfrog-approval` fica desligado** (`review.approval-check
+  false`). Quando o bot não aprovava, ele ficava vermelho, e a opção **Fix CI
+  failures → PRs revisados** tratava isso como CI quebrado: foram 59 execuções
+  de "Fix CI" que só encerravam dizendo que não havia o que corrigir. O
+  auto-merge depende da aprovação no review, não desse check, que nunca foi
+  obrigatório no ruleset.
 
 Isso depende do console estar com o modelo em **Custom (set in workflow)**:
 modelo escolhido no console vence o `model:` do workflow e desfaz a cadeia. A
@@ -66,30 +69,44 @@ flag `--model` numa menção vale para aquela execução inteira.
 
 Duas travas, uma de julgamento e uma determinística:
 
-1. **Política de review (abaixo):** o bot aprova todo PR em que não sobra
-   achado, com o CI verde. Aprovação do Pullfrog liga o auto-merge nativo do
-   GitHub, que ainda espera os checks obrigatórios. A aprovação também
-   substitui o "pedir mudanças" que o próprio bot deixou numa rodada anterior.
+1. **Política de review (abaixo):** o bot aprova todo PR sem achado
+   bloqueante, com o CI verde. Aprovação do Pullfrog liga o auto-merge nativo
+   do GitHub (`auto-merge true` no console), que ainda espera os checks
+   obrigatórios. A aprovação também substitui o "pedir mudanças" que o próprio
+   bot deixou numa rodada anterior. O ruleset descarta aprovação a cada push
+   novo, então um commit que chega depois da aprovação só entra depois de
+   outro review.
 2. **CODEOWNERS + ruleset:** [`.github/CODEOWNERS`](../.github/CODEOWNERS)
    marca só o que define as regras do bot e o que decide se o CI fica verde:
-   `.github/`, instruções de agente, esta página, `docs/architecture.md`,
-   `Dockerfile`, `scripts/`, a config e as regras do ESLint, os `tsconfig` e
-   o loader de testes do cliente.
+   `.github/`, instruções de agente, esta página, `Dockerfile`, os dois
+   validadores de `scripts/` (`check-design-tokens.mjs`, que roda no lint, e
+   `verify-design-system.mjs`, o `test:design`), a config e as regras do
+   ESLint, os `tsconfig` e o loader de testes do cliente.
    O ruleset da `master` exige revisão de code owner, então um PR que muda as
    regras não é aprovado pelo bot que elas julgam, mesmo que ele erre o
    julgamento. Esse merge fica com o mantenedor, que usa o bypass de admin
    quando o PR é dele mesmo (o GitHub não deixa aprovar o próprio PR).
 
 Servidor, regras 5e, banco e telas entram por auto-merge quando o review não
-encontra nada. A rede de segurança deles é o CI (testes de integração de
+encontra defeito. A rede de segurança deles é o CI (testes de integração de
 RBAC, typecheck, lint, React Doctor) e o review; se um caminho voltar a
 precisar de merge humano, devolva-o ao CODEOWNERS.
 
-Os `package.json` ficam fora do CODEOWNERS para o Dependabot continuar
-entrando sozinho. Por isso a política de review trava, por julgamento, a
-mudança nos `scripts` deles: é ali que `npm test`, `typecheck` e `lint` são
-definidos, e trocar um deles por um comando que só sai com sucesso deixaria
-o CI verde sem verificar nada.
+Três travas são de julgamento, porque o CODEOWNERS não as expressa sem
+segurar quase todo PR:
+
+- **`docs/architecture.md`:** o AGENTS.md manda atualizá-lo quando uma decisão
+  muda, então ele aparecia em 14 dos 18 PRs que ficaram para merge humano, e
+  só um deles tinha defeito. O bot aprova quando o diff registra o que o PR
+  faz e trava quando remove ou relaxa um princípio.
+- **Ferramentas de `scripts/`:** `verify-app`, `verify-group`,
+  `simulate-encounter` e `inspect-storybook` não rodam no CI e entram por
+  auto-merge; os validadores continuam no CODEOWNERS.
+- **`scripts` dos `package.json`:** os `package.json` ficam fora do
+  CODEOWNERS para o Dependabot continuar entrando sozinho. Script novo pode
+  entrar; mudar ou remover `test`, `test:*`, `typecheck`, `lint`, `build` ou
+  `doctor` trava o merge, porque trocar um deles por um comando que só sai com
+  sucesso deixaria o CI verde sem verificar nada.
 
 ## Política de review
 
@@ -101,23 +118,42 @@ que vão julgá-lo.
 Ao revisar:
 1. Se existir .pullfrog/primeiro-parecer.md, é o parecer do primeiro revisor
    (DeepSeek). Valide cada achado no código: publique só o que se confirmar e
-   descarte falso positivo sem mencioná-lo.
+   descarte falso positivo sem mencioná-lo. Termine o corpo do review com
+   `<!-- primeiro-parecer: C/T -->`, em que T é o número de achados do
+   arquivo e C quantos você confirmou.
 2. Procure defeitos reais e desvios de AGENTS.md: autorização no servidor
    (não membro recebe 404), lógica 5e fora de shared/, rota sem teste de RBAC,
    migração editada, sintaxe TypeScript não apagável no backend, texto de UI
    fora do pt-BR, cor crua no client.
-3. Aprove o PR quando cumprir todos os itens, qualquer que seja o tamanho
-   ou a área (servidor, shared/, banco e telas inclusive):
-   - não sobra nenhum achado seu em aberto, nem de rodada anterior;
+3. Classifique cada achado:
+   - bloqueante (P0 a P2): comportamento errado, falha de autorização ou de
+     segurança, perda ou vazamento de dado, regra 5e errada, condição de
+     corrida, teste que não verifica o que diz, desvio de AGENTS.md;
+   - sugestão (P3): nome, estilo, legibilidade, refatoração, cobertura extra
+     opcional, melhoria que o PR não precisa para estar correto.
+   Marque o nível no início de cada comentário ([P1], [P3]...). Sugestão não
+   segura o merge: publique-a no mesmo review que aprova.
+4. Se o PR muda docs/architecture.md, leia o diff desse arquivo. Registrar o
+   que o PR faz (peça nova, decisão nova, descrição atualizada) é esperado e
+   não trava. Remover ou relaxar um princípio ou uma decisão registrada (por
+   exemplo, o cliente passar a ser fonte de verdade, ou quem não é membro
+   receber algo diferente de 404) trava: é merge humano. Ao aprovar, cite em
+   uma linha o que mudou na arquitetura.
+5. Aprove o PR quando cumprir todos os itens, qualquer que seja o tamanho
+   ou a área (servidor, shared/, banco, telas e scripts/ inclusive):
+   - não sobra achado bloqueante seu em aberto, nem de rodada anterior;
    - o CI está verde;
    - não toca caminho listado em .github/CODEOWNERS;
    - não adiciona dependência nova (atualização do Dependabot pode);
-   - não muda o campo `scripts` de nenhum package.json.
-   Sem achado, aprove: terminar só com comentário deixa o PR travado.
-4. Qualquer outro caso: não aprove; peça mudanças se houver defeito, ou
-   publique como comentário, e termine com "Precisa de merge humano:" seguido
-   do motivo em uma linha.
-5. Escreva o review em português.
+   - não muda nem remove `test`, `test:*`, `typecheck`, `lint`, `build` ou
+     `doctor` no campo `scripts` de nenhum package.json (script novo pode);
+   - o item 4 não travou.
+   Sem achado bloqueante, aprove: terminar só com comentário deixa o PR
+   travado.
+6. Qualquer outro caso: não aprove; peça mudanças se houver achado
+   bloqueante, ou publique como comentário, e termine com "Precisa de merge
+   humano:" seguido do motivo em uma linha.
+7. Escreva o review em português.
 
 Quando o PR alterar client/:
 1. Rode `npm ci` se as dependências ainda não estiverem instaladas.
@@ -136,11 +172,9 @@ Quando o PR alterar client/:
 Ao corrigir um PR: siga AGENTS.md, rode `npm test`, `npm run typecheck` e
 `npm run lint` antes do push e use Conventional Commits em português.
 
-Ao corrigir CI: se a check suite que falhou é a do próprio Pullfrog (o único
-check com falha é `pullfrog-approval`), não há o que corrigir: é a trava de
-aprovação de um PR que precisa de merge humano. Confira só os checks da
-suite; não faça checkout, não rode testes nem investigue o código, e encerre
-informando isso em uma linha.
+Ao corrigir CI: se o único check com falha é do próprio Pullfrog
+(`pullfrog-approval`), não há o que corrigir. Encerre informando isso em uma
+linha, sem checkout nem testes.
 ```
 
 ## Segurança
@@ -183,8 +217,8 @@ informando isso em uma linha.
    - **Review PRs:** review automático ligado; re-review em push ligado;
      drafts desligado; PRs de bots ligado (Dependabot); não colaboradores
      desligado; **Allow Pullfrog to approve PRs** ligado; **Auto-merge
-     approved PRs** ligado (só admin, pede para digitar `MERGE`); cole em
-     **Custom instructions**:
+     approved PRs** ligado (só admin, pede para digitar `MERGE`); **Approval
+     check** desligado; cole em **Custom instructions**:
 
      ```text
      Antes de revisar ou corrigir, leia a seção "Política de review" de
@@ -198,7 +232,8 @@ informando isso em uma linha.
 4. No GitHub:
    - **Settings → General → Pull Requests:** ligue **Allow auto-merge**.
    - **Ruleset `master`:** exija 1 aprovação e **Require review from Code
-     Owners**; adicione o papel **Repository admin** em bypass com modo
+     Owners**; ligue **Dismiss stale pull request approvals when new commits
+     are pushed**; adicione o papel **Repository admin** em bypass com modo
      "pull request only". Os checks obrigatórios atuais (CI e React Doctor)
      continuam; sem check obrigatório o Pullfrog aprova mas não faz merge.
 
@@ -214,6 +249,7 @@ npx pullfrog config set review.drafts false
 npx pullfrog config set address-reviews.enabled true
 npx pullfrog config set fix-ci.own-prs true
 npx pullfrog config set fix-ci.reviewed-prs true
+npx pullfrog config set review.approval-check false
 npx pullfrog config set auto-merge true --yes --ack-auto-merge
 ```
 
@@ -239,8 +275,13 @@ npx pullfrog config set auto-merge true --yes --ack-auto-merge
   algo sair errado, remova os passos 1 e 3 e escolha um modelo no console.
 - Para PR delicado, peça um segundo parecer com
   `@pullfrog --model=anthropic/claude-opus-5-5 --effort=high`.
-- Re-review em todo push consome a cota das assinaturas rápido. Se a cota do
-  ChatGPT acabar no meio do mês, o Claude assume até ela renovar.
+- Re-review em todo push consome a cota das assinaturas rápido; por isso o
+  agente itera com o PR em rascunho e marca como pronto uma vez (ver
+  AGENTS.md). Se a cota do ChatGPT acabar no meio do mês, o Claude assume até
+  ela renovar.
+- O auto-merge do Pullfrog depende do plano ("entitlement"). Se um PR
+  aprovado não ganhar o evento de auto-merge, confira
+  `npx pullfrog config get auto-merge` e o plano no console.
 - Screenshots viram URL pública (até 10 MB).
 
 ## Links
