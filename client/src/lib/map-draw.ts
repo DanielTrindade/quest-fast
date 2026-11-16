@@ -27,6 +27,8 @@ export function drawMap(context: CanvasRenderingContext2D, scene: {
   context.imageSmoothingQuality = 'high';
   context.drawImage(image, view.x, view.y, map.width * view.scale, map.height * view.scale);
 
+  // At 0 the lines are hidden; the grid still snaps and measures.
+  if (grid.opacity <= 0) return;
   const { xs, ys } = gridLines(grid, view, map, viewport);
   if (xs.length === 0 && ys.length === 0) return;
   // Lines snap to device pixels, so they stay one pixel thin at any zoom.
@@ -47,12 +49,13 @@ export function drawMap(context: CanvasRenderingContext2D, scene: {
     context.lineTo(right, at);
   }
   // A dark halo under a light line (or the reverse, in the light theme)
-  // keeps the grid readable over any map, bright or dark.
-  context.globalAlpha = 0.3;
+  // keeps the grid readable over any map, bright or dark. The master's
+  // opacity sets the line; the halo follows at half of it.
+  context.globalAlpha = grid.opacity / 2;
   context.lineWidth = 3 / dpr + 1;
   context.strokeStyle = token(scene.themed, '--color-surface-secret');
   context.stroke();
-  context.globalAlpha = 0.6;
+  context.globalAlpha = grid.opacity;
   context.lineWidth = 1;
   context.strokeStyle = token(scene.themed, '--color-text-primary');
   context.stroke();

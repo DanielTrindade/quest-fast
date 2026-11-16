@@ -35,6 +35,7 @@ test('a new scene has a snapping grid of the default columns', () => {
     offsetX: 0,
     offsetY: 0,
     snap: true,
+    opacity: 0.6,
   });
 });
 
@@ -53,6 +54,8 @@ test('the default grid passes its own validation on every accepted map width', (
 
 test('a grid with a cell inside the map and the offset inside a cell is valid', () => {
   assert.deepEqual(validateGrid({ cellSize: 100, offsetX: 0, offsetY: 99.5 }, 3000), {});
+  assert.deepEqual(validateGrid({ cellSize: 100, offsetX: 0, offsetY: 0, opacity: 0 }, 3000), {});
+  assert.deepEqual(validateGrid({ cellSize: 100, offsetX: 0, offsetY: 0, opacity: 1.2 }, 3000), { opacity: 'A opacidade das linhas deve ficar entre 0% e 100%.' });
   assert.deepEqual(validateGrid({ cellSize: 8, offsetX: 7, offsetY: 0 }, 3000), {});
   assert.deepEqual(validateGrid({ cellSize: 3000, offsetX: 0, offsetY: 0 }, 3000), {});
 });
@@ -81,7 +84,7 @@ test('maps are JPEG, PNG or WebP, from 64 px, up to 25 MB and 8192 px, stored at
 
 // --- Tokens ----------------------------------------------------------------
 
-const GRID: GridSettings = { enabled: true, cellSize: 100, offsetX: 0, offsetY: 0, snap: true };
+const GRID: GridSettings = { enabled: true, cellSize: 100, offsetX: 0, offsetY: 0, snap: true, opacity: 0.6 };
 
 test('a token covers the cells of its size, half a cell for a tiny creature', () => {
   assert.deepEqual(

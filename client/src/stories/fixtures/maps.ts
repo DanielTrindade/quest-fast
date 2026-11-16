@@ -96,12 +96,12 @@ export function syntheticMapUrl(): string {
 
 /** The grid the server gives a new scene: 30 cells across, no offset. */
 export const defaultSceneGrid: GridSettings = {
-  enabled: true, cellSize: SYNTHETIC_MAP.width / 30, offsetX: 0, offsetY: 0, snap: true,
+  enabled: true, cellSize: SYNTHETIC_MAP.width / 30, offsetX: 0, offsetY: 0, snap: true, opacity: 0.6,
 };
 
 /** The grid matching the one printed on the synthetic map. */
 export const alignedSceneGrid: GridSettings = {
-  enabled: true, cellSize: PRINTED_CELL, offsetX: PRINTED_OFFSET, offsetY: PRINTED_OFFSET, snap: true,
+  enabled: true, cellSize: PRINTED_CELL, offsetX: PRINTED_OFFSET, offsetY: PRINTED_OFFSET, snap: true, opacity: 0.6,
 };
 
 export function sceneList(mapUrl: string): SceneSummary[] {

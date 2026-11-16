@@ -27,6 +27,22 @@ export function fitView(map: Size, viewport: Size): MapView {
   };
 }
 
+/** How many cells across a scene opens on: tokens read at table size, the rest a pan away. */
+export const OPENING_COLUMNS = 15;
+
+/**
+ * Where a scene opens: about `OPENING_COLUMNS` cells across, centred on the
+ * map, so a token is big enough to read. A map that shows fewer cells, or
+ * without a grid, opens whole, as "Enquadrar o mapa" shows it.
+ */
+export function openingView(map: Size, viewport: Size, grid: Pick<GridSettings, 'enabled' | 'cellSize'>): MapView {
+  const fit = fitView(map, viewport);
+  if (!grid.enabled || grid.cellSize <= 0) return fit;
+  // Never below the whole map: a small one opens framed, even past `MAX_SCALE`.
+  const scale = Math.max(fit.scale, Math.min(MAX_SCALE, viewport.width / (OPENING_COLUMNS * grid.cellSize)));
+  return { scale, x: viewport.width / 2 - (map.width / 2) * scale, y: viewport.height / 2 - (map.height / 2) * scale };
+}
+
 /** From half the framed size (or 1:1, if smaller) up to `MAX_SCALE`. */
 export function scaleBounds(map: Size, viewport: Size): { min: number; max: number } {
   const fit = fitView(map, viewport).scale;

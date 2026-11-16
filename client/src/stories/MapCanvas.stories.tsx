@@ -33,12 +33,27 @@ async function readyMap(canvasElement: HTMLElement) {
   return { frame, map: within(frame) };
 }
 
+/**
+ * A scene opens zoomed in, about 15 cells across; the checks that aim at map
+ * points frame the whole map first, where `onPage` expects it.
+ */
+async function framedMap(canvasElement: HTMLElement) {
+  const ready = await readyMap(canvasElement);
+  await userEvent.click(ready.map.getByRole('button', { name: 'Enquadrar o mapa' }));
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  return ready;
+}
+
 export const Padrao: Story = {
   name: 'Padrão',
   play: async ({ canvasElement }) => {
     const { frame, map } = await readyMap(canvasElement);
     const zoom = () => map.getByText(/\d+%$/).textContent;
-    const framed = await waitFor(zoom);
+    const opened = await waitFor(zoom);
+    // It opens closer than the whole map: about 15 cells across.
+    await userEvent.click(map.getByRole('button', { name: 'Enquadrar o mapa' }));
+    await waitFor(() => expect(zoom()).not.toBe(opened));
+    const framed = zoom();
 
     await userEvent.click(map.getByRole('button', { name: 'Aproximar' }));
     await waitFor(() => expect(zoom()).not.toBe(framed));
@@ -194,7 +209,7 @@ export const TokensMestre: Story = {
   args: { ...tokenArgs, tokens: masterTokens(), viewerId: MASTER_ID, selectedTokenId: 'ogre' },
   render: (args) => <TokenMap {...args} master />,
   play: async ({ canvasElement, args }) => {
-    const { frame, map } = await readyMap(canvasElement);
+    const { frame, map } = await framedMap(canvasElement);
     await expect(map.getByText(/7 tokens no mapa\./)).toBeInTheDocument();
     await waitFor(() => expect(painted(frame)).toBe(true));
 
@@ -213,7 +228,7 @@ export const TokensJogador: Story = {
   args: { ...tokenArgs, tokens: playerTokens(), viewerId: PLAYER_ID },
   render: (args) => <TokenMap {...args} master={false} />,
   play: async ({ canvasElement, args }) => {
-    const { frame, map } = await readyMap(canvasElement);
+    const { frame, map } = await framedMap(canvasElement);
     await expect(map.getByText(/6 tokens no mapa\./)).toBeInTheDocument();
 
     // Someone else's token only gets selected: the press pans the map.
@@ -236,7 +251,7 @@ export const DuzentosTokens: Story = {
   args: { ...tokenArgs, tokens: manyTokens(), viewerId: MASTER_ID, grid: defaultSceneGrid },
   render: (args) => <TokenMap {...args} master />,
   play: async ({ canvasElement }) => {
-    const { frame, map } = await readyMap(canvasElement);
+    const { frame, map } = await framedMap(canvasElement);
     await expect(map.getByText(/200 tokens no mapa\./)).toBeInTheDocument();
     await waitFor(() => expect(painted(frame)).toBe(true));
   },
@@ -262,7 +277,7 @@ export const MovidoPorOutro: Story = {
   args: { ...tokenArgs, tokens: playerTokens(), viewerId: PLAYER_ID },
   render: (args) => <RemoteDrag {...args} />,
   play: async ({ canvasElement }) => {
-    const { frame } = await readyMap(canvasElement);
+    const { frame } = await framedMap(canvasElement);
     await waitFor(() => expect(painted(frame)).toBe(true));
   },
 };
@@ -275,7 +290,7 @@ export const ToqueNoTokenEmMovimento: Story = {
   args: { ...tokenArgs, tokens: playerTokens(), viewerId: PLAYER_ID },
   render: (args) => <TokenMap {...args} master={false} motion={heldMotion} />,
   play: async ({ canvasElement, args }) => {
-    const { frame } = await readyMap(canvasElement);
+    const { frame } = await framedMap(canvasElement);
     const mira = playerTokens().find((token) => token.id === 'mira')!;
     const away = { x: mira.x + PRINTED_CELL * 5, y: mira.y + PRINTED_CELL * 3 };
     // A drag goes quiet after a second; each press gets fresh samples.
@@ -303,7 +318,7 @@ export const AlcanceEmCombate: Story = {
   args: { ...tokenArgs, tokens: playerFightTokens(), viewerId: PLAYER_ID, selectedTokenId: 'kaelen' },
   render: (args) => <TokenMap {...args} master={false} />,
   play: async ({ canvasElement }) => {
-    const { frame, map } = await readyMap(canvasElement);
+    const { frame, map } = await framedMap(canvasElement);
     await expect(map.getByText(/Kaelen ainda alcança 4,5 m, 3 casas em qualquer direção\./)).toBeInTheDocument();
     await waitFor(() => expect(painted(frame)).toBe(true));
   },

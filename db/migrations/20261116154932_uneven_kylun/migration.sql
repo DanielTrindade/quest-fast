@@ -1,0 +1,1 @@
+ALTER TABLE `scenes` ADD `grid_opacity` real DEFAULT 0.6 NOT NULL;

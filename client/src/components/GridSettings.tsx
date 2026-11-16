@@ -1,4 +1,4 @@
-import { useRef, useState, type FormEvent } from 'react';
+import { useId, useRef, useState, type FormEvent } from 'react';
 import { ArrowCounterClockwise } from '@phosphor-icons/react';
 import { SCENE_LIMITS, cellSizeFromColumns, maxGridColumns, validateGrid, type GridFieldErrors, type GridSettings as Grid } from '@quest-fast/shared';
 import { gridCells } from '../lib/map-view';
@@ -23,6 +23,8 @@ type Draft = {
   source: 'columns' | 'cellSize';
   offsetX: string;
   offsetY: string;
+  /** The lines' strength in whole percent, as the slider moves in steps of 5. */
+  opacity: number;
 };
 
 /** Two decimals at most, with the decimal comma the table writes. */
@@ -38,6 +40,8 @@ function draftOf(grid: Grid, mapWidth: number): Draft {
     source: 'cellSize',
     offsetX: show(grid.offsetX),
     offsetY: show(grid.offsetY),
+    // On the slider's step of 5: a value saved elsewhere shows as the thumb sits.
+    opacity: Math.round(grid.opacity * 20) * 5,
   };
 }
 
@@ -62,6 +66,7 @@ function read(draft: Draft, mapWidth: number): { grid: Grid; errors: DraftErrors
     cellSize: draft.exact,
     offsetX: parse(draft.offsetX),
     offsetY: parse(draft.offsetY),
+    opacity: draft.opacity / 100,
   };
   const errors: DraftErrors = validateGrid(grid, mapWidth);
   if (draft.source !== 'columns') return { grid, errors };
@@ -91,6 +96,7 @@ export function GridSettings({ grid, mapWidth, mapHeight, onPreview, onSave, sav
   saving?: boolean;
   serverError?: string;
 }) {
+  const opacityId = useId();
   const [draft, setDraft] = useState(() => draftOf(grid, mapWidth));
   // Keystrokes can arrive faster than renders: each one builds on the latest
   // draft, not on the one its handler was rendered with.
@@ -150,6 +156,19 @@ export function GridSettings({ grid, mapWidth, mapHeight, onPreview, onSave, sav
             value={draft.offsetX} error={errors.offsetX} onChange={(event) => update({ offsetX: event.target.value })} />
           <Field label="Deslocamento vertical" hint="Em pixels do mapa" inputMode="decimal" autoComplete="off"
             value={draft.offsetY} error={errors.offsetY} onChange={(event) => update({ offsetY: event.target.value })} />
+        </div>
+        <div className="grid min-w-0 gap-2">
+          <span className="flex items-baseline justify-between gap-3">
+            <label htmlFor={opacityId} className="text-small font-medium text-foreground">Opacidade das linhas</label>
+            <output htmlFor={opacityId} className="font-mono text-small text-text-secondary tabular-nums">{draft.opacity}%</output>
+          </span>
+          <input id={opacityId} type="range" min={0} max={100} step={5} value={draft.opacity}
+            aria-describedby={`${opacityId}-hint`}
+            className="h-11 w-full min-w-0 cursor-pointer accent-primary disabled:cursor-not-allowed"
+            onChange={(event) => update({ opacity: Number(event.target.value) })} />
+          <span id={`${opacityId}-hint`} className="text-small text-text-secondary">
+            Em 0% as linhas somem, mas o grid continua valendo para encaixar e medir.
+          </span>
         </div>
         <label className={checkLabel}>
           <input type="checkbox" checked={draft.snap} onChange={(event) => update({ snap: event.target.checked })} />

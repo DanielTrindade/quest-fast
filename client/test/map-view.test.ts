@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { MAX_SCALE, clampView, fitView, gridCells, gridLines, scaleBounds, visibleRect, zoomAt, zoomViewAt } from '../src/lib/map-view.ts';
+import { MAX_SCALE, OPENING_COLUMNS, clampView, fitView, gridCells, openingView, gridLines, scaleBounds, visibleRect, zoomAt, zoomViewAt } from '../src/lib/map-view.ts';
 
 const MAP = { width: 3000, height: 2000 };
 const SCREEN = { width: 1000, height: 1000 };
@@ -82,4 +82,23 @@ test('a zoom that crosses a bound stops at it and keeps the point under the curs
 test('a pinch at the bound still pans by how far its midpoint moved', () => {
   const atMax = { x: -2000, y: -1500, scale: MAX_SCALE };
   assert.deepEqual(zoomViewAt(atMax, 1.5, 500, 500, MAP, SCREEN, { x: 30, y: -20 }), { x: -1970, y: -1520, scale: MAX_SCALE });
+});
+
+test('a scene opens about 15 cells across, centred, and never smaller than the whole map', () => {
+  const viewport = { width: 1200, height: 800 };
+  const grid = { enabled: true, cellSize: 100 };
+  const big = { width: 6000, height: 4000 };
+  const opened = openingView(big, viewport, grid);
+  assert.equal(opened.scale, viewport.width / (OPENING_COLUMNS * grid.cellSize));
+  assert.equal(opened.x + (big.width / 2) * opened.scale, viewport.width / 2);
+  assert.equal(opened.y + (big.height / 2) * opened.scale, viewport.height / 2);
+
+  // Without a grid there is nothing to count: the whole map.
+  assert.deepEqual(openingView(big, viewport, { ...grid, enabled: false }), fitView(big, viewport));
+
+  // A small map framed past `MAX_SCALE` opens framed, not smaller.
+  const small = { width: 200, height: 150 };
+  const tiny = openingView(small, { width: 1280, height: 800 }, { enabled: true, cellSize: 8 });
+  assert.ok(fitView(small, { width: 1280, height: 800 }).scale > MAX_SCALE);
+  assert.deepEqual(tiny, fitView(small, { width: 1280, height: 800 }));
 });

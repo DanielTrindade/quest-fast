@@ -15,6 +15,11 @@ export type GridSettings = {
   offsetY: number;
   /** A token dropped on the map goes to the centre of its cell. */
   snap: boolean;
+  /**
+   * How strongly the lines show, 0 to 1. At 0 they are hidden, but the grid
+   * still snaps, measures and moves: that is `enabled`.
+   */
+  opacity: number;
 };
 
 /**
@@ -24,10 +29,13 @@ export type GridSettings = {
  */
 export type MultiPolygon = [number, number][][][];
 
-export type GridFieldErrors = Partial<Record<'cellSize' | 'offsetX' | 'offsetY', string>>;
+export type GridFieldErrors = Partial<Record<'cellSize' | 'offsetX' | 'offsetY' | 'opacity', string>>;
 
 /** Cells across the map when the master has not said yet. */
 export const DEFAULT_GRID_COLUMNS = 30;
+
+/** The lines' strength of a new scene: how the grid always looked before it could change. */
+export const DEFAULT_GRID_OPACITY = 0.6;
 
 /** Bounds of a scene, shared by the server parser and the forms. */
 export const SCENE_LIMITS = {
@@ -76,7 +84,7 @@ export function maxGridColumns(mapWidth: number): number {
 /** The grid of a new scene: on, snapping, `DEFAULT_GRID_COLUMNS` cells across. */
 export function defaultGrid(mapWidth: number): GridSettings {
   const columns = Math.min(DEFAULT_GRID_COLUMNS, maxGridColumns(mapWidth));
-  return { enabled: true, cellSize: cellSizeFromColumns(mapWidth, columns), offsetX: 0, offsetY: 0, snap: true };
+  return { enabled: true, cellSize: cellSizeFromColumns(mapWidth, columns), offsetX: 0, offsetY: 0, snap: true, opacity: DEFAULT_GRID_OPACITY };
 }
 
 /**
@@ -84,7 +92,7 @@ export function defaultGrid(mapWidth: number): GridSettings {
  * map's width, and an offset within one cell (anything further is the same
  * grid shifted by whole cells).
  */
-export function validateGrid(grid: Pick<GridSettings, 'cellSize' | 'offsetX' | 'offsetY'>, mapWidth: number): GridFieldErrors {
+export function validateGrid(grid: Pick<GridSettings, 'cellSize' | 'offsetX' | 'offsetY'> & Partial<Pick<GridSettings, 'opacity'>>, mapWidth: number): GridFieldErrors {
   const errors: GridFieldErrors = {};
   const { cellSize } = grid;
   const cellOk = Number.isFinite(cellSize) && cellSize >= SCENE_LIMITS.minCellSize && cellSize <= mapWidth;
@@ -96,6 +104,9 @@ export function validateGrid(grid: Pick<GridSettings, 'cellSize' | 'offsetX' | '
     if (!Number.isFinite(offset) || offset < 0 || (cellOk && offset >= cellSize)) {
       errors[key] = 'O deslocamento deve ficar dentro de uma casa.';
     }
+  }
+  if (grid.opacity !== undefined && !(Number.isFinite(grid.opacity) && grid.opacity >= 0 && grid.opacity <= 1)) {
+    errors.opacity = 'A opacidade das linhas deve ficar entre 0% e 100%.';
   }
   return errors;
 }

@@ -63,6 +63,7 @@ export function gridOf(scene: SceneRow): GridSettings {
     offsetX: scene.gridOffsetX,
     offsetY: scene.gridOffsetY,
     snap: scene.snapToGrid,
+    opacity: scene.gridOpacity,
   };
 }
 

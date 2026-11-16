@@ -169,6 +169,7 @@ export {
 } from './statblock-import.ts';
 export {
   DEFAULT_GRID_COLUMNS,
+  DEFAULT_GRID_OPACITY,
   LOCK_TTL_MS,
   MAP_LIMITS,
   SCENE_LIMITS,

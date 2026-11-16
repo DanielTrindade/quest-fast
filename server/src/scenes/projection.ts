@@ -84,6 +84,7 @@ export function projectScene({ scene, mapUrl, active, tokens }: LoadedScene, vie
       offsetX: scene.gridOffsetX,
       offsetY: scene.gridOffsetY,
       snap: scene.snapToGrid,
+      opacity: scene.gridOpacity,
     },
     active,
     tokens: tokens.filter((token) => tokenVisibleTo(token, viewer)).map((token) => projectToken(token, viewer)),
