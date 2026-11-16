@@ -1,4 +1,4 @@
-import { effectiveSpeed, healthBand, isDefeated, movementLeft, pendingReminders, type CombatantView, type EncounterView, type TurnView } from '@quest-fast/shared';
+import { effectiveSpeed, healthBand, isDefeated, isSecretReminder, movementLeft, pendingReminders, type CombatantView, type EncounterView, type TurnView } from '@quest-fast/shared';
 import type { Viewer } from '../events/hub.ts';
 import { attacksOf, queueOrder, type LoadedCombatant, type LoadedEncounter } from './state.ts';
 
@@ -49,9 +49,9 @@ function projectCombatant(combatant: LoadedCombatant, viewer: Viewer, round: num
     concentrating: known && combatant.concentrating,
     deathSaves: combatant.sheet?.deathSaves ?? null,
     deathSaveRolled: !!combatant.sheet && row.deathSaveRound === round,
-    // A pending damage from a secret attack would give the roll away.
+    // What a secret attack left behind would give the roll away.
     reminders: known
-      ? pendingReminders(row.reminders, combatant).filter((reminder) => master || reminder.kind !== 'pendingDamage' || !reminder.secret)
+      ? pendingReminders(row.reminders, combatant).filter((reminder) => master || !isSecretReminder(reminder))
       : [],
     // A statblock's attacks give its bonus and damage away.
     attacks: known ? attacksOf(combatant) : [],

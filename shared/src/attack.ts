@@ -65,6 +65,22 @@ export function rollDamage(expression: string, critical: boolean, random: () => 
   return { expression: result.expression, dice: result.dice, modifier: result.modifier, total: Math.max(0, result.total) };
 }
 
+/**
+ * Whether a row deals damage. An attack roll always does; a save may only
+ * impose its effect (Graxa, Fogo das Fadas), with the damage left empty.
+ */
+export function hasDamage(attack: { damage: string }): boolean {
+  return attack.damage.trim().length > 0;
+}
+
+/**
+ * The roll of a save without damage: nothing was rolled. The feed shows the
+ * DC and the target, never a total.
+ */
+export function noRoll(): RollResult {
+  return { expression: '', dice: [], modifier: 0, total: 0, mode: 'normal' };
+}
+
 /** Damage halved by a successful save, rounded down as the rule says. */
 export function halfDamage(amount: number): number {
   return Math.floor(amount / 2);

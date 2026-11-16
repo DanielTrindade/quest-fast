@@ -50,7 +50,7 @@ test('an attack without a name or with an unparseable damage is rejected', () =>
   const errors = validateCharacterInput(
     validInput({ attacks: [{ name: ' ', bonus: 0, damage: '1d8+3' }, { name: 'Soco', bonus: -1, damage: 'soco' }] }),
   );
-  assert.equal(errors.attacks, 'Cada ataque precisa de nome e de dano como expressão (ex.: 1d8+3).');
+  assert.equal(errors.attacks, 'Cada ataque precisa de nome e de dano como expressão (ex.: 1d8+3). Numa salvaguarda, o dano pode ficar vazio.');
 });
 
 test('an attack bonus outside the server bound is rejected', () => {
@@ -69,6 +69,14 @@ test('a save DC entry needs a DC and the ability of the save, not a bonus', () =
     validateCharacterInput(validInput({ attacks: [{ ...save, saveAbility: null }] })).attacks,
     'Informe o atributo do teste de resistência.',
   );
+});
+
+test('only a save may leave the damage empty: it imposes just its effect', () => {
+  const grease = { kind: 'save' as const, name: 'Graxa', damage: '', dc: 13, saveAbility: 'dexterity' as const };
+  assert.deepEqual(validateCharacterInput(validInput({ attacks: [grease] })), {});
+  assert.deepEqual(validateCharacterInput(validInput({ attacks: [{ ...grease, damage: '  ' }] })), {});
+  assert.match(validateCharacterInput(validInput({ attacks: [{ ...grease, damage: 'muito' }] })).attacks ?? '', /dano como expressão/);
+  assert.match(validateCharacterInput(validInput({ attacks: [{ name: 'Soco', bonus: 2, damage: '' }] })).attacks ?? '', /dano como expressão/);
 });
 
 test('the official sheet fields are optional', () => {

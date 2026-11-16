@@ -362,6 +362,23 @@ test('a save DC row rolls only its damage, with the DC the target faces', async 
   assert.equal(disadvantage.status, 422);
 });
 
+test('a save without damage calls for the save and rolls nothing; an attack roll still needs damage', async () => {
+  const { player, campaign } = await appWithCampaign();
+  const grease = { kind: 'save', name: 'Graxa', dc: 13, saveAbility: 'dexterity', damage: '', notes: 'Cai se falhar' };
+  const { character } = await create(player, campaign.id, { ...HAZIN, attacks: [...HAZIN.attacks, grease] });
+  assert.ok(character);
+  assert.equal(character.attacks[1]?.damage, '');
+
+  const called = await body<RollResponse>(await roll(player, campaign.id, character.id, { kind: 'attack', attackIndex: 1 }));
+  assert.deepEqual(called.event.payload.save, { dc: 13, ability: 'dexterity' });
+  assert.equal(called.event.payload.damage, undefined);
+  assert.deepEqual(called.event.payload.dice, []);
+  assert.equal(called.event.payload.damageRollable, undefined);
+
+  const punch = { name: 'Soco', bonus: 2, damage: '' };
+  assert.equal((await create(player, campaign.id, { ...HAZIN, attacks: [punch] })).response.status, 422);
+});
+
 test('an attack roll from the sheet leaves its damage to roll once it hits', async () => {
   const { player, campaign } = await appWithCampaign();
   const { character } = await create(player, campaign.id, HAZIN);

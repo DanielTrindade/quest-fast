@@ -7,6 +7,7 @@
 
 import { ABILITIES, isAbility } from './modifiers.ts';
 import { parseDiceExpression } from './dice.ts';
+import { hasDamage } from './attack.ts';
 import { CHARACTER_LIMITS as L, COINS, SPELL_SLOT_CAPS, isSpeed } from './sheet.ts';
 import { TURN_LIMITS, isAttacksPerAction } from './turn.ts';
 import { STATBLOCK_LIMITS as S, isChallengeRating } from './combat.ts';
@@ -62,11 +63,17 @@ function badList(items: readonly string[] | undefined) {
   return (items ?? []).length > L.listItems || (items ?? []).some((item) => item.length > L.listItem);
 }
 
+/** A dice expression; a save may leave it empty when it deals no damage. */
+function validDamage(attack: AttackInput | ImportedAttack): boolean {
+  if (attack.kind === 'save' && !hasDamage(attack)) return true;
+  return parseDiceExpression(attack.damage) !== undefined;
+}
+
 /** Sheets and statblocks share the attack rules; only the count differs. */
 function attackListError(attacks: ReadonlyArray<AttackInput | ImportedAttack>, max: number): string | undefined {
   if (attacks.length > max) return `Limite de ${max} ataques.`;
-  if (attacks.some((attack) => attack.name.trim().length === 0 || !parseDiceExpression(attack.damage))) {
-    return 'Cada ataque precisa de nome e de dano como expressão (ex.: 1d8+3).';
+  if (attacks.some((attack) => attack.name.trim().length === 0 || !validDamage(attack))) {
+    return 'Cada ataque precisa de nome e de dano como expressão (ex.: 1d8+3). Numa salvaguarda, o dano pode ficar vazio.';
   }
   if (attacks.some((attack) => attack.kind !== 'save' && !inRange(attack.bonus, -L.attackBonus, L.attackBonus))) {
     return `Bônus de ataque deve ser um número entre -${L.attackBonus} e ${L.attackBonus}.`;

@@ -127,3 +127,28 @@ export const DanoPendenteDono: Story = {
     await expect(within(region!).getByText(/Aguardando o mestre/)).toBeVisible();
   },
 };
+
+const pendingSave = {
+  id: 's1',
+  kind: 'pendingSave',
+  dc: 12,
+  ability: 'dexterity',
+  attackerName: 'Bruxa',
+  attackName: 'Graxa',
+  notes: 'Cai se falhar',
+  eventId: 'e2',
+  secret: false,
+} as const;
+
+/** A save without damage: the target rolls it at the table, then it is marked resolved. */
+export const SalvaguardaPendente: Story = {
+  name: 'Salvaguarda sem dano',
+  args: { name: 'Hazin Dan', reminders: [pendingSave], onDismiss: fn() },
+  play: async ({ canvasElement, args }) => {
+    const [region] = within(canvasElement).getAllByRole('region', { name: /^Tema / });
+    const list = within(region!);
+    await expect(list.getByText('Salvaguarda de Destreza CD 12 contra Graxa de Bruxa, sem dano. Cai se falhar.')).toBeVisible();
+    await userEvent.click(list.getByRole('button', { name: 'Resolvido a salvaguarda de Hazin Dan' }));
+    await expect(args.onDismiss).toHaveBeenLastCalledWith('s1');
+  },
+};
