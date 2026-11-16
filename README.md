@@ -273,6 +273,7 @@ npm run test:design   # constrói o Storybook e audita com Playwright + axe
 npm run doctor        # React Doctor; o merge exige saúde 100
 npm run verify:app <cookie>  # fluxo real contra o app rodando
 npm run verify:group         # fluxos de grupo e WebSocket contra o app rodando
+npm run simulate:encounter   # uma sessão inteira, visível, com mestre e quatro jogadores
 ```
 
 Os `verify:` exigem `npm run build && npm run dev` em outro terminal e

@@ -181,6 +181,15 @@ Conforme a área tocada:
 | `npm run test:design` | Componentes ou stories do cliente |
 | `npm run verify:app <cookie>` | Fluxo de ponta a ponta; exige o app rodando e o cookie impresso pelo seed |
 | `npm run verify:group` | Fluxos com vários usuários e WebSocket; exige o app rodando com seed |
+| `npm run simulate:encounter` | Mudança no combate, no mapa ou na Mesa: uma sessão inteira, visível, com mestre e quatro jogadores |
+
+O `simulate:encounter` abre cinco janelas do navegador e joga uma sessão pela
+interface: troca de personagem, cena e tokens, iniciativa com empate, turno com
+ação, ação bônus, reação, Disparada e movimento confirmado, e o combate até o
+fim. Monta a própria campanha (não precisa do seed) e termina com cada cena
+marcada OK, FALHA ou NÃO OCORREU; os dados decidem algumas, então uma cena que
+não ocorreu não é falha. `SIM_ROUNDS` (padrão 6), `SIM_PACE` (padrão 1, menor
+é mais rápido) e `SIM_SCREEN` (padrão `1920x1080`) ajustam a sessão.
 
 `verify:app` e `verify:group` pedem `npm run build && npm run dev` em outro
 terminal e `npm run db:seed` antes. `APP_URL` troca o endereço (padrão
