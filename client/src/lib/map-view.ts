@@ -38,7 +38,8 @@ export const OPENING_COLUMNS = 15;
 export function openingView(map: Size, viewport: Size, grid: Pick<GridSettings, 'enabled' | 'cellSize'>): MapView {
   const fit = fitView(map, viewport);
   if (!grid.enabled || grid.cellSize <= 0) return fit;
-  const scale = Math.min(MAX_SCALE, Math.max(fit.scale, viewport.width / (OPENING_COLUMNS * grid.cellSize)));
+  // Never below the whole map: a small one opens framed, even past `MAX_SCALE`.
+  const scale = Math.max(fit.scale, Math.min(MAX_SCALE, viewport.width / (OPENING_COLUMNS * grid.cellSize)));
   return { scale, x: viewport.width / 2 - (map.width / 2) * scale, y: viewport.height / 2 - (map.height / 2) * scale };
 }
 

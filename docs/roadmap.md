@@ -111,6 +111,9 @@ em quatro PRs independentes:
    linhas por cena (de 0%, linhas escondidas com o grid ainda valendo, a
    100%), e a cena abre mostrando cerca de 15 casas na largura, com os tokens
    no tamanho da mesa; "Enquadrar o mapa" continua mostrando o mapa inteiro.
+   Diferenças da spec: o desenho já pintava o token até a borda da casa, então
+   o que mudou foi só a abertura da cena; a barra é o controle deslizante
+   nativo, sem a dependência `@radix-ui/react-slider`.
 
 ### Telas da campanha
 

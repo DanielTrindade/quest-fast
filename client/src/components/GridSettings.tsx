@@ -40,7 +40,8 @@ function draftOf(grid: Grid, mapWidth: number): Draft {
     source: 'cellSize',
     offsetX: show(grid.offsetX),
     offsetY: show(grid.offsetY),
-    opacity: Math.round(grid.opacity * 100),
+    // On the slider's step of 5: a value saved elsewhere shows as the thumb sits.
+    opacity: Math.round(grid.opacity * 20) * 5,
   };
 }
 
