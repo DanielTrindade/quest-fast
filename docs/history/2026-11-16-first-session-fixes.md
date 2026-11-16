@@ -89,11 +89,6 @@ leva `characterId`, `characterName`, `spellName`, `circle` ou `ritual` e
 404 se não for membro, 403 se for). O ajuste manual dos pontos continua pelo
 estado da ficha.
 
-**Na entrega:** só o dono conjura; o mestre recebe 403, como nas rotas de
-rolagem e de estado da ficha, que também são só do dono. O corpo recebe também
-`spellName`, para recusar a conjuração se a lista mudou, e conjurar outra magia
-de concentração descarta os lembretes de salvaguarda da anterior.
-
 **Testes:** regras do círculo em `shared/`. Integração: o jogador não conjura
 pelo personagem de outro; círculo abaixo da magia, sem espaço ou ritual numa
 magia que não é ritual são recusados; a conjuração gasta o espaço e marca a
