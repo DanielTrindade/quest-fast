@@ -289,6 +289,14 @@ test('a DC keeps its value as a save, with the ability when the sheet names it',
   });
 });
 
+test('a DC without damage is a save that imposes only its effect, with nothing to review', () => {
+  const { input, warnings } = sheetFromOfficialPdf(sheet(attackRow('Graxa', 'CD 13 Des', '')))!;
+  assert.deepEqual(input.attacks[0], {
+    kind: 'save', name: 'Graxa', dc: 13, saveAbility: 'dexterity', damage: '', damageType: '', notes: '',
+  });
+  assert.deepEqual(warnings, []);
+});
+
 test('a DC without the ability is kept and flagged for review', () => {
   const { input, warnings } = sheetFromOfficialPdf(sheet(attackRow('Sopro', 'CD 13')))!;
   assert.deepEqual(input.attacks[0], {

@@ -82,7 +82,10 @@ export type AbilityScores = Record<Ability, number>;
 
 type AttackDetails = {
   name: string;
-  /** Damage as a dice expression, e.g. "1d8+3". */
+  /**
+   * Damage as a dice expression, e.g. "1d8+3". Empty only on a save that
+   * deals no damage (Graxa): the target suffers only its effect.
+   */
   damage: string;
   /** e.g. "Cortante"; empty when not informed. */
   damageType: string;
@@ -321,7 +324,8 @@ export type RollPayload = {
   target?: AttackTarget;
   /**
    * An attack against a save: no attack roll, the target rolls. The roll's
-   * own `expression`/`dice`/`total` are then the damage.
+   * own `expression`/`dice`/`total` are then the damage. A save without
+   * damage (Graxa) rolls nothing: those are empty and `damage` is absent.
    */
   save?: { dc: number; ability: Ability };
   /** Who attacked, kept so redaction never depends on a combatant still there. */

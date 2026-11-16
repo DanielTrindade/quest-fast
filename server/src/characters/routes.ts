@@ -28,6 +28,8 @@ import {
   type SpellCastSessionEvent,
   rollAttackHit,
   rollDamage,
+  hasDamage,
+  noRoll,
   rollDice,
   saveBonus,
   skillAbility,
@@ -911,6 +913,11 @@ function parseLinkedRoll(body: LinkedRollRequest, sheet: CharacterSheet): Linked
     if (attack.kind === 'save') {
       // The target rolls the save: there is no attack roll, only the damage.
       if (mode !== 'normal') return { error: 'Vantagem e desvantagem não se aplicam a um ataque por salvaguarda.' };
+      const save = { dc: attack.dc, ability: attack.saveAbility };
+      // Only the effect (Graxa): nothing to roll, the feed calls for the save.
+      if (!hasDamage(attack)) {
+        return { payload: { kind: 'roll', ...noRoll(), ...details, save, characterId: sheet.id, characterName: sheet.name } };
+      }
       const damage = rollDamage(attack.damage, false);
       if (!damage) return { error: 'A expressão de dano deste ataque é inválida.' };
       return {
@@ -920,7 +927,7 @@ function parseLinkedRoll(body: LinkedRollRequest, sheet: CharacterSheet): Linked
           mode,
           ...details,
           damage: { ...damage, damageType: attack.damageType },
-          save: { dc: attack.dc, ability: attack.saveAbility },
+          save,
           characterId: sheet.id,
           characterName: sheet.name,
         },

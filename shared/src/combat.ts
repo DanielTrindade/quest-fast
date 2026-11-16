@@ -212,6 +212,7 @@ export type CombatReminder = { id: string } & (
   | { kind: 'concentration'; dc: number }
   | { kind: 'deathFailure' }
   | PendingDamage
+  | PendingSave
 );
 
 /**
@@ -234,6 +235,30 @@ export type PendingDamage = {
   /** Rolled in secret: a player does not see it, even on their own character. */
   secret: boolean;
 };
+
+/**
+ * A save without damage (Graxa, Fogo das Fadas) aimed at this combatant: the
+ * target rolls it at the table and, on a failure, suffers the effect, which
+ * the master applies. Who acts on the combatant marks it resolved.
+ */
+export type PendingSave = {
+  kind: 'pendingSave';
+  dc: number;
+  ability: Ability;
+  attackerName: string;
+  attackName: string;
+  /** The row's notes: what a failure does, when the sheet says. */
+  notes: string;
+  /** The attack event that called for it. */
+  eventId: string;
+  /** Called in secret: a player does not see it, even on their own character. */
+  secret: boolean;
+};
+
+/** Whether a player is kept from this reminder: what a secret attack left behind. */
+export function isSecretReminder(reminder: CombatReminder): boolean {
+  return (reminder.kind === 'pendingDamage' || reminder.kind === 'pendingSave') && reminder.secret;
+}
 
 /** A reminder not yet stored: the server gives it its id. */
 export type ReminderDraft = { kind: 'concentration'; dc: number } | { kind: 'deathFailure' };
@@ -260,7 +285,7 @@ export function damageReminders(input: {
  * Drops the reminders that lost their meaning: nobody rolls to keep a
  * concentration already gone, nor marks a failure on someone back on their
  * feet — even when that changed on the sheet, outside the combat routes.
- * Pending damage stays until the master decides: it still counts on someone
+ * Pending damage and saves stay until resolved: they still count on someone
  * already down.
  */
 export function pendingReminders(
@@ -268,7 +293,7 @@ export function pendingReminders(
   state: { hpCurrent: number; concentrating: boolean },
 ): CombatReminder[] {
   return reminders.filter((reminder) => {
-    if (reminder.kind === 'pendingDamage') return true;
+    if (reminder.kind === 'pendingDamage' || reminder.kind === 'pendingSave') return true;
     return reminder.kind === 'concentration' ? state.concentrating : state.hpCurrent === 0;
   });
 }

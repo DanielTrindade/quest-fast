@@ -28,10 +28,11 @@ export function parseAttack(value: unknown): Attack | undefined {
   if (typeof value !== 'object' || value === null) return undefined;
   const attack = value as Record<string, unknown>;
   const name = shortText(attack.name, L.name);
-  const damage = shortText(attack.damage, L.damage);
-  if (!name || !damage) return undefined;
+  if (!name || typeof attack.damage !== 'string' || attack.damage.length > L.damage) return undefined;
+  const damage = attack.damage.trim();
   // Damage is a dice expression: catching a typo now beats a wrong roll later.
-  if (!parseDiceExpression(damage)) return undefined;
+  // Only a save may go without it, when it imposes just its effect.
+  if (damage.length === 0 ? attack.kind !== 'save' : !parseDiceExpression(damage)) return undefined;
   const damageType = attack.damageType === undefined ? '' : attack.damageType;
   const notes = attack.notes === undefined ? '' : attack.notes;
   if (typeof damageType !== 'string' || damageType.length > L.damageType) return undefined;

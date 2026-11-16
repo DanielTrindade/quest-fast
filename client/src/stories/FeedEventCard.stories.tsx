@@ -195,6 +195,17 @@ const breath = attackEvent('a6', {
   target: { ...goblinTarget, hit: true },
   damage: { expression: '2d6', dice: [{ value: 3, sides: 6 }, { value: 4, sides: 6 }], modifier: 0, total: 7, damageType: 'Fogo' },
 });
+/** A save without damage (Graxa): nothing rolled, only the DC the target faces. */
+const grease = attackEvent('a10', {
+  ...sword,
+  expression: '',
+  dice: [],
+  modifier: 0,
+  total: 0,
+  attackName: 'Graxa',
+  save: { dc: 13, ability: 'dexterity' },
+  target: { ...goblinTarget, hit: true },
+});
 /** What `redactEvent` leaves a player of a public goblin attack: hit, critical and damage. */
 const monsterForPlayer = attackEvent(
   'a7',
@@ -253,6 +264,16 @@ export const AtaquePorSalvaguarda: Story = {
   name: 'Ataque por salvaguarda',
   args: { event: breath },
   play: reads('CD 13 de Destreza'),
+};
+export const SalvaguardaSemDano: Story = {
+  name: 'Salvaguarda sem dano',
+  args: { event: grease },
+  play: async ({ canvasElement }) => {
+    const [region] = within(canvasElement).getAllByRole('region', { name: /^Tema / });
+    const card = within(region!);
+    await expect(card.getByText('CD 13 de Destreza, sem dano')).toBeVisible();
+    await expect(card.queryByText(/Dano:/)).toBeNull();
+  },
 };
 export const AtaqueDeMonstroJogador: Story = {
   name: 'Ataque de monstro (jogador)',

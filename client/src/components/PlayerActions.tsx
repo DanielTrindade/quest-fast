@@ -3,15 +3,14 @@ import { IdentificationCard, UserCircleDashed } from '@phosphor-icons/react';
 import type { CastChoice, CharacterSheet, CharacterSummary, CombatantView, LinkedRollRequest, RollPayload } from '@quest-fast/shared';
 import { classLine } from '../lib/character-lines';
 import { contentKeys } from '../lib/content-keys';
-import { rollActionLabel, rollDecomposition } from '../lib/roll-labels';
 import { ArmorShield } from './ArmorShield';
 import { AttackCard } from './AttackCard';
 import { Avatar } from './Avatar';
 import { Button } from './Button';
 import { CombatantControls } from './CombatantControls';
-import { DiceResult } from './DiceResult';
 import { EmptyState } from './EmptyState';
 import { HpMeter } from './HpMeter';
+import { LinkedRollResult } from './LinkedRollResult';
 import type { InitiativeActions } from './InitiativeList';
 import { QuickTests } from './QuickTests';
 import { Skeleton } from './Skeleton';
@@ -61,8 +60,7 @@ function RollOutcome({ name, rolling, rollError, lastRoll }: { name: string; rol
       {!rolling && rollError && <p role="alert" className="m-0 text-small text-danger-text">{rollError}</p>}
       {!rolling && !rollError && lastRoll && (
         <div className="rounded-control border border-border bg-background px-3">
-          <DiceResult label={`${rollActionLabel(lastRoll)} de ${name}`} total={lastRoll.total}
-            decomposition={rollDecomposition(lastRoll)} dice={lastRoll.dice} mode={lastRoll.mode} natural={lastRoll.natural} />
+          <LinkedRollResult payload={lastRoll} name={name} />
         </div>
       )}
     </div>

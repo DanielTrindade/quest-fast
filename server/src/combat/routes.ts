@@ -30,6 +30,8 @@ import {
   removeCondition,
   rollAttackHit,
   rollDamage,
+  hasDamage,
+  noRoll,
   rollDice,
   saveBonus,
   setCondition,
@@ -932,7 +934,15 @@ function attack(mutation: Mutation, combatant: LoadedCombatant, body: Record<str
   const aimed = target ? { combatantId: target.row.id, name: target.name, source: sourceOf(target) } : undefined;
 
   let payload: RollPayload;
-  if (chosen.kind === 'save') {
+  if (chosen.kind === 'save' && !hasDamage(chosen)) {
+    // Only the effect: nothing to roll, the target makes the save.
+    payload = {
+      ...base,
+      ...noRoll(),
+      save: { dc: chosen.dc, ability: chosen.saveAbility },
+      ...(aimed ? { target: { ...aimed, hit: true } } : {}),
+    };
+  } else if (chosen.kind === 'save') {
     const damage = rollDamage(chosen.damage, false);
     if (!damage) refuse(422, 'A expressão de dano deste ataque é inválida.');
     payload = {
@@ -969,6 +979,21 @@ function attack(mutation: Mutation, combatant: LoadedCombatant, body: Record<str
   });
   mutation.events.push(event);
 
+  if (target && chosen.kind === 'save' && !payload.damage) {
+    const called: CombatReminder = {
+      id: randomUUID(),
+      kind: 'pendingSave',
+      dc: chosen.dc,
+      ability: chosen.saveAbility,
+      attackerName: combatant.name,
+      attackName: chosen.name,
+      notes: chosen.notes,
+      eventId: event.id,
+      secret,
+    };
+    writeVitals(mutation, target, {}, [...target.row.reminders, called]);
+    return;
+  }
   if (!target || !payload.damage || payload.damage.total === 0) return;
   const pending: CombatReminder = {
     id: randomUUID(),

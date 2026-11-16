@@ -18,7 +18,10 @@ export function attackHeadline(payload: RollPayload): string {
 
 /** "Acertou (CA 15)", "Errou", "CD 13 de Destreza"; nothing without a target or DC. */
 export function attackOutcome(payload: RollPayload): string | null {
-  if (payload.save) return `CD ${payload.save.dc} de ${ABILITY_LABELS[payload.save.ability]}`;
+  if (payload.save) {
+    const dc = `CD ${payload.save.dc} de ${ABILITY_LABELS[payload.save.ability]}`;
+    return isSaveCall(payload) ? `${dc}, sem dano` : dc;
+  }
   if (payload.damageOf || !payload.target) return null;
   const ac = payload.target.ac === undefined ? '' : ` (CA ${payload.target.ac})`;
   return `${payload.target.hit ? 'Acertou' : 'Errou'}${ac}`;
@@ -34,6 +37,11 @@ export function damageText(payload: RollPayload): string | null {
   const type = damage.damageType ? ` ${damage.damageType.toLowerCase()}` : ' de dano';
   const dice = damage.expression ? ` (${damage.expression})` : '';
   return `${damage.total}${type}${dice}`;
+}
+
+/** A save without damage (Graxa): nothing was rolled, the target makes the save. */
+export function isSaveCall(payload: RollPayload): boolean {
+  return !!payload.save && !payload.damage && !payload.damageOf;
 }
 
 /** Whether the attack roll itself (the d20) is there to show. */

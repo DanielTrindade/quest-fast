@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { expect, fn, within } from 'storybook/test';
+import { expect, fn, userEvent, within } from 'storybook/test';
 import { AttackCard } from '../components/AttackCard';
 
 const dagger = { name: 'Adaga', bonus: 7, damage: '1d4+4', onRoll: fn() };
@@ -27,5 +27,18 @@ export const Resistencia: Story = {
       await expect(within(region).queryByRole('button', { name: /Atacar/ })).toBeNull();
       await expect(within(region).getByRole('button', { name: 'Rolar dano de Palavra Radiante' })).toBeVisible();
     }
+  },
+};
+export const SalvaguardaSemDano: Story = {
+  name: 'Salvaguarda sem dano',
+  // Graxa imposes only its effect: the button calls for the save, nothing is rolled.
+  args: { kind: 'save', name: 'Graxa', dc: 12, saveAbility: 'dexterity', damage: '', notes: 'Cai se falhar', onRoll: fn() },
+  play: async ({ canvasElement, args }) => {
+    const [region] = within(canvasElement).getAllByRole('region', { name: /^Tema / });
+    const card = within(region!);
+    await expect(card.getByText('Sem dano')).toBeVisible();
+    await expect(card.queryByRole('button', { name: /Rolar dano/ })).toBeNull();
+    await userEvent.click(card.getByRole('button', { name: 'Pedir salvaguarda de Graxa' }));
+    await expect(args.onRoll).toHaveBeenCalled();
   },
 };

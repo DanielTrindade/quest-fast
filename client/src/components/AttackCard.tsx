@@ -1,4 +1,4 @@
-import { DiceFive, Sword } from '@phosphor-icons/react';
+import { DiceFive, ShieldWarning, Sword } from '@phosphor-icons/react';
 import type { Ability } from '@quest-fast/shared';
 import { Button } from './Button';
 import { ABILITY_LABELS } from '../lib/5e';
@@ -12,7 +12,8 @@ type AttackCardProps = {
 
 /**
  * A row of "Armas e truques de dano": hit bonus or save DC, damage with its
- * type, notes. A save is rolled by the target: its button rolls the damage.
+ * type, notes. A save is rolled by the target: its button rolls the damage,
+ * or only calls for the save when it deals none (Graxa).
  */
 export function AttackCard(props: AttackCardProps) {
   const { name, damage, damageType = '', notes = '', onRoll, disabled = false } = props;
@@ -23,11 +24,17 @@ export function AttackCard(props: AttackCardProps) {
         {props.kind === 'save'
           ? <div><dt>Resistência</dt><dd>{ABILITY_LABELS[props.saveAbility]} — CD {props.dc}</dd></div>
           : <div><dt>Acerto</dt><dd>{props.bonus >= 0 ? '+' : '−'}{Math.abs(props.bonus)}</dd></div>}
-        <div><dt>Dano e tipo</dt><dd>{damage}{damageType && <span className="font-sans text-text-secondary"> {damageType}</span>}</dd></div>
+        {damage
+          ? <div><dt>Dano e tipo</dt><dd>{damage}{damageType && <span className="font-sans text-text-secondary"> {damageType}</span>}</dd></div>
+          : <div><dt>Dano</dt><dd className="font-sans">Sem dano</dd></div>}
       </dl>
       {notes && <p className="mt-1 text-small text-text-secondary [overflow-wrap:anywhere]">{notes}</p>}
     </div>
-    {onRoll && (props.kind === 'save'
+    {onRoll && (props.kind === 'save' && !damage
+      ? <Button variant="secondary" disabled={disabled} onClick={onRoll} aria-label={`Pedir salvaguarda de ${name}`}>
+        <ShieldWarning size={18} aria-hidden="true" />Pedir salvaguarda
+      </Button>
+      : props.kind === 'save'
       ? <Button variant="secondary" disabled={disabled} onClick={onRoll} aria-label={`Rolar dano de ${name}`}>
         <DiceFive size={18} aria-hidden="true" />Rolar dano
       </Button>

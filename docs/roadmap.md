@@ -3,7 +3,7 @@
 O que já existe, o que vem a seguir e o que está em aberto. Atualize este
 arquivo no PR que entrega ou muda o escopo de uma etapa.
 
-Atualizado em 2026-11-12.
+Atualizado em 2026-11-16.
 
 ## Entregue
 
@@ -86,6 +86,28 @@ usável na mesa:
 Em ordem. O mapa vem antes do mundo porque substitui o Owlbear, a ferramenta
 que mais pesa na mesa hoje depois que o combate substituiu o Avrae; NPCs,
 locais e diários continuam no Kanka até a fase 3.
+
+### Ajustes da primeira sessão
+
+A primeira sessão real com o MVP (2026-11-13) levantou ajustes que entram
+antes do fog of war: [#110](https://github.com/DanielTrindade/quest-fast/issues/110)
+e depois [#111](https://github.com/DanielTrindade/quest-fast/issues/111). O
+resto do que a mesa pediu ficou em issues próprias: efeitos temporários
+([#112](https://github.com/DanielTrindade/quest-fast/issues/112)), gabaritos
+de área depois do fog ([#113](https://github.com/DanielTrindade/quest-fast/issues/113))
+e invocações ([#114](https://github.com/DanielTrindade/quest-fast/issues/114)).
+Spec da #110 em
+[`history/2026-11-16-first-session-fixes.md`](history/2026-11-16-first-session-fixes.md),
+em quatro PRs independentes:
+
+1. **Salvaguarda sem dano — entregue.** Uma linha de salvaguarda pode ficar
+   sem dano (Graxa, Fogo das Fadas): usá-la não rola nada, o feed mostra a CD
+   e o alvo recebe um lembrete para rolar, que quem age sobre ele marca como
+   resolvido. O PDF importado aceita a linha sem dano.
+2. **Espaços de magia e conjuração.** Espaços na aba Ações e "Conjurar", que
+   gasta o espaço, marca a concentração e registra a magia no feed.
+3. **Imagem no bestiário e token caído ou derrotado.**
+4. **Grid:** opacidade das linhas por cena e token ocupando a casa inteira.
 
 ### Telas da campanha
 
