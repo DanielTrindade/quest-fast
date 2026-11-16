@@ -747,7 +747,11 @@ export function characterRoutes() {
       return c.json({ error: 'Apenas o dono pode conjurar pela ficha.' }, 403);
     }
     const characterId = row.character.id;
-    const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>;
+    const raw: unknown = await c.req.json().catch(() => null);
+    if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+      return c.json({ error: 'Envie a magia e o círculo do espaço.' }, 422);
+    }
+    const body = raw as Record<string, unknown>;
     const result = await withInput(() =>
       db.transaction((tx): { event: SpellCastSessionEvent } | false => {
         const current = characterSelect(tx, c.var.campaignId, characterId);
@@ -761,9 +765,16 @@ export function characterRoutes() {
         if (!keepsConcentration(true, sheet.hpCurrent)) fail('Um personagem caído não consegue conjurar.');
         const cast = castSpell(spell, sheet.spellSlots, choice);
         if (!cast.ok) fail(cast.error);
+        const where = and(eq(characters.id, characterId), eq(characters.campaignId, c.var.campaignId));
+        if (spell.concentration && sheet.concentrating) {
+          // A new concentration ends the old one: the saves still owed to keep
+          // it go with it, before the new one starts.
+          tx.update(characters).set({ concentrating: false }).where(where).run();
+          settleCharacterReminders(tx, characterId);
+        }
         tx.update(characters)
           .set({ spellSlots: cast.slots, ...(spell.concentration ? { concentrating: true } : {}), updatedAt: new Date() })
-          .where(and(eq(characters.id, characterId), eq(characters.campaignId, c.var.campaignId)))
+          .where(where)
           .run();
         settleCharacterReminders(tx, characterId);
         return {

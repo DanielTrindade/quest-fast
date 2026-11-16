@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { CastSpellResponse, CharacterResponse, CreatedCampaign, FeedResponse, SpellCastPayload } from '@quest-fast/shared';
 import { asUser, body, createTestApp, signIn } from '../testing.ts';
+import { byName, encounterOf, runningEncounter, send, setup, sheet } from '../combat/test-setup.ts';
 
 const PROFILES = {
   lia: { discordId: '111', name: 'Lia Martins', avatarUrl: null },
@@ -110,6 +111,37 @@ test('only the owner casts from the sheet; who is not a member does not find it'
   assert.equal((await cast(master, fireball)).status, 403);
   assert.equal((await cast(outsider, fireball)).status, 404);
   assert.equal((await feed(master)).length, 0);
+});
+
+test('a body that is not an object is refused with a message, not a crash', async () => {
+  const { player, campaign, lyra } = await table();
+  for (const payload of ['null', '[]', '"Bola de Fogo"', '{']) {
+    const response = await player(`/api/campaigns/${campaign.id}/characters/${lyra.id}/cast`, { method: 'POST', body: payload });
+    assert.equal(response.status, 422, payload);
+    assert.equal((await body<{ error: string }>(response)).error, 'Envie a magia e o círculo do espaço.');
+  }
+});
+
+test('a new concentration drops the saves owed to keep the old one, and nothing else', async () => {
+  const s = await setup();
+  const armed = await send(s.player, `${s.root}/characters/${s.kaelen.id}`, 'PATCH', {
+    ...sheet('Kaelen'), spellSlotTotals: [4, 0, 0, 0, 0, 0, 0, 0, 0], spells: [SPELLS[3]],
+  });
+  assert.equal(armed.status, 200, await armed.clone().text());
+  const { path, id } = await runningEncounter(s);
+  const at = (name: string, action: string) => `${path}/combatants/${id(name)}${action}`;
+  await send(s.player, at('Kaelen', '/concentration'), 'PUT', { concentrating: true });
+  await send(s.master, at('Kaelen', '/hp'), 'POST', { operation: 'damage', amount: 4 });
+  // A pending damage of another kind must stay.
+  await send(s.master, at('Goblin 1', '/attack'), 'POST', { attackIndex: 0, targetId: id('Kaelen') });
+  const kinds = async () => byName(await encounterOf(await s.master(path)), 'Kaelen').reminders.map((reminder) => reminder.kind).sort();
+  const before = await kinds();
+  assert.ok(before.includes('concentration'));
+
+  const cast = await send(s.player, `${s.root}/characters/${s.kaelen.id}/cast`, 'POST', { spellIndex: 0, spellName: 'Detectar Magia', circle: 1 });
+  assert.equal(cast.status, 201, await cast.clone().text());
+  assert.deepEqual(await kinds(), before.filter((kind) => kind !== 'concentration'));
+  assert.equal((await body<CastSpellResponse>(cast)).character.concentrating, true);
 });
 
 test('a character at 0 hit points cannot cast', async () => {

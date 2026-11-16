@@ -112,6 +112,6 @@ export const Conjuradora: Story = {
     await expect(panel.getByRole('region', { name: 'Magias de Lyra Ventoclaro' })).toBeVisible();
     await userEvent.click(panel.getByRole('button', { name: 'Conjurar Curar Ferimentos' }));
     await userEvent.click(within(panel.getByRole('group', { name: 'Conjurar Curar Ferimentos' })).getByRole('button', { name: 'Conjurar Curar Ferimentos' }));
-    await expect(args.spellcasting?.onCast).toHaveBeenLastCalledWith(2, { circle: 1 });
+    await expect(args.spellcasting?.onCast).toHaveBeenLastCalledWith(2, 'Curar Ferimentos', { circle: 1 });
   },
 };

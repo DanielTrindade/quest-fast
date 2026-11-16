@@ -56,18 +56,20 @@ function useOwnCharacter(campaignId: string, currentUserId: string, enabled: boo
       mergeFeedEvent(queryClient, campaignId, event);
     },
   });
-  // The answer is the whole sheet: it replaces the cached one, and the
-  // roster and the fight refresh from the socket like any sheet change.
+  // The answer is the whole sheet: it replaces the cached one under its own
+  // id, never the character active now (another tab may have switched it),
+  // and the roster and the fight refresh from the socket like any change.
   const keepSheet = (response: CharacterResponse) => {
-    queryClient.setQueryData(['character', campaignId, own!.id], { character: response.character });
+    queryClient.setQueryData(['character', response.character.campaignId, response.character.id], { character: response.character });
   };
   const slots = useMutation({
-    mutationFn: (spellSlotsSpent: number[]) => api.updateCharacterState(campaignId, own!.id, { spellSlotsSpent }),
+    mutationFn: ({ characterId, spent }: { characterId: string; spent: number[] }) =>
+      api.updateCharacterState(campaignId, characterId, { spellSlotsSpent: spent }),
     onSuccess: keepSheet,
   });
   const cast = useMutation({
-    mutationFn: ({ spellIndex, choice }: { spellIndex: number; choice: CastChoice }) =>
-      api.castSpell(campaignId, own!.id, { spellIndex, spellName: sheet.data!.character.spells[spellIndex]!.name, ...choice }),
+    mutationFn: ({ characterId, spellIndex, spellName, choice }: { characterId: string; spellIndex: number; spellName: string; choice: CastChoice }) =>
+      api.castSpell(campaignId, characterId, { spellIndex, spellName, ...choice }),
     onSuccess: (response) => {
       keepSheet(response);
       mergeFeedEvent(queryClient, campaignId, response.event);
@@ -169,8 +171,12 @@ function PlayerPanel({ campaignId, currentUserId, fight, player, ownCombatant }:
         spellcasting={{
           pending: slots.isPending || cast.isPending,
           error: spellError,
-          onChangeSlots: (spent) => { cast.reset(); slots.mutate(spent); },
-          onCast: (spellIndex, choice) => { slots.reset(); cast.mutate({ spellIndex, choice }); },
+          onChangeSlots: (spent) => { if (!own) return; cast.reset(); slots.mutate({ characterId: own.id, spent }); },
+          onCast: (spellIndex, spellName, choice) => {
+            if (!own) return;
+            slots.reset();
+            cast.mutate({ characterId: own.id, spellIndex, spellName, choice });
+          },
         }}
         galleryAction={(
           <Button asChild variant="secondary">

@@ -79,10 +79,15 @@ export function SpellCaster({ name, slots, spells, concentrating, pending = fals
   pending?: boolean;
   error?: string | null;
   onChangeSlots: (spent: number[]) => void;
-  /** The spell's index in the sheet's list, as the server reads it. */
-  onCast: (spellIndex: number, choice: CastChoice) => void;
+  /**
+   * The spell's index in the sheet's list, as the server reads it, and its
+   * name, which the server checks so an edited list never casts another spell.
+   */
+  onCast: (spellIndex: number, spellName: string, choice: CastChoice) => void;
 }) {
-  const [open, setOpen] = useState<number | null>(null);
+  // The open confirmation belongs to a spell, not to a place in the list: if
+  // the sheet changes and the spell is gone, the confirmation closes.
+  const [open, setOpen] = useState<string | null>(null);
   const ids = useId();
   const castable = contentKeys(spells)
     .map((entry, index) => ({ ...entry, index }))
@@ -104,17 +109,17 @@ export function SpellCaster({ name, slots, spells, concentrating, pending = fals
                       {circleLabel(spell.level)}{spell.concentration ? ' · concentração' : ''}{spell.ritual ? ' · ritual' : ''}
                     </span>
                   </span>
-                  {open !== index && (
-                    <Button variant="secondary" disabled={pending || blocked !== null} onClick={() => setOpen(index)}
+                  {open !== key && (
+                    <Button variant="secondary" disabled={pending || blocked !== null} onClick={() => setOpen(key)}
                       aria-describedby={blocked ? `${ids}-blocked-${index}` : undefined}>
                       <MagicWand size={18} aria-hidden="true" /> Conjurar<span className="sr-only"> {spell.name}</span>
                     </Button>
                   )}
                 </div>
                 {blocked && <p id={`${ids}-blocked-${index}`} className="m-0 text-small text-text-muted">{blocked}</p>}
-                {open === index && !blocked && (
+                {open === key && !blocked && (
                   <CastConfirm spell={spell} slots={slots} concentrating={concentrating} pending={pending}
-                    onCast={(choice) => { onCast(index, choice); setOpen(null); }} onCancel={() => setOpen(null)} />
+                    onCast={(choice) => { onCast(index, spell.name, choice); setOpen(null); }} onCancel={() => setOpen(null)} />
                 )}
               </li>
             );

@@ -1,5 +1,7 @@
+import { useState, type ComponentProps } from 'react';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { expect, fn, userEvent, within } from 'storybook/test';
+import { Button } from '../components/Button';
 import { SpellCaster } from '../components/SpellCaster';
 import { lyraVentoclaro } from './fixtures/characters';
 
@@ -36,7 +38,7 @@ export const Conjurar: Story = {
     await expect(confirm.getByText('Exige concentração: o personagem passa a se concentrar.')).toBeVisible();
     await userEvent.click(confirm.getByRole('radio', { name: '2º círculo' }));
     await userEvent.click(confirm.getByRole('button', { name: 'Conjurar Bênção' }));
-    await expect(args.onCast).toHaveBeenLastCalledWith(3, { circle: 2 });
+    await expect(args.onCast).toHaveBeenLastCalledWith(3, 'Bênção', { circle: 2 });
   },
 };
 
@@ -50,7 +52,7 @@ export const Ritual: Story = {
     await expect(confirm.getByText('Exige concentração: a concentração atual termina.')).toBeVisible();
     await userEvent.click(confirm.getByRole('radio', { name: 'Como ritual' }));
     await userEvent.click(confirm.getByRole('button', { name: 'Conjurar Detectar Magia' }));
-    await expect(args.onCast).toHaveBeenLastCalledWith(4, { ritual: true });
+    await expect(args.onCast).toHaveBeenLastCalledWith(4, 'Detectar Magia', { ritual: true });
   },
 };
 
@@ -66,3 +68,31 @@ export const SemEspacos: Story = {
 
 export const Erro: Story = { args: { error: 'Sem espaços livres do 2º círculo.' } };
 export const Enviando: Story = { args: { pending: true } };
+
+/** The sheet changes in another tab: a spell before the open one goes away. */
+function EditedElsewhere(args: ComponentProps<typeof SpellCaster>) {
+  const [spells, setSpells] = useState(args.spells);
+  return (
+    <div className="grid gap-3">
+      <Button variant="ghost" onClick={() => setSpells((list) => list.filter((spell) => spell.name !== 'Curar Ferimentos'))}>
+        Remover Curar Ferimentos da ficha
+      </Button>
+      <SpellCaster {...args} spells={spells} />
+    </div>
+  );
+}
+
+/** The open confirmation stays with its spell, never with its old place in the list. */
+export const FichaMudaComConfirmacaoAberta: Story = {
+  name: 'Ficha muda com a confirmação aberta',
+  render: (args) => <EditedElsewhere {...args} />,
+  play: async ({ canvasElement, args }) => {
+    const panel = firstTheme(canvasElement);
+    await userEvent.click(panel.getByRole('button', { name: 'Conjurar Bênção' }));
+    await userEvent.click(panel.getByRole('button', { name: 'Remover Curar Ferimentos da ficha' }));
+    await expect(panel.queryByRole('group', { name: 'Conjurar Detectar Magia' })).toBeNull();
+    const confirm = within(panel.getByRole('group', { name: 'Conjurar Bênção' }));
+    await userEvent.click(confirm.getByRole('button', { name: 'Conjurar Bênção' }));
+    await expect(args.onCast).toHaveBeenLastCalledWith(2, 'Bênção', { circle: 1 });
+  },
+};

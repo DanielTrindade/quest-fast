@@ -119,7 +119,7 @@ export function PlayerActions({
     pending: boolean;
     error: string | null;
     onChangeSlots: (spent: number[]) => void;
-    onCast: (spellIndex: number, choice: CastChoice) => void;
+    onCast: (spellIndex: number, spellName: string, choice: CastChoice) => void;
   };
 }) {
   if (!character) {
