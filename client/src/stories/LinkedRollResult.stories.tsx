@@ -49,3 +49,16 @@ export const SalvaguardaSemDano: Story = {
     await expect(card.getByText('Salvaguarda de Destreza')).toBeVisible();
   },
 };
+
+/** The longest name the server accepts, without a space: it breaks inside the card. */
+export const NomeLongoSemEspacos: Story = {
+  name: 'Nome longo sem espaços',
+  args: {
+    payload: { ...grease, attackName: 'SalvaguardaSemEspacos'.repeat(4).slice(0, 80) },
+    name: 'Elara Sombravil, guardiã dos caminhos esquecidos',
+  },
+  play: async ({ canvasElement }) => {
+    const [region] = within(canvasElement).getAllByRole('region', { name: /^Tema / });
+    await expect(within(region!).getByText('CD 13')).toBeVisible();
+  },
+};
