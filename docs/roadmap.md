@@ -109,7 +109,11 @@ em quatro PRs independentes:
    confirma o círculo ou o ritual. O servidor gasta o espaço, encerra a
    concentração anterior e marca a nova, e o feed registra a magia. Só o dono
    do personagem conjura.
-3. **Imagem no bestiário e token caído ou derrotado.**
+3. **Imagem no bestiário e token caído ou derrotado — entregue.** O mestre
+   envia a imagem da criatura, que os tokens dela passam a mostrar. No mapa, o
+   personagem a 0 PV aparece caído (anel de perigo, apagado) e a criatura a 0
+   PV, derrotada (cinza, com um X, por baixo dos vivos). A lista de tokens e o
+   resumo acessível do mapa dizem quem caiu.
 4. **Grid e tamanho do token — entregue.** O mestre ajusta a opacidade das
    linhas por cena (de 0%, linhas escondidas com o grid ainda valendo, a
    100%), e a cena abre mostrando cerca de 15 casas na largura, com os tokens
