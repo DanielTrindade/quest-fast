@@ -104,8 +104,11 @@ em quatro PRs independentes:
    sem dano (Graxa, Fogo das Fadas): usá-la não rola nada, o feed mostra a CD
    e o alvo recebe um lembrete para rolar, que quem age sobre ele marca como
    resolvido. O PDF importado aceita a linha sem dano.
-2. **Espaços de magia e conjuração.** Espaços na aba Ações e "Conjurar", que
-   gasta o espaço, marca a concentração e registra a magia no feed.
+2. **Espaços de magia e conjuração — entregue.** A aba Ações mostra os espaços
+   (ajuste à mão) e, em cada magia de 1º círculo ou mais, "Conjurar", que
+   confirma o círculo ou o ritual. O servidor gasta o espaço, encerra a
+   concentração anterior e marca a nova, e o feed registra a magia. Só o dono
+   do personagem conjura.
 3. **Imagem no bestiário e token caído ou derrotado.**
 4. **Grid:** opacidade das linhas por cena e token ocupando a casa inteira.
 
