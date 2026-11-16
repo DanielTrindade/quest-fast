@@ -278,6 +278,10 @@ export type {
   AttackRequest,
   ApplyDamageRequest,
   UnknownSessionEvent,
+  SpellCastPayload,
+  SpellCastSessionEvent,
+  CastSpellRequest,
+  CastSpellResponse,
   ActiveSceneRequest,
   SceneInput,
   SceneListResponse,
@@ -307,3 +311,13 @@ export type {
   BansResponse,
 } from './api.ts';
 export { COMBAT_EVENT_TYPES, NOT_A_MEMBER_CLOSE_CODE } from './api.ts';
+export {
+  MAX_SPELL_CIRCLE,
+  canCastAsRitual,
+  castBlockedReason,
+  castCircles,
+  castSpell,
+  circleLabel,
+  type CastChoice,
+  type CastResult,
+} from './spellcasting.ts';

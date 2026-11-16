@@ -3,7 +3,7 @@ import { expect, fn, userEvent, within } from 'storybook/test';
 import type { CombatantView, RollPayload } from '@quest-fast/shared';
 import { PlayerActions, type PlayerFight } from '../components/PlayerActions';
 import { Button } from '../components/ui/button';
-import { hazinDan } from './fixtures/characters';
+import { hazinDan, lyraVentoclaro } from './fixtures/characters';
 import { PORTRAIT, partyMember, worstCase } from './fixtures/my-characters';
 import { downedPlayer, playerCombatants } from './fixtures/encounters';
 import { playerWithHits } from './fixtures/table';
@@ -97,5 +97,21 @@ export const FichaComErro: Story = {
     await expect(panel.getByRole('alert')).toHaveTextContent('Não foi possível carregar a ficha.');
     await userEvent.click(panel.getByRole('button', { name: 'Tentar novamente' }));
     await expect(args.onRetrySheet).toHaveBeenCalled();
+  },
+};
+
+/** A caster: the slots and the spells that spend them, between the attacks and the tests. */
+export const Conjuradora: Story = {
+  args: {
+    character: { ...partyMember({ ...lyraVentoclaro, campaignName: 'Mesa de quinta' }), hpCurrent: 22, hpTemp: 5 },
+    sheet: lyraVentoclaro,
+    spellcasting: { pending: false, error: null, onChangeSlots: fn(), onCast: fn() },
+  },
+  play: async ({ canvasElement, args }) => {
+    const panel = firstTheme(canvasElement);
+    await expect(panel.getByRole('region', { name: 'Magias de Lyra Ventoclaro' })).toBeVisible();
+    await userEvent.click(panel.getByRole('button', { name: 'Conjurar Curar Ferimentos' }));
+    await userEvent.click(within(panel.getByRole('group', { name: 'Conjurar Curar Ferimentos' })).getByRole('button', { name: 'Conjurar Curar Ferimentos' }));
+    await expect(args.spellcasting?.onCast).toHaveBeenLastCalledWith(2, { circle: 1 });
   },
 };

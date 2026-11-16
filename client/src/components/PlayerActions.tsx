@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { IdentificationCard, UserCircleDashed } from '@phosphor-icons/react';
-import type { CharacterSheet, CharacterSummary, CombatantView, LinkedRollRequest, RollPayload } from '@quest-fast/shared';
+import type { CastChoice, CharacterSheet, CharacterSummary, CombatantView, LinkedRollRequest, RollPayload } from '@quest-fast/shared';
 import { classLine } from '../lib/character-lines';
 import { contentKeys } from '../lib/content-keys';
 import { rollActionLabel, rollDecomposition } from '../lib/roll-labels';
@@ -15,6 +15,7 @@ import { HpMeter } from './HpMeter';
 import type { InitiativeActions } from './InitiativeList';
 import { QuickTests } from './QuickTests';
 import { Skeleton } from './Skeleton';
+import { SpellCaster } from './SpellCaster';
 
 export type PlayerCharacter = Pick<CharacterSummary, 'name' | 'class' | 'level' | 'ac' | 'hp' | 'hpCurrent' | 'hpTemp' | 'avatarUrl'>;
 
@@ -74,6 +75,11 @@ function RollOutcome({ name, rolling, rollError, lastRoll }: { name: string; rol
  * and death saves; otherwise the character with its attacks. Then the quick
  * tests of the sheet. Only asks; the server rolls and authorizes.
  */
+/** Slots to spend or spells that spend them: cantrips alone need no section. */
+function hasMagic(sheet: CharacterSheet): boolean {
+  return sheet.spellSlots.some((slot) => slot.total > 0) || sheet.spells.some((spell) => spell.level >= 1);
+}
+
 export function PlayerActions({
   character,
   sheet,
@@ -88,6 +94,7 @@ export function PlayerActions({
   onRoll,
   onOpenSheet,
   galleryAction,
+  spellcasting,
 }: {
   /** Null when the player has no active character in this campaign. */
   character: PlayerCharacter | null;
@@ -107,6 +114,13 @@ export function PlayerActions({
   onOpenSheet: () => void;
   /** Where to activate a character: the account gallery. */
   galleryAction: ReactNode;
+  /** Slots adjusted by hand and spells cast; without it, the section stays out. */
+  spellcasting?: {
+    pending: boolean;
+    error: string | null;
+    onChangeSlots: (spent: number[]) => void;
+    onCast: (spellIndex: number, choice: CastChoice) => void;
+  };
 }) {
   if (!character) {
     return (
@@ -138,6 +152,14 @@ export function PlayerActions({
             </section>
           )}
         </>
+      )}
+
+      {sheet && spellcasting && hasMagic(sheet) && (
+        <div className="grid min-w-0 border-t border-border pt-4">
+          <SpellCaster name={character.name} slots={sheet.spellSlots} spells={sheet.spells} concentrating={sheet.concentrating}
+            pending={spellcasting.pending} error={spellcasting.error}
+            onChangeSlots={spellcasting.onChangeSlots} onCast={spellcasting.onCast} />
+        </div>
       )}
 
       <div className="grid min-w-0 gap-3 border-t border-border pt-4">

@@ -1,8 +1,9 @@
-import { DiceFive, EyeSlash, FirstAidKit, FlagCheckered, Heartbeat, HeartBreak, Hourglass, Info, Lightning, Skull, Sword } from '@phosphor-icons/react';
-import { COMBAT_EVENT_TYPES, type CombatSessionEvent, type RollPayload, type RollSessionEvent, type SessionEvent, type UnknownSessionEvent } from '@quest-fast/shared';
+import { DiceFive, EyeSlash, FirstAidKit, FlagCheckered, Heartbeat, HeartBreak, Hourglass, Info, Lightning, MagicWand, Skull, Sword } from '@phosphor-icons/react';
+import { COMBAT_EVENT_TYPES, type CombatSessionEvent, type RollPayload, type RollSessionEvent, type SessionEvent, type SpellCastSessionEvent, type UnknownSessionEvent } from '@quest-fast/shared';
 import { ABILITY_LABELS, SKILL_LABELS } from '../lib/5e';
 import { attackHeadline, attackOutcome, canRollDamage, damageText, showsAttackRoll } from '../lib/attack-feed';
 import { combatEventText, type FightPayload } from '../lib/combat-feed';
+import { spellCastText } from '../lib/spell-feed';
 import { formatEventTime } from '../lib/format';
 import { Button } from './Button';
 import { DiceResult } from './DiceResult';
@@ -175,6 +176,20 @@ function UnknownEventCard({ event }: { event: UnknownSessionEvent }) {
   );
 }
 
+/** "Lyra Ventoclaro conjurou Bola de Fogo no 4º círculo." */
+function SpellCastEventCard({ event }: { event: SpellCastSessionEvent }) {
+  return (
+    <>
+      <FeedMeta event={event} />
+      <p className={combat}><MagicWand size={16} aria-hidden="true" /><span>{spellCastText(event.payload)}</span></p>
+    </>
+  );
+}
+
+function isSpellCastSessionEvent(event: SessionEvent): event is SpellCastSessionEvent {
+  return event.type === 'spell.cast';
+}
+
 /** Discriminates the union in a way a plain `type === 'roll'` check cannot:
  * the unknown branch's `type: string` would also accept `'roll'`. */
 function isRollSessionEvent(event: SessionEvent): event is RollSessionEvent {
@@ -197,6 +212,8 @@ export function FeedEventCard({ event, ...actions }: { event: SessionEvent } & D
     ? <RollEventCard event={event} {...actions} />
     : isCombatSessionEvent(event)
       ? <CombatEventCard event={event} />
-      : <UnknownEventCard event={event as UnknownSessionEvent} />;
+      : isSpellCastSessionEvent(event)
+        ? <SpellCastEventCard event={event} />
+        : <UnknownEventCard event={event as UnknownSessionEvent} />;
   return event.secret ? <div className="-mx-3 rounded-control border border-dashed border-input bg-surface-secret px-3 py-2">{content}</div> : <>{content}</>;
 }
