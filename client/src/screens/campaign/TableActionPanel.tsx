@@ -111,7 +111,7 @@ function TurnHeader({ fight, isMaster, currentUserId }: { fight: Fight; isMaster
   const { encounter, actions } = fight;
   if (!encounter) return null;
   return (
-    <div className="grid min-w-0 gap-2">
+    <div className="grid min-w-0 gap-2 [&_[data-slot=turn-message]]:line-clamp-2">
       <p className="m-0 text-small text-text-secondary [overflow-wrap:anywhere]">{encounter.name}</p>
       <EncounterTurnBar encounter={encounter} isMaster={isMaster} currentUserId={currentUserId} actions={actions} />
       {actions.error && <p role="alert" className="m-0 text-small text-danger-text">{actions.error}</p>}

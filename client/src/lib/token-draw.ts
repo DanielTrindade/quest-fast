@@ -96,10 +96,21 @@ function cross(context: CanvasRenderingContext2D, centre: Point, radius: number,
   context.lineCap = 'butt';
 }
 
+// A display name runs up to 32 characters; whole, it covers the neighbouring tokens.
+const MOVING_LABEL_MAX = 120;
+
+function fitLabel(context: CanvasRenderingContext2D, text: string, max: number): string {
+  if (context.measureText(text).width <= max) return text;
+  const characters = [...text];
+  while (characters.length > 1 && context.measureText(`${characters.join('').trimEnd()}…`).width > max) characters.pop();
+  return `${characters.join('').trimEnd()}…`;
+}
+
 function movingLabel(context: CanvasRenderingContext2D, name: string, centre: Point, radius: number, colours: Palette) {
   const size = 12;
   context.font = `500 ${size}px ${colours.font}`;
-  const width = context.measureText(name).width + 12;
+  const label = fitLabel(context, name, MOVING_LABEL_MAX);
+  const width = context.measureText(label).width + 12;
   const height = size + 8;
   const x = centre.x - width / 2;
   const y = centre.y + radius + 6;
@@ -113,7 +124,7 @@ function movingLabel(context: CanvasRenderingContext2D, name: string, centre: Po
   context.fillStyle = colours.text;
   context.textAlign = 'center';
   context.textBaseline = 'middle';
-  context.fillText(name, centre.x, y + height / 2 + 0.5);
+  context.fillText(label, centre.x, y + height / 2 + 0.5);
 }
 
 /**

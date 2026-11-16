@@ -11,9 +11,10 @@ import { CAMPAIGN_ID, DATA_STATES, respond, type DataState, type InviteScenario 
 type Failure = { path: string; status: number; error: string };
 
 // Both theme frames render the same dataset, so the mock reads one shared value.
-const current: { state: DataState; role: Role; invite?: InviteScenario; failing: Failure[]; requests: string[]; sockets: number } = {
+const current: { state: DataState; role: Role; invite?: InviteScenario; withMap: boolean; failing: Failure[]; requests: string[]; sockets: number } = {
   state: 'demo',
   role: 'master',
+  withMap: true,
   failing: [],
   requests: [],
   sockets: 0,
@@ -46,7 +47,7 @@ function installApiMock() {
     const failure = current.failing.find((item) => item.path === path.split('?')[0]);
     const reply = failure
       ? { status: failure.status, body: { error: failure.error } }
-      : respond(current.state, current.role, method, path, current.invite);
+      : respond(current.state, current.role, method, path, current.invite, current.withMap);
     return new Response(reply.body === undefined ? null : JSON.stringify(reply.body), {
       status: reply.status, headers: { 'content-type': 'application/json' },
     });
@@ -66,8 +67,8 @@ function App({ path }: { path: string }) {
   return <QueryClientProvider client={queryClient}><RouterProvider router={router} /></QueryClientProvider>;
 }
 
-function AppLab({ role, path, data = 'demo' }: { role: Role; path: string; data?: DataState; invite?: InviteScenario; failing?: Failure[] }) {
-  return <App key={`${data}-${role}-${path}`} path={path} />;
+function AppLab({ role, path, data = 'demo', withMap = true }: { role: Role; path: string; data?: DataState; invite?: InviteScenario; failing?: Failure[]; withMap?: boolean }) {
+  return <App key={`${data}-${role}-${path}-${withMap}`} path={path} />;
 }
 
 const meta = {
@@ -80,6 +81,7 @@ const meta = {
     current.state = data;
     current.role = args.role;
     current.invite = args.invite;
+    current.withMap = args.withMap ?? true;
     current.failing = args.failing ?? [];
     current.requests = [];
     current.sockets = 0;
@@ -108,6 +110,8 @@ export const MesaDoMestre: Story = { name: 'Mesa do mestre', args: master, globa
 export const MesaDoMestreClaro: Story = { name: 'Mesa do mestre (claro)', args: master, globals: light };
 export const MesaDoJogador: Story = { name: 'Mesa do jogador', args: player, globals: dark };
 export const MesaDoJogadorClaro: Story = { name: 'Mesa do jogador (claro)', args: player, globals: light };
+export const MesaDoMestreSemMapa: Story = { name: 'Mesa do mestre sem mapa', args: { ...master, withMap: false }, globals: dark };
+export const MesaDoJogadorSemMapa: Story = { name: 'Mesa do jogador sem mapa', args: { ...player, withMap: false }, globals: dark };
 export const Preparo: Story = { name: 'Preparo do mestre', args: prep, globals: dark };
 export const PreparoClaro: Story = { name: 'Preparo do mestre (claro)', args: prep, globals: light };
 export const MeusPersonagens: Story = { name: 'Meus personagens', args: gallery, globals: dark };

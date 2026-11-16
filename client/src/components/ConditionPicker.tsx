@@ -4,7 +4,7 @@ import { COMBAT_LIMITS, CONDITIONS, EXHAUSTION_MAX, type ActiveCondition, type C
 import { Button } from './Button';
 import { Input } from './ui/input';
 import { NativeSelect } from './ui/native-select';
-import { CONDITION_LABELS, conditionLabel } from '../lib/combat-labels';
+import { CONDITION_LABELS, conditionLabel, conditionShortLabel } from '../lib/combat-labels';
 
 const LEVELS = Array.from({ length: EXHAUSTION_MAX }, (_, index) => index + 1);
 const field = 'grid min-w-0 gap-1 text-small text-text-secondary';
@@ -24,8 +24,9 @@ export function ConditionChips({ name, conditions, pending = false, onRemove }: 
     <ul className="m-0 flex list-none flex-wrap gap-1 p-0" aria-label={`Condições de ${name}`}>
       {conditions.map((active) => (
         <li key={active.condition} data-removable={!!onRemove || undefined}
-          className="inline-flex min-h-9 items-center gap-1 rounded-control border border-input bg-background px-2 text-small text-foreground data-removable:pe-0">
-          {conditionLabel(active)}
+          className="inline-flex min-h-9 max-w-full items-center gap-1 rounded-control border border-input bg-background px-2 text-small whitespace-nowrap text-foreground data-removable:pe-0">
+          <span aria-hidden="true">{conditionShortLabel(active)}</span>
+          <span className="sr-only">{conditionLabel(active)}</span>
           {onRemove && (
             <button type="button" disabled={pending} onClick={() => onRemove(active.condition)}
               aria-label={`Remover ${CONDITION_LABELS[active.condition]} de ${name}`}

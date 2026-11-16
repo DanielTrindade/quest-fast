@@ -3,6 +3,7 @@ import {
   COMBAT_LIMITS,
   CONDITIONS,
   ENCOUNTER_LIMITS,
+  SCENE_LIMITS,
   STATBLOCK_LIMITS as S,
   type CampaignMember,
   type InvitePreview,
@@ -23,6 +24,7 @@ import {
 import { hazinDan, lyraVentoclaro } from './characters';
 import { masterCombatants } from './encounters';
 import { SYNTHETIC_MAP, defaultSceneGrid, syntheticMapUrl } from './maps';
+import { manyTokens, masterTokens, worstTokens } from './tokens';
 import { goblin, semExtras, wyrmDasCinzas } from './statblocks';
 
 export const DATA_STATES = ['demo', 'worst', 'empty', 'one', 'huge'] as const;
@@ -448,17 +450,26 @@ function inviteReply(data: Dataset, scenario: InviteScenario, code: string): Rep
  * Answers `/api/*` as the server would for this dataset and viewer, so the
  * real screens render the worst case through their own queries.
  */
-/** The demo table has a map open; the other datasets have none. */
-function openScene(state: DataState): SceneView | null {
-  if (state !== 'demo') return null;
+/**
+ * Demo, worst and many have a map open, with tokens; empty and one have none.
+ * `withMap: false` keeps the table without a map, where the feed takes the middle.
+ */
+function openScene(state: DataState, master: boolean, withMap: boolean): SceneView | null {
+  if (!withMap || state === 'empty' || state === 'one') return null;
+  const tokens = state === 'demo'
+    ? masterTokens()
+    : state === 'worst'
+      ? worstTokens({ guardian, thalindra: thalindra.name, mover: { userId: bartholomew.id, name: bartholomew.name } })
+      : manyTokens();
   return {
-    id: 's-hall', campaignId: CAMPAIGN_ID, name: 'Salão em ruínas', mapUrl: syntheticMapUrl(),
-    mapWidth: SYNTHETIC_MAP.width, mapHeight: SYNTHETIC_MAP.height, grid: defaultSceneGrid,
-    active: true, tokens: [], version: 1, createdAt: '2026-11-12T21:00:00.000Z',
+    id: 's-hall', campaignId: CAMPAIGN_ID,
+    name: state === 'worst' ? fit('Ponte sobre o Rio Triboar: o acampamento dos bandidos ao entardecer, com a carroça tombada', SCENE_LIMITS.name) : 'Salão em ruínas',
+    mapUrl: syntheticMapUrl(), mapWidth: SYNTHETIC_MAP.width, mapHeight: SYNTHETIC_MAP.height, grid: defaultSceneGrid,
+    active: true, tokens: master ? tokens : tokens.filter((token) => !token.hidden), version: 1, createdAt: '2026-11-12T21:00:00.000Z',
   };
 }
 
-export function respond(state: DataState, role: Role, method: string, path: string, invite?: InviteScenario): Reply {
+export function respond(state: DataState, role: Role, method: string, path: string, invite?: InviteScenario, withMap = true): Reply {
   const data = DATASETS[state];
   const master = role === 'master';
   const me = master ? data.me : { id: data.members.find((item) => item.role === 'player')?.userId ?? 'player', name: data.members.find((item) => item.role === 'player')?.name ?? 'Jogador', avatarUrl: null };
@@ -516,16 +527,16 @@ export function respond(state: DataState, role: Role, method: string, path: stri
     return encounter ? { status: 200, body: { encounter } } : notFound;
   }
   if (pathname === `${base}/scenes/active`) {
-    const scene = openScene(state);
+    const scene = openScene(state, master, withMap);
     return scene ? { status: 200, body: { scene } } : { status: 204 };
   }
   if (pathname === `${base}/scenes`) {
-    const scene = openScene(state);
+    const scene = openScene(state, master, withMap);
     if (!master) return { status: 403, body: { error: 'Só o mestre pode fazer isso.' } };
     return { status: 200, body: { scenes: scene ? [{ id: scene.id, name: scene.name, mapUrl: scene.mapUrl, mapWidth: scene.mapWidth, mapHeight: scene.mapHeight, active: true, createdAt: scene.createdAt }] : [] } };
   }
   if (pathname.startsWith(`${base}/scenes/`)) {
-    const scene = openScene(state);
+    const scene = openScene(state, master, withMap);
     return scene && pathname === `${base}/scenes/${scene.id}` ? { status: 200, body: { scene } } : notFound;
   }
   if (pathname === `${base}/feed`) {

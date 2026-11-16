@@ -30,7 +30,7 @@ function reorderedTie(encounter: EncounterView, id: string, direction: 'up' | 'd
 }
 
 function Summary({ summary }: { summary: EncounterSummaryView }) {
-  const rounds = `${summary.rounds} ${summary.rounds === 1 ? 'round' : 'rounds'}`;
+  const rounds = `${summary.rounds} ${summary.rounds === 1 ? 'rodada' : 'rodadas'}`;
   const defeated = summary.defeated.length > 0 ? `Derrotados: ${summary.defeated.join(', ')}.` : 'Nenhum derrotado.';
   return (
     <Surface variant="base" className="[&_p]:m-0">

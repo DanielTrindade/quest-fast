@@ -32,7 +32,7 @@ export function ScenePreviewDialog({ campaignId, sceneId, name, onClose }: {
         </div>
       )}
       {scene && (
-        <SceneStage campaignId={campaignId} scene={scene} isMaster mapClassName="h-[min(55dvh,520px)] min-h-[280px]" />
+        <SceneStage campaignId={campaignId} scene={scene} isMaster mapClassName="max-h-[min(55dvh,520px)] min-h-[280px]" />
       )}
     </Dialog>
   );

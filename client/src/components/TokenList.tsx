@@ -92,7 +92,7 @@ function TokenRow({ token, selected, own, movable, master, busy, helpId, onSelec
 function TokenTags({ token, own, viewerId }: { token: TokenView; own: boolean; viewerId: string | null }) {
   const movingBy = token.movingBy && token.movingBy.userId !== viewerId ? token.movingBy.name : null;
   return (
-    <span className="flex flex-wrap gap-x-3 gap-y-0.5 text-small text-text-secondary [&>span]:inline-flex [&>span]:items-center [&>span]:gap-1">
+    <span className="flex flex-wrap gap-x-3 gap-y-0.5 text-small text-text-secondary [&>span]:inline-flex [&>span]:min-w-0 [&>span]:items-center [&>span]:gap-1 [&>span]:[overflow-wrap:anywhere] [&_svg]:shrink-0">
       <span>{TOKEN_KIND_LABELS[token.kind]}</span>
       <span>{SIZE_LABELS[token.size]}</span>
       {own && <span className="font-semibold text-accent-text">Seu personagem</span>}

@@ -165,3 +165,21 @@ export const pickerStatblocks: PickerStatblock[] = [
   { id: 'sb-goblin', name: 'Goblin', size: 'small' },
   { id: 'sb-ogre', name: 'Ogro', size: 'large' },
 ];
+
+/**
+ * The worst table of the data lab: the longest names the sheets and the
+ * bestiary accept, a free label at its limit, a token with a broken avatar,
+ * one being dragged by a player with a long name, the dead and the hidden.
+ * Linked to the worst encounter's combatants by id.
+ */
+export function worstTokens(names: { guardian: string; thalindra: string; mover: { userId: string; name: string } }): TokenView[] {
+  return [
+    make('w-guardian', { name: names.guardian, kind: 'combatant', combatantId: 'w-fast', size: 'gargantuan', ...junction(22, 6) }),
+    make('w-thal', { name: names.thalindra, kind: 'character', characterId: 'thalindra', combatantId: null, ownerId: names.mover.userId, avatarUrl: '/avatars/removido-do-discord.png', ...cell(16, 5), movingBy: names.mover }),
+    make('w-bo', { name: 'Bo', kind: 'character', characterId: 'bo', ownerId: 'jo', vitality: 'down', ...cell(17, 6) }),
+    make('w-hidden', { name: 'Bandido escondido atrás da carroça tombada', kind: 'combatant', combatantId: 'w-hidden', hidden: true, ...cell(19, 3) }),
+    make('w-rat', { name: 'Rato 1', kind: 'combatant', combatantId: 'w-def', size: 'tiny', vitality: 'defeated', ...cell(18, 7) }),
+    make('w-free', { name: 'Carroça tombada e barris de pólvora seca', kind: 'free', size: 'large', ...junction(14, 8) }),
+    make('w-ar', { name: 'محمد العلي', kind: 'free', ...cell(15, 3) }),
+  ];
+}

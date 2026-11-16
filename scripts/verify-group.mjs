@@ -363,9 +363,9 @@ try {
     await panelTab(page, 'Ações');
     await tablePanel(page).getByRole('button', { name: /^Rolar iniciativa de / }).click();
   }
-  await master.page.getByRole('button', { name: 'Começar round 1' }).click({ timeout: 15000 });
+  await master.page.getByRole('button', { name: 'Começar rodada 1' }).click({ timeout: 15000 });
   for (const { page } of [master, rafael, ana]) {
-    await page.getByText(/Round 1/i).first().waitFor({ timeout: 15000 });
+    await page.getByText(/Rodada 1/i).first().waitFor({ timeout: 15000 });
   }
   ok('o mestre inicia, os jogadores rolam a própria iniciativa e a fila chega a todos ao vivo');
 

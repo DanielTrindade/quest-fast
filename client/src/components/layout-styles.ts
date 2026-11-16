@@ -8,5 +8,5 @@ export const dialogSheet = 'w-[min(880px,calc(100vw-32px))]';
 export const eyebrow = 'text-small text-text-muted';
 export const sectionTitle = 'm-0 font-display text-h2 font-semibold';
 export const sheetEmpty = 'm-0 text-small text-text-muted';
-export const sectionHeading = 'mb-4 flex items-center justify-between gap-3 max-[479px]:flex-wrap [&>h2]:flex [&>h2]:items-center [&>h2]:gap-2 [&>h2]:text-h2 [&>h2]:font-medium [&>span]:font-mono [&>span]:text-small [&>span]:text-text-muted';
+export const sectionHeading = 'mb-4 flex items-center justify-between gap-3 max-[479px]:flex-wrap [&>h2]:flex [&>h2]:min-w-0 [&>h2]:items-start [&>h2]:gap-2 [&>h2]:[overflow-wrap:anywhere] [&>h2>svg]:mt-[0.2em] [&>h2>svg]:shrink-0 [&>h2]:text-h2 [&>h2]:font-medium [&>span]:font-mono [&>span]:text-small [&>span]:text-text-muted';
 export const memberRow = 'flex min-w-0 flex-wrap items-center gap-3 border-border py-4 not-first:border-t';

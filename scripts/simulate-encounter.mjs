@@ -687,8 +687,8 @@ async function deathSave(player) {
   const modeControl = panel.locator(`fieldset[aria-label="Tipo de rolagem do teste contra a morte de ${player.characterName}"] label`);
   const kept = await modeControl.filter({ has: player.page.locator('input:checked') }).innerText().catch(() => 'Normal');
   if (player.deathSaveRolls > 1) {
-    if (kept.trim() !== 'Normal') say(`    O seletor do teste ainda marca ${kept.trim()} do round anterior.`);
-    check('o modo do teste contra a morte volta a Normal no round seguinte', kept.trim() === 'Normal', kept.trim() === 'Normal' ? '' : `seguia em ${kept.trim()}`);
+    if (kept.trim() !== 'Normal') say(`    O seletor do teste ainda marca ${kept.trim()} da rodada anterior.`);
+    check('o modo do teste contra a morte volta a Normal na rodada seguinte', kept.trim() === 'Normal', kept.trim() === 'Normal' ? '' : `seguia em ${kept.trim()}`);
   }
   await modeControl.filter({ hasText: new RegExp(`^\\s*${mode ?? 'Normal'}\\s*$`) }).click();
   await scrollTo(button);
@@ -711,13 +711,13 @@ async function deathSave(player) {
   check('o jogador caído rola o teste contra a morte na própria vez', moved);
   const again = panel.getByRole('button', { name: `Teste contra a morte de ${player.characterName}` });
   const offered = me.hpCurrent === 0 && (await again.count()) > 0 && (await again.isEnabled());
-  check('a tela não oferece um segundo teste contra a morte no mesmo round', !offered);
+  check('a tela não oferece um segundo teste contra a morte na mesma rodada', !offered);
   if (offered) {
     const [response] = await Promise.all([
       player.page.waitForResponse((r) => r.url().endsWith('/death-save') && r.request().method() === 'POST'),
       again.click(),
     ]);
-    check('o servidor recusa um segundo teste contra a morte no mesmo round', response.status() === 409, `HTTP ${response.status()}`);
+    check('o servidor recusa um segundo teste contra a morte na mesma rodada', response.status() === 409, `HTTP ${response.status()}`);
     await sleep(900);
   }
 }
@@ -1312,7 +1312,7 @@ async function closeTheMap() {
 }
 
 async function battlefield() {
-  say('No mapa (antes do round 1, mover é livre).');
+  say('No mapa (antes da rodada 1, mover é livre).');
   await alignGrid();
   await placeTokens();
   await layAmbush();
@@ -1895,7 +1895,7 @@ try {
   say(`Ordem: ${encounter.combatants.map((c) => `${c.name} (${c.initiative})${c.hidden ? ' [escondido]' : ''}`).join(', ')}.`);
   await checkHiddenForPlayers();
 
-  encounter = await advance(master.page, 'Começar round 1', encounter);
+  encounter = await advance(master.page, 'Começar rodada 1', encounter);
   await reachVisibility();
   let lastRound = 0;
 
@@ -1921,7 +1921,7 @@ try {
     }
 
     const active = encounter.combatants.find((c) => c.id === encounter.activeCombatantId);
-    say(`Round ${encounter.round} · vez de ${active.name}${active.hidden ? ' (escondido)' : ''}`);
+    say(`Rodada ${encounter.round} · vez de ${active.name}${active.hidden ? ' (escondido)' : ''}`);
     checkFreshTurn(active);
 
     if (encounter.round === 2 && active.hidden && !story.revealed) {
@@ -2035,8 +2035,8 @@ const expected = [
   'o jogador caído rola o teste contra a morte na própria vez',
   'o teste contra a morte com vantagem rola dois d20 e fica com o maior',
   'o teste contra a morte com desvantagem rola dois d20 e fica com o menor',
-  'a tela não oferece um segundo teste contra a morte no mesmo round',
-  'o modo do teste contra a morte volta a Normal no round seguinte',
+  'a tela não oferece um segundo teste contra a morte na mesma rodada',
+  'o modo do teste contra a morte volta a Normal na rodada seguinte',
   'quem cai a 0 PV perde a concentração',
   'o mestre aplica uma condição com duração',
   'a condição com duração expira no fim do turno de quem a carrega',

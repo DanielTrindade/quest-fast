@@ -150,7 +150,7 @@ function CombatEventCard({ event }: { event: CombatSessionEvent }) {
       <p className={combat}>
         <FlagCheckered size={16} aria-hidden="true" />
         <span>
-          Combate encerrado: <strong>{encounterName}</strong>, {rounds} {rounds === 1 ? 'round' : 'rounds'}.
+          Combate encerrado: <strong>{encounterName}</strong>, {rounds} {rounds === 1 ? 'rodada' : 'rodadas'}.
           {' '}
           {defeated.length > 0 ? `Derrotados: ${defeated.map((entry) => entry.name).join(', ')}.` : 'Nenhum derrotado.'}
         </span>
