@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { expect, fn, userEvent, within } from 'storybook/test';
-import type { CombatSessionEvent, RollSessionEvent, SessionEvent, UnknownSessionEvent } from '@quest-fast/shared';
+import type { CombatSessionEvent, RollSessionEvent, SessionEvent, SpellCastPayload, SpellCastSessionEvent, UnknownSessionEvent } from '@quest-fast/shared';
 import { FeedEventCard } from '../components/FeedEventCard';
 
 const roll: RollSessionEvent = {
@@ -124,6 +124,13 @@ const concentrationSave: RollSessionEvent = {
   id: 'f10',
   payload: { ...roll.payload, rollKind: 'save', ability: 'constitution', skill: undefined, characterName: 'Lyra Ventoclaro', concentrationDc: 12 },
 };
+
+const castAt = (id: string, payload: Partial<SpellCastPayload>): SpellCastSessionEvent => ({
+  id, campaignId: 'c1', userId: 'u2', userName: 'Rafael Costa', secret: false, createdAt: '2026-09-10T21:59:00.000Z', type: 'spell.cast',
+  payload: { kind: 'spell.cast', characterId: 'lyra', characterName: 'Lyra Ventoclaro', spellName: 'Bênção', spellLevel: 1, circle: 2, concentration: true, ...payload },
+});
+const blessing = castAt('s1', {});
+const ritualCast = castAt('s2', { spellName: 'Detectar Magia', circle: null });
 
 /** Checks the sentence the first theme frame shows. */
 function reads(text: string): Story['play'] {
@@ -290,3 +297,13 @@ export const AtaqueSemAlvo: Story = {
   },
 };
 export const DanoDepois: Story = { name: 'Dano rolado depois', args: { event: damageLater }, play: reads('Dano de Kaelen com Espada longa') };
+export const Conjuracao: Story = {
+  name: 'Conjuração',
+  args: { event: blessing },
+  play: reads('Lyra Ventoclaro conjurou Bênção no 2º círculo. Concentrando-se.'),
+};
+export const ConjuracaoRitual: Story = {
+  name: 'Conjuração como ritual',
+  args: { event: ritualCast },
+  play: reads('Lyra Ventoclaro conjurou Detectar Magia como ritual. Concentrando-se.'),
+};

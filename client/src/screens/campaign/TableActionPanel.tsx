@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import type { CombatantView, EncounterView, LinkedRollRequest, RollPayload } from '@quest-fast/shared';
+import type { CastChoice, CharacterResponse, CombatantView, EncounterView, LinkedRollRequest, RollPayload } from '@quest-fast/shared';
 import { ActionPanel, type ActionPanelSignal, type ActionPanelTab } from '../../components/ActionPanel';
 import type { InitiativeActions } from '../../components/InitiativeList';
 import { Button as ActionButton } from '../../components/Button';
@@ -56,7 +56,26 @@ function useOwnCharacter(campaignId: string, currentUserId: string, enabled: boo
       mergeFeedEvent(queryClient, campaignId, event);
     },
   });
-  return { characters, own, sheet, roll, lastRoll };
+  // The answer is the whole sheet: it replaces the cached one under its own
+  // id, never the character active now (another tab may have switched it),
+  // and the roster and the fight refresh from the socket like any change.
+  const keepSheet = (response: CharacterResponse) => {
+    queryClient.setQueryData(['character', response.character.campaignId, response.character.id], { character: response.character });
+  };
+  const slots = useMutation({
+    mutationFn: ({ characterId, spent }: { characterId: string; spent: number[] }) =>
+      api.updateCharacterState(campaignId, characterId, { spellSlotsSpent: spent }),
+    onSuccess: keepSheet,
+  });
+  const cast = useMutation({
+    mutationFn: ({ characterId, spellIndex, spellName, choice }: { characterId: string; spellIndex: number; spellName: string; choice: CastChoice }) =>
+      api.castSpell(campaignId, characterId, { spellIndex, spellName, ...choice }),
+    onSuccess: (response) => {
+      keepSheet(response);
+      mergeFeedEvent(queryClient, campaignId, response.event);
+    },
+  });
+  return { characters, own, sheet, roll, lastRoll, slots, cast };
 }
 
 function LoadFailure({ message, retrying, onRetry }: { message: string; retrying: boolean; onRetry: () => void }) {
@@ -122,7 +141,8 @@ function PlayerPanel({ campaignId, currentUserId, fight, player, ownCombatant }:
 }) {
   const [sheetOpen, setSheetOpen] = useState(false);
   const { encounter, actions, handlers } = fight;
-  const { characters, own, sheet, roll } = player;
+  const { characters, own, sheet, roll, slots, cast } = player;
+  const spellError = cast.isError ? errorMessage(cast.error) : slots.isError ? errorMessage(slots.error) : null;
   if (characters.isPending) return <Skeleton shape="panel" label="Carregando seu personagem…" />;
   if (characters.isError) {
     return <LoadFailure message="Não foi possível carregar seu personagem." retrying={characters.isFetching} onRetry={() => { void characters.refetch(); }} />;
@@ -148,6 +168,16 @@ function PlayerPanel({ campaignId, currentUserId, fight, player, ownCombatant }:
         lastRoll={player.lastRoll}
         onRoll={(request) => roll.mutate(request)}
         onOpenSheet={() => setSheetOpen(true)}
+        spellcasting={{
+          pending: slots.isPending || cast.isPending,
+          error: spellError,
+          onChangeSlots: (spent) => { if (!own) return; cast.reset(); slots.mutate({ characterId: own.id, spent }); },
+          onCast: (spellIndex, spellName, choice) => {
+            if (!own) return;
+            slots.reset();
+            cast.mutate({ characterId: own.id, spellIndex, spellName, choice });
+          },
+        }}
         galleryAction={(
           <Button asChild variant="secondary">
             <Link to="/characters">Meus personagens</Link>

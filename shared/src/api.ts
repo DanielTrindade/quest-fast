@@ -369,7 +369,7 @@ export type AttackTarget = {
   ac?: number;
 };
 
-export type SessionEvent = RollSessionEvent | CombatSessionEvent | UnknownSessionEvent;
+export type SessionEvent = RollSessionEvent | CombatSessionEvent | SpellCastSessionEvent | UnknownSessionEvent;
 
 /**
  * A roll event, the first kind the feed persisted. Combat added its own types
@@ -387,6 +387,30 @@ export type RollSessionEvent = {
   payload: RollPayload;
   createdAt: string;
 };
+
+/**
+ * A spell cast from the sheet: the slot it took (null for a ritual) and
+ * whether it asks for concentration. The whole table reads it.
+ */
+export type SpellCastPayload = {
+  kind: 'spell.cast';
+  characterId: string;
+  characterName: string;
+  spellName: string;
+  /** The spell's own circle. */
+  spellLevel: number;
+  /** The slot spent, at or above `spellLevel`; null when cast as a ritual. */
+  circle: number | null;
+  concentration: boolean;
+};
+
+export type SpellCastSessionEvent = Omit<RollSessionEvent, 'type' | 'payload'> & { type: 'spell.cast'; payload: SpellCastPayload };
+
+/** Casting a spell of the sheet. `spellName` guards against a list edited meanwhile. */
+export type CastSpellRequest = { spellIndex: number; spellName: string } & ({ circle: number } | { ritual: true });
+
+/** The sheet as the cast left it, and the feed event it recorded. */
+export type CastSpellResponse = { character: CharacterSheet; event: SpellCastSessionEvent };
 
 /**
  * Any event type the current client does not have a card for. Carries enough

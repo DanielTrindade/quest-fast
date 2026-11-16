@@ -1,4 +1,6 @@
 import type {
+  CastSpellRequest,
+  CastSpellResponse,
   AssetUploadResponse,
   CampaignDetail,
   CampaignJoin,
@@ -197,6 +199,11 @@ export const api = {
     request<CharacterResponse>(`/api/campaigns/${campaignId}/characters/${characterId}/state`, {
       method: 'PATCH',
       body: JSON.stringify(state),
+    }),
+  castSpell: (campaignId: string, characterId: string, body: CastSpellRequest) =>
+    request<CastSpellResponse>(`/api/campaigns/${campaignId}/characters/${characterId}/cast`, {
+      method: 'POST',
+      body: JSON.stringify(body),
     }),
   deleteCharacter: (campaignId: string, characterId: string) =>
     request<void>(`/api/campaigns/${campaignId}/characters/${characterId}`, { method: 'DELETE' }),

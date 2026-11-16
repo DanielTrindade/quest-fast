@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { and, desc, eq, sql } from 'drizzle-orm';
 import { sessionEvents, users, type Db } from '@quest-fast/db';
-import type { CombatPayload, CombatSessionEvent, RollPayload, RollSessionEvent, SessionEvent } from '@quest-fast/shared';
+import type { CombatPayload, CombatSessionEvent, RollPayload, RollSessionEvent, SessionEvent, SpellCastPayload, SpellCastSessionEvent } from '@quest-fast/shared';
 import { redactEvent } from './redact.ts';
 
 /**
@@ -81,6 +81,28 @@ export function recordCombatEvent(
     type: input.payload.kind,
     payload: input.payload,
   } as CombatSessionEvent;
+}
+
+/** A spell cast from the sheet, read by the whole table. */
+export function recordSpellCastEvent(
+  db: Pick<Db, 'insert'>,
+  input: { campaignId: string; userId: string; userName: string; payload: SpellCastPayload },
+): SpellCastSessionEvent {
+  const row = db
+    .insert(sessionEvents)
+    .values({ id: randomUUID(), campaignId: input.campaignId, userId: input.userId, type: 'spell.cast', secret: false, payload: input.payload })
+    .returning()
+    .get();
+  return {
+    id: row.id,
+    campaignId: row.campaignId,
+    userId: row.userId,
+    userName: input.userName,
+    secret: row.secret,
+    createdAt: row.createdAt.toISOString(),
+    type: 'spell.cast',
+    payload: input.payload,
+  };
 }
 
 export type FeedPage = { events: SessionEvent[]; nextCursor: string | null };

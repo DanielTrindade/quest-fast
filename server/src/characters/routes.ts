@@ -23,6 +23,9 @@ import {
   isSkill,
   isSpeed,
   keepsConcentration,
+  castSpell,
+  type CastChoice,
+  type SpellCastSessionEvent,
   rollAttackHit,
   rollDamage,
   hasDamage,
@@ -52,7 +55,7 @@ import {
 import type { AssetStore } from '../assets/store.ts';
 import type { Context } from '../context.ts';
 import { requireAuth, requireCampaignRole } from '../middleware.ts';
-import { recordRollEvent } from '../events/feed.ts';
+import { recordRollEvent, recordSpellCastEvent } from '../events/feed.ts';
 import { deleteCharacter, publishCharacterEncounters, publishCharacterScenes, settleCharacterReminders, spendSheetAttack } from '../combat/routes.ts';
 import { boundedInteger, fail, isInputError, parseAttack, shortText, withInput } from '../validation.ts';
 
@@ -552,6 +555,12 @@ function parseStateInput(body: unknown, sheet: CharacterSheet) {
   return changes as Partial<Pick<CharacterRow, 'hpCurrent' | 'hpTemp' | 'hitDiceSpent' | 'deathSaves' | 'heroicInspiration' | 'coins' | 'spellSlots' | 'conditions' | 'concentrating'>>;
 }
 
+function parseCastChoice(body: Record<string, unknown>): CastChoice {
+  if (body.ritual === true) return { ritual: true };
+  if (typeof body.circle !== 'number') fail('Escolha o círculo do espaço ou conjure como ritual.');
+  return { circle: body.circle };
+}
+
 /** Runs a handler whose parsing throws `InputError`, answering 422 with its message. */
 export function characterRoutes() {
   const routes = new Hono<Context>();
@@ -730,6 +739,73 @@ export function characterRoutes() {
     deleteCharacter(c.var.deps, c.var.campaignId, row.character.id);
     c.var.deps.hub.publishCharactersChanged(c.var.campaignId);
     return c.body(null, 204);
+  });
+
+  // Casting spends the slot, takes up concentration and tells the table, in
+  // one write: the sheet and the feed never disagree about a slot.
+  routes.post('/:characterId/cast', requireCampaignRole(), async (c) => {
+    const { db, hub } = c.var.deps;
+    const row = characterSelect(db, c.var.campaignId, c.req.param('characterId'));
+    if (!row) return c.json({ error: 'Personagem não encontrado.' }, 404);
+    if (row.character.ownerId !== c.var.user.id) {
+      return c.json({ error: 'Apenas o dono pode conjurar pela ficha.' }, 403);
+    }
+    const characterId = row.character.id;
+    const raw: unknown = await c.req.json().catch(() => null);
+    if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+      return c.json({ error: 'Envie a magia e o círculo do espaço.' }, 422);
+    }
+    const body = raw as Record<string, unknown>;
+    const result = await withInput(() =>
+      db.transaction((tx): { event: SpellCastSessionEvent } | false => {
+        const current = characterSelect(tx, c.var.campaignId, characterId);
+        if (!current) return false;
+        const sheet = toSheet(current, c.var.deps.assets);
+        const choice = parseCastChoice(body);
+        const index = body.spellIndex;
+        const spell = typeof index === 'number' && Number.isInteger(index) ? sheet.spells[index] : undefined;
+        if (!spell) fail('Magia inválida.');
+        if (body.spellName !== spell.name) fail('A lista de magias mudou. Confira a magia e conjure de novo.');
+        if (!keepsConcentration(true, sheet.hpCurrent)) fail('Um personagem caído não consegue conjurar.');
+        const cast = castSpell(spell, sheet.spellSlots, choice);
+        if (!cast.ok) fail(cast.error);
+        const where = and(eq(characters.id, characterId), eq(characters.campaignId, c.var.campaignId));
+        if (spell.concentration && sheet.concentrating) {
+          // A new concentration ends the old one: the saves still owed to keep
+          // it go with it, before the new one starts.
+          tx.update(characters).set({ concentrating: false }).where(where).run();
+          settleCharacterReminders(tx, characterId);
+        }
+        tx.update(characters)
+          .set({ spellSlots: cast.slots, ...(spell.concentration ? { concentrating: true } : {}), updatedAt: new Date() })
+          .where(where)
+          .run();
+        settleCharacterReminders(tx, characterId);
+        return {
+          event: recordSpellCastEvent(tx, {
+            campaignId: c.var.campaignId,
+            userId: c.var.user.id,
+            userName: c.var.user.name,
+            payload: {
+              kind: 'spell.cast',
+              characterId,
+              characterName: sheet.name,
+              spellName: spell.name,
+              spellLevel: spell.level,
+              circle: cast.circle,
+              concentration: spell.concentration,
+            },
+          }),
+        };
+      }),
+    );
+    if (isInputError(result)) return c.json({ error: result.inputError }, 422);
+    if (!result) return c.json({ error: 'Personagem não encontrado.' }, 404);
+    hub.publish(c.var.campaignId, result.event);
+    publishCharacterEncounters(c.var.deps, c.var.campaignId, characterId);
+    hub.publishCharactersChanged(c.var.campaignId);
+    const updated = characterSelect(db, c.var.campaignId, characterId)!;
+    return c.json({ character: toSheet(updated, c.var.deps.assets), event: result.event }, 201);
   });
 
   routes.post('/:characterId/rolls', requireCampaignRole(), async (c) => {
