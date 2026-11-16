@@ -420,6 +420,8 @@ export const scenes = sqliteTable(
     gridOffsetX: real('grid_offset_x').notNull().default(0),
     gridOffsetY: real('grid_offset_y').notNull().default(0),
     snapToGrid: integer('snap_to_grid', { mode: 'boolean' }).notNull().default(true),
+    /** How strongly the grid lines show, 0 to 1; 0 hides them and the grid still holds. */
+    gridOpacity: real('grid_opacity').notNull().default(0.6),
     fogEnabled: integer('fog_enabled', { mode: 'boolean' }).notNull().default(false),
     fogRevealed: text('fog_revealed', { mode: 'json' }).$type<MultiPolygon>().notNull().default([]),
     version: integer('version').notNull().default(0),

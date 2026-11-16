@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { expect, fn, userEvent, waitFor, within } from 'storybook/test';
+import { expect, fireEvent, fn, userEvent, waitFor, within } from 'storybook/test';
 import type { GridSettings as Grid } from '@quest-fast/shared';
 import { GridSettings } from '../components/GridSettings';
 import { MapCanvas } from '../components/MapCanvas';
@@ -54,11 +54,11 @@ export const AlinharAoDesenho: Story = {
       await userEvent.type(form.getByLabelText(label), String(PRINTED_OFFSET));
     }
     await waitFor(() => expect(args.onPreview).toHaveBeenLastCalledWith(
-      { enabled: true, snap: true, cellSize: PRINTED_CELL, offsetX: PRINTED_OFFSET, offsetY: PRINTED_OFFSET },
+      { enabled: true, snap: true, cellSize: PRINTED_CELL, offsetX: PRINTED_OFFSET, offsetY: PRINTED_OFFSET, opacity: 0.6 },
     ));
     await userEvent.click(save);
     await expect(args.onSave).toHaveBeenCalledWith(
-      { enabled: true, snap: true, cellSize: PRINTED_CELL, offsetX: PRINTED_OFFSET, offsetY: PRINTED_OFFSET },
+      { enabled: true, snap: true, cellSize: PRINTED_CELL, offsetX: PRINTED_OFFSET, offsetY: PRINTED_OFFSET, opacity: 0.6 },
     );
   },
 };
@@ -158,3 +158,20 @@ export const CasaMinimaMapaImpar: Story = {
   },
 };
 
+/** A map with its own grid drawn: the lines fade to nothing and the grid still holds. */
+export const OpacidadeDasLinhas: Story = {
+  name: 'Opacidade das linhas',
+  render: (args) => <WithPreview {...args} />,
+  play: async ({ canvasElement, args }) => {
+    const [region] = within(canvasElement).getAllByRole('region', { name: /^Tema / });
+    const form = within(region!);
+    const slider = form.getByRole('slider', { name: 'Opacidade das linhas' });
+    await expect(slider).toHaveValue('60');
+    // userEvent cannot drag a range input: the change is fired as the browser does.
+    fireEvent.change(slider, { target: { value: '0' } });
+    await expect(form.getByText('0%')).toBeVisible();
+    await waitFor(() => expect(args.onPreview).toHaveBeenLastCalledWith(expect.objectContaining({ opacity: 0, enabled: true })));
+    await userEvent.click(form.getByRole('button', { name: 'Salvar grid' }));
+    await expect(args.onSave).toHaveBeenLastCalledWith(expect.objectContaining({ opacity: 0 }));
+  },
+};

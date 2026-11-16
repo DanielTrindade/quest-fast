@@ -161,6 +161,12 @@ inteiro. Na mesa, o token cobria a casa e mesmo assim parecia pequeno.
   do mapa inteiro, se ele for menor), centrado no centro do mapa; o encaixe na
   tela continua a um gesto.
 
+**Na entrega:** o desenho já pintava o rosto até a borda da casa, com o anel
+centrado nela; não havia borda interna a tirar. O que mudou foi a abertura da
+cena (`openingView` em `client/src/lib/map-view.ts`), que usa `OPENING_COLUMNS`
+= 15 quando o grid está ligado; "Enquadrar o mapa" continua mostrando o mapa
+inteiro.
+
 ## 6. Opacidade do grid, por cena
 
 Hoje a opacidade está fixa: o contorno a 30% e a linha a 60%
@@ -169,8 +175,8 @@ Hoje a opacidade está fixa: o contorno a 30% e a linha a 60%
 **Regra:**
 - `scenes.grid_opacity` (real, de 0 a 1, padrão 0,6, que é o visual de hoje),
   com migração. O contorno acompanha a linha, na metade da opacidade dela.
-- `GridSettings` (o tipo do contrato) ganha `opacity`, e o limite fica em
-  `SCENE_LIMITS`.
+- `GridSettings` (o tipo do contrato) ganha `opacity`; o padrão é
+  `DEFAULT_GRID_OPACITY` e a faixa é conferida em `validateGrid`.
 - 0% esconde as linhas, mas o grid continua valendo para encaixe, alcance e
   custo do movimento. Isso é diferente de desligar o grid.
 - É decisão do mestre e igual para todos. Chega aos jogadores por
@@ -178,9 +184,12 @@ Hoje a opacidade está fixa: o contorno a 30% e a linha a 60%
 
 **Interface:** no painel de grid, uma barra "Opacidade das linhas" de 0 a
 100%, em passos de 5, com o valor ao lado e prévia ao vivo no mapa enquanto
-arrasta, como os outros campos. Ela vira um primitivo shadcn novo
-(`components/ui/slider.tsx`, com `@radix-ui/react-slider`, dependência nova),
-operável pelo teclado.
+arrasta, como os outros campos, operável pelo teclado.
+
+**Na entrega:** a barra é o `input type="range"` nativo, com a cor de destaque
+do tema, e não um primitivo novo com `@radix-ui/react-slider`: o nativo já tem
+papel de slider, teclado e leitor de tela, e evita uma dependência para um
+único controle.
 
 **Testes:** validação em `shared/`. Integração: o jogador não muda a
 opacidade. Story do `GridSettings` com a barra (que passa no

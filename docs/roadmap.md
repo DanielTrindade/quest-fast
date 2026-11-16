@@ -107,7 +107,10 @@ em quatro PRs independentes:
 2. **Espaços de magia e conjuração.** Espaços na aba Ações e "Conjurar", que
    gasta o espaço, marca a concentração e registra a magia no feed.
 3. **Imagem no bestiário e token caído ou derrotado.**
-4. **Grid:** opacidade das linhas por cena e token ocupando a casa inteira.
+4. **Grid e tamanho do token — entregue.** O mestre ajusta a opacidade das
+   linhas por cena (de 0%, linhas escondidas com o grid ainda valendo, a
+   100%), e a cena abre mostrando cerca de 15 casas na largura, com os tokens
+   no tamanho da mesa; "Enquadrar o mapa" continua mostrando o mapa inteiro.
 
 ### Telas da campanha
 

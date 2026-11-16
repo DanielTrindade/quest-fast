@@ -45,7 +45,7 @@ function parseName(value: unknown): string {
   return name;
 }
 
-type GridColumns = Pick<SceneRow, 'gridEnabled' | 'gridCellSize' | 'gridOffsetX' | 'gridOffsetY' | 'snapToGrid'>;
+type GridColumns = Pick<SceneRow, 'gridEnabled' | 'gridCellSize' | 'gridOffsetX' | 'gridOffsetY' | 'snapToGrid' | 'gridOpacity'>;
 
 function columnsOf(grid: GridSettings): GridColumns {
   return {
@@ -54,6 +54,7 @@ function columnsOf(grid: GridSettings): GridColumns {
     gridOffsetX: grid.offsetX,
     gridOffsetY: grid.offsetY,
     snapToGrid: grid.snap,
+    gridOpacity: grid.opacity,
   };
 }
 
@@ -66,13 +67,13 @@ function parseGrid(value: unknown, current: GridSettings, mapWidth: number): Gri
     if (typeof source[key] !== 'boolean') refuse(422, 'Configuração de grid inválida.');
     grid[key] = source[key];
   }
-  for (const key of ['cellSize', 'offsetX', 'offsetY'] as const) {
+  for (const key of ['cellSize', 'offsetX', 'offsetY', 'opacity'] as const) {
     if (source[key] === undefined) continue;
     if (typeof source[key] !== 'number') refuse(422, 'Configuração de grid inválida.');
     grid[key] = source[key];
   }
   const errors = validateGrid(grid, mapWidth);
-  const first = errors.cellSize ?? errors.offsetX ?? errors.offsetY;
+  const first = errors.cellSize ?? errors.offsetX ?? errors.offsetY ?? errors.opacity;
   if (first) refuse(422, first);
   return grid;
 }

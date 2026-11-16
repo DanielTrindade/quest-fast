@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type RefObject } from 'react';
 import type { GridSettings } from '@quest-fast/shared';
 import { drawMap } from '../lib/map-draw';
-import { clampView, fitView, visibleRect, zoomViewAt, type MapView, type Size } from '../lib/map-view';
+import { clampView, fitView, openingView, visibleRect, zoomViewAt, type MapView, type Size } from '../lib/map-view';
 
 export const ZOOM_STEP = 1.25;
 const PAN_STEP = 64;
@@ -108,11 +108,14 @@ export function useMapViewport({ imageUrl, mapWidth, mapHeight, grid, overlayRef
     animation.current = 0;
   };
 
-  /** Frames the whole map; with motion allowed it glides there. */
-  const frameMap = useCallback((animate: boolean) => {
+  /**
+   * Frames the whole map; with motion allowed it glides there. On opening, it
+   * shows about 15 cells instead, so tokens read at table size.
+   */
+  const frameMap = useCallback((animate: boolean, opening = false) => {
     const viewport = viewportRef.current;
     if (viewport.width === 0 || viewport.height === 0) return;
-    const target = fitView(mapRef.current, viewport);
+    const target = opening ? openingView(mapRef.current, viewport, gridRef.current) : fitView(mapRef.current, viewport);
     const from = viewRef.current;
     cancelAnimationFrame(animation.current);
     if (!animate || !from || prefersReducedMotion()) {
@@ -145,7 +148,7 @@ export function useMapViewport({ imageUrl, mapWidth, mapHeight, grid, overlayRef
     const sizeChanged = mapRef.current.width !== mapWidth || mapRef.current.height !== mapHeight;
     mapRef.current = { width: mapWidth, height: mapHeight };
     gridRef.current = grid;
-    if (sizeChanged && viewRef.current) frameMap(false);
+    if (sizeChanged && viewRef.current) frameMap(false, true);
     else requestDraw();
   }, [mapWidth, mapHeight, grid, frameMap, requestDraw]);
 
@@ -155,7 +158,7 @@ export function useMapViewport({ imageUrl, mapWidth, mapHeight, grid, overlayRef
     image.onload = () => {
       imageRef.current = image;
       setLoaded({ url: imageUrl, ok: true });
-      frameMap(false);
+      frameMap(false, true);
     };
     image.onerror = () => {
       imageRef.current = null;
@@ -184,7 +187,7 @@ export function useMapViewport({ imageUrl, mapWidth, mapHeight, grid, overlayRef
       canvas.width = Math.round(width * dpr);
       canvas.height = Math.round(height * dpr);
       if (width === 0 || height === 0) return;
-      if (imageRef.current && (wasEmpty || !viewRef.current)) frameMap(false);
+      if (imageRef.current && (wasEmpty || !viewRef.current)) frameMap(false, true);
       else if (viewRef.current) setView(viewRef.current);
       else requestDraw();
     });

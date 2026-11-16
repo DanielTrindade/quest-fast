@@ -47,7 +47,7 @@ test('the master creates a scene with a snapping grid of 30 cells, closed for th
   assert.equal(scene.name, 'Estrada de Triboar');
   assert.deepEqual([scene.mapWidth, scene.mapHeight], [300, 200]);
   assert.match(scene.mapUrl, /^\/uploads\/campaigns\/.+\.jpg$/);
-  assert.deepEqual(scene.grid, { enabled: true, cellSize: 10, offsetX: 0, offsetY: 0, snap: true });
+  assert.deepEqual(scene.grid, { enabled: true, cellSize: 10, offsetX: 0, offsetY: 0, snap: true, opacity: 0.6 });
   assert.equal(scene.active, false);
   assert.equal(scene.version, 0);
 
@@ -164,16 +164,31 @@ test('the master renames the scene and sets its grid; a grid that does not fit i
     await send(s.master, path, 'PATCH', { name: 'Ponte', grid: { cellSize: 20, offsetX: 5, offsetY: 19.5, snap: false } }),
   );
   assert.equal(edited.name, 'Ponte');
-  assert.deepEqual(edited.grid, { enabled: true, cellSize: 20, offsetX: 5, offsetY: 19.5, snap: false });
+  assert.deepEqual(edited.grid, { enabled: true, cellSize: 20, offsetX: 5, offsetY: 19.5, snap: false, opacity: 0.6 });
   assert.equal(edited.version, 1);
 
-  for (const grid of [{ cellSize: 7 }, { cellSize: 301 }, { offsetX: 20 }, { offsetY: -1 }, { enabled: 'sim' }]) {
+  for (const grid of [{ cellSize: 7 }, { cellSize: 301 }, { offsetX: 20 }, { offsetY: -1 }, { enabled: 'sim' }, { opacity: 1.5 }, { opacity: -0.1 }, { opacity: '50%' }]) {
     const response = await send(s.master, path, 'PATCH', { grid });
     assert.equal(response.status, 422, JSON.stringify(grid));
   }
   assert.equal((await send(s.master, path, 'PATCH', { name: '' })).status, 422);
   assert.equal((await send(s.master, path, 'PATCH', {})).status, 422);
   assert.equal(storedScene(s, scene.id)!.version, 1);
+});
+
+test('the master sets how strongly the lines show; 0 hides them and the grid still holds', async () => {
+  const s = await setup();
+  const scene = await createScene(s);
+  const path = `${s.root}/scenes/${scene.id}`;
+  assert.equal(scene.grid.opacity, 0.6);
+
+  const faint = await sceneOf(await send(s.master, path, 'PATCH', { grid: { opacity: 0 } }));
+  assert.equal(faint.grid.opacity, 0);
+  assert.equal(faint.grid.enabled, true);
+  await sceneOf(await openScene(s, scene.id));
+  assert.equal((await sceneOf(await s.player(path))).grid.opacity, 0);
+  assert.equal((await send(s.player, path, 'PATCH', { grid: { opacity: 1 } })).status, 403);
+  assert.equal((await sceneOf(await s.master(path))).grid.opacity, 0);
 });
 
 test('swapping the map keeps the grid in proportion and drops the old asset row', async () => {
@@ -185,7 +200,7 @@ test('swapping the map keeps the grid in proportion and drops the old asset row'
 
   const swapped = await sceneOf(await upload(s.master, `${path}/map`, mapForm({ image: await png(600, 400) }), 'PUT'));
   assert.deepEqual([swapped.mapWidth, swapped.mapHeight], [600, 400]);
-  assert.deepEqual(swapped.grid, { enabled: true, cellSize: 40, offsetX: 10, offsetY: 0, snap: true });
+  assert.deepEqual(swapped.grid, { enabled: true, cellSize: 40, offsetX: 10, offsetY: 0, snap: true, opacity: 0.6 });
   assert.notEqual(swapped.mapUrl, scene.mapUrl);
   assert.equal(s.app.db.select().from(assets).where(eq(assets.id, oldAsset)).get(), undefined);
 
