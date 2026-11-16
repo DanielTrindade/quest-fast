@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import type { AssetUploadResponse, CreatedCampaign, SceneResponse, SceneView, StatblockResponse, TokenView } from '@quest-fast/shared';
-import { body, testImageBytes, testImageFile } from '../testing.ts';
-import { runningEncounter, send, setup, type Request, type Setup } from '../combat/test-setup.ts';
+import type { AssetUploadResponse, CreatedCampaign, SceneResponse, SceneView, SocketMessage, StatblockResponse, TokenView } from '@quest-fast/shared';
+import { body, createTestServer, signIn, testImageBytes, testImageFile } from '../testing.ts';
+import { PROFILES, connect, runningEncounter, send, setup, until, type Request, type Setup } from '../combat/test-setup.ts';
 
 /**
  * How a token looks on the map follows who it stands for: a character at 0
@@ -98,4 +98,42 @@ test('a creature shows its bestiary image, which only the master sets, from this
   assert.equal(kept.statblock.imageAssetId, image.id);
   const removed = await body<StatblockResponse>(await send(s.master, statblockPath, 'PATCH', { ...input, imageAssetId: null }));
   assert.equal(removed.statblock.imageUrl, null);
+});
+
+test('deleting a creature takes its image off the tokens of every open map, at once', async () => {
+  const server = await createTestServer(PROFILES);
+  const s = await setup(server);
+  const socket = connect(server.port, s.campaign.id, await signIn(server, 'rafael'));
+  const messages: SocketMessage[] = [];
+  socket.on('message', (data) => messages.push(JSON.parse(data.toString()) as SocketMessage));
+  await new Promise((resolve) => socket.once('open', resolve));
+  try {
+    const scenePath = await openScene(s);
+    const { id } = await runningEncounter(s, { start: false });
+    await sceneOf(await send(s.master, `${scenePath}/tokens`, 'POST', { x: 100, y: 100, kind: 'combatant', combatantId: id('Goblin 1') }), 201);
+    await sceneOf(await send(s.master, `${scenePath}/tokens`, 'POST', { x: 140, y: 100, kind: 'statblock', statblockId: s.goblin.id }), 201);
+    const image = await upload(s.master, s.root);
+    const statblockPath = `${s.root}/statblocks/${s.goblin.id}`;
+    const current = (await body<StatblockResponse>(await s.master(statblockPath))).statblock;
+    const { id: _id, campaignId: _c, createdAt: _cr, updatedAt: _u, imageUrl: _url, imageAssetId: _img, ...input } = current;
+    await send(s.master, statblockPath, 'PATCH', { ...input, imageAssetId: image.id });
+    const before = await sceneOf(await s.player(scenePath));
+    assert.deepEqual(before.tokens.map((token) => token.avatarUrl), [image.url, image.url]);
+
+    assert.equal((await s.master(statblockPath, { method: 'DELETE' })).status, 204);
+
+    assert.equal((await s.master(statblockPath)).status, 404);
+    const after = await sceneOf(await s.player(scenePath));
+    assert.deepEqual(after.tokens.map((token) => token.avatarUrl), [null, null]);
+    assert.ok(after.version > before.version);
+    // The push of the image change may still be on its way: wait for this version.
+    const deleted = (message: SocketMessage) => message.type === 'scene.updated' && message.scene.version === after.version;
+    await until(() => messages.some(deleted));
+    const pushed = messages.find(deleted);
+    assert.ok(pushed?.type === 'scene.updated');
+    assert.deepEqual(pushed.scene.tokens.map((token) => token.avatarUrl), [null, null]);
+  } finally {
+    socket.terminate();
+    await server.close();
+  }
 });

@@ -230,7 +230,15 @@ export function statblockRoutes() {
     const { db } = c.var.deps;
     const row = findStatblock(db, c.var.campaignId, c.req.param('statblockId'));
     if (!row) return c.json({ error: 'Criatura não encontrada.' }, 404);
-    db.delete(statblocks).where(eq(statblocks.id, row.id)).run();
+    // Its tokens lose the image with the link: the scenes showing them are
+    // read before the delete clears it, bumped with it and told after.
+    const shown = db.transaction((tx) => {
+      const ids = scenesShowing(tx, { statblockId: row.id });
+      tx.delete(statblocks).where(eq(statblocks.id, row.id)).run();
+      bumpScenes(tx, ids);
+      return ids;
+    });
+    publishScenes(c.var.deps, c.var.campaignId, shown);
     return c.body(null, 204);
   });
 

@@ -182,7 +182,8 @@ export function StatblockForm({ statblock, onSubmit, onRequestClose, pending = f
 
   const submit = () => {
     // Guarded here and not only on the button: Enter in a field submits too.
-    if (importing) return;
+    // An image still on its way would be saved as the old one.
+    if (importing || uploading) return;
     const input = toInput(state);
     const fieldErrors = validateStatblockInput(input);
     if (Object.values(fieldErrors).some(Boolean)) {
@@ -321,7 +322,7 @@ export function StatblockForm({ statblock, onSubmit, onRequestClose, pending = f
         onCancel={requestClose}
         submitLabel={statblock ? 'Salvar alterações' : 'Adicionar ao bestiário'}
         pending={pending}
-        busyMessage={importing ? 'Importando ficha…' : undefined}
+        busyMessage={importing ? 'Importando ficha…' : uploading ? 'Enviando a imagem…' : undefined}
       />
     </form>
   );

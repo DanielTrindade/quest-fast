@@ -176,3 +176,23 @@ export const EdicaoComImagem: Story = {
     await expect(args.onSubmit).toHaveBeenLastCalledWith(expect.objectContaining({ imageAssetId: null }));
   },
 };
+
+/** Saving waits for the image on its way: neither the button nor Enter sends the old one. */
+export const EnviandoImagem: Story = {
+  name: 'Enviando imagem',
+  args: {
+    statblock: goblin,
+    // Never answers: the upload stays on its way for the whole check.
+    uploadImage: fn(() => new Promise<{ id: string; url: string }>(() => {})),
+  },
+  play: async ({ canvasElement, args }) => {
+    const [region] = within(canvasElement).getAllByRole('region', { name: /^Tema / });
+    const form = within(region!);
+    await userEvent.upload(form.getByLabelText('Enviar imagem'), new File(['img'], 'goblin.png', { type: 'image/png' }));
+    await expect(args.uploadImage).toHaveBeenCalled();
+    await expect(form.getByText('Enviando a imagem…')).toBeVisible();
+    await expect(form.getByRole('button', { name: 'Salvar alterações' })).toBeDisabled();
+    await userEvent.type(form.getAllByRole('textbox', { name: /^Nome/ })[0]!, '{Enter}');
+    await expect(args.onSubmit).not.toHaveBeenCalled();
+  },
+};
