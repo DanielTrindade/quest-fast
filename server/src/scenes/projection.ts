@@ -12,6 +12,7 @@ export type LoadedToken = {
   avatarUrl: string | null;
   /** The character's owner, who may move it besides the master. */
   ownerId: string | null;
+  vitality: TokenView['vitality'];
   /** The combatant behind the token is hidden in the encounter. */
   combatantHidden: boolean;
   movingBy: TokenView['movingBy'];
@@ -50,6 +51,7 @@ export function projectToken(token: LoadedToken, viewer: Viewer): TokenView {
     name: token.name,
     size: token.size,
     avatarUrl: token.avatarUrl,
+    vitality: token.vitality,
     initials: initials(token.name),
     characterId: row.characterId,
     combatantId: row.combatantId,

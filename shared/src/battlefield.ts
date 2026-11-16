@@ -215,3 +215,20 @@ export function isTokenVisible(token: TokenVisibility, role: Role): boolean {
   if (token.hidden) return false;
   return !(token.kind === 'combatant' && token.combatantHidden);
 }
+
+/** What a token stands for, as far as its hit points go. */
+export type TokenVitalitySource =
+  | { kind: 'character'; hpCurrent: number }
+  | { kind: 'creature'; hpCurrent: number | null }
+  | { kind: 'free' };
+
+/**
+ * A character at 0 is down (still making death saves); a creature of a fight
+ * at 0 is defeated, the same rule as `isDefeated`. A free token has no hit
+ * points and is always up.
+ */
+export function tokenVitality(source: TokenVitalitySource): 'up' | 'down' | 'defeated' {
+  if (source.kind === 'character') return source.hpCurrent <= 0 ? 'down' : 'up';
+  if (source.kind === 'creature') return source.hpCurrent !== null && source.hpCurrent <= 0 ? 'defeated' : 'up';
+  return 'up';
+}

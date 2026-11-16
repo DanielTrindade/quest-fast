@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   DEFAULT_GRID_COLUMNS,
+  tokenVitality,
   LOCK_TTL_MS,
   MAP_LIMITS,
   SCENE_LIMITS,
@@ -160,4 +161,13 @@ test('token kinds and limits', () => {
   assert.equal(isTokenKind('statblock'), false);
   assert.equal(isTokenKind(1), false);
   assert.deepEqual(TOKEN_LIMITS, { perScene: 200, label: 40 });
+});
+
+test('a character at 0 is down, a creature at 0 defeated, a free token always up', () => {
+  assert.equal(tokenVitality({ kind: 'character', hpCurrent: 0 }), 'down');
+  assert.equal(tokenVitality({ kind: 'character', hpCurrent: 3 }), 'up');
+  assert.equal(tokenVitality({ kind: 'creature', hpCurrent: 0 }), 'defeated');
+  assert.equal(tokenVitality({ kind: 'creature', hpCurrent: 7 }), 'up');
+  assert.equal(tokenVitality({ kind: 'creature', hpCurrent: null }), 'up');
+  assert.equal(tokenVitality({ kind: 'free' }), 'up');
 });

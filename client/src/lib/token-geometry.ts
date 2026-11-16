@@ -20,6 +20,14 @@ export function toScreenPoint(view: MapView, point: Point): Point {
   return { x: view.x + point.x * view.scale, y: view.y + point.y * view.scale };
 }
 
+/**
+ * The order tokens are painted in, the last on top. A defeated creature goes
+ * under the rest, so a living one on the same cell takes the click.
+ */
+export function inPaintOrder<T extends { vitality: 'up' | 'down' | 'defeated' }>(tokens: readonly T[]): T[] {
+  return [...tokens.filter((token) => token.vitality === 'defeated'), ...tokens.filter((token) => token.vitality !== 'defeated')];
+}
+
 /** A token's radius on screen, never below the dot it falls back to. */
 export function screenRadius(size: CreatureSize, cellSize: number, scale: number): number {
   return Math.max(MIN_TOKEN_RADIUS, (tokenDiameter(size, cellSize) / 2) * scale);
@@ -30,12 +38,14 @@ export function screenRadius(size: CreatureSize, cellSize: number, scale: number
  * `positionOf` says where each token is drawn, which may not be where it is
  * saved (someone else's drag, a drop waiting for the server).
  */
-export function tokenAt<T extends { id: string; size: CreatureSize }>(
+export function tokenAt<T extends { id: string; size: CreatureSize; vitality: 'up' | 'down' | 'defeated' }>(
   tokens: readonly T[], point: Point, view: MapView, cellSize: number,
   positionOf: (token: T) => Point,
 ): T | null {
-  for (let index = tokens.length - 1; index >= 0; index -= 1) {
-    const token = tokens[index];
+  // The same order they are painted in: the one on top takes the click.
+  const painted = inPaintOrder(tokens);
+  for (let index = painted.length - 1; index >= 0; index -= 1) {
+    const token = painted[index]!;
     const centre = toScreenPoint(view, positionOf(token));
     const radius = screenRadius(token.size, cellSize, view.scale) + HIT_SLOP;
     if ((point.x - centre.x) ** 2 + (point.y - centre.y) ** 2 <= radius ** 2) return token;

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { expect, fn, userEvent, within } from 'storybook/test';
 import { TokenList, type TokenListProps } from '../components/TokenList';
-import { MASTER_ID, PLAYER_ID, manyTokens, masterTokens, playerTokens } from './fixtures/tokens';
+import { MASTER_ID, PLAYER_ID, manyTokens, masterTokens, playerTokens, vitalityTokens } from './fixtures/tokens';
 
 /** Selection kept in the story, as the screen keeps it. */
 function Selectable(props: TokenListProps) {
@@ -98,4 +98,14 @@ export const VaziaJogador: Story = {
 export const DuzentosTokens: Story = {
   name: '200 tokens',
   args: { tokens: manyTokens() },
+};
+
+export const CaidoEDerrotado: Story = {
+  name: 'Caído e derrotado',
+  args: { tokens: vitalityTokens() },
+  play: async ({ canvasElement }) => {
+    const list = firstTheme(canvasElement);
+    await expect(list.getByText('Caído')).toBeVisible();
+    await expect(list.getByText('Derrotado')).toBeVisible();
+  },
 };

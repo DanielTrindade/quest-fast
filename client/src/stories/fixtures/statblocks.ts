@@ -1,6 +1,6 @@
 import type { SheetImportResult, Statblock, StatblockSummary } from '@quest-fast/shared';
 
-const stamps = { campaignId: 'phandalin', createdAt: '2026-10-22T18:00:00.000Z', updatedAt: '2026-10-22T18:00:00.000Z' };
+const stamps = { campaignId: 'phandalin', createdAt: '2026-10-22T18:00:00.000Z', updatedAt: '2026-10-22T18:00:00.000Z', imageAssetId: null, imageUrl: null };
 
 /** A small, common creature: the bestiary's everyday case. */
 export const goblin: Statblock = {

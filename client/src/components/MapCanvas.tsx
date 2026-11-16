@@ -48,9 +48,17 @@ export type MapCanvasHandle = {
 
 const NO_TOKENS: readonly TokenView[] = [];
 
-function describeTokens(count: number): string {
+function describeTokens(tokens: readonly TokenView[]): string {
+  const count = tokens.length;
   if (count === 0) return 'Nenhum token no mapa.';
-  return count === 1 ? '1 token no mapa.' : `${count} tokens no mapa.`;
+  const total = count === 1 ? '1 token no mapa.' : `${count} tokens no mapa.`;
+  const down = tokens.filter((token) => token.vitality === 'down').length;
+  const defeated = tokens.filter((token) => token.vitality === 'defeated').length;
+  const states = [
+    down === 0 ? '' : down === 1 ? '1 caído' : `${down} caídos`,
+    defeated === 0 ? '' : defeated === 1 ? '1 derrotado' : `${defeated} derrotados`,
+  ].filter(Boolean);
+  return states.length === 0 ? total : `${total} ${states.join(', ')}.`;
 }
 
 /** The selected token's reach, which the canvas draws as a tinted area. */
@@ -149,7 +157,7 @@ export function MapCanvas({
         {...canvasHandlers}
       />
 
-      <p id={summaryId} className="sr-only">Mapa de {mapWidth} por {mapHeight} pixels. {describeGrid(grid, mapWidth, mapHeight)} {describeTokens(tokens.length)}{describeReach(tokens.find((token) => token.id === selectedTokenId))}</p>
+      <p id={summaryId} className="sr-only">Mapa de {mapWidth} por {mapHeight} pixels. {describeGrid(grid, mapWidth, mapHeight)} {describeTokens(tokens)}{describeReach(tokens.find((token) => token.id === selectedTokenId))}</p>
       <p id={helpId} className="sr-only">
         Arraste para mover e use a roda do mouse ou dois dedos para aproximar. Pelo teclado, as setas movem o mapa, mais e menos aproximam e afastam, e zero enquadra o mapa inteiro.
       </p>

@@ -4,6 +4,7 @@ import { expect, within } from 'storybook/test';
 import { Button } from '../components/Button';
 import { StatblockCard } from '../components/StatblockCard';
 import { goblin, semExtras, textosLongos, wyrmDasCinzas } from './fixtures/statblocks';
+import { PORTRAIT } from './fixtures/my-characters';
 
 const meta = {
   title: 'Componentes/StatblockCard',
@@ -50,4 +51,9 @@ export const ComAcoes: Story = {
       <Button variant="ghost" aria-label="Excluir Goblin"><Trash size={18} aria-hidden="true" /></Button>
     </>,
   },
+};
+
+export const ComImagem: Story = {
+  name: 'Com imagem',
+  args: { statblock: { ...goblin, imageUrl: PORTRAIT } },
 };

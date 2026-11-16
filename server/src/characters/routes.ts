@@ -684,13 +684,15 @@ export function characterRoutes() {
           .where(and(eq(characters.id, characterId), eq(characters.campaignId, c.var.campaignId)))
           .run();
         settleCharacterReminders(tx, characterId);
-        return true;
+        return { hpChanged: changes.hpCurrent !== undefined && changes.hpCurrent !== current.character.hpCurrent };
       }),
     );
     if (isInputError(result)) return c.json({ error: result.inputError }, 422);
     if (!result) return c.json({ error: 'Personagem não encontrado.' }, 404);
     publishCharacterEncounters(c.var.deps, c.var.campaignId, characterId);
     c.var.deps.hub.publishCharactersChanged(c.var.campaignId);
+    // Falling to 0 or getting back up changes how its token looks on the map.
+    if (result.hpChanged) publishCharacterScenes(c.var.deps, c.var.campaignId, characterId);
 
     const updated = characterSelect(db, c.var.campaignId, characterId)!;
     return c.json({ character: toSheet(updated, c.var.deps.assets) });

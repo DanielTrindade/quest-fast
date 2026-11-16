@@ -287,6 +287,8 @@ export const statblocks = sqliteTable(
     reactions: text('reactions').notNull().default(''),
     /** Multiattack: copied to each combatant made from this entry. */
     attacksPerAction: integer('attacks_per_action').notNull().default(1),
+    /** The creature's picture: its tokens show it where a character shows its avatar. */
+    imageAssetId: text('image_asset_id').references(() => assets.id, { onDelete: 'set null' }),
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(now),
     updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(now),
   },
