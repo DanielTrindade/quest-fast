@@ -51,9 +51,11 @@ jobs:
           # action; `type` é vocabulário do servidor. Correção (CI, review a
           # aplicar) ou gatilho novo não cai no primeiro parecer: pedir ao
           # modelo que recuse não basta, no #32 ele revisou um autofix até
-          # estourar o timeout.
+          # estourar o timeout. Push novo (`pull_request_synchronize`) também
+          # fica de fora: o re-review incremental do Codex leva poucos minutos,
+          # e o primeiro parecer custava 11 a 14 min a cada push.
           case "$(jq -r '.event.trigger' <<< "$PAYLOAD")" in
-            pull_request_opened|pull_request_ready_for_review|pull_request_synchronize|pull_request_review_requested) ;;
+            pull_request_opened|pull_request_ready_for_review|pull_request_review_requested) ;;
             issue_comment_created|pull_request_review_comment_created)
               jq -r '.prompt' <<< "$PAYLOAD" | grep -qiE 'review|revis' || exit 0 ;;
             *) exit 0 ;;
@@ -71,7 +73,7 @@ jobs:
           push: disabled
           shell: restricted
           progress_comments: disabled
-          timeout: 15m
+          timeout: 8m
           prompt: |
             Você é a primeira passada de uma cadeia de revisão do PR
             #${{ steps.task.outputs.pr }} deste repositório. Outro agente revisa

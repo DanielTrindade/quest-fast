@@ -1,19 +1,20 @@
 # Caminhos que nunca entram por auto-merge: são as regras que o próprio
-# Pullfrog segue e o que decide se o CI fica verde (workflows, scripts de
-# verificação, lint, tsconfig), então um PR que os muda não pode ser
-# aprovado pelo bot. O resto do repositório não tem dono, e a aprovação do bot
-# satisfaz o ruleset. Ver docs/pullfrog.md.
+# Pullfrog segue e o que decide se o CI fica verde (workflows, validadores,
+# lint, tsconfig), então um PR que os muda não pode ser aprovado pelo bot. O
+# resto do repositório não tem dono, e a aprovação do bot satisfaz o ruleset.
+# `docs/architecture.md` e os demais `scripts/` ficam de fora de propósito: a
+# política de review julga se a mudança relaxa um princípio. Ver docs/pullfrog.md.
 
-/.github/                       @DanielTrindade
-/.claude/                       @DanielTrindade
-/AGENTS.md                      @DanielTrindade
-/CLAUDE.md                      @DanielTrindade
-/SECURITY.md                    @DanielTrindade
-/Dockerfile                     @DanielTrindade
-/scripts/                       @DanielTrindade
-/client/eslint.config.js        @DanielTrindade
-/client/eslint-rules/           @DanielTrindade
-/client/test/resolve-ts.mjs     @DanielTrindade
-tsconfig*.json                  @DanielTrindade
-/docs/architecture.md           @DanielTrindade
-/docs/pullfrog.md               @DanielTrindade
+/.github/                               @DanielTrindade
+/.claude/                               @DanielTrindade
+/AGENTS.md                              @DanielTrindade
+/CLAUDE.md                              @DanielTrindade
+/SECURITY.md                            @DanielTrindade
+/Dockerfile                             @DanielTrindade
+/scripts/check-design-tokens.mjs        @DanielTrindade
+/scripts/verify-design-system.mjs       @DanielTrindade
+/client/eslint.config.js                @DanielTrindade
+/client/eslint-rules/                   @DanielTrindade
+/client/test/resolve-ts.mjs             @DanielTrindade
+tsconfig*.json                          @DanielTrindade
+/docs/pullfrog.md                       @DanielTrindade
