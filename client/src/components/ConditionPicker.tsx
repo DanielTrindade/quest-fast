@@ -24,13 +24,13 @@ export function ConditionChips({ name, conditions, pending = false, onRemove }: 
     <ul className="m-0 flex list-none flex-wrap gap-1 p-0" aria-label={`Condições de ${name}`}>
       {conditions.map((active) => (
         <li key={active.condition} data-removable={!!onRemove || undefined}
-          className="inline-flex min-h-9 max-w-full items-center gap-1 rounded-control border border-input bg-background px-2 text-small whitespace-nowrap text-foreground data-removable:pe-0">
-          <span aria-hidden="true">{conditionShortLabel(active)}</span>
+          className="inline-flex min-h-9 max-w-full items-center gap-1 rounded-control border border-input bg-background px-2 text-small text-foreground data-removable:pe-0">
+          <span aria-hidden="true" className="min-w-0 [overflow-wrap:anywhere]">{conditionShortLabel(active)}</span>
           <span className="sr-only">{conditionLabel(active)}</span>
           {onRemove && (
             <button type="button" disabled={pending} onClick={() => onRemove(active.condition)}
               aria-label={`Remover ${CONDITION_LABELS[active.condition]} de ${name}`}
-              className="inline-grid size-9 cursor-pointer place-items-center rounded-control text-text-secondary transition-[background-color,color] duration-(--duration-quick) hover:not-disabled:bg-muted hover:not-disabled:text-foreground disabled:cursor-not-allowed disabled:opacity-60">
+              className="inline-grid size-9 shrink-0 cursor-pointer place-items-center rounded-control text-text-secondary transition-[background-color,color] duration-(--duration-quick) hover:not-disabled:bg-muted hover:not-disabled:text-foreground disabled:cursor-not-allowed disabled:opacity-60">
               <X size={14} aria-hidden="true" />
             </button>
           )}

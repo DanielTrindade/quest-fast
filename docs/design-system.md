@@ -305,4 +305,4 @@ O Laboratório de dados passou a abrir mapa com tokens na Mesa: a "demo" com o g
 - **Nome de quem joga no painel** vai até duas linhas, com reticências (`data-slot="turn-message"`, limitado pelo painel). O nome inteiro segue no seletor de combatente e no card logo abaixo, e o leitor de tela lê a frase inteira. Na fila do Preparo, a frase não é limitada.
 - **Fim do painel fixo.** Quando o painel lateral rola por conta própria (a partir de 860 px), um esmaecimento de 32 px em `card` marca que há mais embaixo; no fim da rolagem ele cai sobre o espaço vazio e não esconde nada.
 - **Evento secreto no feed** fica dentro da coluna: o quadro tracejado não usa mais margem negativa, que fazia o feed rolar 12 px para o lado.
-- **Etiqueta de condição** abrevia a duração ("Cego (100 rod.)") e não quebra linha; o leitor de tela e o feed recebem "100 rodadas" por extenso.
+- **Etiqueta de condição** abrevia a duração ("Cego (100 rod.)") para caber numa linha, e só quebra quando nem assim cabe; o botão de remover não encolhe; o leitor de tela e o feed recebem "100 rodadas" por extenso.
