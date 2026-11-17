@@ -7,9 +7,11 @@ on:
     branches: [master]
   workflow_dispatch:
 
+# Na master, uma execução nova espera a anterior: cancelar no meio poderia
+# interromper um deploy.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   checks:
@@ -36,3 +38,36 @@ jobs:
         run: npm run test:tokens
       - name: Build do SPA
         run: npm run build
+
+  deploy:
+    name: Deploy em produção
+    needs: checks
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: producao
+      url: ${{ vars.PRODUCTION_URL }}
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      GCLOUD_CONFIG: ''
+      CLOUDSDK_CORE_PROJECT: ${{ vars.GCP_PROJECT_ID }}
+      CLOUDSDK_COMPUTE_ZONE: ${{ vars.GCP_ZONE }}
+    steps:
+      - name: Baixa o repositório
+        uses: actions/checkout@v7
+      - name: Autentica no GCP
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+      - name: Instala o gcloud
+        uses: google-github-actions/setup-gcloud@v3
+      - name: Builda e sobe na VM
+        run: sh deploy/ship.sh
+      - name: Confere o endereço público
+        env:
+          PRODUCTION_URL: ${{ vars.PRODUCTION_URL }}
+        run: curl --fail --silent --show-error --retry 10 --retry-all-errors --retry-delay 3 "$PRODUCTION_URL/api/health"

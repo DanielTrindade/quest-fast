@@ -5,17 +5,28 @@ set -eu
 cd /srv/quest-fast
 . ./backup.env
 
+# O timer diário e o deploy chamam este script e dividem o dados/backup.db:
+# um apagaria o arquivo do outro no meio do tar.
+exec 9>backup.lock
+flock 9
+
 stamp=$(date -u +%Y%m%dT%H%M%SZ)
 archive=$(mktemp --suffix=.tar.gz)
 trap 'rm -f "$archive" dados/backup.db' EXIT
 
 # A API de backup do SQLite copia o banco em uso sem travar o app; copiar o
 # arquivo direto poderia pegar uma escrita pela metade.
-docker compose exec -T app node -e "
+snapshot="
 const Database = require('better-sqlite3');
 new Database(process.env.DB_FILE, { readonly: true }).backup('/dados/backup.db')
   .catch((error) => { console.error(error); process.exit(1); });
 "
+running=$(docker compose ps -q --status running app)
+if [ -n "$running" ]; then
+  docker compose exec -T app node -e "$snapshot"
+else
+  docker compose run --rm --no-deps -T app node -e "$snapshot"
+fi
 
 tar -czf "$archive" -C dados backup.db uploads
 
