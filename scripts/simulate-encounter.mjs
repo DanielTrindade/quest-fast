@@ -10,7 +10,7 @@
 // do turno e as ações ficam no painel lateral, o turno de cada um ao lado do
 // mapa.
 //
-// No mapa, antes do round 1 (mover é livre): o mestre acerta o grid, põe o
+// No mapa, antes da rodada 1 (mover é livre): o mestre acerta o grid, põe o
 // encontro e uma carroça pelo "Pôr tokens" e arma a emboscada ao vivo nas
 // telas dos jogadores (o xamã escondido nem aparece nem manda movimento).
 // Cada jogador arrasta o próprio token; Ana tenta arrastar um goblin e só move
@@ -1956,7 +1956,7 @@ try {
   await sleep(1500);
   const final = await readEncounter();
   for (const c of final.combatants) say(`  ${c.name}: ${hpText(c)}`);
-  if (final.summary) say(`  Resumo: ${final.summary.rounds} round(s); derrotados: ${final.summary.defeated.join(', ') || 'nenhum'}.`);
+  if (final.summary) say(`  Resumo: ${final.summary.rounds} rodada(s); derrotados: ${final.summary.defeated.join(', ') || 'nenhum'}.`);
   const summaryEvent = await lastEvent(elara.session);
   check('o resumo do combate chega ao feed dos jogadores', summaryEvent?.payload?.kind === 'combat.ended');
   await removeCart();

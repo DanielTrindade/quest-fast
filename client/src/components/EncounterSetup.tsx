@@ -240,7 +240,7 @@ export function EncounterSetup({ characters, statblocks, onAdd, pending = false,
           <input type="checkbox" checked={hidden} onChange={(event) => setHidden(event.target.checked)} />
           Entra escondido dos jogadores
         </label>
-        <Button type="submit" loading={pending} disabled={unavailable}>
+        <Button type="submit" loading={pending} disabled={unavailable} className="max-w-full whitespace-normal">
           <Plus size={18} aria-hidden="true" /> {reinforcement ? 'Adicionar reforço' : 'Adicionar ao encontro'}
         </Button>
       </div>

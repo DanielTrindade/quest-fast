@@ -215,5 +215,5 @@ export function FeedEventCard({ event, ...actions }: { event: SessionEvent } & D
       : isSpellCastSessionEvent(event)
         ? <SpellCastEventCard event={event} />
         : <UnknownEventCard event={event as UnknownSessionEvent} />;
-  return event.secret ? <div className="-mx-3 rounded-control border border-dashed border-input bg-surface-secret px-3 py-2">{content}</div> : <>{content}</>;
+  return event.secret ? <div className="rounded-control border border-dashed border-input bg-surface-secret px-3 py-2">{content}</div> : <>{content}</>;
 }

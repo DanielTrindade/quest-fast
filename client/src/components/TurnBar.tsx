@@ -109,7 +109,7 @@ function EndCombat({ pending, onAction }: ActionProps) {
     );
   }
   return (
-    <span className="flex flex-wrap items-center gap-2" role="group" aria-label="Encerrar o combate?">
+    <span className="flex flex-wrap items-center justify-end gap-2 [&>*]:grow" role="group" aria-label="Encerrar o combate?">
       <Button variant="danger" loading={pending === 'end'} disabled={pending !== null} onClick={() => onAction('end')}>
         Encerrar e registrar resumo
       </Button>

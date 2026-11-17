@@ -331,7 +331,7 @@ const worst: Dataset = {
   statblocks: worstStatblocks,
   encounters: [
     encounter('e1', fit('Emboscada na Ponte sobre o Rio Triboar, onde os bandidos cobravam pedágio dos viajantes', ENCOUNTER_LIMITS.name), 'active', 12, worstCombatants),
-    encounter('e2', 'Covil', 'preparing', 0, worstCombatants.map((item) => ({ ...item, initiative: null, hasInitiative: false }))),
+    encounter('e2', fit('Covil dos Goblins Cragmaw na Trilha de Triboar, com o Rei Grol e o lobo Ripper à espera', ENCOUNTER_LIMITS.name), 'preparing', 0, worstCombatants.map((item) => ({ ...item, initiative: null, hasInitiative: false }))),
     encounter('e3', 'Rato', 'ended', 1, [worstCombatants[4]]),
   ],
   feed: [

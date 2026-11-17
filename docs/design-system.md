@@ -298,10 +298,11 @@ O Laboratório de dados passou a abrir mapa com tokens na Mesa: a "demo" com o g
 
 - **Segmentado que quebra linha preenche a linha.** Os itens de `ui/segmented.ts` crescem só quando o trilho quebra: "Normal · Vantagem" numa linha e "Desvantagem" inteira na de baixo, em vez de uma opção solta no canto. Sem quebra, o trilho continua do tamanho do conteúdo.
 - **Botões do turno no painel estreito.** Quando "Encerrar combate", "Voltar turno" e "Próximo turno" não cabem numa linha, cada linha quebrada ocupa a largura toda, com "Próximo turno" por último, sem escada de larguras.
-- **O mapa segue a proporção da imagem.** Na Mesa e na prévia do Preparo, a altura passou de fixa a limites (`max-h`/`min-h`): dentro deles o quadro tem a proporção do mapa, e o celular não mostra mais uma faixa vazia acima e abaixo da imagem.
+- **O mapa segue a proporção da imagem.** Na Mesa e na prévia do Preparo, a altura passou de fixa a limites (`max-h`/`min-h`, com mínimo de 200 px): dentro deles o quadro tem a proporção do mapa, e um mapa 3:2 no celular enquadra sem faixa vazia acima e abaixo. Só um mapa mais largo que isso, ou mais alto que o máximo, sobra com faixa.
 - **Título com ícone que quebra linha.** Em `sectionHeading`, o ícone não encolhe e fica alinhado à primeira linha; o nome quebra onde precisar.
 - **Quem está movendo** cabe em 120 px no canvas, com reticências: um nome de 32 caracteres cobria os tokens vizinhos. O nome inteiro segue na `TokenList`.
 - **Rodada, não round.** A interface diz "Rodada" em tudo: o selo do menu, o turno ("Rodada 3", "Começar rodada 1"), a lista de encontros, o resumo, o feed e o erro do servidor ("A primeira rodada ainda não começou."). Antes, o menu e as condições diziam "rodada" e o turno dizia "round".
 - **Nome de quem joga no painel** vai até duas linhas, com reticências (`data-slot="turn-message"`, limitado pelo painel). O nome inteiro segue no seletor de combatente e no card logo abaixo, e o leitor de tela lê a frase inteira. Na fila do Preparo, a frase não é limitada.
 - **Fim do painel fixo.** Quando o painel lateral rola por conta própria (a partir de 860 px), um esmaecimento de 32 px em `card` marca que há mais embaixo; no fim da rolagem ele cai sobre o espaço vazio e não esconde nada.
+- **Evento secreto no feed** fica dentro da coluna: o quadro tracejado não usa mais margem negativa, que fazia o feed rolar 12 px para o lado.
 - **Etiqueta de condição** abrevia a duração ("Cego (100 rod.)") e não quebra linha; o leitor de tela e o feed recebem "100 rodadas" por extenso.

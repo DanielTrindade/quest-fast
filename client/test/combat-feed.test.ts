@@ -87,8 +87,13 @@ test('a death save with advantage or disadvantage shows both faces', () => {
   );
 });
 
-test('a condition chip abbreviates its rounds; the feed keeps them whole', () => {
+test('the short condition label abbreviates its rounds; the long one spells them out', () => {
   assert.equal(conditionShortLabel({ condition: 'poisoned', roundsLeft: 100 }), 'Envenenado (100 rod.)');
   assert.equal(conditionShortLabel({ condition: 'exhaustion', level: 6 }), 'Exaustão 6');
   assert.equal(conditionLabel({ condition: 'poisoned', roundsLeft: 1 }), 'Envenenado (1 rodada)');
+});
+
+test('the feed spells out a long duration, never the chip abbreviation', () => {
+  const payload: CombatConditionPayload = { ...kaelen, kind: 'combat.condition', action: 'applied', condition: { condition: 'blinded', roundsLeft: 100 } };
+  assert.equal(combatEventText(payload), 'Kaelen está com a condição Cego (100 rodadas).');
 });
