@@ -200,7 +200,8 @@ bucket **privado** do R2.
 | --- | --- |
 | `compose.yaml`, `Caddyfile` | app e proxy; `SITE_ADDRESS` vem do `.env` ao lado |
 | `setup-vm.sh` | Docker, atualizações automáticas, pasta de dados e timer do backup |
-| `ship.sh` | builda a imagem na sua máquina e a sobe na VM pelo `gcloud` |
+| `ship.sh` | builda a imagem na sua máquina (ou no CI) e a sobe na VM pelo `gcloud` |
+| `install.sh` | roda na VM: backup, `docker compose up` e espera o `/api/health` |
 | `backup.sh` | cópia consistente do SQLite (API de backup) e dos uploads para o R2 |
 | `app.env.example`, `backup.env.example` | segredos; na VM, `chmod 600`, um arquivo para cada |
 
@@ -223,6 +224,25 @@ gcloud compute ssh <vm> --tunnel-through-iap --command "sudo sh /tmp/setup-vm.sh
 # na VM: /srv/quest-fast/.env (SITE_ADDRESS), app.env e backup.env
 sh deploy/ship.sh          # GCLOUD_CONFIG e VM escolhem a configuração e a VM
 ```
+
+Antes de subir a versão nova, o `ship.sh` faz um backup: as migrações rodam na
+subida do app e não têm volta. Se o backup falhar, a versão antiga continua no
+ar.
+
+#### Deploy automático
+
+Cada push na `master` com o CI verde roda o job `deploy` do
+[`ci.yml`](.github/workflows/ci.yml), que chama o mesmo `ship.sh` no runner.
+Não há chave guardada no GitHub: o job se autentica no GCP por Workload
+Identity Federation, e o provider só aceita tokens deste repositório, no
+environment `producao` e na `master`. A conta de serviço `github-deploy` só
+tem OS Login de administrador na VM, acesso ao túnel do IAP e leitura do
+Compute. Os deploys entram em fila e nunca são cancelados no meio. Para
+repetir o último deploy, rode o workflow CI na `master` pela aba Actions.
+
+Num fork, crie os mesmos recursos e preencha as variáveis do environment
+`producao`: `GCP_WORKLOAD_IDENTITY_PROVIDER`, `GCP_DEPLOY_SERVICE_ACCOUNT`,
+`GCP_PROJECT_ID`, `GCP_ZONE` e `PRODUCTION_URL`.
 
 O bucket de backup não tem acesso público (nem domínio, nem `r2.dev`). Em
 **Settings → Object lifecycle rules**, crie uma regra que apaga objetos com
