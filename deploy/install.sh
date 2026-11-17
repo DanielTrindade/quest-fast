@@ -15,7 +15,8 @@ gunzip -c "/tmp/$image" | docker load
 cd /srv/quest-fast
 
 # As migrações rodam na subida do app e não têm volta, então o backup vem antes.
-if [ -n "$(docker compose ps -q --status running app)" ]; then
+# Só a primeira instalação, ainda sem banco, sobe sem ele.
+if [ -f dados/quest-fast.db ]; then
   ./backup.sh
 fi
 
