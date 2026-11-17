@@ -27,13 +27,13 @@ export const MestreAguardandoIniciativa: Story = {
   play: async ({ canvasElement }) => {
     const [region] = within(canvasElement).getAllByRole('region', { name: /^Tema / });
     const bar = within(region);
-    await expect(bar.getByRole('button', { name: 'Começar round 1' })).toBeDisabled();
+    await expect(bar.getByRole('button', { name: 'Começar rodada 1' })).toBeDisabled();
     await expect(bar.getByText('Falta a iniciativa de 2 combatentes.')).toBeVisible();
   },
 };
 
 export const MestreProntoParaComecar: Story = {
-  name: 'Mestre: pronto para o round 1',
+  name: 'Mestre: pronto para a rodada 1',
   args: { round: 0, activeName: null },
 };
 
@@ -51,7 +51,7 @@ export const MestreEmCombate: Story = {
 };
 
 export const MestrePrimeiroTurno: Story = {
-  name: 'Mestre: primeiro turno do round 1',
+  name: 'Mestre: primeiro turno da rodada 1',
   args: { round: 1, activeName: 'Goblin 1', canGoBack: false },
   play: async ({ canvasElement }) => {
     const [region] = within(canvasElement).getAllByRole('region', { name: /^Tema / });

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowLeft, Trash } from '@phosphor-icons/react';
+import { ArrowLeft, Trash, Warning } from '@phosphor-icons/react';
 import { useQuery } from '@tanstack/react-query';
 import type { CombatantInput, EncounterSummaryView, EncounterView } from '@quest-fast/shared';
 import { Button } from '../../components/Button';
@@ -30,7 +30,7 @@ function reorderedTie(encounter: EncounterView, id: string, direction: 'up' | 'd
 }
 
 function Summary({ summary }: { summary: EncounterSummaryView }) {
-  const rounds = `${summary.rounds} ${summary.rounds === 1 ? 'round' : 'rounds'}`;
+  const rounds = `${summary.rounds} ${summary.rounds === 1 ? 'rodada' : 'rodadas'}`;
   const defeated = summary.defeated.length > 0 ? `Derrotados: ${summary.defeated.join(', ')}.` : 'Nenhum derrotado.';
   return (
     <Surface variant="base" className="[&_p]:m-0">
@@ -66,15 +66,30 @@ function SetupPanel({ campaignId, encounter, onAdd, pending }: {
   );
 }
 
+/**
+ * The same two steps as deleting a scene: the warning says what goes with it,
+ * and the buttons keep fixed labels, so a long name never widens them.
+ */
 function DeleteEncounter({ name, pending, onDelete }: { name: string; pending: boolean; onDelete: () => void }) {
   const [confirming, setConfirming] = useState(false);
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="border-t border-border pt-4">
       {confirming ? (
-        <span role="group" aria-label={`Excluir ${name}?`} className="flex flex-wrap gap-2">
-          <Button variant="danger" loading={pending} onClick={onDelete}>Excluir {name}</Button>
-          <Button variant="ghost" onClick={() => setConfirming(false)}>Manter</Button>
-        </span>
+        <div role="group" aria-label={`Excluir ${name}?`} className="grid gap-3 rounded-control border border-border bg-background p-3">
+          <p className="m-0 flex items-start gap-2 text-small text-danger-text [overflow-wrap:anywhere] [&>svg]:mt-px [&>svg]:shrink-0">
+            <Warning size={18} weight="fill" aria-hidden="true" />
+            <span>
+              <strong className="font-semibold">{name}</strong> sai da lista com os combatentes e os tokens deles no mapa.
+              O que já foi para o feed continua lá. Não dá para desfazer.
+            </span>
+          </p>
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button variant="secondary" onClick={() => setConfirming(false)}>Manter encontro</Button>
+            <Button variant="danger" loading={pending} onClick={onDelete}>
+              <Trash size={18} aria-hidden="true" /> Excluir encontro
+            </Button>
+          </div>
+        </div>
       ) : (
         <Button variant="ghost" onClick={() => setConfirming(true)}>
           <Trash size={18} aria-hidden="true" /> Excluir encontro

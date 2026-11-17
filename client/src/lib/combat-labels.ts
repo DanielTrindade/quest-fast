@@ -40,6 +40,12 @@ export function conditionLabel({ condition, level, roundsLeft }: ActiveCondition
   return `${name} (${roundsLeft} ${roundsLeft === 1 ? 'rodada' : 'rodadas'})`;
 }
 
+/** "Envenenado (2 rod.)": the chip's text, short enough to stay on one line in the side panel. */
+export function conditionShortLabel({ condition, level, roundsLeft }: ActiveCondition): string {
+  const name = level ? `${CONDITION_LABELS[condition]} ${level}` : CONDITION_LABELS[condition];
+  return roundsLeft === undefined ? name : `${name} (${roundsLeft} rod.)`;
+}
+
 /** A character at 0 hit points. "Caído" is already the prone condition. */
 export const DEATH_STATUS_LABELS: Record<DeathSaveStatus, string> = {
   pending: 'Morrendo',

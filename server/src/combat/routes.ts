@@ -429,7 +429,7 @@ function changeTurn(mutation: Mutation, body: Record<string, unknown>) {
   }
 
   if (direction === 'previous') {
-    if (encounter.round === 0) refuse(409, 'O primeiro round ainda não começou.');
+    if (encounter.round === 0) refuse(409, 'A primeira rodada ainda não começou.');
     const order = turnOrder(loaded);
     // An empty step would still bump the version and reach the whole table.
     if (!hasPreviousTurn(order, encounter.activeCombatantId, encounter.round)) refuse(409, 'Ainda não há turno anterior.');
@@ -861,7 +861,7 @@ function parseEconomy(value: unknown): Economy {
  */
 function changeEconomy(mutation: Mutation, combatant: LoadedCombatant, body: Record<string, unknown>) {
   const { encounter } = mutation.loaded;
-  if (encounter.round === 0) refuse(409, 'O primeiro round ainda não começou.');
+  if (encounter.round === 0) refuse(409, 'A primeira rodada ainda não começou.');
   const budget = budgetOf(combatant.row);
   const master = mutation.viewer.role === 'master';
 

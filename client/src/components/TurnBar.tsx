@@ -22,12 +22,13 @@ type ActionProps = {
 /**
  * The buttons in a row with a hint under them, both at the edge. The hint is
  * a line of its own, not a flex item: as one it would widen the row and push
- * the buttons under the title.
+ * the buttons under the title. In a narrow panel the buttons wrap, and each
+ * wrapped line fills the width so they do not form a ragged staircase.
  */
 function ActionRow({ hint, hintId, children }: { hint: string | null; hintId: string; children: ReactNode }) {
   return (
     <div className="grid min-w-0 justify-items-end gap-1">
-      <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">{children}</div>
+      <div className="flex min-w-0 flex-wrap items-center justify-end gap-2 [&>*]:grow">{children}</div>
       {hint && <p id={hintId} className="m-0 text-end text-small text-text-secondary">{hint}</p>}
     </div>
   );
@@ -36,7 +37,7 @@ function ActionRow({ hint, hintId, children }: { hint: string | null; hintId: st
 /** What the announcement says; the same sentence goes to screen readers. */
 function turnMessage({ status, round, activeName, activeHidden, ownTurn }: TurnState): string {
   if (status === 'preparing') return 'Encontro em preparação: só você vê.';
-  if (status === 'ended') return `Combate encerrado após ${round} ${round === 1 ? 'round' : 'rounds'}.`;
+  if (status === 'ended') return `Combate encerrado após ${round} ${round === 1 ? 'rodada' : 'rodadas'}.`;
   if (round === 0) return 'Rolando iniciativa.';
   if (ownTurn) return 'É a sua vez.';
   if (activeHidden || !activeName) return 'Vez de outro combatente.';
@@ -68,7 +69,7 @@ function InitiativeActions({ missingInitiative, monstersWithoutInitiative, pendi
         aria-describedby={missingInitiative > 0 ? missingId : undefined}
         onClick={() => onAction('next')}
       >
-        <Play size={18} aria-hidden="true" /> Começar round 1
+        <Play size={18} aria-hidden="true" /> Começar rodada 1
       </Button>
     </ActionRow>
   );
@@ -108,7 +109,7 @@ function EndCombat({ pending, onAction }: ActionProps) {
     );
   }
   return (
-    <span className="flex flex-wrap items-center gap-2" role="group" aria-label="Encerrar o combate?">
+    <span className="flex flex-wrap items-center justify-end gap-2 [&>*]:grow" role="group" aria-label="Encerrar o combate?">
       <Button variant="danger" loading={pending === 'end'} disabled={pending !== null} onClick={() => onAction('end')}>
         Encerrar e registrar resumo
       </Button>
@@ -182,11 +183,11 @@ export function TurnBar({
   return (
     <div data-own-turn={yourTurn || undefined} className="group flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-3 rounded-panel border border-border-strong bg-popover px-4 py-3 edge-raised transition-[border-color,box-shadow] duration-(--duration-settle) ease-settle data-own-turn:border-accent-text data-own-turn:shadow-[inset_0_-3px_0_var(--color-accent-text),inset_0_1px_0_var(--color-edge-light)]">
       <div className="grid min-w-0 flex-[1_1_12rem] gap-1">
-        <p className="m-0 text-small font-semibold text-text-secondary">{playing ? `Round ${round}` : ENCOUNTER_STATUS_LABELS[status]}</p>
+        <p className="m-0 text-small font-semibold text-text-secondary">{playing ? `Rodada ${round}` : ENCOUNTER_STATUS_LABELS[status]}</p>
         {/* Announced on every change of turn. */}
         <p className="m-0 flex items-center gap-2 font-display text-h2 font-semibold [overflow-wrap:anywhere] group-data-own-turn:text-accent-text" role="status" aria-live="polite">
           {yourTurn && <Sword size={18} aria-hidden="true" />}
-          {turnMessage({ status, round, activeName, activeHidden, ownTurn })}
+          <span data-slot="turn-message" className="min-w-0">{turnMessage({ status, round, activeName, activeHidden, ownTurn })}</span>
         </p>
       </div>
 

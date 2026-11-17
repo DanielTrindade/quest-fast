@@ -74,6 +74,7 @@ export function ActionPanel({ header, actions, dice, feed, tab, onTabChange, act
           </TabsContent>
         ))}
       </Tabs>
+      <div aria-hidden="true" data-slot="panel-fade" className="pointer-events-none sticky bottom-0 -mt-3 hidden h-8 bg-linear-to-t from-card to-transparent" />
     </aside>
   );
 }

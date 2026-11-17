@@ -63,6 +63,14 @@ export const TodasAsCondicoes: Story = {
   args: {
     conditions: CONDITIONS.map((condition) => (condition === 'exhaustion' ? { condition, level: 6, roundsLeft: 100 } : { condition, roundsLeft: 99 })),
   },
+  play: async ({ canvasElement }) => {
+    const [region] = within(canvasElement).getAllByRole('region', { name: /^Tema / });
+    const chips = within(within(region!).getByRole('list', { name: 'Condições de Hazin Dan' }));
+    const blinded = chips.getByText('Cego (99 rodadas)').closest('li')!;
+    await expect(blinded).toHaveTextContent('Cego (99 rod.)');
+    await expect(within(blinded).getByText('Cego (99 rod.)')).toHaveAttribute('aria-hidden', 'true');
+    await expect(chips.getByText('Exaustão 6 (100 rodadas)')).toHaveClass('sr-only');
+  },
 };
 
 export const DuracaoInvalida: Story = {

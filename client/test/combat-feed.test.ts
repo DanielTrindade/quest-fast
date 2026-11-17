@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { CombatConditionPayload, CombatDeathSavePayload, CombatHitPointsPayload } from '@quest-fast/shared';
 import { combatEventText } from '../src/lib/combat-feed.ts';
+import { conditionLabel, conditionShortLabel } from '../src/lib/combat-labels.ts';
 
 const goblin = { encounterId: 'e1', combatantId: 'g2', name: 'Goblin 2', source: 'statblock' } as const;
 const kaelen = { encounterId: 'e1', combatantId: 'k1', name: 'Kaelen', source: 'character' } as const;
@@ -84,4 +85,15 @@ test('a death save with advantage or disadvantage shows both faces', () => {
     combatEventText(save({ d20: 20, mode: 'advantage', rolls: [20, 8], saves: { successes: 0, failures: 0 }, outcome: 'revived' })),
     'Kaelen tirou 20 no teste contra a morte (com vantagem: 20 e 8) e voltou com 1 PV.',
   );
+});
+
+test('the short condition label abbreviates its rounds; the long one spells them out', () => {
+  assert.equal(conditionShortLabel({ condition: 'poisoned', roundsLeft: 100 }), 'Envenenado (100 rod.)');
+  assert.equal(conditionShortLabel({ condition: 'exhaustion', level: 6 }), 'Exaustão 6');
+  assert.equal(conditionLabel({ condition: 'poisoned', roundsLeft: 1 }), 'Envenenado (1 rodada)');
+});
+
+test('the feed spells out a long duration, never the chip abbreviation', () => {
+  const payload: CombatConditionPayload = { ...kaelen, kind: 'combat.condition', action: 'applied', condition: { condition: 'blinded', roundsLeft: 100 } };
+  assert.equal(combatEventText(payload), 'Kaelen está com a condição Cego (100 rodadas).');
 });

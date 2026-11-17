@@ -94,7 +94,7 @@ function stageLayout({ fullscreen, isMaster, mapClassName, name }: {
       region: {},
       stage: '@container/stage grid min-w-0 gap-4',
       body: 'grid min-w-0 gap-4 @min-[52rem]/stage:grid-cols-[minmax(0,1fr)_18rem]',
-      map: cn('min-w-0', mapClassName),
+      map: cn('w-full min-w-0', mapClassName),
       side: 'grid min-w-0 content-start gap-4',
     };
   }
@@ -119,7 +119,7 @@ function stageLayout({ fullscreen, isMaster, mapClassName, name }: {
  */
 export function SceneStage({ campaignId, scene, isMaster, mapClassName, allowFullscreen = false }: {
   campaignId: string; scene: SceneView; isMaster: boolean;
-  /** The map's height where it is shown. */
+  /** The bounds of the map's height where it is shown; within them it follows the image's proportion. */
   mapClassName: string;
   /** The stage may fill the screen (not inside a dialog, whose frame would hold it). */
   allowFullscreen?: boolean;
@@ -168,7 +168,7 @@ export function SceneStage({ campaignId, scene, isMaster, mapClassName, allowFul
         <MasterBar campaignId={campaignId} scene={scene} panel={panel} gridPanelId={gridPanelId} pickerId={pickerId} onToggle={toggle} />
       )}
       <div className={layout.body}>
-        <div className={layout.map}>
+        <div className={layout.map} style={fullscreen ? undefined : { aspectRatio: `${scene.mapWidth} / ${scene.mapHeight}` }}>
           <MapCanvas ref={mapRef} imageUrl={scene.mapUrl} mapWidth={scene.mapWidth} mapHeight={scene.mapHeight} grid={shownGrid} label={scene.name}
             tokens={scene.tokens} viewerId={viewerId} selectedTokenId={selectedId} onSelect={setSelected} canMove={canMove}
             onGrab={moves.onGrab} onDrag={moves.onDrag} onDrop={moves.onDrop} onCancelDrag={moves.onCancelDrag} motion={motion}

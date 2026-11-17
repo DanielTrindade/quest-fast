@@ -10,9 +10,9 @@ import { cardRow, cardRowTitle } from './sheet-styles';
 
 function detail(encounter: EncounterListItem): string {
   const combatants = encounter.combatantCount === 1 ? '1 combatente' : `${encounter.combatantCount} combatentes`;
-  if (encounter.status === 'active' && encounter.round > 0) return `Round ${encounter.round} · ${combatants}`;
+  if (encounter.status === 'active' && encounter.round > 0) return `Rodada ${encounter.round} · ${combatants}`;
   if (encounter.status === 'ended') {
-    return `${encounter.round} ${encounter.round === 1 ? 'round' : 'rounds'} · ${combatants}`;
+    return `${encounter.round} ${encounter.round === 1 ? 'rodada' : 'rodadas'} · ${combatants}`;
   }
   return combatants;
 }

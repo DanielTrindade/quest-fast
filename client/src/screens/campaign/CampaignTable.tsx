@@ -29,7 +29,7 @@ export function CampaignTable({ campaignId }: { campaignId: string }) {
         </div>
 
         <TableActionPanel campaignId={campaignId} isMaster={isMaster} currentUserId={currentUserId} withFeed={!feedInMiddle}
-          className="@min-[860px]:sticky @min-[860px]:top-4 @min-[860px]:col-start-2 @min-[860px]:row-span-3 @min-[860px]:row-start-1 @min-[860px]:max-h-[calc(100dvh-2rem)] @min-[860px]:overflow-y-auto @min-[860px]:overscroll-contain" />
+          className="@min-[860px]:sticky @min-[860px]:top-4 @min-[860px]:col-start-2 @min-[860px]:row-span-3 @min-[860px]:row-start-1 @min-[860px]:max-h-[calc(100dvh-2rem)] @min-[860px]:overflow-y-auto @min-[860px]:overscroll-contain @min-[860px]:[&>[data-slot=panel-fade]]:block" />
 
         {feedInMiddle && (
           <div className="min-w-0 @min-[860px]:col-start-1 @min-[860px]:row-start-2">
