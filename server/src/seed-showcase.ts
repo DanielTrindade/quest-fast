@@ -19,6 +19,7 @@ import {
   type CombatReminder,
   type DieResult,
   type RollPayload,
+  type SaveEffect,
   type Size,
   type Spell,
   type SpellCastPayload,
@@ -270,8 +271,16 @@ function weapon(name: string, bonus: number, damage: string, damageType: string,
   return { kind: 'attack', name, bonus, damage, damageType, notes, cost: defaultAttackCost('attack') };
 }
 
-function saveAttack(name: string, dc: number, saveAbility: Ability, damage: string, damageType: string, notes = ''): Attack {
-  return { kind: 'save', name, dc, saveAbility, damage, damageType, notes, cost: defaultAttackCost('save'), onSave: 'half' };
+function saveAttack(
+  name: string,
+  dc: number,
+  saveAbility: Ability,
+  damage: string,
+  damageType: string,
+  notes = '',
+  onSave: SaveEffect = 'half',
+): Attack {
+  return { kind: 'save', name, dc, saveAbility, onSave, damage, damageType, notes, cost: defaultAttackCost('save') };
 }
 
 function createCharacter(campaignId: string, sheet: SheetInput) {
@@ -1076,7 +1085,7 @@ const aurelia = createCharacter(ruinas, {
   toolProficiencies: 'Kit de caligrafia',
   attacks: [
     weapon('Maça', 4, '1d6+1', 'Concussão'),
-    saveAttack('Chama Sagrada', 14, 'dexterity', '2d8', 'Radiante', 'Ignora cobertura, 18 m'),
+    saveAttack('Chama Sagrada', 14, 'dexterity', '2d8', 'Radiante', 'Ignora cobertura, 18 m', 'none'),
     weapon('Besta leve', 3, '1d8', 'Perfurante', 'Munição 24/96 m'),
   ],
   features: ['Canalizar Divindade (2/descanso)', 'Labareda Protetora (3/dia)', 'Expulsar Mortos-Vivos', 'Destruir Mortos-Vivos (ND 1/2)', 'Radiância da Aurora'],
