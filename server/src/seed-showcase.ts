@@ -1,7 +1,7 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { rm } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import { and, eq, inArray, like, or } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import sharp from 'sharp';
 import {
   abilityModifier,
@@ -67,7 +67,6 @@ const uploadsDir = resolve(process.env.UPLOADS_DIR?.trim() || 'uploads');
 const store = createDiskAssetStore(uploadsDir);
 
 const SHOWCASE_PREFIX = 'showcase-';
-const CAMPAIGN_NAMES = ['A Coroa Afogada', "Ruínas de Vel'Kahar", 'Mesa nova (vazia)'];
 
 type Profile = { discordId: string; name: string };
 
@@ -89,32 +88,20 @@ const tiago = ensureUser({ discordId: `${SHOWCASE_PREFIX}tiago`, name: 'Tiago Ro
 const camila = ensureUser({ discordId: `${SHOWCASE_PREFIX}camila`, name: 'Camila Nunes' });
 const joaquim = ensureUser({ discordId: `${SHOWCASE_PREFIX}joaquim`, name: 'Joaquim Pereira Lopes de Albuquerque Neto' });
 
-// Reruns replace the previous showcase instead of piling campaigns up in the list.
-// A name alone does not prove the campaign came from here: it must also be
-// mastered by this account or a showcase user, so a namesake run by someone
-// else in which the account only plays survives.
+// Campaign ids are derived from the account, so a rerun finds exactly what
+// the previous one created: a name says nothing about where a campaign came from.
+function showcaseCampaignId(key: string) {
+  const hex = createHash('sha256').update(`${SHOWCASE_PREFIX}${you!.id}:${key}`).digest('hex');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`;
+}
+const CAMPAIGN_IDS = { coroa: showcaseCampaignId('coroa'), ruinas: showcaseCampaignId('ruinas'), empty: showcaseCampaignId('empty') };
+
 async function removePreviousShowcase() {
-  const named = db
+  const previous = db
     .select({ id: campaigns.id })
     .from(campaigns)
-    .innerJoin(campaignMembers, eq(campaignMembers.campaignId, campaigns.id))
-    .where(and(eq(campaignMembers.userId, you!.id), inArray(campaigns.name, CAMPAIGN_NAMES)))
-    .all()
-    .map(({ id }) => id);
-  const previous = named.length
-    ? db
-        .select({ id: campaignMembers.campaignId })
-        .from(campaignMembers)
-        .innerJoin(users, eq(users.id, campaignMembers.userId))
-        .where(
-          and(
-            inArray(campaignMembers.campaignId, named),
-            eq(campaignMembers.role, 'master'),
-            or(eq(users.id, you!.id), like(users.discordId, `${SHOWCASE_PREFIX}%`)),
-          ),
-        )
-        .all()
-    : [];
+    .where(inArray(campaigns.id, Object.values(CAMPAIGN_IDS)))
+    .all();
   for (const { id } of previous) {
     // The scene's map asset is ON DELETE RESTRICT: scenes go before the campaign cascade.
     db.delete(scenes).where(eq(scenes.campaignId, id)).run();
@@ -235,8 +222,7 @@ async function storeMap(campaignId: string, uploaderId: string, svg: string) {
 
 // --- Campaigns and members -------------------------------------------------
 
-function createCampaign(name: string, description: string, master: { id: string }, players: { id: string }[]) {
-  const id = randomUUID();
+function createCampaign(id: string, name: string, description: string, master: { id: string }, players: { id: string }[]) {
   db.insert(campaigns).values({ id, name, description, inviteCode: generateInviteCode() }).run();
   db.insert(campaignMembers).values({ id: randomUUID(), campaignId: id, userId: master.id, role: 'master' }).run();
   for (const player of players) {
@@ -458,6 +444,7 @@ function damageRoll(expression: string, faces: number[], sides: number, modifier
 // ===========================================================================
 
 const coroa = createCampaign(
+  CAMPAIGN_IDS.coroa,
   'A Coroa Afogada',
   'O farol de Porto Salgado se apagou na noite em que a maré não voltou. Desde então, sinos tocam debaixo d\'água e os pescadores juram ver uma coroa de coral brilhando no fundo da baía. O grupo foi contratado pela Guilda dos Marinheiros para descobrir o que acordou nas ruínas submersas — e quem está pagando os sahuagin para atacar as caravanas da costa.',
   you,
@@ -1051,6 +1038,7 @@ placeTokens(coast, [
 // ===========================================================================
 
 const ruinas = createCampaign(
+  CAMPAIGN_IDS.ruinas,
   "Ruínas de Vel'Kahar",
   'Mil anos atrás, o império de Vel\'Kahar afundou na areia numa única noite. Agora uma tempestade de areia descobriu as torres da capital, e cada casa nobre de Myrr mandou seus aventureiros atrás do Cetro do Sol Poente.',
   marina,
@@ -1287,7 +1275,7 @@ post(feedB, camila.id, 'roll', free('2d6+4', [{ value: 5, sides: 6 }, { value: 1
 // Campaign 3: empty, for the empty states.
 // ===========================================================================
 
-createCampaign('Mesa nova (vazia)', '', you, []);
+createCampaign(CAMPAIGN_IDS.empty, 'Mesa nova (vazia)', '', you, []);
 
 // ---------------------------------------------------------------------------
 
