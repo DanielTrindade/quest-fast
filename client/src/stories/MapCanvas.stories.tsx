@@ -177,6 +177,30 @@ async function dragOnMap(frame: HTMLElement, from: { x: number; y: number }, to:
   await userEvent.pointer([{ keys: '[MouseLeft>]', target: canvas, coords: start }, ...steps, { keys: '[/MouseLeft]' }]);
 }
 
+/** A drag from `from` to `to` still held, and how to let go of it. */
+async function holdDrag(frame: HTMLElement, from: { x: number; y: number }, to: { x: number; y: number }) {
+  const canvas = frame.querySelector('canvas')!;
+  const start = onPage(frame, from);
+  const end = onPage(frame, to);
+  // One instance for the press and the release: each direct call starts with no button down.
+  const user = userEvent.setup();
+  await user.pointer([
+    { keys: '[MouseLeft>]', target: canvas, coords: start },
+    ...[0.25, 0.5, 0.75, 1].map((t) => ({ coords: { clientX: start.clientX + (end.clientX - start.clientX) * t, clientY: start.clientY } })),
+  ]);
+  return () => user.pointer({ keys: '[/MouseLeft]', target: canvas, coords: end });
+}
+
+/** The whole element within the frame, none of it cut. */
+async function expectInside(element: HTMLElement, frame: HTMLElement) {
+  const inner = element.getBoundingClientRect();
+  const outer = frame.getBoundingClientRect();
+  await expect(inner.left).toBeGreaterThanOrEqual(outer.left);
+  await expect(inner.right).toBeLessThanOrEqual(outer.right);
+  await expect(inner.top).toBeGreaterThanOrEqual(outer.top);
+  await expect(inner.bottom).toBeLessThanOrEqual(outer.bottom);
+}
+
 /** A press and release in place: selects a token, never pans the map. */
 async function pressOnMap(frame: HTMLElement, point: { x: number; y: number }) {
   await userEvent.pointer([{ keys: '[MouseLeft]', target: frame.querySelector('canvas')!, coords: onPage(frame, point) }]);
@@ -330,27 +354,41 @@ export const AlcanceEmCombate: Story = {
  */
 export const ParaNoLimite: Story = {
   name: 'Para no limite (jogador)',
-  args: { ...tokenArgs, tokens: playerFightTokens(), viewerId: PLAYER_ID, selectedTokenId: 'kaelen', stopAtLimit: true },
+  args: { ...tokenArgs, tokens: playerFightTokens(), viewerId: PLAYER_ID, selectedTokenId: 'kaelen', stopAtLimit: () => true },
   render: (args) => <TokenMap {...args} master={false} />,
   play: async ({ canvasElement, args }) => {
     const { frame } = await framedMap(canvasElement);
     await waitFor(() => expect(painted(frame)).toBe(true));
     const kaelen = cell(17, 4);
-    const canvas = frame.querySelector('canvas')!;
-    const start = onPage(frame, kaelen);
-    const end = onPage(frame, cell(22, 4));
-    // One instance for the press and the release: each direct call starts with no button down.
-    const user = userEvent.setup();
-    await user.pointer([
-      { keys: '[MouseLeft>]', target: canvas, coords: start },
-      ...[0.25, 0.5, 0.75, 1].map((t) => ({ coords: { clientX: start.clientX + (end.clientX - start.clientX) * t, clientY: start.clientY } })),
-    ]);
+    const release = await holdDrag(frame, kaelen, cell(22, 4));
     const label = frame.querySelector<HTMLElement>('[data-slot="move-label"]')!;
     await waitFor(() => expect(label).toBeVisible());
     await expect(label).toHaveTextContent('2 casas além do deslocamento. Para em 3 casas, 4,5 m.');
-    await user.pointer({ keys: '[/MouseLeft]', target: canvas, coords: end });
+    await expectInside(label, frame);
+    await release();
     await expect(args.onDrop).toHaveBeenCalledWith('kaelen', kaelen.x + PRINTED_CELL * 3, kaelen.y);
     await waitFor(() => expect(label).not.toBeVisible());
+  },
+};
+
+/**
+ * The same drag where the move spends nothing (outside a fight, before the
+ * first round): Kaelen rests where he is dropped, five squares away.
+ */
+export const LivreForaDoCombate: Story = {
+  name: 'Livre fora do combate (jogador)',
+  args: { ...tokenArgs, tokens: playerFightTokens(), viewerId: PLAYER_ID, selectedTokenId: 'kaelen', stopAtLimit: () => false },
+  render: (args) => <TokenMap {...args} master={false} />,
+  play: async ({ canvasElement, args }) => {
+    const { frame } = await framedMap(canvasElement);
+    await waitFor(() => expect(painted(frame)).toBe(true));
+    const kaelen = cell(17, 4);
+    const release = await holdDrag(frame, kaelen, cell(22, 4));
+    const label = frame.querySelector<HTMLElement>('[data-slot="move-label"]')!;
+    await waitFor(() => expect(label).toHaveTextContent('2 casas além do deslocamento.'));
+    await expectInside(label, frame);
+    await release();
+    await expect(args.onDrop).toHaveBeenCalledWith('kaelen', kaelen.x + PRINTED_CELL * 5, kaelen.y);
   },
 };
 

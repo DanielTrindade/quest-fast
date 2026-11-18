@@ -119,7 +119,7 @@ function MapControls({ zoom, onZoom, onFrame, fullscreen, onFullscreenChange }: 
 export function MapCanvas({
   imageUrl, mapWidth, mapHeight, grid, label, className, tokens = NO_TOKENS, viewerId = null, selectedTokenId = null,
   onSelect, canMove, onGrab, onDrag, onDrop, onCancelDrag, motion, ref, fullscreen = false, onFullscreenChange,
-  pendingMove = null, moveConfirm, stopAtLimit = false,
+  pendingMove = null, moveConfirm, stopAtLimit,
 }: MapCanvasProps) {
   const overlayRef = useRef<MapOverlay | null>(null);
   const moveLabelRef = useRef<HTMLParagraphElement>(null);
@@ -161,7 +161,7 @@ export function MapCanvas({
 
       {/* What the dragged move costs, beside the token; the layer writes it. The list beside the map is the accessible form. */}
       <p ref={moveLabelRef} hidden aria-hidden="true" data-slot="move-label"
-        className="pointer-events-none absolute top-0 left-0 m-0 rounded-control border border-border bg-card px-2.5 py-1 text-small whitespace-nowrap text-foreground edge-raised data-[over=true]:border-danger data-[over=true]:text-danger-text" />
+        className="pointer-events-none absolute top-0 left-0 m-0 rounded-control border border-border bg-card w-max max-w-[calc(100%-0.5rem)] px-2.5 py-1 text-small text-balance text-foreground edge-raised data-[over=true]:border-danger data-[over=true]:text-danger-text" />
 
       <p id={summaryId} className="sr-only">Mapa de {mapWidth} por {mapHeight} pixels. {describeGrid(grid, mapWidth, mapHeight)} {describeTokens(tokens)}{describeReach(tokens.find((token) => token.id === selectedTokenId))}</p>
       <p id={helpId} className="sr-only">

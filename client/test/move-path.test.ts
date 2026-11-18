@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { describeDrag, routeBetween, stopAtLimit } from '../src/lib/move-path.ts';
+import { describeDrag, routeBetween, stopAtLimit, stopsAtLimit } from '../src/lib/move-path.ts';
 
 const GRID = { cellSize: 50, offsetX: 0, offsetY: 0 };
 const at = (column: number, row: number) => ({ x: column * 50 + 25, y: row * 50 + 25 });
@@ -38,4 +38,12 @@ test('the label says what is left, or how far past and where it stops', () => {
   assert.equal(describeDrag(at(0, 0), at(8, 0), GRID, 9, null), '2 casas além do deslocamento.');
   assert.equal(describeDrag(at(0, 0), at(8, 0), GRID, 9, at(6, 0)), '2 casas além do deslocamento. Para em 6 casas, 9 m.');
   assert.equal(describeDrag(at(0, 0), at(0, 0), GRID, 9, null), 'Fica onde está.');
+});
+
+test('a player stops at the limit only on a move that spends the turn', () => {
+  assert.equal(stopsAtLimit(false, 'kaelen', 'kaelen'), true);
+  assert.equal(stopsAtLimit(false, 'kaelen', 'goblin'), false);
+  assert.equal(stopsAtLimit(false, undefined, undefined), false);
+  assert.equal(stopsAtLimit(false, 'kaelen', null), false);
+  assert.equal(stopsAtLimit(true, 'kaelen', 'kaelen'), false);
 });

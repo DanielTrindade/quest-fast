@@ -42,6 +42,16 @@ export function stopAtLimit(from: Point, to: Point, grid: SquareGrid, metersLeft
 }
 
 /**
+ * Whether a player's drop stops at the metres left: only when the move spends
+ * the turn, the way the server counts it (their own combatant, on its turn).
+ * Outside a fight, before the first round or off the encounter, it is free.
+ * The master never stops, to move anyone anyway.
+ */
+export function stopsAtLimit(isMaster: boolean, fighterId: string | null | undefined, activeCombatantId: string | null | undefined): boolean {
+  return !isMaster && fighterId != null && fighterId === activeCombatantId;
+}
+
+/**
  * What the label beside a dragged token says: the squares, the metres and
  * what is left; past the limit, how far past and, when it stops short, where.
  */

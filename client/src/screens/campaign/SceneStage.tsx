@@ -12,6 +12,7 @@ import { useFullscreenView } from '../../hooks/useFullscreenView';
 import { useNotify } from '../../hooks/use-notify';
 import { api } from '../../lib/api';
 import { activeSceneQuery, mergeScene, sceneListQuery, sceneQuery } from '../../lib/scene-cache';
+import { stopsAtLimit } from '../../lib/move-path';
 import { canMoveToken } from '../../lib/token-labels';
 import { cn } from '../../lib/utils';
 import { errorMessage } from './campaign-screen';
@@ -174,8 +175,7 @@ export function SceneStage({ campaignId, scene, isMaster, mapClassName, allowFul
             onGrab={moves.onGrab} onDrag={moves.onDrag} onDrop={moves.onDrop} onCancelDrag={moves.onCancelDrag} motion={motion}
             fullscreen={fullscreen} onFullscreenChange={allowFullscreen ? setFullscreen : undefined}
             pendingMove={moves.pending}
-            // The master may move past the limit (and then move without spending); a player stops at it.
-            stopAtLimit={!isMaster}
+            stopAtLimit={(token) => stopsAtLimit(isMaster, fight?.fighterOf(token)?.id, fight?.encounter.activeCombatantId)}
             moveConfirm={{
               onConfirm: () => moves.confirm(),
               onCancel: moves.cancel,

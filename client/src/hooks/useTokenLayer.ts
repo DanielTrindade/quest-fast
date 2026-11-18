@@ -61,10 +61,11 @@ export type TokenLayerOptions = {
    */
   pendingMove?: { tokenId: string; x: number; y: number } | null;
   /**
-   * A drop past the metres left stops on the last square within them (a
-   * player). Off, it rests where dropped, for the master to move it anyway.
+   * Whether a drop of this token past the metres left stops on the last
+   * square within them (a move that spends the turn). Otherwise it rests
+   * where dropped: free, or for the master to move it anyway.
    */
-  stopAtLimit?: boolean;
+  stopAtLimit?: (token: TokenView) => boolean;
 };
 
 type LayerWiring = {
@@ -271,12 +272,12 @@ export function useTokenLayer(options: TokenLayerOptions & LayerWiring): { cance
     const aimOf = (token: TokenView, at: Point): Drag['aim'] => {
       const current = latest.current;
       const rest = restingPoint(at, current.grid, token.size, current.map);
-      const stop = current.stopAtLimit && token.reach ? stopAtLimit(token, rest, current.grid, token.reach.left) : null;
+      const stop = token.reach && current.stopAtLimit?.(token) ? stopAtLimit(token, rest, current.grid, token.reach.left) : null;
       return { rest, stop };
     };
 
     /** The label beside the dragged token: written only when it changes, placed every frame. */
-    const label = { text: '', width: 0 };
+    const label = { text: '', frame: 0, width: 0, height: 0 };
     const placeLabel = (view: MapView, token: DrawnToken | undefined, dragging: Drag | null) => {
       const element = labelNode.current;
       if (!element) return;
@@ -288,17 +289,24 @@ export function useTokenLayer(options: TokenLayerOptions & LayerWiring): { cance
       const { grid } = latest.current;
       const text = describeDrag(token, dragging.aim.rest, grid, token.reach.left, dragging.aim.stop);
       const over = !dragging.aim.stop && text.includes('além');
-      if (text !== label.text) {
+      const frame = element.parentElement;
+      const frameWidth = frame?.clientWidth ?? 0;
+      if (text !== label.text || frameWidth !== label.frame) {
         element.textContent = text;
         element.dataset.over = String(over);
         element.hidden = false;
         label.text = text;
+        label.frame = frameWidth;
         label.width = element.offsetWidth;
+        label.height = element.offsetHeight;
       }
       const centre = toScreenPoint(view, token.ghost);
-      const frame = element.parentElement?.clientWidth ?? 0;
-      const x = Math.max(4, Math.min(frame - label.width - 4, centre.x - label.width / 2));
-      const y = centre.y + screenRadius(token.size, grid.cellSize, view.scale) + 8;
+      const radius = screenRadius(token.size, grid.cellSize, view.scale);
+      const frameHeight = frame?.clientHeight ?? 0;
+      const x = Math.max(4, Math.min(frameWidth - label.width - 4, centre.x - label.width / 2));
+      const below = centre.y + radius + 8;
+      // Near the bottom it goes above the token, so the whole of it stays in the frame.
+      const y = below + label.height <= frameHeight - 4 ? below : Math.max(4, centre.y - radius - 8 - label.height);
       element.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
     };
 
