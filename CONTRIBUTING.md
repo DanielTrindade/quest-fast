@@ -55,6 +55,7 @@ npm ci
 cp .env.example .env      # preencha as credenciais do Discord
 npm run db:migrate
 npm run db:seed           # campanha de exemplo + cookie de sessão
+npm run db:seed:showcase  # opcional: vitrine com mestre e jogador cheios de dados
 ```
 
 Detalhes que costumam quebrar o ambiente:

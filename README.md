@@ -87,6 +87,14 @@ Sem uma aplicação no Discord, o servidor não sobe. Para ver as telas sem
 fazer login de verdade, copie o valor impresso pelo `db:seed` para um cookie
 `qf_session` em `localhost`: você entra como mestre da campanha de exemplo.
 
+Para revisar a interface com dados cheios, `npm run db:seed:showcase` monta a
+vitrine: um usuário que é mestre de uma campanha no meio de um combate (rodada
+3, criatura oculta, personagem caído, cenas com tokens, feed longo), jogador de
+outra (conjuradora completa e personagem na galeria) e mestre de uma campanha
+vazia. Imprime o cookie desse usuário. Com
+`npm run db:seed:showcase -- <seu discordId>`, os dados vão para a sua conta
+(entre no app uma vez antes). Rodar de novo substitui a vitrine anterior.
+
 Os comandos rodam com o diretório de trabalho na raiz do repositório. O `.env`
 é carregado por `--env-file-if-exists`, e `DB_FILE`, `CLIENT_DIR` e
 `UPLOADS_DIR` são relativos à raiz, então migração, seed e servidor usam o

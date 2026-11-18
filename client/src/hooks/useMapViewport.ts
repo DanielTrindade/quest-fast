@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type Poin
 import type { GridSettings } from '@quest-fast/shared';
 import { drawMap } from '../lib/map-draw';
 import { clampView, fitView, openingView, visibleRect, zoomViewAt, type MapView, type Size } from '../lib/map-view';
+import { easeSettle } from '../lib/spring';
 
 export const ZOOM_STEP = 1.25;
 const PAN_STEP = 64;
@@ -26,8 +27,6 @@ export type MapOverlay = {
 
 const prefersReducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-/** Ease-out with the same feel as `--ease-settle`. */
-const settle = (t: number) => 1 - (1 - t) ** 4;
 
 function localPoint(event: PointerEvent<HTMLCanvasElement>): Point {
   const rect = event.currentTarget.getBoundingClientRect();
@@ -124,7 +123,7 @@ export function useMapViewport({ imageUrl, mapWidth, mapHeight, grid, overlayRef
     }
     const start = performance.now();
     const step = (now: number) => {
-      const t = settle(Math.min(1, (now - start) / FRAME_MS));
+      const t = easeSettle(Math.min(1, (now - start) / FRAME_MS));
       setView({
         x: from.x + (target.x - from.x) * t,
         y: from.y + (target.y - from.y) * t,
