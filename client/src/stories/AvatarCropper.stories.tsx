@@ -60,6 +60,17 @@ export const RetratoLargo: Story = {
 
 export const RetratoQuadrado: Story = { name: 'Retrato quadrado', args: { src: '/portraits/elara-example.png' } };
 
+export const ImagemInvalida: Story = {
+  name: 'Imagem que o navegador não abre',
+  args: { src: `data:image/jpeg;base64,${btoa('not an image')}` },
+  play: async ({ canvasElement, args }) => {
+    const canvas = firstTheme(canvasElement);
+    await expect(await canvas.findByRole('alert')).toHaveTextContent('Não foi possível abrir esta imagem');
+    await expect(canvas.getByRole('slider', { name: 'Zoom' })).toBeDisabled();
+    await expect(args.onChange).not.toHaveBeenCalled();
+  },
+};
+
 function DialogExample({ onConfirm }: { onConfirm: (crop: AvatarCrop) => void }) {
   const [src, setSrc] = useState<string | null>(null);
   return <>

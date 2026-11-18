@@ -29,6 +29,8 @@ export function AvatarCropper({ src, crop, onChange }: {
   const zoomId = useId();
   const viewport = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState<Size | null>(null);
+  // The browser may refuse what the server would too (a truncated file, a HEIC renamed to .jpg).
+  const [broken, setBroken] = useState(false);
   const drag = useRef<{ pointerId: number; x: number; y: number; start: AvatarCrop } | null>(null);
 
   const ready = size && crop;
@@ -113,12 +115,17 @@ export function AvatarCropper({ src, crop, onChange }: {
         onKeyDown={onKeyDown}
         style={background}
       >
-        {!ready && <span className="absolute inset-0 grid p-2"><Skeleton shape="avatar" label="Carregando imagem" /></span>}
+        {broken ? (
+          <p role="alert" className="absolute inset-0 grid place-items-center p-4 text-center text-small text-danger-text">
+            Não foi possível abrir esta imagem. Escolha um arquivo PNG, JPEG, WebP ou GIF.
+          </p>
+        ) : !ready && <span className="absolute inset-0 grid p-2"><Skeleton shape="avatar" label="Carregando imagem" /></span>}
         {/* Never shown: it loads the file and reports its size. */}
         <img
           src={src}
           alt=""
           hidden
+          onError={() => setBroken(true)}
           onLoad={(event) => {
             const { naturalWidth: width, naturalHeight: height } = event.currentTarget;
             setSize({ width, height });
