@@ -1,46 +1,69 @@
 # quest-fast
 
 Plataforma self-hosted para mestrar e jogar D&D 5e. A plataforma **é a mesa**:
-ficha, dados, combate e mundo acontecem dentro dela. O Discord fica só com voz
-e roleplay; a única integração é o login.
+ficha, dados, combate, mapa e mundo acontecem dentro dela. O Discord fica só
+com voz e roleplay; a única integração é o login.
 
 Feita para uma mesa própria: um processo, um arquivo SQLite, sem serviço
-externo além do OAuth do Discord.
+externo obrigatório além do OAuth do Discord.
 
 ## O que já funciona
 
-- **Mesa:** login pelo Discord, campanhas, convite por código, membros com
-  papel de mestre ou jogador.
-- **Ficha oficial de D&D 2024:** identidade, atributos, perícias com
-  especialização, combate, conjuração, inventário e personalidade. PV, dados
-  de vida, salvaguardas contra morte e moedas são atualizados durante a sessão
-  sem abrir o editor.
-- **Dados:** rolagem livre e pela ficha (atributo, perícia, salvaguarda,
-  ataque, iniciativa, ataque mágico), vantagem e desvantagem, rolagem secreta
-  do mestre. Toda rolagem é feita no servidor.
-- **Feed ao vivo:** a mesa vê cada rolagem na hora, por WebSocket, com
-  histórico paginado.
+- **Campanhas e convite por link:** login pelo Discord, convite por código ou
+  link (`/invite/<código>`) com prévia pública e cartão de imagem no WhatsApp e
+  no Discord, troca de convite, membros com papel de mestre ou jogador e lista
+  de bloqueados. A campanha é dividida nas telas Visão geral, Mesa, Preparo (só
+  do mestre) e Jogadores.
+- **Personagens e ficha oficial de D&D 2024:** galeria **Meus personagens** na
+  conta, um personagem ativo por campanha e importação da ficha oficial
+  preenchida em PDF. Identidade, atributos, perícias com especialização,
+  combate (ataques contra a CA ou salvaguardas com CD, com ou sem dano),
+  conjuração (espaços de magia e conjuração registrada no feed, com ritual e
+  concentração), inventário e personalidade. PV, condições, concentração,
+  espaços de magia, dados de vida, testes contra a morte e moedas são
+  atualizados na sessão sem abrir o editor.
+- **Combate e bestiário:** bestiário da campanha só para o mestre (com imagem
+  da criatura e importação de NPC em PDF); encontros preparados em sigilo,
+  iniciativa com desempate, turnos e rodadas; dano, cura, PV temporário, as 15
+  condições com exaustão e duração, concentração e testes contra a morte;
+  ataques com alvo comparados à CA no servidor, crítico e dano ou salvaguarda
+  pendentes para o mestre resolver. Tudo projetado por papel no servidor: o
+  jogador vê monstros só pela faixa de saúde e nunca recebe PV, CA, bônus nem
+  combatentes ocultos.
+- **Campo de batalha (VTT):** cenas com mapa normalizado no servidor, grid
+  configurável (incluindo opacidade das linhas) e tokens em canvas 2D; arrasto
+  ao vivo a 30 Hz por WebSocket com trava no servidor e interpolação; estado
+  visual de token caído ou derrotado; economia do turno no mapa em combate
+  (ação, ação bônus, reação, Ataque Extra, área de alcance e deslocamento em
+  casas de 1,5 m confirmado).
+- **Dados e feed ao vivo:** rolagem livre e pela ficha (atributo, perícia,
+  salvaguarda, ataque, iniciativa, ataque mágico), vantagem e desvantagem,
+  rolagem secreta do mestre. Toda rolagem é feita no servidor, e a mesa
+  acompanha rolagens, conjurações e eventos do combate na hora por WebSocket,
+  com histórico paginado e redigido por papel.
 
-Combate com bestiário, mundo (NPCs, locais, quests, diários) e o campo de
-batalha (VTT) são as próximas etapas: veja o [roadmap](docs/roadmap.md).
+Fog of war no campo de batalha (revelar e ocultar áreas no servidor, mantendo
+monstros na névoa fora do payload do jogador) e mundo (NPCs, locais, quests e
+diários) são as próximas etapas: veja o [roadmap](docs/roadmap.md).
 
 ## Stack
 
 | Parte | Tecnologia |
 | --- | --- |
-| Interface | Vite, React 19, TanStack Router e Query, Tailwind 4, Radix, Storybook |
-| Servidor | Node 22 executando TypeScript direto, Hono, WebSocket (`ws`) |
-| Dados | SQLite com Drizzle ORM (`better-sqlite3`) |
-| Regras 5e | Pacote `shared/` com funções puras, usado pelos dois lados |
+| Interface | Vite, React 19, TanStack Router e Query, Tailwind 4, Radix (shadcn/ui), Canvas 2D, Storybook |
+| Servidor | Node 22 executando TypeScript direto, Hono, WebSocket (`ws`), `sharp` |
+| Dados | SQLite com Drizzle ORM (`better-sqlite3`); imagens em disco ou Cloudflare R2 (opcional) |
+| Regras 5e | Pacote `shared/` com funções puras (ficha, dados, combate e grid), usado pelos dois lados |
 | Login | Discord OAuth (escopo `identify`), sessão em cookie HttpOnly |
 
 ```
 client/   SPA React, design system e Storybook
-server/   Hono: API REST, auth, WebSocket e arquivos estáticos
-shared/   tipos da API e regras 5e puras
+server/   Hono: API REST, auth, WebSocket, imagens e arquivos estáticos
+shared/   contrato da API e regras puras (ficha, dados, combate e grid)
 db/       schema Drizzle, migrações e seed
-docs/     arquitetura, roadmap, design system e histórico
-scripts/  verificações (tokens de cor, Storybook, fluxos contra o app)
+deploy/   VM Debian com Caddy, HTTPS automático e backup diário no R2
+docs/     arquitetura, roadmap, design system, Pullfrog e histórico
+scripts/  verificações (tokens, Storybook, fluxos e simulador de encontro)
 ```
 
 Como as peças se encaixam e por quê:
@@ -122,7 +145,7 @@ a Redirect URI.
 | `PORT` | não | Porta do processo (padrão `3000`) |
 | `DB_FILE` | não | Arquivo SQLite, relativo à raiz (padrão `quest-fast.db`) |
 | `CLIENT_DIR` | não | Build do SPA, relativo à raiz (padrão `client/dist`) |
-| `UPLOADS_DIR` | não | Avatares e uploads em disco, caminho absoluto ou relativo à raiz (padrão `uploads`) |
+| `UPLOADS_DIR` | não | Avatares e mapas em disco, caminho absoluto ou relativo à raiz (padrão `uploads`) |
 | `ASSET_STORAGE` | não | `disk` (padrão) ou `r2`. Veja [Avatares no Cloudflare R2](#avatares-no-cloudflare-r2-opcional) |
 | `R2_ACCOUNT_ID` | com `r2` | ID da conta Cloudflare |
 | `R2_ACCESS_KEY_ID` | com `r2` | Chave de acesso do token de API do R2 |
@@ -209,8 +232,8 @@ O token do backup fica fora do `app.env`, então o app nunca o enxerga.
 
 **Sem domínio**, use o [sslip.io](https://sslip.io): o IP `34.1.2.3` vira
 `34-1-2-3.sslip.io`, nome para o qual o Caddy consegue certificado. Reserve um
-IP estático para o nome não mudar. Os avatares ficam em disco: o R2 só serve
-avatares com domínio próprio (veja a seção seguinte).
+IP estático para o nome não mudar. Os uploads ficam em disco: o R2 exige
+domínio próprio no bucket (veja a seção seguinte).
 
 No GCP, a `e2-micro` entra no nível gratuito nas regiões `us-central1`,
 `us-east1` e `us-west1`, com disco `pd-standard` de até 30 GB. Ela não tem
@@ -256,10 +279,10 @@ arquivo em `/srv/quest-fast/dados`, renomeie `backup.db` para
 
 ### Avatares no Cloudflare R2 (opcional)
 
-Por padrão os avatares ficam em disco, ao lado do banco. Com
-`ASSET_STORAGE=r2`, os envios novos vão para um bucket do Cloudflare R2 e o
-navegador carrega as imagens direto da rede da Cloudflare, sem passar pelo
-servidor. O porquê está em
+Por padrão as imagens enviadas (avatares, criaturas do bestiário e mapas das
+cenas) ficam em disco, ao lado do banco. Com `ASSET_STORAGE=r2`, os envios
+novos vão para um bucket do Cloudflare R2 e o navegador carrega as imagens
+direto da rede da Cloudflare, sem passar pelo servidor. O porquê está em
 [`docs/architecture.md`](docs/architecture.md#armazenamento-de-arquivos).
 
 1. No painel da Cloudflare, em **R2**, crie um bucket.
@@ -273,18 +296,18 @@ servidor. O porquê está em
    painel do R2) e reinicie o servidor. Na subida, ele mostra qual armazenamento
    está em uso.
 
-**Avatares que já estavam em disco:** a URL de cada avatar é montada a partir
+**Imagens que já estavam em disco:** a URL de cada arquivo é montada a partir
 do caminho salvo no banco (`campaigns/<campanha>/<arquivo>`), e no bucket a
 chave é o mesmo caminho. Ao ligar o R2, copie o conteúdo de `UPLOADS_DIR` para
 o bucket mantendo a estrutura de pastas (por exemplo, com `rclone copy` ou
-`aws s3 sync` apontando para o endpoint do R2). Sem essa cópia, os avatares
-antigos deixam de aparecer. O servidor continua servindo `/uploads`, então
+`aws s3 sync` apontando para o endpoint do R2). Sem essa cópia, as imagens
+antigas deixam de aparecer. O servidor continua servindo `/uploads`, então
 voltar para `disk` não perde nada que ainda esteja no disco.
 
 ## Verificação
 
 ```sh
-npm test              # unitários (shared) e integração (server)
+npm test              # unitários (shared e client) e integração (server)
 npm run typecheck     # shared, db e server
 npm run lint          # client, incluindo a regra que proíbe cor crua
 npm run build         # build do SPA
@@ -297,10 +320,12 @@ npm run simulate:encounter   # uma sessão inteira, visível, com mestre e quatr
 ```
 
 Os `verify:` exigem `npm run build && npm run dev` em outro terminal e
-`npm run db:seed` antes; `verify:app` recebe o cookie impresso pelo seed. Fora
-do Windows, `test:design` e os `verify:` usam Chromium
-(`npx playwright install chromium`); no Windows, usam o Chrome instalado
-quando existe.
+`npm run db:seed` antes; `verify:app` recebe o cookie impresso pelo seed e deve
+rodar antes de `verify:group` (que encerra o encontro do seed; rode o seed de
+novo para repetir). O `simulate:encounter` monta a própria campanha sem
+depender do seed. Fora do Windows, `test:design`, os `verify:` e o simulador
+usam Chromium (`npx playwright install chromium`); no Windows, usam o Chrome
+instalado quando existe.
 
 O CI roda testes, tipos, lint, tokens, build e React Doctor em todo PR; os
 dois checks são obrigatórios para o merge na `master`.
@@ -312,6 +337,8 @@ dois checks são obrigatórios para o merge na `master`.
 - [`docs/roadmap.md`](docs/roadmap.md): entregue, próximo e em aberto.
 - [`docs/design-system.md`](docs/design-system.md): tokens, temas e
   componentes.
+- [`docs/pullfrog.md`](docs/pullfrog.md): revisão e correção automática de PRs
+  e política de auto-merge.
 - [`docs/README.md`](docs/README.md): índice completo, incluindo o histórico.
 
 ## Contribuindo
@@ -324,7 +351,8 @@ Código entra só por colaborador convidado — um PR de quem não foi convidado
 fechado automaticamente e a conversa continua na issue. O convite sai quando a
 issue mostra que vale a pena. Fork para manter a própria versão é livre.
 
-O [`CONTRIBUTING.md`](CONTRIBUTING.md) cobre setup, fluxo de branch e PR,
+O [`CONTRIBUTING.md`](CONTRIBUTING.md) cobre setup, fluxo de branch e PR
+(rascunho primeiro, com revisão automática pelo [Pullfrog](docs/pullfrog.md)),
 Storybook primeiro no frontend, convenções de código e o uso (opcional) de
 agentes de IA, que leem o [`AGENTS.md`](AGENTS.md).
 
@@ -342,6 +370,5 @@ o aviso de copyright.
 
 A licença cobre o código deste repositório. D&D e os nomes de produto da
 Wizards of the Coast são marcas dela; o projeto implementa as regras e não
-redistribui material de regra. Quando o compêndio SRD do
-[`docs/roadmap.md`](docs/roadmap.md) entrar, ele vem com a atribuição que a
-licença do SRD exigir.
+redistribui material de regra nem inclui compêndio SRD (veja o que está fora de
+escopo no [`docs/roadmap.md`](docs/roadmap.md)).
