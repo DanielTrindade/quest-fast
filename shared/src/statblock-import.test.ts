@@ -87,6 +87,10 @@ test('a fractional speed keeps its decimal comma', () => {
   assert.equal(statblockFromSheet(imported(sheet({ speed: 7.5 })), LABELS).input.speed, '7,5 m');
 });
 
+test('the proficient saves become save bonuses the server rolls with', () => {
+  assert.deepEqual(statblockFromSheet(imported(sheet()), LABELS).input.saveBonuses, { strength: 5, constitution: 4 });
+});
+
 test('class, saves, skills, languages and the sheet lists become the traits', () => {
   const { traits } = statblockFromSheet(imported(sheet()), LABELS).input;
   assert.deepEqual(traits.split('\n'), [

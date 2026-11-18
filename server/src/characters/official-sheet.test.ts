@@ -325,7 +325,7 @@ test('an attack row can be a save DC with the ability the target rolls', async (
 
   assert.equal(response.status, 201);
   assert.ok(character);
-  assert.deepEqual(character.attacks[1], { ...BREATH, notes: '', cost: 'action' });
+  assert.deepEqual(character.attacks[1], { ...BREATH, notes: '', cost: 'action', onSave: 'half' });
   assert.equal('bonus' in character.attacks[1]!, false);
   assert.equal(character.attacks[0]?.kind, 'attack');
 });

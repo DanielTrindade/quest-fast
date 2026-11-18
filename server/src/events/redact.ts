@@ -7,13 +7,15 @@ const HIT_POINT_EVENTS = new Set(['combat.damage', 'combat.heal', 'combat.defeat
  * neither does anything of a monster's attack roll: with its total and a
  * natural 20 (which `critical` also tells), the bonus is one subtraction away.
  * A player keeps what the master says at the table: hit or miss, critical,
- * and the damage total.
+ * the damage total and whether a monster passed its save.
  */
 function redactAttack(payload: RollPayload): RollPayload {
   let visible = payload;
-  if (payload.target && payload.target.source !== 'character' && payload.target.ac !== undefined) {
-    const { ac: _ac, ...target } = payload.target;
-    visible = { ...visible, target };
+  if (payload.target && payload.target.source !== 'character') {
+    // A monster's save keeps only passed or failed: with the DC, its die and
+    // total give the bonus away.
+    const { ac: _ac, save, ...target } = payload.target;
+    visible = { ...visible, target: { ...target, ...(save ? { save: { success: save.success } } : {}) } };
   }
   if (payload.attackerSource === 'monster') {
     const { damageRollable: _rollable, natural: _natural, ...rest } = visible;

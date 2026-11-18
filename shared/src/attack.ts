@@ -4,7 +4,9 @@
  * hit, a damage roll whose dice double on a critical.
  */
 import { DICE_COUNT_LIMIT, parseDiceExpression, rollDice, type DieResult, type RollMode, type RollResult } from './dice.ts';
-import type { Attack } from './api.ts';
+import type { AbilityScores, Attack } from './api.ts';
+import type { ActiveCondition } from './combat.ts';
+import { ABILITIES, abilityModifier, type Ability } from './modifiers.ts';
 import { defaultAttackCost, isAttackCost } from './turn.ts';
 
 export type AttackHit = RollResult & {
@@ -89,9 +91,9 @@ export function halfDamage(amount: number): number {
 }
 
 /** An attack as some older row stored it: without a kind, a damage type, notes or a cost. */
-type Optional = 'kind' | 'damageType' | 'notes' | 'cost';
+type Optional = 'kind' | 'damageType' | 'notes' | 'cost' | 'onSave';
 // Distributes over the kinds, so each keeps its own fields.
-export type StoredAttack = Attack extends infer Row ? (Row extends Attack ? Omit<Row, Optional> & Partial<Pick<Row, Optional>> : never) : never;
+export type StoredAttack = Attack extends infer Row ? (Row extends Attack ? Omit<Row, Optional> & Partial<Pick<Row, Optional & keyof Row>> : never) : never;
 
 /**
  * A stored attack with every field filled: rows stored before the save DC
@@ -106,5 +108,100 @@ export function storedAttack(stored: StoredAttack): Attack {
     damageType: stored.damageType ?? '',
     notes: stored.notes ?? '',
     cost: isAttackCost(stored.cost) ? stored.cost : defaultAttackCost(kind),
+    ...(kind === 'save' ? { onSave: 'onSave' in stored && isSaveEffect(stored.onSave) ? stored.onSave : 'half' } : {}),
   } as Attack;
+}
+
+// --- Saving throws against a row --------------------------------------------------
+
+/** What a target that passes the save takes: half the damage (Bola de Fogo) or none (Chama Sagrada). */
+export const SAVE_EFFECTS = ['half', 'none'] as const;
+export type SaveEffect = (typeof SAVE_EFFECTS)[number];
+
+export function isSaveEffect(value: unknown): value is SaveEffect {
+  return typeof value === 'string' && (SAVE_EFFECTS as readonly string[]).includes(value);
+}
+
+/** The saves a creature is proficient in, with the book's bonus; the others use the ability modifier. */
+export type SaveBonuses = Partial<Record<Ability, number>>;
+
+/** A creature's six save modifiers: the book's bonus where it has one, the ability modifier otherwise. */
+export function saveModifiers(scores: AbilityScores, bonuses: SaveBonuses): Record<Ability, number> {
+  return Object.fromEntries(
+    ABILITIES.map((ability) => [ability, bonuses[ability] ?? abilityModifier(scores[ability]) ?? 0]),
+  ) as Record<Ability, number>;
+}
+
+/** Paralyzed, Petrified, Stunned and Unconscious fail Strength and Dexterity saves (2024). */
+const FAILS_STR_DEX = new Set(['paralyzed', 'petrified', 'stunned', 'unconscious']);
+
+/**
+ * Whether the save fails without a roll. A creature at 0 hit points is
+ * Unconscious even when the condition was not marked.
+ */
+export function failsSaveOutright(ability: Ability, conditions: readonly ActiveCondition[], down: boolean): boolean {
+  if (ability !== 'strength' && ability !== 'dexterity') return false;
+  return down || conditions.some((active) => FAILS_STR_DEX.has(active.condition));
+}
+
+/**
+ * What the target's conditions do to a save that is rolled (2024): Exhaustion
+ * takes 2 per level off every D20 Test, and Restrained gives disadvantage on
+ * Dexterity saves. Failing outright (`failsSaveOutright`) comes first.
+ */
+export function saveConditions(ability: Ability, conditions: readonly ActiveCondition[]): { mode: RollMode; penalty: number } {
+  const exhaustion = conditions.find((active) => active.condition === 'exhaustion')?.level ?? 0;
+  const restrained = ability === 'dexterity' && conditions.some((active) => active.condition === 'restrained');
+  return { mode: restrained ? 'disadvantage' : 'normal', penalty: 2 * exhaustion };
+}
+
+/**
+ * A saving throw the server rolled. `modifier` already takes the penalty
+ * off; `d20` is the face kept, and under disadvantage `rolls` keeps both.
+ * `outright`: failed without a roll, so the die is absent.
+ */
+export type SaveRoll =
+  | {
+    outright?: undefined;
+    d20: number;
+    modifier: number;
+    total: number;
+    success: boolean;
+    mode?: Exclude<RollMode, 'normal'>;
+    rolls?: [number, number];
+    /** Exhaustion: what came off the modifier. */
+    penalty?: number;
+  }
+  | { outright: true; success: false };
+
+/**
+ * `1d20 + modifier` against the DC, under what the target's conditions
+ * impose: it passes on a total equal or above it. A natural 20 or 1 decides
+ * nothing here: in 2024 only an attack roll has that rule.
+ */
+export function rollSave(
+  modifier: number,
+  dc: number,
+  outright: boolean,
+  random: () => number = Math.random,
+  { mode, penalty }: { mode: RollMode; penalty: number } = { mode: 'normal', penalty: 0 },
+): SaveRoll {
+  if (outright) return { outright: true, success: false };
+  const applied = modifier - penalty;
+  const result = rollDice(`1d20${applied >= 0 ? '+' : ''}${applied}`, mode, random)!;
+  const kept = result.dice.find((die) => !die.discarded) ?? result.dice[0]!;
+  return {
+    d20: kept.value,
+    modifier: applied,
+    total: result.total,
+    success: result.total >= dc,
+    ...(mode === 'normal' ? {} : { mode, rolls: [result.dice[0]!.value, result.dice[1]!.value] as [number, number] }),
+    ...(penalty > 0 ? { penalty } : {}),
+  };
+}
+
+/** The damage a target takes after its save: all on a failure; half, or none, on a success. */
+export function damageAfterSave(amount: number, success: boolean, effect: SaveEffect): number {
+  if (!success) return amount;
+  return effect === 'half' ? halfDamage(amount) : 0;
 }

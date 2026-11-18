@@ -1,4 +1,4 @@
-import { defaultAttackCost, type Ability, type Attack, type AttackCost, type AttackInput, type ImportedAttack } from '@quest-fast/shared';
+import { defaultAttackCost, type Ability, type Attack, type AttackCost, type AttackInput, type ImportedAttack, type SaveEffect } from '@quest-fast/shared';
 
 /**
  * Numbers stay text while they are typed: a number state turns the "-" of
@@ -16,6 +16,8 @@ export type FormAttack = {
   damageType: string;
   notes: string;
   cost: AttackCost;
+  /** Only read on a save with damage. */
+  onSave: SaveEffect;
 };
 
 /**
@@ -35,7 +37,7 @@ export function numberValue(text: string) {
 }
 
 export function emptyFormAttack(): FormAttack {
-  return { rowId: newRowId(), name: '', kind: 'attack', bonus: '0', dc: '', saveAbility: '', damage: '', damageType: '', notes: '', cost: 'attack' };
+  return { rowId: newRowId(), name: '', kind: 'attack', bonus: '0', dc: '', saveAbility: '', damage: '', damageType: '', notes: '', cost: 'attack', onSave: 'half' };
 }
 
 /**
@@ -62,6 +64,7 @@ export function toFormAttacks(attacks: ReadonlyArray<Attack | ImportedAttack>): 
     notes: attack.notes,
     // A row imported from a PDF has no cost: the default of its kind.
     cost: 'cost' in attack ? attack.cost : defaultAttackCost(attack.kind),
+    onSave: attack.kind === 'save' && 'onSave' in attack ? attack.onSave : 'half',
   }));
 }
 
@@ -75,7 +78,7 @@ export function toAttackInputs(attacks: readonly FormAttack[]): AttackInput[] {
       cost: attack.cost,
     };
     return attack.kind === 'save'
-      ? { ...details, kind: 'save', dc: numberValue(attack.dc), saveAbility: attack.saveAbility || null }
+      ? { ...details, kind: 'save', dc: numberValue(attack.dc), saveAbility: attack.saveAbility || null, onSave: attack.onSave }
       : { ...details, kind: 'attack', bonus: numberValue(attack.bonus) };
   });
 }

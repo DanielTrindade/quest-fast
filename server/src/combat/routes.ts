@@ -33,7 +33,6 @@ import {
   hasDamage,
   noRoll,
   rollDice,
-  saveBonus,
   setCondition,
   TURN_LIMITS,
   grantAction,
@@ -44,6 +43,11 @@ import {
   speedFromText,
   tickConditions,
   attackSpend,
+  damageAfterSave,
+  failsSaveOutright,
+  rollSave,
+  saveConditions,
+  saveModifiers,
   storedAttack,
   type AttackCost,
   type ActiveCondition,
@@ -66,7 +70,7 @@ import { boundedInteger, shortText } from '../validation.ts';
 import { releaseTurnDrags } from '../scenes/fight.ts';
 import { bumpScenes, publishScenes, scenesShowing } from '../scenes/store.ts';
 import { projectEncounter } from './projection.ts';
-import { attacksOf, findEncounter, loadEncounter, queueOrder, turnOrder, type Executor, type LoadedCombatant, type LoadedEncounter } from './state.ts';
+import { attacksOf, findEncounter, loadEncounter, queueOrder, saveModifierOf, turnOrder, type Executor, type LoadedCombatant, type LoadedEncounter } from './state.ts';
 import { beginTurn, budgetOf, writeBudget } from './turn.ts';
 
 type Status = 403 | 404 | 409 | 422;
@@ -268,6 +272,7 @@ function addCombatants(mutation: Mutation, body: Record<string, unknown>) {
           dexModifier: abilityModifier(statblock.abilityScores.dexterity) ?? 0,
           initiativeBonus: statblock.initiativeBonus,
           constitutionModifier: abilityModifier(statblock.abilityScores.constitution) ?? 0,
+          saveModifiers: saveModifiers(statblock.abilityScores, statblock.saveBonuses),
           attacks: statblock.attacks.map(storedAttack),
           speed: speedFromText(statblock.speed) ?? TURN_LIMITS.defaultSpeed,
           attacksPerAction: statblock.attacksPerAction,
@@ -782,10 +787,10 @@ function concentrationSave(mutation: Mutation, combatant: LoadedCombatant, body:
   if (reminder.kind !== 'concentration') refuse(404, 'Lembrete não encontrado.');
   const mode = parseMode(body.mode);
   if (body.secret !== undefined && typeof body.secret !== 'boolean') refuse(422, 'Valor inválido para "secreta".');
-  const { row, sheet } = combatant;
+  const { row } = combatant;
   // A monster's roll is the master's unless told otherwise; a character's is the table's.
   const secret = mutation.viewer.role === 'master' ? ((body.secret as boolean | undefined) ?? row.source !== 'character') : false;
-  const bonus = sheet ? saveBonus(sheet, 'constitution') : row.constitutionModifier;
+  const bonus = saveModifierOf(combatant, 'constitution');
   const result = rollDice(`1d20${bonus >= 0 ? '+' : ''}${bonus}`, mode)!;
   mutation.events.push(
     recordRollEvent(mutation.tx, {
@@ -935,6 +940,17 @@ function attack(mutation: Mutation, combatant: LoadedCombatant, body: Record<str
     ...(row.characterId ? { characterId: row.characterId } : {}),
   };
   const aimed = target ? { combatantId: target.row.id, name: target.name, source: sourceOf(target) } : undefined;
+  // The target's save, rolled here so the table waits for no one. It costs
+  // the target nothing.
+  const targetSave = target && chosen.kind === 'save'
+    ? rollSave(
+      saveModifierOf(target, chosen.saveAbility),
+      chosen.dc,
+      failsSaveOutright(chosen.saveAbility, target.conditions, target.hpCurrent === 0),
+      undefined,
+      saveConditions(chosen.saveAbility, target.conditions),
+    )
+    : undefined;
 
   let payload: RollPayload;
   if (chosen.kind === 'save' && !hasDamage(chosen)) {
@@ -943,7 +959,7 @@ function attack(mutation: Mutation, combatant: LoadedCombatant, body: Record<str
       ...base,
       ...noRoll(),
       save: { dc: chosen.dc, ability: chosen.saveAbility },
-      ...(aimed ? { target: { ...aimed, hit: true } } : {}),
+      ...(aimed ? { target: { ...aimed, hit: true, save: targetSave } } : {}),
     };
   } else if (chosen.kind === 'save') {
     const damage = rollDamage(chosen.damage, false);
@@ -954,7 +970,7 @@ function attack(mutation: Mutation, combatant: LoadedCombatant, body: Record<str
       mode: 'normal',
       damage: { ...damage, damageType: chosen.damageType },
       save: { dc: chosen.dc, ability: chosen.saveAbility },
-      ...(aimed ? { target: { ...aimed, hit: true } } : {}),
+      ...(aimed ? { target: { ...aimed, hit: true, save: targetSave } } : {}),
     };
   } else {
     const roll = rollAttackHit(chosen.bonus, mode);
@@ -983,6 +999,8 @@ function attack(mutation: Mutation, combatant: LoadedCombatant, body: Record<str
   mutation.events.push(event);
 
   if (target && chosen.kind === 'save' && !payload.damage) {
+    // Passed: nothing is left on the target. Failed: the master applies the effect.
+    if (targetSave?.success) return;
     const called: CombatReminder = {
       id: randomUUID(),
       kind: 'pendingSave',
@@ -993,20 +1011,26 @@ function attack(mutation: Mutation, combatant: LoadedCombatant, body: Record<str
       notes: chosen.notes,
       eventId: event.id,
       secret,
+      failed: true,
     };
     writeVitals(mutation, target, {}, [...target.row.reminders, called]);
     return;
   }
-  if (!target || !payload.damage || payload.damage.total === 0) return;
+  if (!target || !payload.damage) return;
+  // A save the target passed halves the damage, or leaves none.
+  const amount = targetSave && chosen.kind === 'save'
+    ? damageAfterSave(payload.damage.total, targetSave.success, chosen.onSave)
+    : payload.damage.total;
+  if (amount === 0) return;
   const pending: CombatReminder = {
     id: randomUUID(),
     kind: 'pendingDamage',
-    amount: payload.damage.total,
+    amount,
     damageType: chosen.damageType,
     critical: payload.critical === true,
     attackerName: combatant.name,
     attackName: chosen.name,
-    ...(payload.save ? { save: payload.save } : {}),
+    ...(payload.save ? { save: { ...payload.save, ...(targetSave ? { success: targetSave.success } : {}) } } : {}),
     eventId: event.id,
     secret,
   };

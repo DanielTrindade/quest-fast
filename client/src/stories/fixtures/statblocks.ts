@@ -1,6 +1,6 @@
 import type { SheetImportResult, Statblock, StatblockSummary } from '@quest-fast/shared';
 
-const stamps = { campaignId: 'phandalin', createdAt: '2026-10-22T18:00:00.000Z', updatedAt: '2026-10-22T18:00:00.000Z', imageAssetId: null, imageUrl: null };
+const stamps = { campaignId: 'phandalin', createdAt: '2026-10-22T18:00:00.000Z', updatedAt: '2026-10-22T18:00:00.000Z', imageAssetId: null, imageUrl: null, saveBonuses: {} };
 
 /** A small, common creature: the bestiary's everyday case. */
 export const goblin: Statblock = {
@@ -41,7 +41,9 @@ export const wyrmDasCinzas: Statblock = {
   attacksPerAction: 1,
   initiativeBonus: 4,
   abilityScores: { strength: 27, dexterity: 10, constitution: 25, intelligence: 16, wisdom: 13, charisma: 21 },
+  saveBonuses: { dexterity: 6, constitution: 13, wisdom: 7, charisma: 11 },
   attacks: [
+    { kind: 'save', cost: 'action', onSave: 'half', name: 'Sopro de Cinzas', dc: 21, saveAbility: 'dexterity', damage: '16d6', damageType: 'Fogo', notes: 'Cone de 18 m. Recarga 5–6' },
     { kind: 'attack', cost: 'attack', name: 'Mordida', bonus: 14, damage: '2d10+8', damageType: 'Perfurante', notes: 'Mais 2d6 de fogo' },
     { kind: 'attack', cost: 'attack', name: 'Garra', bonus: 14, damage: '2d6+8', damageType: 'Cortante', notes: '' },
     { kind: 'attack', cost: 'attack', name: 'Cauda', bonus: 14, damage: '2d8+8', damageType: 'Concussão', notes: 'Alcance 4,5 m' },

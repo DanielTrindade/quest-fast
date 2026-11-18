@@ -21,6 +21,7 @@ import { AbilityInput } from './AbilityInput';
 import { Avatar } from './Avatar';
 import { Button } from './Button';
 import { AttackListEditor } from './AttackListEditor';
+import { SaveBonusFields } from './SaveBonusFields';
 import { Field } from './Field';
 import { FormFooter } from './FormFooter';
 import { SelectField } from './SelectField';
@@ -49,6 +50,13 @@ function freshState(statblock: StatblockDraft | null) {
     abilityScores: Object.fromEntries(
       ABILITIES.map((ability) => [ability, String(statblock?.abilityScores[ability] ?? 10)]),
     ) as Record<Ability, string>,
+    // Empty: the save rolls the ability modifier.
+    saveBonuses: Object.fromEntries(
+      ABILITIES.map((ability) => {
+        const bonus = statblock?.saveBonuses?.[ability];
+        return [ability, bonus === undefined ? '' : String(bonus)];
+      }),
+    ) as Record<Ability, string>,
     attacks: toFormAttacks(statblock?.attacks ?? []),
     traits: statblock?.traits ?? '',
     actions: statblock?.actions ?? '',
@@ -74,6 +82,10 @@ function toInput(state: FormState): StatblockInput {
     abilityScores: Object.fromEntries(
       ABILITIES.map((ability) => [ability, numberValue(state.abilityScores[ability])]),
     ) as StatblockInput['abilityScores'],
+    saveBonuses: Object.fromEntries(
+      ABILITIES.filter((ability) => state.saveBonuses[ability].trim() !== '')
+        .map((ability) => [ability, numberValue(state.saveBonuses[ability])]),
+    ),
     attacks: toAttackInputs(state.attacks),
     traits: state.traits.trim(),
     actions: state.actions.trim(),
@@ -294,6 +306,9 @@ export function StatblockForm({ statblock, onSubmit, onRequestClose, pending = f
             ))}
           </div>
         </fieldset>
+
+        <SaveBonusFields bonuses={state.saveBonuses} scores={state.abilityScores} error={errors.saveBonuses}
+          onChange={(saveBonuses) => edit('saveBonuses', saveBonuses)} />
 
         <fieldset className={fieldset}>
           <legend>Ataques</legend>

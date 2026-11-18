@@ -128,6 +128,11 @@ export function statblockFromSheet({ input: sheet, warnings: sheetWarnings }: Sh
       speed: speedText(sheet.speed),
       initiativeBonus,
       abilityScores: { ...sheet.abilityScores },
+      // The proficient saves, with the bonus the sheet gives them.
+      saveBonuses: Object.fromEntries(
+        ABILITIES.filter((ability) => sheet.saves.includes(ability))
+          .map((ability) => [ability, clamp(saveBonus(sheet, ability), S.saveBonus)]),
+      ),
       attacks,
       traits: fit('O texto de traços', traitsText(sheet, labels), S.text, warnings),
       actions: fit('O texto de conjuração', actionsText(sheet, labels), S.text, warnings),

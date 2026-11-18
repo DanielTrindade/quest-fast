@@ -69,7 +69,7 @@ const hazin: CombatantView = {
   deathSaves: { successes: 0, failures: 0 },
   attacks: [
     { kind: 'attack', cost: 'attack', name: 'Machado Grande', bonus: 7, damage: '1d12+5', damageType: 'Cortante', notes: 'Pesada, duas mãos' },
-    { kind: 'save', cost: 'action', name: 'Sopro de fogo', dc: 13, saveAbility: 'dexterity', damage: '2d6', damageType: 'Fogo', notes: 'Cone de 4,5 m' },
+    { kind: 'save', cost: 'action', onSave: 'half', name: 'Sopro de fogo', dc: 13, saveAbility: 'dexterity', damage: '2d6', damageType: 'Fogo', notes: 'Cone de 4,5 m' },
   ],
 };
 

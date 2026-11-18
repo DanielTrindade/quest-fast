@@ -17,6 +17,7 @@ import {
   type DeathSaves,
   type HitDie,
   type MultiPolygon,
+  type SaveBonuses,
   type Skill,
   type Spell,
   type SpellSlot,
@@ -281,6 +282,8 @@ export const statblocks = sqliteTable(
     speed: text('speed').notNull().default(''),
     initiativeBonus: integer('initiative_bonus').notNull().default(0),
     abilityScores: text('ability_scores', { mode: 'json' }).$type<AbilityScores>().notNull(),
+    /** Proficient saves with the book's bonus; the others roll the ability modifier. */
+    saveBonuses: text('save_bonuses', { mode: 'json' }).$type<SaveBonuses>().notNull().default({}),
     attacks: text('attacks', { mode: 'json' }).$type<Attack[]>().notNull(),
     traits: text('traits').notNull().default(''),
     actions: text('actions').notNull().default(''),
@@ -364,6 +367,12 @@ export const combatants = sqliteTable(
     attacks: text('attacks', { mode: 'json' }).$type<Attack[]>().notNull().default([]),
     /** Saved to keep concentration; a character's comes from the sheet. */
     constitutionModifier: integer('constitution_modifier').notNull().default(0),
+    /**
+     * The six save modifiers, copied from the statblock; a character's come
+     * from the sheet. Empty on a row stored before them: Constitution falls
+     * back to `constitution_modifier`, the rest to 0.
+     */
+    saveModifiers: text('save_modifiers', { mode: 'json' }).$type<Partial<Record<Ability, number>>>().notNull().default({}),
     /** What is left for the table to resolve. Belongs to this fight, so it stays here even for a character. */
     reminders: text('reminders', { mode: 'json' }).$type<CombatReminder[]>().notNull().default([]),
     /** The round of the last death save rolled: a player rolls once per turn. */

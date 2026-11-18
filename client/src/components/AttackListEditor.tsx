@@ -1,5 +1,5 @@
 import { Plus, Trash } from '@phosphor-icons/react';
-import { ABILITIES, ATTACK_COSTS, CHARACTER_LIMITS, parseDiceExpression, type Ability, type AttackCost } from '@quest-fast/shared';
+import { ABILITIES, ATTACK_COSTS, CHARACTER_LIMITS, parseDiceExpression, type Ability, type AttackCost, type SaveEffect } from '@quest-fast/shared';
 import { Button } from './Button';
 import { Field } from './Field';
 import { SelectField } from './SelectField';
@@ -80,6 +80,13 @@ export function AttackListEditor({ attacks, onChange, error, notesHint = 'Ex.: P
                   hint={attack.kind === 'save' ? 'Ex.: 8d6. Vazio se só impõe o efeito' : 'Ex.: 1d8+3 ou 1d8+3+1d6'}
                   aria-invalid={Boolean(error) && !(attack.kind === 'save' && attack.damage.trim() === '') && !parseDiceExpression(attack.damage)}
                   onChange={(e) => update(index, { damage: e.target.value })} />
+                {attack.kind === 'save' && attack.damage.trim() !== '' && (
+                  <SelectField label="Se passar" value={attack.onSave}
+                    onChange={(value) => update(index, { onSave: value as SaveEffect })}>
+                    <option value="half">Metade do dano</option>
+                    <option value="none">Nenhum dano</option>
+                  </SelectField>
+                )}
                 <Field label="Tipo de dano" maxLength={CHARACTER_LIMITS.damageType} value={attack.damageType} hint="Ex.: Cortante"
                   onChange={(e) => update(index, { damageType: e.target.value })} />
                 <Field className={wideField} label="Notas" maxLength={CHARACTER_LIMITS.attackNotes} value={attack.notes}

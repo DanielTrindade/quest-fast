@@ -8,7 +8,18 @@ import {
   type Db,
   type EncounterRow,
 } from '@quest-fast/db';
-import { classAttacksPerAction, sortInitiative, storedAttack, turnQueue, type ActiveCondition, type Attack, type QueueEntry, type TurnEntry } from '@quest-fast/shared';
+import {
+  classAttacksPerAction,
+  saveBonus,
+  sortInitiative,
+  storedAttack,
+  turnQueue,
+  type Ability,
+  type ActiveCondition,
+  type Attack,
+  type QueueEntry,
+  type TurnEntry,
+} from '@quest-fast/shared';
 
 /** The database or an open transaction: the helpers here run inside both. */
 export type Executor = Pick<Db, 'select' | 'insert' | 'update' | 'delete'>;
@@ -63,6 +74,18 @@ export type LoadedEncounter = { encounter: EncounterRow; combatants: LoadedComba
 export function attacksOf(combatant: LoadedCombatant): Attack[] {
   const attacks = combatant.sheet ? combatant.sheet.attacks : combatant.row.attacks;
   return attacks.map(storedAttack);
+}
+
+/**
+ * What a combatant adds to a saving throw: a character's sheet decides; a
+ * copy from the bestiary keeps the modifiers it was copied with. A row stored
+ * before them knows only its Constitution.
+ */
+export function saveModifierOf(combatant: LoadedCombatant, ability: Ability): number {
+  if (combatant.sheet) return saveBonus(combatant.sheet, ability);
+  const stored = combatant.row.saveModifiers[ability];
+  if (stored !== undefined) return stored;
+  return ability === 'constitution' ? combatant.row.constitutionModifier : 0;
 }
 
 const sheetColumns = {

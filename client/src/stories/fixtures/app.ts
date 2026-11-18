@@ -160,7 +160,7 @@ const thalindra: CharacterSheet = {
   toolProficiencies: fit('Kit de herbalismo, kit de disfarce, ferramentas de ladrão, instrumentos de caligrafia, alaúde, flauta de Pã, ferramentas de cartógrafo, suprimentos de alquimista e jogo de dragonchess', L.proficiencyText),
   attacks: Array.from({ length: L.attacks }, (_, index) => index % 2 === 0
     ? { kind: 'attack' as const, cost: 'attack' as const, name: fit(`Lâmina Sagrada da Estrela Cadente de Selûne, forjada no Plano Astral (${index + 1})`, L.name), bonus: L.attackBonus, damage: fit('2d10+8d6+4d8+1d4+12', L.damage), damageType: fit('Radiante e necrótico (metade cada)', L.damageType), notes: fit('Acuidade, leve, versátil (1d10). Ignora resistência a dano radiante. Recarga 5–6 após um descanso curto ou longo. Ver https://dndbeyond.com/x', L.attackNotes) }
-    : { kind: 'save' as const, cost: 'action' as const, name: fit(`Explosão Eldritch com Invocação Repelente ${index + 1}`, L.name), dc: L.saveDc.max, saveAbility: 'constitution' as const, damage: '10d10+100', damageType: 'Energia', notes: '' }),
+    : { kind: 'save' as const, cost: 'action' as const, onSave: 'half' as const, name: fit(`Explosão Eldritch com Invocação Repelente ${index + 1}`, L.name), dc: L.saveDc.max, saveAbility: 'constitution' as const, damage: '10d10+100', damageType: 'Energia', notes: '' }),
   features: Array.from({ length: L.listItems }, (_, index) => fit(`Característica ${index + 1}: uma vez por descanso longo, quando uma criatura que você possa ver a até 18 m falhar numa salvaguarda contra uma magia sua, você pode gastar uma ação bônus para impor desvantagem no próximo teste de resistência que ela fizer antes do fim do seu próximo turno, com regras completas.`, L.listItem)),
   speciesTraits: ['Visão no Escuro', 'Ancestralidade Feérica', 'Anfíbia', 'Fala com Bestas do Mar', 'Transe'],
   feats: ['Iniciado em Magia', 'Conjurador de Guerra', 'Sortudo', 'Resiliente (Constituição)', 'Telepático', 'Tocado pelas Fadas'],
@@ -247,6 +247,7 @@ const worstStatblocks: Statblock[] = [
     ...stamps,
     imageAssetId: null,
     imageUrl: null,
+    saveBonuses: { strength: 20, constitution: 20, wisdom: 20, charisma: 20 },
     id: 'guardian',
     name: guardian,
     size: 'gargantuan',
