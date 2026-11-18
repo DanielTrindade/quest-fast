@@ -1,34 +1,52 @@
 import type { TokenKind, TokenView } from '@quest-fast/shared';
 import type { MapView } from './map-view';
 import { inPaintOrder, screenRadius, toScreenPoint } from './token-geometry';
+import { SHAPE, darken, detailLevel, lighten, liftScale, metalOf, shapeVertices, type MedallionShape } from './token-medallion';
 
 type Point = { x: number; y: number };
 
 /** A token where it is drawn this frame, which may differ from where it is saved. */
 export type DrawnToken = TokenView & {
   at: Point;
-  /** Being dragged here: drawn lifted, with the cell it will rest on. */
-  lifted: boolean;
-  /** Where a lifted token will rest when dropped. */
+  /**
+   * How high it is off the table: 0 resting, 1 held by the pointer here,
+   * below 0 for a moment while it lands.
+   */
+  lift: number;
+  /** Where a token dragged here will rest when dropped. */
   ghost: Point | null;
 };
 
-/** Below this radius on screen there is no room for initials. */
-const MIN_INITIALS_RADIUS = 9;
+/** The puff of dust a dropped token raises where it lands, `age` from 0 to 1. */
+export type Dust = { at: Point; size: TokenView['size']; age: number };
+
+/** Below this radius on screen the face has no room for initials. */
+const MIN_INITIALS_RADIUS = 7;
 /** Below this radius the "being moved by" label would cover more than the token. */
 const MIN_LABEL_RADIUS = 8;
 
 /** The theme's values the canvas needs: it cannot read a CSS variable itself. */
-function palette(themed: Element) {
+function palette(themed: Element, context: CanvasRenderingContext2D) {
   const style = getComputedStyle(themed);
-  const read = (name: string) => style.getPropertyValue(name).trim();
+  // The canvas normalises any opaque colour to `#rrggbb`, which the metal mixes from.
+  const read = (name: string) => {
+    context.save();
+    context.fillStyle = style.getPropertyValue(name).trim();
+    const normalised = String(context.fillStyle);
+    context.restore();
+    return normalised;
+  };
+  const control = read('--color-border-control');
   return {
-    rings: {
+    enamel: {
       character: read('--color-accent'),
       combatant: read('--color-danger'),
-      free: read('--color-border-strong'),
+      free: darken(control, 0.15),
     } satisfies Record<TokenKind, string>,
+    control,
+    gem: read('--color-accent'),
     down: read('--color-danger'),
+    dust: lighten(control, 0.6),
     // Source tokens only: an `@theme inline` alias (card, border) holds the
     // root's value, which would ignore a themed section's colours.
     disc: read('--color-surface-raised'),
@@ -36,26 +54,39 @@ function palette(themed: Element) {
     halo: read('--color-surface-secret'),
     focus: read('--color-focus-ring'),
     border: read('--color-border-subtle'),
-    shadow: read('--color-scrim'),
-    font: read('--font-sans') || 'sans-serif',
+    shadow: style.getPropertyValue('--color-scrim').trim(),
+    font: style.getPropertyValue('--font-sans').trim() || 'sans-serif',
   };
 }
 
 type Palette = ReturnType<typeof palette>;
 
-function ring(context: CanvasRenderingContext2D, centre: Point, radius: number, colour: string, width: number, dashed: boolean) {
+function traceShape(context: CanvasRenderingContext2D, shape: MedallionShape, centre: Point, radius: number) {
   context.beginPath();
-  context.arc(centre.x, centre.y, radius, 0, Math.PI * 2);
-  context.setLineDash(dashed ? [Math.max(3, radius * 0.35), Math.max(2, radius * 0.2)] : []);
-  context.lineWidth = width;
-  context.strokeStyle = colour;
-  context.stroke();
-  context.setLineDash([]);
+  const vertices = shapeVertices(shape, radius);
+  if (!vertices) {
+    context.arc(centre.x, centre.y, radius, 0, Math.PI * 2);
+    return;
+  }
+  vertices.forEach((vertex, index) => {
+    if (index === 0) context.moveTo(centre.x + vertex.x, centre.y + vertex.y);
+    else context.lineTo(centre.x + vertex.x, centre.y + vertex.y);
+  });
+  context.closePath();
 }
 
-function face(context: CanvasRenderingContext2D, token: DrawnToken, centre: Point, radius: number, image: HTMLImageElement | undefined, colours: Palette) {
+function dots(context: CanvasRenderingContext2D, count: number, start: number, distance: number, size: number) {
+  for (let index = 0; index < count; index += 1) {
+    const angle = start + (index / count) * Math.PI * 2;
+    context.beginPath();
+    context.arc(Math.cos(angle) * distance, Math.sin(angle) * distance, size, 0, Math.PI * 2);
+    context.fill();
+  }
+}
+
+function face(context: CanvasRenderingContext2D, token: DrawnToken, radius: number, image: HTMLImageElement | undefined, colours: Palette) {
   context.beginPath();
-  context.arc(centre.x, centre.y, radius, 0, Math.PI * 2);
+  context.arc(0, 0, radius, 0, Math.PI * 2);
   context.fillStyle = colours.disc;
   context.fill();
   if (image) {
@@ -66,16 +97,16 @@ function face(context: CanvasRenderingContext2D, token: DrawnToken, centre: Poin
     const scale = Math.max(side / image.naturalWidth, side / image.naturalHeight);
     const width = image.naturalWidth * scale;
     const height = image.naturalHeight * scale;
-    context.drawImage(image, centre.x - width / 2, centre.y - radius - (height - side) * 0.2, width, height);
+    context.drawImage(image, -width / 2, -radius - (height - side) * 0.2, width, height);
     context.restore();
     return;
   }
   if (radius < MIN_INITIALS_RADIUS) return;
   context.fillStyle = colours.text;
-  context.font = `600 ${Math.round(radius * (token.initials.length > 1 ? 0.75 : 0.95))}px ${colours.font}`;
+  context.font = `600 ${Math.round(radius * (token.initials.length > 1 ? 0.78 : 1))}px ${colours.font}`;
   context.textAlign = 'center';
   context.textBaseline = 'middle';
-  context.fillText(token.initials, centre.x, centre.y + radius * 0.04);
+  context.fillText(token.initials, 0, radius * 0.06);
 }
 
 /** A defeated creature: an X across the disc, over a halo so it reads on any face. */
@@ -127,15 +158,142 @@ function movingLabel(context: CanvasRenderingContext2D, name: string, centre: Po
   context.fillText(label, centre.x, y + height / 2 + 0.5);
 }
 
+const ORIGIN: Point = { x: 0, y: 0 };
+
 /**
- * Draws the tokens over the map, in order (the last on top). Each is a disc
- * with the avatar or the initials and a ring in its origin's tone: character,
- * combatant or free. A hidden token (only the master gets one) has a dashed,
- * faded ring. The selected one has the focus ring around it. One someone else
- * is moving carries their name; the one being dragged here is lifted, with a
- * dashed outline on the cell it will rest on. A defeated creature is grey,
- * faded and crossed out, under the living; a character down is faded with a
- * ring in the danger tone, still where it was: someone to help.
+ * One token as a table piece: a matte metal silhouette in its origin's shape,
+ * a band in its origin's colour, the face (avatar or initials) in the middle.
+ * The detail drops with the size on screen. `lift` raises it (a larger,
+ * softer shadow) or, below 0, sinks it as it lands.
+ */
+function medallion(context: CanvasRenderingContext2D, token: DrawnToken, centre: Point, baseRadius: number, image: HTMLImageElement | undefined, colours: Palette) {
+  const defeated = token.vitality === 'defeated';
+  const down = token.vitality === 'down';
+  const shape = SHAPE[token.kind];
+  const metal = defeated ? colours.control : metalOf(token.kind, colours.control);
+  const enamel = defeated ? colours.control : down ? colours.down : colours.enamel[token.kind];
+  const radius = baseRadius * liftScale(token.lift);
+  const height = Math.max(0, token.lift);
+  const detail = detailLevel(radius);
+
+  context.save();
+  context.globalAlpha = token.hidden ? 0.55 : defeated ? 0.75 : 1;
+  context.save();
+  // The halo under the piece keeps its edge readable over any map, as the grid's does.
+  context.shadowColor = colours.shadow;
+  context.shadowBlur = 3 + height * 10;
+  context.shadowOffsetY = 2 + height * radius * 0.18;
+  traceShape(context, shape, centre, radius + 1);
+  context.fillStyle = colours.halo;
+  context.fill();
+  context.restore();
+
+  context.translate(centre.x, centre.y);
+  if (defeated) context.filter = 'grayscale(1)';
+  // A short dark lip under the metal: the same base the buttons stand on.
+  traceShape(context, shape, { x: 0, y: Math.max(1, radius * 0.04) }, radius);
+  context.fillStyle = darken(metal, 0.45);
+  context.fill();
+  traceShape(context, shape, ORIGIN, radius);
+  const sheen = context.createLinearGradient(0, -radius, 0, radius);
+  sheen.addColorStop(0, lighten(metal, 0.16));
+  sheen.addColorStop(0.5, metal);
+  sheen.addColorStop(1, darken(metal, 0.18));
+  context.fillStyle = sheen;
+  context.fill();
+
+  const studSize = Math.max(1, radius * 0.045);
+  if (token.kind === 'character' && detail >= 1) {
+    context.fillStyle = lighten(metal, 0.22);
+    dots(context, Math.round(radius * (detail === 2 ? 0.75 : 0.5)), 0, radius * 0.9, Math.max(1.1, studSize));
+  }
+  context.fillStyle = darken(metal, 0.35);
+  if (token.kind === 'combatant' && detail === 2) dots(context, 4, Math.PI / 4, radius * 0.8, studSize);
+  if (token.kind === 'free' && detail >= 1) dots(context, 8, Math.PI / 8, radius * 0.86, studSize);
+
+  const bandInner = radius * 0.64;
+  if (detail >= 1) {
+    const bandOuter = radius * (token.kind === 'combatant' ? 0.78 : 0.82);
+    context.beginPath();
+    context.arc(0, 0, bandOuter, 0, Math.PI * 2);
+    context.arc(0, 0, bandInner, 0, Math.PI * 2, true);
+    const glaze = context.createLinearGradient(0, -bandOuter, 0, bandOuter);
+    glaze.addColorStop(0, lighten(enamel, 0.1));
+    glaze.addColorStop(1, darken(enamel, 0.15));
+    context.fillStyle = glaze;
+    context.fill();
+    context.beginPath();
+    context.arc(0, 0, bandOuter, 0, Math.PI * 2);
+    context.lineWidth = Math.max(1, radius * 0.025);
+    context.strokeStyle = darken(enamel, 0.5);
+    context.stroke();
+  }
+  const faceRadius = detail >= 1 ? bandInner * 0.94 : radius * 0.78;
+  context.beginPath();
+  context.arc(0, 0, faceRadius + 1, 0, Math.PI * 2);
+  context.lineWidth = Math.max(1.5, radius * 0.03);
+  context.strokeStyle = lighten(metal, 0.35);
+  context.stroke();
+  context.save();
+  if (down) context.filter = 'saturate(0.3) brightness(0.85)';
+  face(context, token, faceRadius, image, colours);
+  context.restore();
+
+  if (token.kind === 'character' && detail >= 1 && token.vitality === 'up') {
+    const gem = Math.max(2.5, radius * 0.13);
+    context.beginPath();
+    context.ellipse(0, -radius * 0.9, gem, gem * 0.82, 0, 0, Math.PI * 2);
+    context.fillStyle = colours.gem;
+    context.fill();
+    context.lineWidth = Math.max(1, gem * 0.22);
+    context.strokeStyle = darken(colours.gem, 0.4);
+    context.stroke();
+  }
+  if (defeated) {
+    context.filter = 'none';
+    cross(context, ORIGIN, faceRadius, colours);
+  }
+  if (token.hidden) {
+    traceShape(context, shape, ORIGIN, radius);
+    context.setLineDash([Math.max(3, radius * 0.25), Math.max(2, radius * 0.16)]);
+    context.lineWidth = 2;
+    context.strokeStyle = colours.text;
+    context.stroke();
+    context.setLineDash([]);
+  }
+  context.restore();
+}
+
+function dust(context: CanvasRenderingContext2D, puff: Dust, centre: Point, radius: number, colours: Palette) {
+  const spread = 1 - (1 - puff.age) ** 3;
+  context.save();
+  context.globalAlpha = (1 - puff.age) * 0.4;
+  context.beginPath();
+  context.arc(centre.x, centre.y, radius * (1 + spread * 0.35), 0, Math.PI * 2);
+  context.lineWidth = 2;
+  context.strokeStyle = colours.dust;
+  context.stroke();
+  context.fillStyle = colours.dust;
+  const reach = radius * (1.05 + spread * 0.45);
+  for (let index = 0; index < 6; index += 1) {
+    const angle = (index / 6) * Math.PI * 2 + Math.PI / 12;
+    context.beginPath();
+    context.arc(centre.x + Math.cos(angle) * reach, centre.y + Math.sin(angle) * reach * 0.9, 1.8 * (1 - puff.age) + 0.4, 0, Math.PI * 2);
+    context.fill();
+  }
+  context.restore();
+}
+
+/**
+ * Draws the tokens over the map, in order (the last on top): each a table
+ * piece whose silhouette and band tell its origin (character, combatant or
+ * free). A hidden token (only the master gets one) is faded with a dashed
+ * outline. The selected one has the focus outline around it, in its shape.
+ * One someone else is moving carries their name; the one being dragged here
+ * is raised, with a dashed outline on the cell it will rest on, and raises
+ * dust where it lands. A defeated creature is grey and crossed out, under
+ * the living; a character down has the band in the danger tone, still where
+ * it was: someone to help.
  */
 export function drawTokens(context: CanvasRenderingContext2D, scene: {
   tokens: readonly DrawnToken[];
@@ -146,46 +304,46 @@ export function drawTokens(context: CanvasRenderingContext2D, scene: {
   viewerId: string | null;
   images: ReadonlyMap<string, HTMLImageElement>;
   themed: Element;
+  dust?: readonly Dust[];
 }) {
   const { tokens, view, cellSize, selectedId, viewerId, images } = scene;
   if (tokens.length === 0) return;
-  const colours = palette(scene.themed);
+  const colours = palette(scene.themed, context);
 
-  for (const token of inPaintOrder(tokens)) {
-    const defeated = token.vitality === 'defeated';
-    const down = token.vitality === 'down';
-    const radius = screenRadius(token.size, cellSize, view.scale);
+  for (const puff of scene.dust ?? []) {
+    dust(context, puff, toScreenPoint(view, puff.at), screenRadius(puff.size, cellSize, view.scale), colours);
+  }
+
+  // The one in the air passes over the rest.
+  const painted = inPaintOrder(tokens).sort((first, second) => Number(first.lift > 0) - Number(second.lift > 0));
+  for (const token of painted) {
+    const baseRadius = screenRadius(token.size, cellSize, view.scale);
     const centre = toScreenPoint(view, token.at);
-    const ringWidth = Math.max(2, Math.min(5, radius * 0.12));
+    const shape = SHAPE[token.kind];
 
     if (token.ghost) {
-      const ghost = toScreenPoint(view, token.ghost);
       context.globalAlpha = 0.9;
-      ring(context, ghost, radius, colours.focus, 2, true);
+      traceShape(context, shape, toScreenPoint(view, token.ghost), baseRadius);
+      context.setLineDash([Math.max(3, baseRadius * 0.35), Math.max(2, baseRadius * 0.2)]);
+      context.lineWidth = 2;
+      context.strokeStyle = colours.focus;
+      context.stroke();
+      context.setLineDash([]);
       context.globalAlpha = 1;
     }
 
-    context.save();
-    context.globalAlpha = (token.hidden ? 0.55 : 1) * (defeated ? 0.6 : down ? 0.75 : 1);
-    if (defeated) context.filter = 'grayscale(1)';
-    if (token.lifted) {
-      context.shadowColor = colours.shadow;
-      context.shadowBlur = 14;
-      context.shadowOffsetY = 6;
+    medallion(context, token, centre, baseRadius, token.avatarUrl ? images.get(token.avatarUrl) : undefined, colours);
+
+    if (token.id === selectedId) {
+      traceShape(context, shape, centre, baseRadius * liftScale(token.lift) + 5);
+      context.lineWidth = 3;
+      context.lineJoin = 'round';
+      context.strokeStyle = colours.focus;
+      context.stroke();
+      context.lineJoin = 'miter';
     }
-    face(context, token, centre, radius, token.avatarUrl ? images.get(token.avatarUrl) : undefined, colours);
-    context.restore();
-
-    context.globalAlpha = token.hidden ? 0.75 : 1;
-    // A dark halo under the ring keeps it readable over any map, as the grid's does.
-    ring(context, centre, radius, colours.halo, ringWidth + 2, false);
-    ring(context, centre, radius - 0.5, down ? colours.down : colours.rings[token.kind], ringWidth, token.hidden);
-    if (defeated) cross(context, centre, radius, colours);
-    context.globalAlpha = 1;
-
-    if (token.id === selectedId) ring(context, centre, radius + ringWidth + 3, colours.focus, 3, false);
-    if (token.movingBy && token.movingBy.userId !== viewerId && radius >= MIN_LABEL_RADIUS) {
-      movingLabel(context, token.movingBy.name, centre, radius, colours);
+    if (token.movingBy && token.movingBy.userId !== viewerId && baseRadius >= MIN_LABEL_RADIUS) {
+      movingLabel(context, token.movingBy.name, centre, baseRadius, colours);
     }
   }
 }
