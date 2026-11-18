@@ -112,8 +112,8 @@ em quatro PRs independentes:
 3. **Imagem no bestiário e token caído ou derrotado — entregue.** O mestre
    envia a imagem da criatura, que os tokens dela passam a mostrar. No mapa, o
    personagem a 0 PV aparece caído (anel de perigo, apagado) e a criatura a 0
-   PV, derrotada (cinza, com um X, por baixo dos vivos). A lista de tokens e o
-   resumo acessível do mapa dizem quem caiu.
+   PV, derrotada (cinza, com um X, por baixo dos vivos). A lista de tokens mostra
+   quem caiu, e o resumo acessível do mapa conta quantos estão em cada estado.
 4. **Grid e tamanho do token — entregue.** O mestre ajusta a opacidade das
    linhas por cena (de 0%, linhas escondidas com o grid ainda valendo, a
    100%), e a cena abre mostrando cerca de 15 casas na largura, com os tokens
