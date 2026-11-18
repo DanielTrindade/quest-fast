@@ -29,10 +29,10 @@ export const MestreComMonstro: Story = {
     const [region] = within(canvasElement).getAllByRole('region', { name: /^Tema / });
     const panel = within(region!);
     await expect(panel.getByRole('checkbox', { name: /Atacar em segredo/ })).toBeChecked();
-    await userEvent.selectOptions(panel.getByLabelText('Alvo de Goblin 1'), 'c-hazin');
+    await userEvent.click(within(panel.getByRole('group', { name: 'Alvos de Goblin 1' })).getByRole('checkbox', { name: /^Hazin Dan —/ }));
     await userEvent.click(panel.getByRole('radio', { name: 'Vantagem' }));
     await userEvent.click(panel.getByRole('button', { name: 'Atacar com Cimitarra' }));
-    await expect(args.onAttack).toHaveBeenCalledWith(0, { targetId: 'c-hazin', mode: 'advantage', secret: true });
+    await expect(args.onAttack).toHaveBeenCalledWith(0, { targetIds: ['c-hazin'], mode: 'advantage', secret: true });
   },
 };
 
@@ -49,11 +49,11 @@ export const JogadorComPersonagem: Story = {
   play: async ({ canvasElement, args }) => {
     const [region] = within(canvasElement).getAllByRole('region', { name: /^Tema / });
     const panel = within(region!);
-    await expect(panel.queryByRole('checkbox')).toBeNull();
+    await expect(panel.queryByRole('checkbox', { name: /Atacar em segredo/ })).toBeNull();
     // A save has no attack roll: the mode does not travel with it.
     await userEvent.click(panel.getByRole('radio', { name: 'Desvantagem' }));
     await userEvent.click(panel.getByRole('button', { name: 'Rolar dano de Sopro de fogo' }));
-    await expect(args.onAttack).toHaveBeenCalledWith(1, { targetId: null, mode: 'normal', secret: false });
+    await expect(args.onAttack).toHaveBeenCalledWith(1, { targetIds: [], mode: 'normal', secret: false });
   },
 };
 
@@ -90,6 +90,32 @@ export const TurnoGasto: Story = {
     await expect(panel.getAllByText('Não há ataque nem ação sobrando neste turno.')[0]).toBeVisible();
     await expect(panel.getByText('Ação bônus')).toBeVisible();
     await userEvent.click(panel.getByRole('button', { name: 'Atacar com Machadinha (mão inábil)' }));
-    await expect(args.onAttack).toHaveBeenCalledWith(2, { targetId: null, mode: 'normal', secret: false });
+    await expect(args.onAttack).toHaveBeenCalledWith(2, { targetIds: [], mode: 'normal', secret: false });
+  },
+};
+
+/**
+ * Two targets ticked: the breath (a save) reaches both, the axe (an attack
+ * roll) takes one target and says so.
+ */
+export const VariosAlvos: Story = {
+  name: 'Vários alvos (área)',
+  args: {
+    name: 'Hazin Dan',
+    attacks: hazin.attacks,
+    targets: playerCombatants.filter((combatant) => combatant.id !== 'c-hazin'),
+    master: false,
+    defaultSecret: false,
+  },
+  play: async ({ canvasElement, args }) => {
+    const [region] = within(canvasElement).getAllByRole('region', { name: /^Tema / });
+    const panel = within(region!);
+    const targets = within(panel.getByRole('group', { name: 'Alvos de Hazin Dan' }));
+    await userEvent.click(targets.getByRole('checkbox', { name: /^Goblin 1 —/ }));
+    await userEvent.click(targets.getByRole('checkbox', { name: /^Goblin 2 —/ }));
+    await expect(panel.getByRole('button', { name: 'Atacar com Machado Grande' })).toBeDisabled();
+    await expect(panel.getByText('Um ataque com rolagem de acerto tem um alvo só.')).toBeVisible();
+    await userEvent.click(panel.getByRole('button', { name: 'Rolar dano de Sopro de fogo' }));
+    await expect(args.onAttack).toHaveBeenCalledWith(1, { targetIds: ['g1', 'g2'], mode: 'normal', secret: false });
   },
 };

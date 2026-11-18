@@ -1,4 +1,4 @@
-import type { CombatEndedPayload, CombatHitPointsPayload, Role, RollPayload, SessionEvent } from '@quest-fast/shared';
+import type { AttackTarget, CombatEndedPayload, CombatHitPointsPayload, Role, RollPayload, SessionEvent } from '@quest-fast/shared';
 
 const HIT_POINT_EVENTS = new Set(['combat.damage', 'combat.heal', 'combat.defeated']);
 
@@ -9,13 +9,23 @@ const HIT_POINT_EVENTS = new Set(['combat.damage', 'combat.heal', 'combat.defeat
  * A player keeps what the master says at the table: hit or miss, critical,
  * the damage total and whether a monster passed its save.
  */
-function redactAttack(payload: RollPayload): RollPayload {
+function redactTarget(target: AttackTarget): AttackTarget {
+  if (target.source === 'character') return target;
+  // A monster's save keeps only passed or failed: with the DC, its die and
+  // total give the bonus away.
+  const { ac: _ac, save, ...rest } = target;
+  return { ...rest, ...(save ? { save: { success: save.success } } : {}) };
+}
+
+function redactAttack(payload: RollPayload): RollPayload | null {
   let visible = payload;
-  if (payload.target && payload.target.source !== 'character') {
-    // A monster's save keeps only passed or failed: with the DC, its die and
-    // total give the bonus away.
-    const { ac: _ac, save, ...target } = payload.target;
-    visible = { ...visible, target: { ...target, ...(save ? { save: { success: save.success } } : {}) } };
+  if (payload.target) visible = { ...visible, target: redactTarget(payload.target) };
+  if (payload.targets) {
+    // A target hidden when the area hit it stays out; with none left, the
+    // event itself would tell of them.
+    const shown = payload.targets.filter((target) => !target.hidden).map(redactTarget);
+    if (shown.length === 0) return null;
+    visible = { ...visible, targets: shown };
   }
   if (payload.attackerSource === 'monster') {
     const { damageRollable: _rollable, natural: _natural, ...rest } = visible;
@@ -42,7 +52,9 @@ export function redactEvent(event: SessionEvent, role: Role): SessionEvent | nul
   if (event.secret) return null;
   if (event.type === 'roll') {
     const payload = event.payload as RollPayload;
-    return payload.rollKind === 'attack' ? ({ ...event, payload: redactAttack(payload) } as SessionEvent) : event;
+    if (payload.rollKind !== 'attack') return event;
+    const visible = redactAttack(payload);
+    return visible ? ({ ...event, payload: visible } as SessionEvent) : null;
   }
   if (event.type === 'combat.ended') {
     const payload = event.payload as CombatEndedPayload;

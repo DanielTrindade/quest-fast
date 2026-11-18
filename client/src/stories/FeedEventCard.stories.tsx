@@ -219,6 +219,23 @@ const breathRolledForPlayer = attackEvent('a12', {
   target: { ...goblinTarget, hit: true, save: { success: true } },
   damage: { expression: '2d6', dice: [{ value: 3, sides: 6 }, { value: 4, sides: 6 }], modifier: 0, total: 7, damageType: 'Fogo' },
 });
+/** An area: one damage roll, each target with its save and what it keeps. */
+const fireball = attackEvent('a13', {
+  ...sword,
+  expression: '8d6',
+  dice: [3, 5, 2, 6, 4, 1, 6, 3].map((value) => ({ value, sides: 6 })),
+  modifier: 0,
+  total: 30,
+  attackName: 'Bola de Fogo',
+  characterName: 'Lyra Ventoclaro',
+  save: { dc: 15, ability: 'dexterity' },
+  targets: [
+    { ...goblinTarget, combatantId: 'g1', name: 'Goblin 1', hit: true, save: { success: false }, damage: 30 },
+    { ...goblinTarget, combatantId: 'g2', name: 'Goblin 2', hit: true, save: { success: true }, damage: 15 },
+    { combatantId: 'c-hazin', name: 'Hazin Dan', source: 'character', hit: true, save: { d20: 16, modifier: 1, total: 17, success: true }, damage: 15 },
+  ],
+  damage: { expression: '8d6', dice: [3, 5, 2, 6, 4, 1, 6, 3].map((value) => ({ value, sides: 6 })), modifier: 0, total: 30, damageType: 'Fogo' },
+});
 /** A save without damage (Graxa): nothing rolled, only the DC the target faces. */
 const grease = attackEvent('a10', {
   ...sword,
@@ -298,6 +315,18 @@ export const SalvaguardaRoladaJogador: Story = {
   name: 'Salvaguarda rolada de monstro (jogador)',
   args: { event: breathRolledForPlayer },
   play: reads('CD 13 de Destreza · Passou'),
+};
+export const Area: Story = {
+  name: 'Salvaguarda em área',
+  args: { event: fireball },
+  play: async ({ canvasElement }) => {
+    const [region] = within(canvasElement).getAllByRole('region', { name: /^Tema / });
+    const card = within(region!);
+    await expect(card.getByText('Lyra Ventoclaro usou Bola de Fogo em Goblin 1, Goblin 2 e Hazin Dan')).toBeVisible();
+    const targets = within(card.getByRole('list', { name: 'Alvos de Bola de Fogo' }));
+    await expect(targets.getByText('Goblin 1: Falhou, 30 de dano')).toBeVisible();
+    await expect(targets.getByText('Hazin Dan: Passou (17), 15 de dano')).toBeVisible();
+  },
 };
 export const SalvaguardaSemDano: Story = {
   name: 'Salvaguarda sem dano',

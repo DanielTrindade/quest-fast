@@ -60,6 +60,8 @@ import {
   type HpOperation,
   type RollMode,
   type RollPayload,
+  type SaveRoll,
+  type Attack,
   type SessionEvent,
 } from '@quest-fast/shared';
 import type { Context } from '../context.ts';
@@ -893,11 +895,56 @@ function changeEconomy(mutation: Mutation, combatant: LoadedCombatant, body: Rec
 }
 
 /**
+ * The targets of an attack, all checked before anything is spent or rolled:
+ * an invalid one refuses the whole use. Older clients send `targetId`, read
+ * as a list of one. Only a save row (an area: Bola de Fogo) takes more than
+ * one; an attack roll has a single target.
+ */
+function parseTargets(mutation: Mutation, attacker: LoadedCombatant, chosen: Attack, body: Record<string, unknown>): LoadedCombatant[] {
+  const raw = body.targetIds !== undefined
+    ? body.targetIds
+    : body.targetId === undefined || body.targetId === null ? [] : [body.targetId];
+  if (!Array.isArray(raw) || raw.some((id) => typeof id !== 'string')) refuse(422, 'Alvo inválido.');
+  const ids = raw as string[];
+  if (ids.length > C.attackTargets) refuse(422, `Escolha até ${C.attackTargets} alvos.`);
+  if (ids.length > 1 && chosen.kind !== 'save') refuse(422, 'Um ataque com rolagem de acerto tem um alvo só.');
+  if (new Set(ids).size !== ids.length) refuse(422, 'Cada alvo entra uma vez só.');
+  return ids.map((id) => {
+    const target = findCombatant(mutation, id);
+    if (target.row.id === attacker.row.id) refuse(422, 'Escolha outro combatente como alvo.');
+    return target;
+  });
+}
+
+/** Who a target is in the event. A hidden one is marked, so a player's copy leaves it out. */
+function aimedAt(target: LoadedCombatant) {
+  return {
+    combatantId: target.row.id,
+    name: target.name,
+    source: sourceOf(target),
+    ...(target.row.hidden ? { hidden: true as const } : {}),
+  };
+}
+
+/** One target's save, rolled here so the table waits for no one. It costs the target nothing. */
+function targetSave(target: LoadedCombatant, chosen: Extract<Attack, { kind: 'save' }>): SaveRoll {
+  return rollSave(
+    saveModifierOf(target, chosen.saveAbility),
+    chosen.dc,
+    failsSaveOutright(chosen.saveAbility, target.conditions, target.hpCurrent === 0),
+    undefined,
+    saveConditions(chosen.saveAbility, target.conditions),
+  );
+}
+
+/**
  * An attack, rolled on the server. With a target, the attack roll is
  * compared with its AC and a hit rolls the damage, left pending on the
  * target for the master to apply. Without one, only the attack roll is made
- * and its damage can be rolled later, once. Reactions happen out of turn, so
- * the turn is not checked.
+ * and its damage can be rolled later, once. A save row may hit several
+ * targets: its cost is paid once, its damage rolled once, and each target
+ * rolls its own save and gets its own pending damage. Reactions happen out of
+ * turn, so the turn is not checked.
  */
 function attack(mutation: Mutation, combatant: LoadedCombatant, body: Record<string, unknown>) {
   const { row } = combatant;
@@ -914,22 +961,17 @@ function attack(mutation: Mutation, combatant: LoadedCombatant, body: Record<str
   if (body.secret !== undefined && typeof body.secret !== 'boolean') refuse(422, 'Valor inválido para "secreta".');
   const master = mutation.viewer.role === 'master';
   if (!master && body.secret === true) refuse(403, 'Apenas o mestre pode rolar em segredo.');
+  const targets = parseTargets(mutation, combatant, chosen, body);
   spendOnAttack(mutation, combatant, chosen.cost);
 
-  let target: LoadedCombatant | undefined;
-  if (body.targetId !== undefined && body.targetId !== null) {
-    if (typeof body.targetId !== 'string') refuse(422, 'Alvo inválido.');
-    target = findCombatant(mutation, body.targetId);
-    if (target.row.id === row.id) refuse(422, 'Escolha outro combatente como alvo.');
-  }
-
   // A monster's attack is the master's unless told otherwise, like its
-  // initiative; a character's is the table's. A hidden attacker or target
-  // would be given away by the event.
+  // initiative; a character's is the table's. A hidden attacker would be
+  // given away by the event. A hidden target of an attack roll too; among
+  // the targets of a save, a hidden one only leaves the player's copy.
   const secret =
     (master ? ((body.secret as boolean | undefined) ?? row.source !== 'character') : false) ||
     row.hidden ||
-    target?.row.hidden === true;
+    (chosen.kind === 'attack' && targets[0]?.row.hidden === true);
 
   const base = {
     kind: 'roll' as const,
@@ -939,56 +981,45 @@ function attack(mutation: Mutation, combatant: LoadedCombatant, body: Record<str
     attackerSource: sourceOf(combatant),
     ...(row.characterId ? { characterId: row.characterId } : {}),
   };
-  const aimed = target ? { combatantId: target.row.id, name: target.name, source: sourceOf(target) } : undefined;
-  // The target's save, rolled here so the table waits for no one. It costs
-  // the target nothing.
-  const targetSave = target && chosen.kind === 'save'
-    ? rollSave(
-      saveModifierOf(target, chosen.saveAbility),
-      chosen.dc,
-      failsSaveOutright(chosen.saveAbility, target.conditions, target.hpCurrent === 0),
-      undefined,
-      saveConditions(chosen.saveAbility, target.conditions),
-    )
-    : undefined;
 
-  let payload: RollPayload;
-  if (chosen.kind === 'save' && !hasDamage(chosen)) {
-    // Only the effect: nothing to roll, the target makes the save.
-    payload = {
-      ...base,
-      ...noRoll(),
-      save: { dc: chosen.dc, ability: chosen.saveAbility },
-      ...(aimed ? { target: { ...aimed, hit: true, save: targetSave } } : {}),
-    };
-  } else if (chosen.kind === 'save') {
-    const damage = rollDamage(chosen.damage, false);
-    if (!damage) refuse(422, 'A expressão de dano deste ataque é inválida.');
-    payload = {
-      ...base,
-      ...damage,
-      mode: 'normal',
-      damage: { ...damage, damageType: chosen.damageType },
-      save: { dc: chosen.dc, ability: chosen.saveAbility },
-      ...(aimed ? { target: { ...aimed, hit: true, save: targetSave } } : {}),
-    };
+  if (chosen.kind === 'save') {
+    saveAttack(mutation, combatant, chosen, targets, secret, base);
+    return;
+  }
+
+  const [target] = targets;
+  const roll = rollAttackHit(chosen.bonus, mode);
+  const { critical, ...result } = roll;
+  const payload: RollPayload = { ...base, ...result, critical };
+  if (!target) {
+    payload.damageRollable = { expression: chosen.damage, damageType: chosen.damageType };
   } else {
-    const roll = rollAttackHit(chosen.bonus, mode);
-    const { critical, ...result } = roll;
-    payload = { ...base, ...result, critical };
-    if (!target || !aimed) {
-      payload.damageRollable = { expression: chosen.damage, damageType: chosen.damageType };
-    } else {
-      const hit = isHit(roll, target.ac);
-      payload.target = { ...aimed, hit, ac: target.ac };
-      if (hit) {
-        const damage = rollDamage(chosen.damage, critical);
-        if (!damage) refuse(422, 'O dano deste ataque passa do limite de dados no crítico ou é inválido.');
-        payload.damage = { ...damage, damageType: chosen.damageType };
-      }
+    const hit = isHit(roll, target.ac);
+    payload.target = { ...aimedAt(target), hit, ac: target.ac };
+    if (hit) {
+      const damage = rollDamage(chosen.damage, critical);
+      if (!damage) refuse(422, 'O dano deste ataque passa do limite de dados no crítico ou é inválido.');
+      payload.damage = { ...damage, damageType: chosen.damageType };
     }
   }
 
+  const event = recordAttack(mutation, payload, secret);
+  if (!target || !payload.damage || payload.damage.total === 0) return;
+  const pending: CombatReminder = {
+    id: randomUUID(),
+    kind: 'pendingDamage',
+    amount: payload.damage.total,
+    damageType: chosen.damageType,
+    critical: payload.critical === true,
+    attackerName: combatant.name,
+    attackName: chosen.name,
+    eventId: event.id,
+    secret,
+  };
+  writeVitals(mutation, target, {}, [...target.row.reminders, pending]);
+}
+
+function recordAttack(mutation: Mutation, payload: RollPayload, secret: boolean) {
   const event = recordRollEvent(mutation.tx, {
     campaignId: mutation.loaded.encounter.campaignId,
     userId: mutation.viewer.userId,
@@ -997,44 +1028,85 @@ function attack(mutation: Mutation, combatant: LoadedCombatant, body: Record<str
     payload,
   });
   mutation.events.push(event);
+  return event;
+}
 
-  if (target && chosen.kind === 'save' && !payload.damage) {
-    // Passed: nothing is left on the target. Failed: the master applies the effect.
-    if (targetSave?.success) return;
-    const called: CombatReminder = {
+/**
+ * A save row: no attack roll. Its damage, if any, is rolled once; each
+ * target rolls its save and keeps what it leaves: the damage whole on a
+ * failure, half or none on a success. Without damage (Graxa), a failure
+ * leaves the effect for the master and a success leaves nothing.
+ */
+function saveAttack(
+  mutation: Mutation,
+  combatant: LoadedCombatant,
+  chosen: Extract<Attack, { kind: 'save' }>,
+  targets: LoadedCombatant[],
+  secret: boolean,
+  base: Pick<RollPayload, 'kind' | 'rollKind' | 'attackName' | 'characterName' | 'attackerSource' | 'characterId'>,
+) {
+  const save = { dc: chosen.dc, ability: chosen.saveAbility };
+  let payload: RollPayload;
+  if (!hasDamage(chosen)) {
+    // Only the effect: nothing to roll for the attacker.
+    payload = { ...base, ...noRoll(), save };
+  } else {
+    const damage = rollDamage(chosen.damage, false);
+    if (!damage) refuse(422, 'A expressão de dano deste ataque é inválida.');
+    payload = { ...base, ...damage, mode: 'normal', damage: { ...damage, damageType: chosen.damageType }, save };
+  }
+
+  const outcomes = targets.map((target) => {
+    const roll = targetSave(target, chosen);
+    const amount = payload.damage ? damageAfterSave(payload.damage.total, roll.success, chosen.onSave) : 0;
+    return { target, roll, amount };
+  });
+  if (outcomes.length > 0) {
+    payload.targets = outcomes.map(({ target, roll, amount }) => ({
+      ...aimedAt(target),
+      hit: true,
+      save: roll,
+      ...(payload.damage ? { damage: amount } : {}),
+    }));
+  }
+
+  const event = recordAttack(mutation, payload, secret);
+  for (const { target, roll, amount } of outcomes) {
+    // Left on a hidden target, it would tell a player once the target shows.
+    const hiddenToo = secret || target.row.hidden;
+    if (!payload.damage) {
+      // Passed: nothing is left on the target. Failed: the master applies the effect.
+      if (roll.success) continue;
+      const called: CombatReminder = {
+        id: randomUUID(),
+        kind: 'pendingSave',
+        dc: chosen.dc,
+        ability: chosen.saveAbility,
+        attackerName: combatant.name,
+        attackName: chosen.name,
+        notes: chosen.notes,
+        eventId: event.id,
+        secret: hiddenToo,
+        failed: true,
+      };
+      writeVitals(mutation, target, {}, [...target.row.reminders, called]);
+      continue;
+    }
+    if (amount === 0) continue;
+    const pending: CombatReminder = {
       id: randomUUID(),
-      kind: 'pendingSave',
-      dc: chosen.dc,
-      ability: chosen.saveAbility,
+      kind: 'pendingDamage',
+      amount,
+      damageType: chosen.damageType,
+      critical: false,
       attackerName: combatant.name,
       attackName: chosen.name,
-      notes: chosen.notes,
+      save: { ...save, success: roll.success },
       eventId: event.id,
-      secret,
-      failed: true,
+      secret: hiddenToo,
     };
-    writeVitals(mutation, target, {}, [...target.row.reminders, called]);
-    return;
+    writeVitals(mutation, target, {}, [...target.row.reminders, pending]);
   }
-  if (!target || !payload.damage) return;
-  // A save the target passed halves the damage, or leaves none.
-  const amount = targetSave && chosen.kind === 'save'
-    ? damageAfterSave(payload.damage.total, targetSave.success, chosen.onSave)
-    : payload.damage.total;
-  if (amount === 0) return;
-  const pending: CombatReminder = {
-    id: randomUUID(),
-    kind: 'pendingDamage',
-    amount,
-    damageType: chosen.damageType,
-    critical: payload.critical === true,
-    attackerName: combatant.name,
-    attackName: chosen.name,
-    ...(payload.save ? { save: { ...payload.save, ...(targetSave ? { success: targetSave.success } : {}) } } : {}),
-    eventId: event.id,
-    secret,
-  };
-  writeVitals(mutation, target, {}, [...target.row.reminders, pending]);
 }
 
 /**

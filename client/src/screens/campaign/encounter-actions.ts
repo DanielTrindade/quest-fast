@@ -145,7 +145,7 @@ export function fightActions(campaignId: string, encounter: EncounterView, actio
     onDismissReminder: (id, reminderId) => act(id, `reminders/${reminderId}`, 'DELETE'),
     // The roll reaches the feed over the socket; a hit leaves its damage pending on the target.
     // `secret` always travels: left out, a monster's attack would fall back to secret.
-    onAttack: (id, attackIndex, { targetId, mode, secret }) => act(id, 'attack', 'POST', { attackIndex, targetId, mode, secret }),
+    onAttack: (id, attackIndex, { targetIds, mode, secret }) => act(id, 'attack', 'POST', { attackIndex, targetIds, mode, secret }),
     // The target's card is the busy one: that is where the damage lands.
     onApplyDamage: (id, reminderId, amount) =>
       act(id, `reminders/${reminderId}/apply`, 'POST', amount === undefined ? {} : { amount }),

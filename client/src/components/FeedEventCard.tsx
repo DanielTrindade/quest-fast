@@ -1,7 +1,7 @@
 import { DiceFive, EyeSlash, FirstAidKit, FlagCheckered, Heartbeat, HeartBreak, Hourglass, Info, Lightning, MagicWand, Skull, Sword } from '@phosphor-icons/react';
 import { COMBAT_EVENT_TYPES, type CombatSessionEvent, type RollPayload, type RollSessionEvent, type SessionEvent, type SpellCastSessionEvent, type UnknownSessionEvent } from '@quest-fast/shared';
 import { ABILITY_LABELS, SKILL_LABELS } from '../lib/5e';
-import { attackHeadline, attackOutcome, canRollDamage, damageText, showsAttackRoll } from '../lib/attack-feed';
+import { attackHeadline, attackOutcome, canRollDamage, damageText, saveTargets, showsAttackRoll, targetOutcome } from '../lib/attack-feed';
 import { combatEventText, type FightPayload } from '../lib/combat-feed';
 import { spellCastText } from '../lib/spell-feed';
 import { formatEventTime } from '../lib/format';
@@ -50,6 +50,21 @@ function FeedMeta({ event }: { event: SessionEvent }) {
   );
 }
 
+/** An area reached more than one: each target with its save and what it keeps. */
+function AreaTargets({ payload }: { payload: RollSessionEvent['payload'] }) {
+  const reached = saveTargets(payload);
+  if (reached.length < 2) return null;
+  return (
+    <ul aria-label={`Alvos de ${payload.attackName}`} className="m-0 mt-1 grid list-none gap-0.5 p-0 text-small text-foreground">
+      {reached.map((target) => (
+        <li key={target.combatantId} data-success={target.save?.success} className="min-w-0 tabular-nums [overflow-wrap:anywhere]">
+          {targetOutcome(target)}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 /**
  * An attack: the d20 when this reader may see it, then what came of it — hit
  * or miss, the DC of a save, the damage. Without a target, whoever attacked
@@ -77,6 +92,7 @@ function AttackEventCard({ event, onRollDamage, pending }: { event: RollSessionE
           {damage && <span>Dano: <strong className="font-semibold tabular-nums">{damage}</strong></span>}
         </p>
       )}
+      <AreaTargets payload={payload} />
       {onRollDamage && canRollDamage(payload) && (
         <div className="mt-2 [&>[data-slot=button]]:max-w-full [&>[data-slot=button]]:whitespace-normal">
           <Button variant="secondary" disabled={pending} onClick={() => onRollDamage(event.id)}>

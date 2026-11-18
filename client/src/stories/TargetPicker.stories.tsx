@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { expect, fn, userEvent, within } from 'storybook/test';
 import { TargetPicker } from '../components/TargetPicker';
@@ -9,23 +10,38 @@ const meta = {
   args: {
     name: 'Hazin Dan',
     targets: masterCombatants.filter((combatant) => combatant.id !== 'c-hazin'),
-    value: '',
+    value: [],
     onChange: fn(),
+  },
+  // The list is controlled: the frame keeps the ticks so a story can tick several.
+  render: function Controlled(args) {
+    const [value, setValue] = useState(args.value);
+    return (
+      <TargetPicker {...args} value={value} onChange={(ids) => {
+        setValue(ids);
+        args.onChange(ids);
+      }} />
+    );
   },
   decorators: [(Story) => <div style={{ maxWidth: 420 }}><Story /></div>],
 } satisfies Meta<typeof TargetPicker>;
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** The master reads every number, the hidden bandit included. */
+/** The master reads every number, the hidden bandit included, and ticks an area's targets. */
 export const Mestre: Story = {
   play: async ({ canvasElement, args }) => {
     const [region] = within(canvasElement).getAllByRole('region', { name: /^Tema / });
-    const select = within(region!).getByLabelText('Alvo de Hazin Dan');
-    await expect(within(select).getByRole('option', { name: 'Goblin 2 — 3/7 PV' })).toBeInTheDocument();
-    await expect(within(select).getByRole('option', { name: 'Goblin 3 — Derrotado' })).toBeInTheDocument();
-    await userEvent.selectOptions(select, 'g2');
-    await expect(args.onChange).toHaveBeenCalledWith('g2');
+    const list = within(within(region!).getByRole('group', { name: 'Alvos de Hazin Dan' }));
+    await expect(list.getByRole('checkbox', { name: 'Goblin 2 — 3/7 PV' })).toBeInTheDocument();
+    await expect(list.getByRole('checkbox', { name: 'Goblin 3 — Derrotado' })).toBeInTheDocument();
+    await userEvent.click(list.getByRole('checkbox', { name: 'Goblin 2 — 3/7 PV' }));
+    await expect(args.onChange).toHaveBeenLastCalledWith(['g2']);
+    await userEvent.click(list.getByRole('checkbox', { name: /^Goblin 1/ }));
+    await expect(args.onChange).toHaveBeenLastCalledWith(['g2', 'g1']);
+    await expect(list.getByText('2 alvos: só uma salvaguarda em área usa mais de um.')).toBeVisible();
+    await userEvent.click(list.getByRole('checkbox', { name: 'Goblin 2 — 3/7 PV' }));
+    await expect(args.onChange).toHaveBeenLastCalledWith(['g1']);
   },
 };
 
@@ -34,10 +50,10 @@ export const Jogador: Story = {
   args: { targets: playerCombatants.filter((combatant) => combatant.id !== 'c-hazin') },
   play: async ({ canvasElement }) => {
     const [region] = within(canvasElement).getAllByRole('region', { name: /^Tema / });
-    const select = within(region!).getByLabelText('Alvo de Hazin Dan');
-    await expect(within(select).getByRole('option', { name: 'Goblin 2 — Muito ferido' })).toBeInTheDocument();
-    await expect(within(select).getByRole('option', { name: 'Lyra Ventoclaro — 27/27 PV' })).toBeInTheDocument();
-    await expect(within(select).queryByRole('option', { name: /Bandido/ })).toBeNull();
+    const list = within(region!);
+    await expect(list.getByRole('checkbox', { name: 'Goblin 2 — Muito ferido' })).toBeInTheDocument();
+    await expect(list.getByRole('checkbox', { name: 'Lyra Ventoclaro — 27/27 PV' })).toBeInTheDocument();
+    await expect(list.queryByRole('checkbox', { name: /Bandido/ })).toBeNull();
   },
 };
 
