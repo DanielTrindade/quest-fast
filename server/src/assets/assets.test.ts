@@ -5,7 +5,8 @@ import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 import { assets } from '@quest-fast/db';
 import type { AssetUploadResponse, CharacterResponse, CreatedCampaign } from '@quest-fast/shared';
-import { asUser, body, createTestApp, signIn, testEnv, testImageFile } from '../testing.ts';
+import sharp from 'sharp';
+import { asUser, body, createTestApp, signIn, testEnv, testImageBytes, testImageFile } from '../testing.ts';
 import { normalizeAvatar } from './image.ts';
 import { MAX_ASSET_SIZE, createDiskAssetStore, createMemoryAssetStore, createR2AssetStore, type AssetStore } from './store.ts';
 
@@ -30,14 +31,15 @@ async function appWithCampaign(options?: Parameters<typeof createTestApp>[1]) {
   return { a, master, player, outsider, campaign };
 }
 
-function formWith(file: File | string | null) {
+function formWith(file: File | string | null, crop?: string) {
   const form = new FormData();
   if (file !== null) form.append('file', file);
+  if (crop !== undefined) form.append('crop', crop);
   return form;
 }
 
-function upload(request: ReturnType<typeof asUser>, campaignId: string, file: File | string | null) {
-  return request(`/api/campaigns/${campaignId}/assets`, { method: 'POST', body: formWith(file) });
+function upload(request: ReturnType<typeof asUser>, campaignId: string, file: File | string | null, crop?: string) {
+  return request(`/api/campaigns/${campaignId}/assets`, { method: 'POST', body: formWith(file, crop) });
 }
 
 /** Counts what reaches the store, to prove a refused upload never does. */
@@ -72,6 +74,37 @@ test('a member uploads an image and the server stores its own WebP copy', async 
   assert.equal(rows[0]?.campaignId, campaign.id);
   assert.equal(rows[0]?.mimeType, 'image/webp');
   assert.equal(rows[0]?.size, saved[0]?.buffer.byteLength);
+});
+
+test('an upload with a crop stores only the framed square', async () => {
+  const { store, saved } = countingStore();
+  const { player, campaign } = await appWithCampaign({ assets: store });
+  const wide = new File([await testImageBytes('png', 200, 100)], 'wide.png', { type: 'image/png' });
+
+  const response = await upload(player, campaign.id, wide, JSON.stringify({ x: 0.5, y: 0, size: 1 }));
+  assert.equal(response.status, 201);
+  const metadata = await sharp(saved[0]!.buffer).metadata();
+  assert.equal(metadata.width, 100);
+  assert.equal(metadata.height, 100);
+});
+
+test('an invalid crop is refused and nothing is stored', async () => {
+  const { store, saved } = countingStore();
+  const { a, player, campaign } = await appWithCampaign({ assets: store });
+  for (const crop of ['', 'not json', '{"x":0,"y":0}', '{"x":2,"y":0,"size":1}', '{"x":0,"y":0,"size":0}']) {
+    const response = await upload(player, campaign.id, await testImageFile('png'), crop);
+    assert.equal(response.status, 422, crop);
+    const { error } = await body<{ error: string }>(response);
+    assert.match(error, /enquadramento/, crop);
+  }
+  assert.equal(saved.length, 0);
+  assert.equal(a.db.select().from(assets).all().length, 0);
+});
+
+test('a non-member cannot upload a cropped image either', async () => {
+  const { outsider, campaign } = await appWithCampaign();
+  const response = await upload(outsider, campaign.id, await testImageFile('png'), JSON.stringify({ x: 0, y: 0, size: 1 }));
+  assert.equal(response.status, 404);
 });
 
 test('every allowed image type is accepted', async () => {

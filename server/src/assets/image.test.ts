@@ -2,11 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { crc32 } from 'node:zlib';
 import sharp from 'sharp';
+import type { AvatarCrop } from '@quest-fast/shared';
 import { testImageBytes } from '../testing.ts';
 import { AVATAR_MAX_SIDE, normalizeAvatar } from './image.ts';
 
-async function normalized(input: Uint8Array) {
-  const result = await normalizeAvatar(input);
+async function normalized(input: Uint8Array, crop?: AvatarCrop) {
+  const result = await normalizeAvatar(input, crop);
   assert.ok(result.ok, result.ok ? '' : result.error);
   return { ...result.image, metadata: await sharp(result.image.buffer).metadata() };
 }
@@ -161,4 +162,48 @@ test('an animated GIF keeps only its first frame', async () => {
   const image = await normalized(input);
   assert.equal(image.metadata.pages, undefined);
   assert.equal(image.metadata.height, 10);
+});
+
+/** 200 × 100: the left half red, the right half blue. */
+function halves(format: 'png' | 'jpeg', orientation?: number) {
+  const blue = sharp({ create: { width: 100, height: 100, channels: 3, background: '#00f' } }).png().toBuffer();
+  return blue.then(async (right) => {
+    let image = sharp({ create: { width: 200, height: 100, channels: 3, background: '#f00' } })
+      .composite([{ input: right, left: 100, top: 0 }]);
+    if (orientation) image = sharp(await image.png().toBuffer()).withMetadata({ orientation });
+    return new Uint8Array(await image.toFormat(format).toBuffer());
+  });
+}
+
+async function centreColour(buffer: Uint8Array) {
+  const { data, info } = await sharp(buffer).raw().toBuffer({ resolveWithObject: true });
+  const offset = (Math.floor(info.height / 2) * info.width + Math.floor(info.width / 2)) * info.channels;
+  return { r: data[offset]!, b: data[offset + 2]! };
+}
+
+test('a crop keeps only the framed square', async () => {
+  const input = await halves('png');
+  const right = await normalized(input, { x: 0.5, y: 0, size: 1 });
+  assert.equal(right.metadata.width, 100);
+  assert.equal(right.metadata.height, 100);
+  assert.ok((await centreColour(right.buffer)).b > 200);
+
+  const left = await normalized(input, { x: 0, y: 0, size: 0.5 });
+  assert.equal(left.metadata.width, 50);
+  assert.ok((await centreColour(left.buffer)).r > 200);
+});
+
+test('a large crop is reduced to a 512 px square', async () => {
+  const image = await normalized(await testImageBytes('png', 2000, 1000), { x: 0, y: 0, size: 1 });
+  assert.equal(image.metadata.width, AVATAR_MAX_SIDE);
+  assert.equal(image.metadata.height, AVATAR_MAX_SIDE);
+});
+
+test('the crop is framed on the image as turned by its EXIF orientation', async () => {
+  // Orientation 6 shows the stored left half (red) on top and the right half (blue) below.
+  const image = await normalized(await halves('jpeg', 6), { x: 0, y: 0.5, size: 1 });
+  assert.equal(image.metadata.width, 100);
+  assert.equal(image.metadata.height, 100);
+  const colour = await centreColour(image.buffer);
+  assert.ok(colour.b > 200 && colour.r < 60, JSON.stringify(colour));
 });

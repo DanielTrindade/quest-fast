@@ -336,3 +336,13 @@ export {
   type CastChoice,
   type CastResult,
 } from './spellcasting.ts';
+export {
+  AVATAR_CROP_MAX_ZOOM,
+  avatarCropRect,
+  clampAvatarCrop,
+  defaultAvatarCrop,
+  parseAvatarCrop,
+  zoomAvatarCrop,
+  type AvatarCrop,
+  type PixelRect,
+} from './avatar-crop.ts';

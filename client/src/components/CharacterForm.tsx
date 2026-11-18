@@ -1,5 +1,5 @@
 import { useEffect, useId, useImperativeHandle, useRef, useState, type ReactNode, type Ref } from 'react';
-import { ImageSquare, Plus, Trash } from '@phosphor-icons/react';
+import { Crop, ImageSquare, Plus, Trash } from '@phosphor-icons/react';
 import { useMutation } from '@tanstack/react-query';
 import {
   ABILITIES,
@@ -28,10 +28,12 @@ import {
   type SheetImportResult,
   type Size,
   type Skill,
+  type AvatarCrop,
 } from '@quest-fast/shared';
 import { AttackListEditor } from './AttackListEditor';
 import { AbilityInput } from './AbilityInput';
 import { Avatar } from './Avatar';
+import { AvatarCropDialog } from './AvatarCropDialog';
 import { Button } from './Button';
 import { Field } from './Field';
 import { FormFooter } from './FormFooter';
@@ -227,6 +229,7 @@ function IdentityPanel({
   avatarUrl,
   uploadError,
   onAvatarPick,
+  onAvatarReframe,
   onAvatarRemove,
   importer,
   locked,
@@ -234,6 +237,8 @@ function IdentityPanel({
   avatarUrl: string | null;
   uploadError: string | null;
   onAvatarPick: (file: File) => void;
+  /** Only while the picked file is still in memory: a saved avatar is already cut. */
+  onAvatarReframe?: () => void;
   onAvatarRemove: () => void;
   /** Only offered while creating: importing over a saved sheet would replace it. */
   importer?: ReactNode;
@@ -254,10 +259,18 @@ function IdentityPanel({
               accept="image/png,image/jpeg,image/webp,image/gif"
               onChange={(event) => {
                 const file = event.target.files?.[0];
+                // Cleared so picking the same file again still opens the framing.
+                event.target.value = '';
                 if (file) onAvatarPick(file);
               }}
             />
           </label>
+          {onAvatarReframe && state.avatarAssetId && (
+            <Button variant="secondary" type="button" onClick={onAvatarReframe}>
+              <Crop size={18} aria-hidden="true" />
+              Ajustar enquadramento
+            </Button>
+          )}
           {state.avatarAssetId && (
             <Button variant="ghost" type="button" onClick={onAvatarRemove}>
               Remover
@@ -586,6 +599,8 @@ function InventoryPanel({ idPrefix, active, state, set, errors, clearError }: Pa
   );
 }
 
+type AvatarSource = { file: File; url: string; crop: AvatarCrop | null };
+
 export type CharacterFormHandle = { requestClose: () => void };
 
 /**
@@ -640,12 +655,27 @@ export function CharacterForm({ campaignId, character, onSaved, onSaveError, onR
   // cache is refreshed by `save` through `onSaved`.
   // react-doctor-disable-next-line react-doctor/query-mutation-missing-invalidation
   const avatarUpload = useMutation({
-    mutationFn: (file: File) => api.uploadAsset(campaignId, file),
+    mutationFn: ({ file, crop }: { file: File; crop: AvatarCrop }) => api.uploadAsset(campaignId, file, crop),
     onSuccess: ({ asset }) => {
       set('avatarAssetId', asset.id);
       setAvatarUrl(asset.url);
     },
   });
+
+  // The picked file stays in memory with its framing, so the player can
+  // reframe from the original instead of cutting an already cut image.
+  const [avatarSource, setAvatarSource] = useState<AvatarSource | null>(null);
+  const [framing, setFraming] = useState<AvatarSource | null>(null);
+  const objectUrls = useRef<string[]>([]);
+  useEffect(() => {
+    const urls = objectUrls.current;
+    return () => urls.forEach((url) => URL.revokeObjectURL(url));
+  }, []);
+  const pickAvatar = (file: File) => {
+    const url = URL.createObjectURL(file);
+    objectUrls.current.push(url);
+    setFraming({ file, url, crop: null });
+  };
 
   // While a PDF is read the fields it replaces and the submit stay closed: a
   // save would send the old values and an edit would be overwritten.
@@ -796,10 +826,12 @@ export function CharacterForm({ campaignId, character, onSaved, onSaveError, onR
         active={tab}
         avatarUrl={avatarUrl}
         uploadError={avatarUpload.isError ? errorMessage(avatarUpload.error) : null}
-        onAvatarPick={(file) => avatarUpload.mutate(file)}
+        onAvatarPick={pickAvatar}
+        onAvatarReframe={avatarSource ? () => setFraming(avatarSource) : undefined}
         onAvatarRemove={() => {
           set('avatarAssetId', null);
           setAvatarUrl(null);
+          setAvatarSource(null);
         }}
         importer={character ? undefined : <SheetImport status={importStatus} onPick={(file) => void importPdf(file)} />}
         locked={importing}
@@ -826,6 +858,18 @@ export function CharacterForm({ campaignId, character, onSaved, onSaveError, onR
         submitLabel={character ? 'Salvar alterações' : 'Criar personagem'}
         pending={save.isPending || avatarUpload.isPending}
         busyMessage={importing ? 'Importando ficha…' : undefined}
+      />
+
+      <AvatarCropDialog
+        src={framing?.url ?? null}
+        initialCrop={framing?.crop}
+        onCancel={() => setFraming(null)}
+        onConfirm={(crop) => {
+          if (!framing) return;
+          const source = { ...framing, crop };
+          avatarUpload.mutate(source, { onSuccess: () => setAvatarSource(source) });
+          setFraming(null);
+        }}
       />
     </form>
   );

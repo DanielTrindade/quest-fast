@@ -2,6 +2,7 @@ import type {
   CastSpellRequest,
   CastSpellResponse,
   AssetUploadResponse,
+  AvatarCrop,
   CampaignDetail,
   CampaignJoin,
   CampaignsResponse,
@@ -211,9 +212,10 @@ export const api = {
     request<CharacterResponse>(`/api/campaigns/${campaignId}/characters/${characterId}/activate`, { method: 'POST' }),
   myCharacters: () => request<MyCharacterListResponse>('/api/me/characters'),
 
-  uploadAsset: (campaignId: string, file: File) => {
+  uploadAsset: (campaignId: string, file: File, crop?: AvatarCrop) => {
     const form = new FormData();
     form.append('file', file);
+    if (crop) form.append('crop', JSON.stringify(crop));
     return request<AssetUploadResponse>(`/api/campaigns/${campaignId}/assets`, { method: 'POST', body: form });
   },
 
