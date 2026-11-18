@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { Hono } from 'hono';
 import { assets } from '@quest-fast/db';
-import type { AssetUploadResponse } from '@quest-fast/shared';
+import { parseAvatarCrop, type AssetUploadResponse, type AvatarCrop } from '@quest-fast/shared';
 import type { Context } from '../context.ts';
 import { requireAuth, requireCampaignRole } from '../middleware.ts';
 import { normalizeAvatar } from './image.ts';
@@ -9,7 +9,8 @@ import { MAX_ASSET_SIZE } from './store.ts';
 
 /**
  * Avatar upload. The browser's type and file name are ignored: the server
- * decodes the image and stores its own re-encoded copy.
+ * decodes the image and stores its own re-encoded copy, cut to the square the
+ * player framed when a `crop` field (JSON) comes along.
  */
 export function assetRoutes() {
   const routes = new Hono<Context>();
@@ -30,7 +31,14 @@ export function assetRoutes() {
       return c.json({ error: 'A imagem deve ter até 5 MB.' }, 413);
     }
 
-    const normalized = await normalizeAvatar(new Uint8Array(await file.arrayBuffer()));
+    const cropField = form?.get('crop') ?? null;
+    let crop: AvatarCrop | undefined;
+    if (cropField !== null) {
+      crop = (typeof cropField === 'string' ? parseAvatarCrop(parseJson(cropField)) : null) ?? undefined;
+      if (!crop) return c.json({ error: 'O enquadramento do avatar é inválido.' }, 422);
+    }
+
+    const normalized = await normalizeAvatar(new Uint8Array(await file.arrayBuffer()), crop);
     if (!normalized.ok) {
       return c.json({ error: normalized.error }, 422);
     }
@@ -62,4 +70,12 @@ export function assetRoutes() {
   });
 
   return routes;
+}
+
+function parseJson(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
 }

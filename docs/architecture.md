@@ -494,6 +494,13 @@ processo, como o `better-sqlite3`; no Windows, instala com `--ignore-scripts`.
   do GIF animado fica só o primeiro quadro. O banco guarda o tipo e o tamanho
   da cópia, não do arquivo enviado. Avatares enviados antes disso não foram
   reprocessados.
+- **Enquadramento do avatar:** o upload aceita um campo `crop` (JSON
+  `{ x, y, size }`, frações da imagem já orientada; `shared/src/avatar-crop.ts`).
+  O jogador escolhe o círculo no cliente, mas é o servidor que recorta o
+  original e guarda um quadrado, então ficha e token mostram o mesmo
+  enquadramento sem coluna nova. Recorte inválido recebe 422. Sem o campo, a
+  cópia mantém a proporção e quem a exibe continua cortando ao centro, puxado
+  para cima.
 - **Mapas do VTT** (`server/src/assets/maps.ts`, decidido no
   [spike](history/2026-11-12-vtt-spike.md)): entrada JPEG, PNG ou WebP de 64 a
   8192 px de lado e até 25 MB (o corpo maior que isso é recusado com 413 antes

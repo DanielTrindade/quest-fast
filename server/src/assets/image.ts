@@ -1,4 +1,5 @@
 import sharp from 'sharp';
+import { avatarCropRect, type AvatarCrop } from '@quest-fast/shared';
 
 export const AVATAR_MAX_SIDE = 512;
 
@@ -25,13 +26,13 @@ export function oneDecodeAtATime<T>(work: () => Promise<T>): Promise<T> {
   return run;
 }
 
-export function normalizeAvatar(input: Uint8Array): Promise<NormalizeResult> {
-  return oneDecodeAtATime(() => normalize(input));
+export function normalizeAvatar(input: Uint8Array, crop?: AvatarCrop): Promise<NormalizeResult> {
+  return oneDecodeAtATime(() => normalize(input, crop));
 }
 
 // Re-encoding drops every metadata block (EXIF, GPS). sharp decodes only the
 // first frame of an animated GIF, which bounds the work per upload.
-async function normalize(input: Uint8Array): Promise<NormalizeResult> {
+async function normalize(input: Uint8Array, crop?: AvatarCrop): Promise<NormalizeResult> {
   const notAnImage = { ok: false, error: 'O arquivo não é uma imagem válida. Use PNG, JPEG, WebP ou GIF.' } as const;
 
   let metadata;
@@ -50,8 +51,17 @@ async function normalize(input: Uint8Array): Promise<NormalizeResult> {
   }
 
   try {
-    const output = await sharp(input, { limitInputPixels: MAX_INPUT_PIXELS, failOn: 'error' })
-      .rotate()
+    const pipeline = sharp(input, { limitInputPixels: MAX_INPUT_PIXELS, failOn: 'error' }).rotate();
+    if (crop) {
+      // The crop was framed on the image as the browser shows it, already
+      // turned by its EXIF orientation; orientations 5 to 8 swap the sides.
+      const turned = (metadata.orientation ?? 1) >= 5;
+      const width = turned ? metadata.height : metadata.width;
+      const height = turned ? metadata.width : metadata.height;
+      const { left, top, side } = avatarCropRect(crop, width, height);
+      pipeline.extract({ left, top, width: side, height: side });
+    }
+    const output = await pipeline
       .resize({ width: AVATAR_MAX_SIDE, height: AVATAR_MAX_SIDE, fit: 'inside', withoutEnlargement: true })
       .webp({ quality: 82 })
       .toBuffer();
