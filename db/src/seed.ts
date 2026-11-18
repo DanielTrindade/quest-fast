@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
-import { abilityModifier, defaultAttackCost, generateInviteCode, storedAttack, type AbilityScores, type Attack, type StoredAttack } from '@quest-fast/shared';
+import { abilityModifier, defaultAttackCost, generateInviteCode, saveModifiers, storedAttack, type AbilityScores, type SaveBonuses, type Attack, type StoredAttack } from '@quest-fast/shared';
 import {
   campaignMembers,
   campaigns,
@@ -176,7 +176,7 @@ for (const sheet of charactersSeed) {
           cost: attack.cost ?? defaultAttackCost(attack.kind === 'save' ? 'save' : 'attack'),
         };
         return attack.kind === 'save'
-          ? { ...details, kind: 'save', dc: attack.dc, saveAbility: attack.saveAbility! }
+          ? { ...details, kind: 'save', dc: attack.dc, saveAbility: attack.saveAbility!, onSave: attack.onSave ?? 'half' }
           : { ...details, kind: 'attack', bonus: attack.bonus };
       }),
       features: sheet.features,
@@ -216,6 +216,7 @@ type SeedStatblock = {
   abilityScores: AbilityScores;
   /** Without a cost, the default of the kind. */
   attacks: StoredAttack[];
+  saveBonuses?: SaveBonuses;
   traits?: string;
 };
 const bestiary: SeedStatblock[] = [
@@ -307,6 +308,7 @@ for (const [creature, names] of [['Goblin', ['Goblin 1', 'Goblin 2']], ['Lobo', 
         concentrating: false,
         dexModifier: abilityModifier(statblock.abilityScores.dexterity) ?? 0,
         constitutionModifier: abilityModifier(statblock.abilityScores.constitution) ?? 0,
+        saveModifiers: saveModifiers(statblock.abilityScores, statblock.saveBonuses ?? {}),
         attacks: statblock.attacks.map(storedAttack),
       })
       .run();

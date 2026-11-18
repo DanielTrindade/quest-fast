@@ -196,3 +196,25 @@ export const EnviandoImagem: Story = {
     await expect(args.onSubmit).not.toHaveBeenCalled();
   },
 };
+
+/** Only the proficient saves are filled; an empty one shows the modifier it rolls with. */
+export const Salvaguardas: Story = {
+  // The fixture's formula is one the validator refuses: left empty so the form submits.
+  args: { statblock: { ...wyrmDasCinzas, hpFormula: '' } },
+  play: async ({ canvasElement, args }) => {
+    const [region] = within(canvasElement).getAllByRole('region', { name: /^Tema / });
+    const form = within(region!);
+    await expect(form.getByRole('spinbutton', { name: /^Salvaguarda de Destreza/ })).toHaveValue(6);
+    await expect(form.getByRole('spinbutton', { name: /^Salvaguarda de Força/ })).toHaveValue(null);
+    await expect(form.getByText('Vazio: +8')).toBeVisible();
+    await userEvent.type(form.getByRole('spinbutton', { name: /^Salvaguarda de Força/ }), '14');
+    // The breath halves on a pass; a row can do nothing instead.
+    const breath = within(form.getByRole('group', { name: 'Ataque 1' }));
+    await expect(breath.getByLabelText('Se passar')).toHaveValue('half');
+    await userEvent.click(form.getByRole('button', { name: 'Salvar alterações' }));
+    await expect(args.onSubmit).toHaveBeenCalledWith(expect.objectContaining({
+      saveBonuses: { strength: 14, dexterity: 6, constitution: 13, wisdom: 7, charisma: 11 },
+    }));
+    region!.querySelector('[data-slot="page"]')?.scrollTo(0, 0);
+  },
+};

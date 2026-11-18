@@ -1,4 +1,4 @@
-import type { RollPayload } from '@quest-fast/shared';
+import type { AttackTarget, RollPayload } from '@quest-fast/shared';
 import { ABILITY_LABELS } from './5e';
 
 /**
@@ -16,11 +16,22 @@ export function attackHeadline(payload: RollPayload): string {
   return payload.target ? `${who} atacou ${payload.target.name} com ${weapon}` : `${who} atacou com ${weapon}`;
 }
 
-/** "Acertou (CA 15)", "Errou", "CD 13 de Destreza"; nothing without a target or DC. */
+/**
+ * "Passou (17)", "Falhou (8)", "Falhou sem rolar"; only "Passou" or "Falhou"
+ * when the reader may not see the numbers (a monster's save, for a player).
+ */
+export function saveOutcome(save: NonNullable<AttackTarget['save']>): string {
+  const word = save.success ? 'Passou' : 'Falhou';
+  if ('outright' in save && save.outright) return 'Falhou sem rolar';
+  return 'total' in save ? `${word} (${save.total})` : word;
+}
+
+/** "Acertou (CA 15)", "Errou", "CD 13 de Destreza · Falhou (8)"; nothing without a target or DC. */
 export function attackOutcome(payload: RollPayload): string | null {
   if (payload.save) {
     const dc = `CD ${payload.save.dc} de ${ABILITY_LABELS[payload.save.ability]}`;
-    return isSaveCall(payload) ? `${dc}, sem dano` : dc;
+    const call = isSaveCall(payload) ? `${dc}, sem dano` : dc;
+    return payload.target?.save ? `${call} · ${saveOutcome(payload.target.save)}` : call;
   }
   if (payload.damageOf || !payload.target) return null;
   const ac = payload.target.ac === undefined ? '' : ` (CA ${payload.target.ac})`;

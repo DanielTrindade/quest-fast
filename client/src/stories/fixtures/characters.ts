@@ -105,7 +105,7 @@ export const lyraVentoclaro: CharacterSheet = {
   toolProficiencies: 'Kit de herbalismo',
   attacks: [
     { kind: 'attack', cost: 'attack', name: 'Maça', bonus: 5, damage: '1d6+2', damageType: 'Contundente', notes: '' },
-    { kind: 'save', cost: 'action', name: 'Palavra Radiante', dc: 13, saveAbility: 'constitution', damage: '1d6', damageType: 'Radiante', notes: 'Criaturas à escolha a até 1,5 m' },
+    { kind: 'save', cost: 'action', onSave: 'half', name: 'Palavra Radiante', dc: 13, saveAbility: 'constitution', damage: '1d6', damageType: 'Radiante', notes: 'Criaturas à escolha a até 1,5 m' },
   ],
   features: ['Conjuração', 'Canalizar Divindade', 'Discípulo da Vida', 'Destruir Mortos-Vivos'],
   speciesTraits: ['Visão no Escuro', 'Resiliência Anã', 'Tenacidade Anã'],

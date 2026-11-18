@@ -113,6 +113,22 @@ test('the master edits a statblock with the full body', async () => {
   assert.equal(statblock.createdAt, created.createdAt);
 });
 
+test('a statblock keeps its proficient saves; an edit without them keeps the stored ones', async () => {
+  const { master, base } = await appWithCampaign();
+  assert.deepEqual((await createGoblin(master, base)).saveBonuses, {});
+  const created = await createGoblin(master, base, { saveBonuses: { dexterity: 4, wisdom: 2 } });
+  assert.deepEqual(created.saveBonuses, { dexterity: 4, wisdom: 2 });
+
+  const edited = await send(master, `${base}/${created.id}`, 'PATCH', { ...GOBLIN, name: 'Goblin Chefe' });
+  assert.deepEqual((await body<StatblockResponse>(edited)).statblock.saveBonuses, { dexterity: 4, wisdom: 2 });
+  const cleared = await send(master, `${base}/${created.id}`, 'PATCH', { ...GOBLIN, saveBonuses: {} });
+  assert.deepEqual((await body<StatblockResponse>(cleared)).statblock.saveBonuses, {});
+
+  for (const saveBonuses of [{ luck: 2 }, { dexterity: 21 }, { dexterity: 1.5 }, [3]]) {
+    assert.equal((await send(master, base, 'POST', { ...GOBLIN, saveBonuses })).status, 422, JSON.stringify(saveBonuses));
+  }
+});
+
 test('the master deletes a statblock', async () => {
   const { master, base } = await appWithCampaign();
   const created = await createGoblin(master, base);

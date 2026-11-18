@@ -1,6 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { criticalExpression, halfDamage, isHit, rollAttackHit, rollDamage, storedAttack } from './attack.ts';
+import {
+  criticalExpression,
+  damageAfterSave,
+  failsSaveOutright,
+  halfDamage,
+  isHit,
+  rollAttackHit,
+  rollDamage,
+  rollSave,
+  saveModifiers,
+  storedAttack,
+} from './attack.ts';
 import { DICE_COUNT_LIMIT } from './dice.ts';
 
 // `random` returns a value in [0, 1); `face(n, sides)` makes that die land on n.
@@ -102,5 +113,42 @@ test('a stored attack without the newer fields reads with their defaults', () =>
   });
   const save = storedAttack({ kind: 'save', name: 'Bola de Fogo', dc: 15, saveAbility: 'dexterity', damage: '8d6', damageType: 'Fogo', notes: '' });
   assert.equal(save.cost, 'action');
+  assert.equal(save.kind === 'save' && save.onSave, 'half');
+  const cantrip = storedAttack({ kind: 'save', name: 'Chama Sagrada', dc: 13, saveAbility: 'dexterity', damage: '1d8', onSave: 'none' });
+  assert.equal(cantrip.kind === 'save' && cantrip.onSave, 'none');
   assert.equal(storedAttack({ kind: 'attack', name: 'Adaga', bonus: 4, damage: '1d4', cost: 'bonusAction' }).cost, 'bonusAction');
+});
+
+test('a save passes on a total equal to the DC or above it, and a natural 20 or 1 decides nothing', () => {
+  assert.deepEqual(rollSave(2, 15, false, seq(face(13, 20))), { d20: 13, modifier: 2, total: 15, success: true });
+  assert.equal(rollSave(2, 15, false, seq(face(12, 20))).success, false);
+  // Only an attack roll has the natural 20 and 1 rule.
+  assert.equal(rollSave(-5, 16, false, seq(face(20, 20))).success, false);
+  assert.equal(rollSave(15, 10, false, seq(face(1, 20))).success, true);
+});
+
+test('a save failed outright rolls no die', () => {
+  assert.deepEqual(rollSave(10, 5, true, seq(face(20, 20))), { outright: true, success: false });
+});
+
+test('Paralyzed, Petrified, Stunned, Unconscious and 0 hit points fail Strength and Dexterity saves', () => {
+  assert.equal(failsSaveOutright('dexterity', [{ condition: 'paralyzed' }], false), true);
+  assert.equal(failsSaveOutright('strength', [{ condition: 'stunned' }], false), true);
+  assert.equal(failsSaveOutright('dexterity', [], true), true);
+  assert.equal(failsSaveOutright('wisdom', [{ condition: 'unconscious' }], true), false);
+  assert.equal(failsSaveOutright('dexterity', [{ condition: 'prone' }], false), false);
+});
+
+test('the damage after a save: all on a failure, half rounded down or none on a success', () => {
+  assert.equal(damageAfterSave(27, false, 'half'), 27);
+  assert.equal(damageAfterSave(27, true, 'half'), 13);
+  assert.equal(damageAfterSave(27, true, 'none'), 0);
+  assert.equal(damageAfterSave(9, false, 'none'), 9);
+});
+
+test("a creature's save modifiers: the book's bonus where it has one, the ability modifier otherwise", () => {
+  const scores = { strength: 8, dexterity: 14, constitution: 10, intelligence: 10, wisdom: 12, charisma: 6 };
+  assert.deepEqual(saveModifiers(scores, { dexterity: 6, wisdom: 3 }), {
+    strength: -1, dexterity: 6, constitution: 0, intelligence: 0, wisdom: 3, charisma: -2,
+  });
 });

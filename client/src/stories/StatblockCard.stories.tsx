@@ -26,7 +26,15 @@ export const Goblin: Story = {
   },
 };
 
-export const Completo: Story = { name: 'Completo (dragão)', args: { statblock: wyrmDasCinzas } };
+export const Completo: Story = {
+  name: 'Completo (dragão)',
+  args: { statblock: wyrmDasCinzas },
+  // Only the proficient saves are listed, with the book's bonus.
+  play: async ({ canvasElement }) => {
+    const [region] = within(canvasElement).getAllByRole('region', { name: /^Tema / });
+    await expect(within(region!).getByText('DES +6, CON +13, SAB +7, CAR +11')).toBeVisible();
+  },
+};
 
 export const TextosLongos: Story = { name: 'Textos longos', args: { statblock: textosLongos } };
 

@@ -101,6 +101,25 @@ export const DanoPendenteSalvaguarda: Story = {
   },
 };
 
+/** The server rolled the save and the target passed: the amount already is the half. */
+export const DanoPendenteSalvaguardaRolada: Story = {
+  name: 'Dano pendente com salvaguarda rolada',
+  args: {
+    name: 'Hazin Dan',
+    reminders: [{ ...pendingDamage, critical: false, amount: 4, damageType: 'Fogo', attackerName: 'Goblin xamã', attackName: 'Raio de fogo', save: { dc: 13, ability: 'dexterity', success: true } }],
+    master: true,
+    onApplyDamage: fn(),
+  },
+  play: async ({ canvasElement, args }) => {
+    const [region] = within(canvasElement).getAllByRole('region', { name: /^Tema / });
+    const list = within(region!);
+    await expect(list.getByText(/Passou na salvaguarda de Destreza CD 13: já é a metade/)).toBeVisible();
+    await expect(list.queryByRole('button', { name: 'Metade do dano em Hazin Dan' })).toBeNull();
+    await userEvent.click(list.getByRole('button', { name: 'Aplicar o dano em Hazin Dan' }));
+    await expect(args.onApplyDamage).toHaveBeenCalledWith('d1', undefined);
+  },
+};
+
 /**
  * The master's screen before applying is wired: dropping a pending damage
  * does not wait for it.
@@ -150,5 +169,15 @@ export const SalvaguardaPendente: Story = {
     await expect(list.getByText('Salvaguarda de Destreza CD 12 contra Graxa de Bruxa, sem dano. Cai se falhar.')).toBeVisible();
     await userEvent.click(list.getByRole('button', { name: 'Resolvido a salvaguarda de Hazin Dan' }));
     await expect(args.onDismiss).toHaveBeenLastCalledWith('s1');
+  },
+};
+
+/** The server rolled the save and the target failed: the master applies the effect. */
+export const SalvaguardaFalhou: Story = {
+  name: 'Salvaguarda sem dano que falhou',
+  args: { name: 'Goblin 1', reminders: [{ ...pendingSave, failed: true }], master: true, onDismiss: fn() },
+  play: async ({ canvasElement }) => {
+    const [region] = within(canvasElement).getAllByRole('region', { name: /^Tema / });
+    await expect(within(region!).getByText('Falhou na salvaguarda de Destreza CD 12 contra Graxa de Bruxa: aplique o efeito. Cai se falhar.')).toBeVisible();
   },
 };

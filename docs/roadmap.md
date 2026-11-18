@@ -133,8 +133,17 @@ em quatro PRs (os três primeiros empilhados):
    ganha Ataque Extra. Fora da vez, qualquer linha gasta a reação. A rolagem
    pela ficha gasta o mesmo, e a aba Ações desabilita a linha que o turno não
    paga, dizendo por quê.
-2. **Salvaguarda rolada no servidor.** Para monstros e personagens, contra a
-   CD; quem passa leva a metade (ou nada, conforme a linha).
+2. **Salvaguarda rolada no servidor — entregue.** Com alvo, o servidor rola a
+   salvaguarda dele contra a CD, para monstros e personagens, sem gastar nada
+   do turno do alvo. Quem falha fica com o dano inteiro pendente; quem passa,
+   com a metade, ou nada se a linha diz "Nenhum dano". Numa linha sem dano,
+   quem falha fica com o efeito pendente para o mestre, e quem passa não fica
+   com nada. Paralisado, Petrificado, Atordoado, Inconsciente ou a 0 PV falha
+   em Força e Destreza sem rolar. O bestiário guarda as salvaguardas
+   proficientes com o bônus do livro (o PDF de NPC as preenche), e a cópia do
+   encontro rola com elas, inclusive na concentração. O jogador lê só "Passou"
+   ou "Falhou" de um monstro. Diferença da spec: o combatente avulso rola com
+   +0 e o mestre ainda não edita os modificadores dele.
 3. **Vários alvos em área.** Só linhas de salvaguarda: um dano para todos, a
    salvaguarda de cada alvo.
 4. **PV pelo token.** PV e ajuste ao lado do mapa, PV dos monstros visível

@@ -10,9 +10,11 @@ import {
   isAttacksPerAction,
   isChallengeRating,
   isSize,
+  isAbility,
   parseDiceExpression,
   storedAttack,
   type AbilityScores,
+  type SaveBonuses,
   type Statblock,
   type StatblockSummary,
 } from '@quest-fast/shared';
@@ -22,8 +24,10 @@ import { bumpScenes, publishScenes, scenesShowing } from '../scenes/store.ts';
 import { requireAuth, requireCampaignRole } from '../middleware.ts';
 import { boundedInteger, fail, isInputError, parseAttack, shortText, withInput } from '../validation.ts';
 
-type StatblockColumns = Omit<StatblockRow, 'id' | 'campaignId' | 'createdAt' | 'updatedAt' | 'attacksPerAction' | 'imageAssetId'> & {
+type StatblockColumns = Omit<StatblockRow, 'id' | 'campaignId' | 'createdAt' | 'updatedAt' | 'attacksPerAction' | 'imageAssetId' | 'saveBonuses'> & {
   attacksPerAction?: number;
+  /** Absent keeps the stored ones; a new entry has none. */
+  saveBonuses?: SaveBonuses;
   /** Absent keeps the image; null removes it. */
   imageAssetId?: string | null;
 };
@@ -42,6 +46,21 @@ function optionalText(value: unknown, limit: number, label: string): string {
   if (value === undefined) return '';
   if (typeof value !== 'string' || value.length > limit) fail(`${label} deve ter até ${limit} caracteres.`);
   return value.trim();
+}
+
+/** Only the proficient saves, each with its bonus in range. */
+function parseSaveBonuses(value: unknown): SaveBonuses | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) fail('Salvaguardas inválidas.');
+  const bonuses: SaveBonuses = {};
+  for (const [ability, raw] of Object.entries(value)) {
+    const bonus = boundedInteger(raw, S.saveBonus.min, S.saveBonus.max);
+    if (!isAbility(ability) || bonus === undefined) {
+      fail(`O bônus de salvaguarda deve ser um número entre ${S.saveBonus.min} e ${S.saveBonus.max}.`);
+    }
+    bonuses[ability] = bonus;
+  }
+  return bonuses;
 }
 
 function parseAbilityScores(value: unknown): AbilityScores {
@@ -108,6 +127,7 @@ function parseStatblockInput(db: Db, campaignId: string, body: unknown): Statblo
     if (!attack) fail('Ataque inválido: nome, bônus e dano (expressão como 1d8+3).');
     return attack;
   });
+  const saveBonuses = parseSaveBonuses(source.saveBonuses);
 
   return {
     name,
@@ -125,6 +145,7 @@ function parseStatblockInput(db: Db, campaignId: string, body: unknown): Statblo
     actions: optionalText(source.actions, S.text, 'As ações'),
     reactions: optionalText(source.reactions, S.text, 'As reações'),
     ...(attacksPerAction === undefined ? {} : { attacksPerAction: attacksPerAction as number }),
+    ...(saveBonuses === undefined ? {} : { saveBonuses }),
     ...(imageAssetId === undefined ? {} : { imageAssetId }),
   };
 }

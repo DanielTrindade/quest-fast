@@ -195,6 +195,30 @@ const breath = attackEvent('a6', {
   target: { ...goblinTarget, hit: true },
   damage: { expression: '2d6', dice: [{ value: 3, sides: 6 }, { value: 4, sides: 6 }], modifier: 0, total: 7, damageType: 'Fogo' },
 });
+/** The server rolled the goblin's save: the master reads the total. */
+const breathRolled = attackEvent('a11', {
+  ...sword,
+  expression: '2d6',
+  dice: [{ value: 3, sides: 6 }, { value: 4, sides: 6 }],
+  modifier: 0,
+  total: 7,
+  attackName: 'Sopro de fogo',
+  save: { dc: 13, ability: 'dexterity' },
+  target: { ...goblinTarget, hit: true, save: { d20: 6, modifier: 2, total: 8, success: false } },
+  damage: { expression: '2d6', dice: [{ value: 3, sides: 6 }, { value: 4, sides: 6 }], modifier: 0, total: 7, damageType: 'Fogo' },
+});
+/** What `redactEvent` leaves a player of a goblin's save: only passed or failed. */
+const breathRolledForPlayer = attackEvent('a12', {
+  ...sword,
+  expression: '2d6',
+  dice: [{ value: 3, sides: 6 }, { value: 4, sides: 6 }],
+  modifier: 0,
+  total: 7,
+  attackName: 'Sopro de fogo',
+  save: { dc: 13, ability: 'dexterity' },
+  target: { ...goblinTarget, hit: true, save: { success: true } },
+  damage: { expression: '2d6', dice: [{ value: 3, sides: 6 }, { value: 4, sides: 6 }], modifier: 0, total: 7, damageType: 'Fogo' },
+});
 /** A save without damage (Graxa): nothing rolled, only the DC the target faces. */
 const grease = attackEvent('a10', {
   ...sword,
@@ -264,6 +288,16 @@ export const AtaquePorSalvaguarda: Story = {
   name: 'Ataque por salvaguarda',
   args: { event: breath },
   play: reads('CD 13 de Destreza'),
+};
+export const SalvaguardaRolada: Story = {
+  name: 'Salvaguarda rolada (mestre)',
+  args: { event: breathRolled },
+  play: reads('CD 13 de Destreza · Falhou (8)'),
+};
+export const SalvaguardaRoladaJogador: Story = {
+  name: 'Salvaguarda rolada de monstro (jogador)',
+  args: { event: breathRolledForPlayer },
+  play: reads('CD 13 de Destreza · Passou'),
 };
 export const SalvaguardaSemDano: Story = {
   name: 'Salvaguarda sem dano',

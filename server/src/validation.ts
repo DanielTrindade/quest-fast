@@ -1,4 +1,4 @@
-import { CHARACTER_LIMITS as L, defaultAttackCost, isAbility, isAttackCost, parseDiceExpression, type Attack } from '@quest-fast/shared';
+import { CHARACTER_LIMITS as L, defaultAttackCost, isAbility, isAttackCost, isSaveEffect, parseDiceExpression, type Attack } from '@quest-fast/shared';
 
 /**
  * Request parsing shared by the routes. A parser throws `InputError` through
@@ -46,7 +46,9 @@ export function parseAttack(value: unknown): Attack | undefined {
   if (attack.kind === 'save') {
     const dc = boundedInteger(attack.dc, L.saveDc.min, L.saveDc.max);
     if (dc === undefined || !isAbility(attack.saveAbility)) return undefined;
-    return { ...details, kind: 'save', dc, saveAbility: attack.saveAbility };
+    // Older clients send no effect: half the damage, the common case.
+    if (attack.onSave !== undefined && !isSaveEffect(attack.onSave)) return undefined;
+    return { ...details, kind: 'save', dc, saveAbility: attack.saveAbility, onSave: attack.onSave ?? 'half' };
   }
   // Older clients send no kind: an attack roll, as before.
   if (attack.kind !== undefined && attack.kind !== 'attack') return undefined;

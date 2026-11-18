@@ -31,6 +31,9 @@ function TextSection({ title, text, children }: { title: string; text: string; c
 export function StatblockCard({ statblock, actions }: { statblock: StatblockView; actions?: ReactNode }) {
   const { name, size, creatureType, challengeRating, ac, hpAverage, hpFormula, speed, abilityScores } = statblock;
   const initiative = (abilityModifier(abilityScores.dexterity) ?? 0) + statblock.initiativeBonus;
+  // Only the proficient ones, as a statblock writes them: "Des +6, Con +13".
+  const saves = ABILITIES.filter((ability) => statblock.saveBonuses[ability] !== undefined)
+    .map((ability) => `${ABILITY_ABBREVIATIONS[ability]} ${signed(statblock.saveBonuses[ability]!)}`);
   const kind = [SIZE_LABELS[size], creatureType.trim()].filter(Boolean).join(', ');
 
   return (
@@ -93,6 +96,11 @@ export function StatblockCard({ statblock, actions }: { statblock: StatblockView
           );
         })}
       </dl>
+      {saves.length > 0 && (
+        <p className="m-0 text-small [overflow-wrap:anywhere]">
+          <span className="font-semibold">Salvaguardas</span> <span className="font-mono tabular-nums">{saves.join(', ')}</span>
+        </p>
+      )}
 
       <TextSection title="Traços" text={statblock.traits} />
       <TextSection title="Ações" text={statblock.actions}>

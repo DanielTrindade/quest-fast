@@ -20,13 +20,24 @@ export type ReminderActions = {
 function damageText(reminder: PendingDamage): string {
   const type = reminder.damageType ? ` ${reminder.damageType.toLowerCase()}` : ' de dano';
   const critical = reminder.critical ? ' (crítico)' : '';
-  const save = reminder.save ? ` CD ${reminder.save.dc} de ${ABILITY_LABELS[reminder.save.ability]}: metade se passar.` : '';
+  const save = !reminder.save
+    ? ''
+    : reminder.save.success === undefined
+    ? ` CD ${reminder.save.dc} de ${ABILITY_LABELS[reminder.save.ability]}: metade se passar.`
+    : ` ${reminder.save.success ? 'Passou' : 'Falhou'} na salvaguarda de ${ABILITY_LABELS[reminder.save.ability]} CD ${reminder.save.dc}${reminder.save.success ? ': já é a metade' : ''}.`;
   return `Dano pendente: ${reminder.amount}${type}${critical} de ${reminder.attackerName} com ${reminder.attackName}.${save}`;
 }
 
-/** "Salvaguarda de Destreza CD 13 contra Graxa de Elara, sem dano. Cai se falhar." */
+/**
+ * "Salvaguarda de Destreza CD 13 contra Graxa de Elara, sem dano. Cai se
+ * falhar.", or, once the server rolled it, "Falhou na salvaguarda…: aplique o
+ * efeito."
+ */
 function saveText(reminder: PendingSave): string {
   const effect = reminder.notes ? ` ${reminder.notes.replace(/\.?$/, '.')}` : '';
+  if (reminder.failed) {
+    return `Falhou na salvaguarda de ${ABILITY_LABELS[reminder.ability]} CD ${reminder.dc} contra ${reminder.attackName} de ${reminder.attackerName}: aplique o efeito.${effect}`;
+  }
   return `Salvaguarda de ${ABILITY_LABELS[reminder.ability]} CD ${reminder.dc} contra ${reminder.attackName} de ${reminder.attackerName}, sem dano.${effect}`;
 }
 
@@ -79,7 +90,8 @@ function DamageControls({ name, reminder, pending, onApply, onDismiss }: {
       <Button variant="secondary" disabled={!valid || pending} onClick={() => onApply(untouched ? undefined : value)}>
         <Sword size={18} aria-hidden="true" /> Aplicar<span className="sr-only"> o dano em {name}</span>
       </Button>
-      {reminder.save && half >= min && half <= max && (
+      {/* Once the server rolled the save, the amount already is what it left. */}
+      {reminder.save && reminder.save.success === undefined && half >= min && half <= max && (
         <Button variant="ghost" disabled={pending} onClick={() => onApply(half)}>
           Metade<span className="sr-only"> do dano em {name}</span>
         </Button>

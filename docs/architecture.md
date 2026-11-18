@@ -343,6 +343,12 @@ dados nem a CA de um alvo monstro. Com qualquer um deles, o bônus ou o dano do
 statblock sairiam numa conta. O dano pendente de um ataque secreto também não
 aparece para o jogador, nem no próprio personagem.
 
+Um ataque por salvaguarda com alvo rola a salvaguarda do alvo no servidor, na
+mesma transação, com os modificadores copiados do statblock (ou os da ficha,
+para um personagem). O dano pendente já sai inteiro ou pela metade, e o mestre
+ainda o ajusta antes de aplicar. Da salvaguarda de um monstro o jogador
+recebe só se passou ou falhou: com a CD, o d20 e o total entregariam o bônus.
+
 Pedido de turno leva `expectedActiveCombatantId` e `expectedRound`: se não
 baterem com o turno atual, a resposta é 409 com o estado atual, o que evita
 turno pulado duas vezes por clique duplo ou mestre e jogador ao mesmo tempo. O

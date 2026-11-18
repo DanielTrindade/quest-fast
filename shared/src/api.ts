@@ -4,6 +4,7 @@ import type { Ability, Skill } from './modifiers.ts';
 import type { ArmorTraining, Coins, DeathSaves, HitDie, Size, Spell, SpellSlot } from './sheet.ts';
 import type { GridSettings, TokenKind } from './battlefield.ts';
 import type { AttackCost, TurnBudget, TurnSpend } from './turn.ts';
+import type { SaveBonuses, SaveEffect, SaveRoll } from './attack.ts';
 import type { ActiveCondition, COMBATANT_SOURCES, CombatReminder, ENCOUNTER_STATUSES, HealthBand, HpOperation } from './combat.ts';
 
 /**
@@ -103,7 +104,7 @@ type AttackDetails = {
  */
 export type Attack = AttackDetails & (
   | { kind: 'attack'; /** Attack roll bonus, e.g. +5. */ bonus: number }
-  | { kind: 'save'; dc: number; saveAbility: Ability }
+  | { kind: 'save'; dc: number; saveAbility: Ability; /** What a target that passes takes. */ onSave: SaveEffect }
 );
 
 /**
@@ -114,7 +115,7 @@ export type Attack = AttackDetails & (
  */
 export type AttackInput = Pick<AttackDetails, 'name' | 'damage'> & Partial<Pick<AttackDetails, 'damageType' | 'notes' | 'cost'>> & (
   | { kind?: 'attack'; bonus: number }
-  | { kind: 'save'; dc: number; saveAbility: Ability | null }
+  | { kind: 'save'; dc: number; saveAbility: Ability | null; /** `half` when absent. */ onSave?: SaveEffect }
 );
 
 /**
@@ -370,6 +371,12 @@ export type AttackTarget = {
   hit: boolean;
   /** Removed for a player when the target is a monster or a manual combatant. */
   ac?: number;
+  /**
+   * Only on an attack against a save: the target's save, rolled by the
+   * server. A player reading about a monster gets only `success`: with the DC,
+   * the die and the total give the bonus away.
+   */
+  save?: SaveRoll | { success: boolean };
 };
 
 export type SessionEvent = RollSessionEvent | CombatSessionEvent | SpellCastSessionEvent | UnknownSessionEvent;
@@ -501,14 +508,17 @@ export type StatblockInput = {
   traits: string;
   actions: string;
   reactions: string;
+  /** Proficient saves with the book's bonus; the others roll the ability modifier. Empty when absent. */
+  saveBonuses?: SaveBonuses;
   /** Multiattack: attacks of one Attack action. 1 when absent. */
   attacksPerAction?: number;
   /** An image uploaded to `/assets`; null removes it, absent keeps it. */
   imageAssetId?: string | null;
 };
 
-export type Statblock = Omit<StatblockInput, 'attacks' | 'attacksPerAction' | 'imageAssetId'> & {
+export type Statblock = Omit<StatblockInput, 'attacks' | 'attacksPerAction' | 'imageAssetId' | 'saveBonuses'> & {
   attacksPerAction: number;
+  saveBonuses: SaveBonuses;
   imageAssetId: string | null;
   /** Where the browser loads the image from; its tokens show it too. */
   imageUrl: string | null;

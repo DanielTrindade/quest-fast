@@ -7,7 +7,7 @@
 
 import { ABILITIES, isAbility } from './modifiers.ts';
 import { parseDiceExpression } from './dice.ts';
-import { hasDamage } from './attack.ts';
+import { hasDamage, isSaveEffect } from './attack.ts';
 import { CHARACTER_LIMITS as L, COINS, SPELL_SLOT_CAPS, isSpeed } from './sheet.ts';
 import { TURN_LIMITS, isAttacksPerAction } from './turn.ts';
 import { STATBLOCK_LIMITS as S, isChallengeRating } from './combat.ts';
@@ -83,6 +83,9 @@ function attackListError(attacks: ReadonlyArray<AttackInput | ImportedAttack>, m
   }
   if (attacks.some((attack) => attack.kind === 'save' && !isAbility(attack.saveAbility))) {
     return 'Informe o atributo do teste de resistência.';
+  }
+  if (attacks.some((attack) => attack.kind === 'save' && 'onSave' in attack && attack.onSave !== undefined && !isSaveEffect(attack.onSave))) {
+    return 'Escolha o que o alvo sofre ao passar na salvaguarda: metade do dano ou nada.';
   }
   if (attacks.some((attack) => tooLong(attack.damageType, L.damageType) || tooLong(attack.notes, L.attackNotes))) {
     return `Tipo de dano até ${L.damageType} caracteres e notas até ${L.attackNotes}.`;
@@ -207,6 +210,7 @@ export type StatblockFieldErrors = Partial<
     | 'attacksPerAction'
     | 'initiativeBonus'
     | 'abilityScores'
+    | 'saveBonuses'
     | 'attacks'
     | 'traits'
     | 'actions'
@@ -247,6 +251,11 @@ export function validateStatblockInput(input: ValidatedStatblock): StatblockFiel
     ABILITIES.some((ability) => !inRange(input.abilityScores[ability], L.abilityScore.min, L.abilityScore.max))
   ) {
     errors.abilityScores = `Atributos devem ser números entre ${L.abilityScore.min} e ${L.abilityScore.max}.`;
+  }
+
+  const bonuses = Object.entries(input.saveBonuses ?? {});
+  if (bonuses.some(([ability, bonus]) => !isAbility(ability) || !inRange(bonus, S.saveBonus.min, S.saveBonus.max))) {
+    errors.saveBonuses = `O bônus de salvaguarda deve ser um número entre ${S.saveBonus.min} e ${S.saveBonus.max}.`;
   }
 
   const attacksError = attackListError(input.attacks, S.attacks);

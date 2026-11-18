@@ -228,8 +228,12 @@ export type PendingDamage = {
   critical: boolean;
   attackerName: string;
   attackName: string;
-  /** Only for an attack against a save: the master applies all or half. */
-  save?: { dc: number; ability: Ability };
+  /**
+   * Only for an attack against a save. `success` is the save the server
+   * rolled, the amount already halved when it passed; absent on one stored
+   * before the server rolled it, where the master applies all or half.
+   */
+  save?: { dc: number; ability: Ability; success?: boolean };
   /** The attack event that rolled it. */
   eventId: string;
   /** Rolled in secret: a player does not see it, even on their own character. */
@@ -249,6 +253,12 @@ export type PendingSave = {
   attackName: string;
   /** The row's notes: what a failure does, when the sheet says. */
   notes: string;
+  /**
+   * The server rolled the save and the target failed: the master applies the
+   * effect. Absent on one stored before the server rolled it, which the
+   * target rolls at the table.
+   */
+  failed?: true;
   /** The attack event that called for it. */
   eventId: string;
   /** Called in secret: a player does not see it, even on their own character. */
@@ -455,6 +465,8 @@ export const STATBLOCK_LIMITS = {
   ac: { min: 1, max: 40 },
   hp: { min: 1, max: 999 },
   initiativeBonus: { min: -10, max: 20 },
+  /** A saving throw bonus, as the book writes it ("Des +4"). */
+  saveBonus: { min: -10, max: 20 },
   attacks: 20,
 } as const;
 
