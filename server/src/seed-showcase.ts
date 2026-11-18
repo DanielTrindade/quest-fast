@@ -271,7 +271,7 @@ function weapon(name: string, bonus: number, damage: string, damageType: string,
 }
 
 function saveAttack(name: string, dc: number, saveAbility: Ability, damage: string, damageType: string, notes = ''): Attack {
-  return { kind: 'save', name, dc, saveAbility, damage, damageType, notes, cost: defaultAttackCost('save') };
+  return { kind: 'save', name, dc, saveAbility, damage, damageType, notes, cost: defaultAttackCost('save'), onSave: 'half' };
 }
 
 function createCharacter(campaignId: string, sheet: SheetInput) {
