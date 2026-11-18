@@ -10,95 +10,140 @@ function colours(themed: Element) {
   return {
     reach: read('--color-accent'),
     over: read('--color-danger'),
-    disc: read('--color-surface-raised'),
-    text: read('--color-text-primary'),
     halo: read('--color-surface-secret'),
-    font: read('--font-sans') || 'sans-serif',
   };
 }
 
+/** Below this side on screen a tile is too small to read as one: the area is a plain tint. */
+const MIN_TILE = 14;
+
 /**
  * The whole area a token can still reach (every square up to the metres
- * left, diagonals included): a tinted block with its outline, under the
- * tokens. Nothing when no square is left.
+ * left, diagonals included), under the tokens: one tile per square, and a
+ * continuous outline where the reach ends. `alpha` fades it as a whole: it
+ * is fainter while the token only sits selected than while it is dragged.
  */
 export function drawReach(
   context: CanvasRenderingContext2D,
-  input: { token: Point & { size: Size }; meters: number; cellSize: number; map: { width: number; height: number }; view: MapView; themed: Element },
+  input: { token: Point & { size: Size }; meters: number; cellSize: number; map: { width: number; height: number }; view: MapView; themed: Element; alpha?: number },
 ) {
   const area = reachArea(input.token, input.meters, { cellSize: input.cellSize }, input.map);
   if (area.squares === 0) return;
-  const { reach } = colours(input.themed);
+  const { reach, halo } = colours(input.themed);
+  const alpha = input.alpha ?? 1;
   const topLeft = toScreenPoint(input.view, { x: area.left, y: area.top });
   const bottomRight = toScreenPoint(input.view, { x: area.right, y: area.bottom });
+  const side = input.cellSize * input.view.scale;
+  context.save();
+  context.fillStyle = reach;
+  context.strokeStyle = reach;
+  if (side < MIN_TILE) {
+    context.globalAlpha = 0.16 * alpha;
+    context.fillRect(topLeft.x, topLeft.y, bottomRight.x - topLeft.x, bottomRight.y - topLeft.y);
+  } else {
+    // The area starts on a square's edge (the token is on the grid), or is cut by the map's.
+    const inset = Math.min(3, side * 0.06);
+    context.lineWidth = 1;
+    context.beginPath();
+    for (let top = area.top; top < area.bottom - 1e-6; top += input.cellSize) {
+      for (let left = area.left; left < area.right - 1e-6; left += input.cellSize) {
+        const from = toScreenPoint(input.view, { x: left, y: top });
+        const to = toScreenPoint(input.view, { x: Math.min(left + input.cellSize, area.right), y: Math.min(top + input.cellSize, area.bottom) });
+        context.roundRect(from.x + inset, from.y + inset, to.x - from.x - inset * 2, to.y - from.y - inset * 2, 4);
+      }
+    }
+    context.globalAlpha = 0.16 * alpha;
+    context.fill();
+    context.globalAlpha = 0.35 * alpha;
+    context.stroke();
+  }
+  // Solid, not dashed: in the design system a dashed line is a ghost or something hidden.
   const width = bottomRight.x - topLeft.x;
   const height = bottomRight.y - topLeft.y;
-  context.save();
-  context.globalAlpha = 0.16;
-  context.fillStyle = reach;
-  context.fillRect(topLeft.x, topLeft.y, width, height);
-  context.globalAlpha = 0.9;
+  context.globalAlpha = 0.5 * alpha;
+  context.lineWidth = 4;
+  context.strokeStyle = halo;
+  context.strokeRect(topLeft.x + 1, topLeft.y + 1, width - 2, height - 2);
+  context.globalAlpha = 0.95 * alpha;
   context.lineWidth = 2;
   context.strokeStyle = reach;
-  context.setLineDash([8, 5]);
   context.strokeRect(topLeft.x + 1, topLeft.y + 1, width - 2, height - 2);
   context.restore();
 }
 
-/** What a move costs, as the table reads it: "3 casas · 4,5 m". */
+/** What a move costs, as the table reads it: "3 casas, 4,5 m". */
 export function describeMove(from: Point, to: Point, grid: SquareGrid): { squares: number; meters: number; label: string } {
   const squares = squaresBetween(from, to, grid);
   const meters = movementCost(from, to, grid);
-  return { squares, meters, label: `${squares === 1 ? '1 casa' : `${squares} casas`} · ${formatMeters(meters)}` };
+  return { squares, meters, label: `${squares === 1 ? '1 casa' : `${squares} casas`}, ${formatMeters(meters)}` };
 }
 
+/** A point of a route on the map; `over` once it is past the metres left. */
+export type RoutePoint = Point & { over: boolean };
+
 /**
- * A move on its way: a straight line from where the token is saved to where
- * it would rest, with its cost. Past the metres left, it turns to the
- * danger tone.
+ * A move's route, square by square: a line through the squares' centres
+ * with a dot on each one walked through, in the reach's tone, turning to the
+ * danger tone from the first square past the metres left. `visible` keeps
+ * only part of it (from 0 to 1 along its length): a route reeling in after
+ * the drop. The cost is in the DOM, beside the token: the canvas has no text.
  */
-export function drawMovePath(
+export function drawRoute(
   context: CanvasRenderingContext2D,
-  input: { from: Point; to: Point; grid: SquareGrid; metersLeft: number; view: MapView; themed: Element },
+  input: { points: readonly RoutePoint[]; view: MapView; themed: Element; visible?: readonly [number, number] },
 ) {
-  const move = describeMove(input.from, input.to, input.grid);
-  if (move.squares === 0) return;
+  const points = input.points.map((point) => ({ ...toScreenPoint(input.view, point), over: point.over }));
+  if (points.length < 2) return;
+  const lengths = [0];
+  for (let index = 1; index < points.length; index += 1) {
+    lengths.push(lengths[index - 1]! + Math.hypot(points[index]!.x - points[index - 1]!.x, points[index]!.y - points[index - 1]!.y));
+  }
+  const total = lengths[lengths.length - 1]!;
+  const [from, to] = input.visible ?? [0, 1];
+  const start = total * from;
+  const end = total * to;
+  if (end - start < 0.5) return;
   const palette = colours(input.themed);
-  const tone = move.meters > input.metersLeft + 1e-6 ? palette.over : palette.reach;
-  const start = toScreenPoint(input.view, input.from);
-  const end = toScreenPoint(input.view, input.to);
+  const along = (index: number, distance: number) => {
+    const before = points[index - 1]!;
+    const after = points[index]!;
+    const k = (distance - lengths[index - 1]!) / (lengths[index]! - lengths[index - 1]! || 1);
+    return { x: before.x + (after.x - before.x) * k, y: before.y + (after.y - before.y) * k };
+  };
 
   context.save();
   context.lineCap = 'round';
-  context.setLineDash([10, 6]);
-  context.lineWidth = 5;
-  context.strokeStyle = palette.halo;
-  context.beginPath();
-  context.moveTo(start.x, start.y);
-  context.lineTo(end.x, end.y);
-  context.stroke();
-  context.lineWidth = 3;
-  context.strokeStyle = tone;
-  context.stroke();
-  context.setLineDash([]);
-
-  // The cost, halfway along, on a pill that stays readable over any map.
-  const size = 13;
-  context.font = `600 ${size}px ${palette.font}`;
-  const width = context.measureText(move.label).width + 16;
-  const height = size + 10;
-  const x = (start.x + end.x) / 2 - width / 2;
-  const y = (start.y + end.y) / 2 - height / 2;
-  context.beginPath();
-  context.roundRect(x, y, width, height, height / 2);
-  context.fillStyle = palette.disc;
-  context.fill();
-  context.lineWidth = 2;
-  context.strokeStyle = tone;
-  context.stroke();
-  context.fillStyle = palette.text;
-  context.textAlign = 'center';
-  context.textBaseline = 'middle';
-  context.fillText(move.label, x + width / 2, y + height / 2 + 0.5);
+  context.lineJoin = 'round';
+  for (let index = 1; index < points.length; index += 1) {
+    if (lengths[index]! <= start || lengths[index - 1]! >= end) continue;
+    const a = lengths[index - 1]! < start ? along(index, start) : points[index - 1]!;
+    const b = lengths[index]! > end ? along(index, end) : points[index]!;
+    context.beginPath();
+    context.moveTo(a.x, a.y);
+    context.lineTo(b.x, b.y);
+    context.globalAlpha = 0.55;
+    context.lineWidth = 6;
+    context.strokeStyle = palette.halo;
+    context.stroke();
+    context.globalAlpha = 1;
+    context.lineWidth = 2.5;
+    context.strokeStyle = points[index]!.over ? palette.over : palette.reach;
+    context.stroke();
+  }
+  // A dot on each square walked through; the last one is under the token.
+  for (let index = 1; index < points.length - 1; index += 1) {
+    if (lengths[index]! < start || lengths[index]! > end) continue;
+    const point = points[index]!;
+    context.beginPath();
+    context.arc(point.x, point.y, 4, 0, Math.PI * 2);
+    context.globalAlpha = 0.7;
+    context.fillStyle = palette.halo;
+    context.fill();
+    context.beginPath();
+    context.arc(point.x, point.y, 2.6, 0, Math.PI * 2);
+    context.globalAlpha = 1;
+    context.fillStyle = point.over ? palette.over : palette.reach;
+    context.fill();
+  }
   context.restore();
 }

@@ -174,6 +174,8 @@ export function SceneStage({ campaignId, scene, isMaster, mapClassName, allowFul
             onGrab={moves.onGrab} onDrag={moves.onDrag} onDrop={moves.onDrop} onCancelDrag={moves.onCancelDrag} motion={motion}
             fullscreen={fullscreen} onFullscreenChange={allowFullscreen ? setFullscreen : undefined}
             pendingMove={moves.pending}
+            // The master may move past the limit (and then move without spending); a player stops at it.
+            stopAtLimit={!isMaster}
             moveConfirm={{
               onConfirm: () => moves.confirm(),
               onCancel: moves.cancel,

@@ -29,6 +29,12 @@ const STEP_SECONDS = 0.004;
 /** Ease-out with the same feel as `--ease-settle`, for what moves on the canvas. */
 export const easeSettle = (t: number) => 1 - (1 - t) ** 4;
 
+/**
+ * Ease-in-out, for a line crossing the map: an ease-out would spend most of
+ * the move in its first frames, and the line would seem to just vanish.
+ */
+export const easeAcross = (t: number) => (t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2);
+
 export function createSpring(value: number, config: SpringConfig): Spring {
   return { value, velocity: 0, target: value, ...config };
 }

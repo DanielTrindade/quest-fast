@@ -191,6 +191,11 @@ com as decisões do spike. Cinco entregas, cada uma usável na mesa:
    jogador só move o próprio token na vez dele. Entrou antes do fog e mudou o
    escopo do VTT, que deixava medição de fora.
    ([spec](history/2026-11-13-turn-and-movement.md))
+   Depois, o token virou peça de mesa (silhueta pela origem, mola ao soltar)
+   e o arrasto ganhou alcance em ladrilhos, caminho casa a casa, custo fora
+   do canvas, corte no limite para o jogador e borda elástica, sem regra
+   nova no servidor. Colisão, paredes e terreno difícil ficam para depois
+   ([design system](design-system.md#alcance-caminho-e-limites-18-de-novembro-de-2026)).
 4. **Fog of war.** Revelar e ocultar com retângulo e polígono, regra em
    `shared/` e estado calculado no servidor; monstro na área oculta fora do
    payload do jogador.

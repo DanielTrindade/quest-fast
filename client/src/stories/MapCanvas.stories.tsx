@@ -324,6 +324,36 @@ export const AlcanceEmCombate: Story = {
   },
 };
 
+/**
+ * A player drags Kaelen five squares with 4.5 m left: while dragging, the
+ * label beside him says how far past it goes; dropped, he stops on the third.
+ */
+export const ParaNoLimite: Story = {
+  name: 'Para no limite (jogador)',
+  args: { ...tokenArgs, tokens: playerFightTokens(), viewerId: PLAYER_ID, selectedTokenId: 'kaelen', stopAtLimit: true },
+  render: (args) => <TokenMap {...args} master={false} />,
+  play: async ({ canvasElement, args }) => {
+    const { frame } = await framedMap(canvasElement);
+    await waitFor(() => expect(painted(frame)).toBe(true));
+    const kaelen = cell(17, 4);
+    const canvas = frame.querySelector('canvas')!;
+    const start = onPage(frame, kaelen);
+    const end = onPage(frame, cell(22, 4));
+    // One instance for the press and the release: each direct call starts with no button down.
+    const user = userEvent.setup();
+    await user.pointer([
+      { keys: '[MouseLeft>]', target: canvas, coords: start },
+      ...[0.25, 0.5, 0.75, 1].map((t) => ({ coords: { clientX: start.clientX + (end.clientX - start.clientX) * t, clientY: start.clientY } })),
+    ]);
+    const label = frame.querySelector<HTMLElement>('[data-slot="move-label"]')!;
+    await waitFor(() => expect(label).toBeVisible());
+    await expect(label).toHaveTextContent('2 casas além do deslocamento. Para em 3 casas, 4,5 m.');
+    await user.pointer({ keys: '[/MouseLeft]', target: canvas, coords: end });
+    await expect(args.onDrop).toHaveBeenCalledWith('kaelen', kaelen.x + PRINTED_CELL * 3, kaelen.y);
+    await waitFor(() => expect(label).not.toBeVisible());
+  },
+};
+
 const confirmArgs = { onConfirm: fn(), onCancel: fn(), onFree: fn() };
 
 /** Dropped two squares away: the cost fits, and confirming spends it. */
@@ -340,7 +370,7 @@ export const MovimentoAConfirmar: Story = {
   play: async ({ canvasElement }) => {
     const { map } = await readyMap(canvasElement);
     const bar = within(map.getByRole('group', { name: 'Confirmar movimento de Kaelen' }));
-    await expect(bar.getByText(/2 casas · 3 m/)).toBeVisible();
+    await expect(bar.getByText(/2 casas, 3 m/)).toBeVisible();
     await expect(bar.queryByRole('button', { name: /Mover sem gastar/ })).toBeNull();
     await userEvent.click(bar.getByRole('button', { name: /Confirmar movimento/ }));
     await expect(confirmArgs.onConfirm).toHaveBeenCalled();

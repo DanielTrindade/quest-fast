@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, type RefObject } from 'react';
-import type { GridSettings, TokenView } from '@quest-fast/shared';
+import { squaresBetween, type GridSettings, type TokenView } from '@quest-fast/shared';
 import type { MapOverlay } from './useMapViewport';
 import type { MapView, Size } from '../lib/map-view';
-import { drawMovePath, drawReach } from '../lib/reach-draw';
-import { LAND, REFUSE, SINK, createSpring, easeSettle, stepSpring, type Spring, type SpringConfig } from '../lib/spring';
+import { describeDrag, routeBetween, stopAtLimit } from '../lib/move-path';
+import { drawReach, drawRoute, type RoutePoint } from '../lib/reach-draw';
+import { LAND, REFUSE, SINK, createSpring, easeAcross, easeSettle, stepSpring, type Spring, type SpringConfig } from '../lib/spring';
 import { drawTokens, type DrawnToken, type Dust } from '../lib/token-draw';
-import { DRAG_THRESHOLD, restingPoint, toMapPoint, tokenAt } from '../lib/token-geometry';
+import { DRAG_THRESHOLD, restingPoint, screenRadius, toMapPoint, toScreenPoint, tokenAt } from '../lib/token-geometry';
 import type { TokenMotionSource } from '../lib/token-motion';
 
 type Point = { x: number; y: number };
@@ -22,6 +23,18 @@ const IDLE_RELEASE_MS = 80;
 const MAX_THROW_CELLS = 20;
 /** A slow frame (a background tab coming back) is stepped as this at most. */
 const MAX_FRAME_SECONDS = 0.05;
+/** After a move, its route reels in toward the token: where it came from, without leaving a mark. */
+const TAPE_MS = 320;
+/** Someone else's move: the route waits a moment, so it is seen before it reels in. */
+const REMOTE_TAPE_DELAY_MS = 120;
+/** Stopped at the limit: the part past it shrinks back to where the token stopped. */
+const EXCESS_MS = 220;
+/** The reach of a token only selected is fainter than while it is dragged. */
+const IDLE_REACH = 0.55;
+/** Past the map's edge the token resists, up to this far on screen. */
+const RUBBER_MAX = 60;
+/** A drop of our own waits this long for its save, so the save is not taken for someone else's move. */
+const OWN_MOVE_MS = 10000;
 
 export type TokenLayerOptions = {
   tokens: readonly TokenView[];
@@ -47,6 +60,11 @@ export type TokenLayerOptions = {
    * and the cost from where it is saved.
    */
   pendingMove?: { tokenId: string; x: number; y: number } | null;
+  /**
+   * A drop past the metres left stops on the last square within them (a
+   * player). Off, it rests where dropped, for the master to move it anyway.
+   */
+  stopAtLimit?: boolean;
 };
 
 type LayerWiring = {
@@ -55,6 +73,8 @@ type LayerWiring = {
   requestDraw: () => void;
   /** The element whose theme colours the tokens. */
   themedRef: RefObject<Element | null>;
+  /** Where the cost of the move being dragged is written, beside the token: the canvas has no text. */
+  labelRef?: RefObject<HTMLElement | null>;
 };
 
 type Drag = {
@@ -70,7 +90,12 @@ type Drag = {
   /** The pointer's speed, in map pixels a second, smoothed over the last moves. */
   velocity: Point;
   movedAt: number;
+  /** Where the pointer would drop it, and where it stops instead when that is past the limit. */
+  aim: { rest: Point; stop: Point | null };
 };
+
+/** A route reeling in after a move: `toward` the token at its end, or the start (the part past the limit). */
+type Reel = { points: RoutePoint[]; toward: 'end' | 'start'; startsAt: number; duration: number };
 
 /** A token released here, on its way to rest: the springs carry it, the pointer no longer does. */
 type Settling = { x: Spring; y: Spring; lift: Spring; landing: boolean; size: TokenView['size'] };
@@ -112,12 +137,18 @@ export function useTokenLayer(options: TokenLayerOptions & LayerWiring): { cance
   const settling = useRef(new Map<string, Settling>());
   const dust = useRef<(Dust & { startedAt: number })[]>([]);
   const lastFrame = useRef(0);
+  const reels = useRef<Reel[]>([]);
+  const savedAt = useRef(new Map<string, Point>());
+  const ownMoves = useRef(new Map<string, number>());
+  // The label's node, held here: the layer writes to it every frame, outside React.
+  const labelNode = useRef<HTMLElement | null>(null);
   const images = useRef(new Map<string, HTMLImageElement>());
   const loading = useRef(new Set<string>());
   const { tokens, selectedId, viewerId, grid, map, motion, requestDraw, overlayRef, pendingMove } = options;
 
   useEffect(() => {
     latest.current = options;
+    labelNode.current = options.labelRef?.current ?? null;
   });
 
   // Avatars load once each; a token draws its initials until its image is in.
@@ -137,6 +168,28 @@ export function useTokenLayer(options: TokenLayerOptions & LayerWiring): { cance
   }, [tokens, requestDraw]);
 
   useEffect(() => motion?.subscribe(requestDraw), [motion, requestDraw]);
+
+  // A token saved somewhere new that was not dropped here (someone else's move): its route reels in.
+  useEffect(() => {
+    const now = performance.now();
+    const reducedMotion = prefersReducedMotion();
+    const next = new Map<string, Point>();
+    let reeling = false;
+    for (const token of tokens) {
+      next.set(token.id, { x: token.x, y: token.y });
+      const before = savedAt.current.get(token.id);
+      if (!before || (before.x === token.x && before.y === token.y)) continue;
+      const own = ownMoves.current.get(token.id);
+      ownMoves.current.delete(token.id);
+      // One square is an arrow key's step: keyboard moves never animate.
+      if ((own !== undefined && own > now) || reducedMotion || squaresBetween(before, token, grid) < 2) continue;
+      const points = [{ ...before, over: false }, ...routeBetween(before, token, grid).map((step) => ({ x: step.x, y: step.y, over: false }))];
+      reels.current.push({ points, toward: 'end', startsAt: now + REMOTE_TAPE_DELAY_MS, duration: TAPE_MS });
+      reeling = true;
+    }
+    savedAt.current = next;
+    if (reeling) requestDraw();
+  }, [tokens, grid, requestDraw]);
 
   // What the canvas must show at once: drawn on the next frame.
   useEffect(() => {
@@ -174,10 +227,7 @@ export function useTokenLayer(options: TokenLayerOptions & LayerWiring): { cance
       return current.tokens.map((token) => {
         const dragging = drag.current?.started && drag.current.token.id === token.id ? drag.current : null;
         if (dragging) {
-          return {
-            ...token, at: dragging.at, lift: liftOf(dragging, now, reducedMotion),
-            ghost: restingPoint(dragging.at, current.grid, token.size, current.map),
-          };
+          return { ...token, at: dragging.at, lift: liftOf(dragging, now, reducedMotion), ghost: dragging.aim.stop ?? dragging.aim.rest };
         }
         const rest = restOf(token, now, reducedMotion);
         const moving = settling.current.get(token.id);
@@ -206,25 +256,77 @@ export function useTokenLayer(options: TokenLayerOptions & LayerWiring): { cance
       dust.current = dust.current
         .map((puff) => ({ ...puff, age: (now - puff.startedAt) / DUST_MS }))
         .filter((puff) => puff.age < 1);
+      reels.current = reels.current.filter((reel) => now < reel.startsAt + reel.duration);
       const lifting = drag.current?.started === true && now - drag.current.liftedAt < PICKUP_MS;
-      return settling.current.size > 0 || dust.current.length > 0 || lifting;
+      return settling.current.size > 0 || dust.current.length > 0 || reels.current.length > 0 || lifting;
+    };
+
+    /** A route square by square, in the danger tone past the metres left. */
+    const routePoints = (from: Point, to: Point, metersLeft: number): RoutePoint[] => [
+      { ...from, over: false },
+      ...routeBetween(from, to, latest.current.grid).map((step) => ({ x: step.x, y: step.y, over: step.meters > metersLeft + 1e-6 })),
+    ];
+
+    /** Where a drag at `at` would drop the token, and where it stops when that is past the limit. */
+    const aimOf = (token: TokenView, at: Point): Drag['aim'] => {
+      const current = latest.current;
+      const rest = restingPoint(at, current.grid, token.size, current.map);
+      const stop = current.stopAtLimit && token.reach ? stopAtLimit(token, rest, current.grid, token.reach.left) : null;
+      return { rest, stop };
+    };
+
+    /** The label beside the dragged token: written only when it changes, placed every frame. */
+    const label = { text: '', width: 0 };
+    const placeLabel = (view: MapView, token: DrawnToken | undefined, dragging: Drag | null) => {
+      const element = labelNode.current;
+      if (!element) return;
+      if (!dragging || !token?.reach || !token.ghost) {
+        if (!element.hidden) element.hidden = true;
+        label.text = '';
+        return;
+      }
+      const { grid } = latest.current;
+      const text = describeDrag(token, dragging.aim.rest, grid, token.reach.left, dragging.aim.stop);
+      const over = !dragging.aim.stop && text.includes('além');
+      if (text !== label.text) {
+        element.textContent = text;
+        element.dataset.over = String(over);
+        element.hidden = false;
+        label.text = text;
+        label.width = element.offsetWidth;
+      }
+      const centre = toScreenPoint(view, token.ghost);
+      const frame = element.parentElement?.clientWidth ?? 0;
+      const x = Math.max(4, Math.min(frame - label.width - 4, centre.x - label.width / 2));
+      const y = centre.y + screenRadius(token.size, grid.cellSize, view.scale) + 8;
+      element.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
     };
 
     /**
      * Under the tokens: the area the token in focus can still reach (the one
      * dragged, the one waiting for confirmation, else the selected one), then
-     * the path and the cost of a move on its way.
+     * the route of a move on its way, and the routes reeling in after a move.
      */
-    const drawMoving = (context: CanvasRenderingContext2D, view: MapView, themed: Element, tokens: readonly DrawnToken[]) => {
+    const drawMoving = (context: CanvasRenderingContext2D, view: MapView, themed: Element, tokens: readonly DrawnToken[], now: number) => {
       const current = latest.current;
-      const focusId = (drag.current?.started ? drag.current.token.id : null) ?? current.pendingMove?.tokenId ?? current.selectedId;
+      const dragging = drag.current?.started ? drag.current : null;
+      const focusId = dragging?.token.id ?? current.pendingMove?.tokenId ?? current.selectedId;
       const token = tokens.find((candidate) => candidate.id === focusId);
-      if (!token?.reach) return;
-      const saved = { x: token.x, y: token.y };
-      const { cellSize } = current.grid;
-      drawReach(context, { token: { ...saved, size: token.size }, meters: token.reach.left, cellSize, map: current.map, view, themed });
-      const target = token.ghost ?? (current.pendingMove?.tokenId === token.id ? token.at : null);
-      if (target) drawMovePath(context, { from: saved, to: target, grid: current.grid, metersLeft: token.reach.left, view, themed });
+      if (token?.reach) {
+        const saved = { x: token.x, y: token.y };
+        const lifted = dragging ? (prefersReducedMotion() ? 1 : easeSettle(Math.min(1, (now - dragging.liftedAt) / PICKUP_MS))) : 0;
+        drawReach(context, {
+          token: { ...saved, size: token.size }, meters: token.reach.left, cellSize: current.grid.cellSize, map: current.map, view, themed,
+          alpha: IDLE_REACH + (1 - IDLE_REACH) * lifted,
+        });
+        const target = dragging ? dragging.aim.rest : current.pendingMove?.tokenId === token.id ? token.at : null;
+        if (target) drawRoute(context, { points: routePoints(saved, target, token.reach.left), view, themed });
+      }
+      placeLabel(view, token, dragging);
+      for (const reel of reels.current) {
+        const progress = easeAcross(Math.min(1, Math.max(0, (now - reel.startsAt) / reel.duration)));
+        drawRoute(context, { points: reel.points, view, themed, visible: reel.toward === 'end' ? [progress, 1] : [0, 1 - progress] });
+      }
     };
 
     /** The token flies back to where it rests now, fast and with no bounce. */
@@ -243,7 +345,7 @@ export function useTokenLayer(options: TokenLayerOptions & LayerWiring): { cance
         const themed = current.themedRef.current ?? context.canvas;
         const animating = advance(now);
         const tokens = drawn(now);
-        drawMoving(context, view, themed, tokens);
+        drawMoving(context, view, themed, tokens, now);
         drawTokens(context, {
           tokens,
           view,
@@ -267,7 +369,7 @@ export function useTokenLayer(options: TokenLayerOptions & LayerWiring): { cance
         const pressed = toMapPoint(view, point);
         drag.current = {
           token: hit, start: point, grip: { x: hit.at.x - pressed.x, y: hit.at.y - pressed.y }, started: false, at: hit.at,
-          liftedAt: 0, liftFrom: Math.max(0, hit.lift), velocity: { x: 0, y: 0 }, movedAt: 0,
+          liftedAt: 0, liftFrom: Math.max(0, hit.lift), velocity: { x: 0, y: 0 }, movedAt: 0, aim: { rest: hit.at, stop: null },
         };
         return true;
       },
@@ -287,10 +389,10 @@ export function useTokenLayer(options: TokenLayerOptions & LayerWiring): { cance
           current.onGrab?.(active.token.id);
         }
         const pointer = toMapPoint(view, point);
-        const at = {
-          x: Math.min(current.map.width, Math.max(0, pointer.x + active.grip.x)),
-          y: Math.min(current.map.height, Math.max(0, pointer.y + active.grip.y)),
-        };
+        // Past the edge it resists instead of stopping dead: a hard stop reads as the map freezing.
+        const rubber = (over: number) => ((1 - 1 / ((over * view.scale * 0.55) / RUBBER_MAX + 1)) * RUBBER_MAX) / view.scale;
+        const band = (value: number, max: number) => (value < 0 ? -rubber(-value) : value > max ? max + rubber(value - max) : value);
+        const at = { x: band(pointer.x + active.grip.x, current.map.width), y: band(pointer.y + active.grip.y, current.map.height) };
         const seconds = Math.max(1, now - active.movedAt) / 1000;
         active.velocity = {
           x: active.velocity.x * 0.6 + ((at.x - active.at.x) / seconds) * 0.4,
@@ -298,6 +400,7 @@ export function useTokenLayer(options: TokenLayerOptions & LayerWiring): { cance
         };
         active.movedAt = now;
         active.at = at;
+        active.aim = aimOf(active.token, at);
         current.onDrag?.(active.token.id, at.x, at.y);
         current.requestDraw();
       },
@@ -308,9 +411,18 @@ export function useTokenLayer(options: TokenLayerOptions & LayerWiring): { cance
         drag.current = null;
         // A token removed mid-drag has nowhere to drop.
         if (!active?.started || !current.tokens.some((token) => token.id === active.token.id)) return;
-        const rest = restingPoint(active.at, current.grid, active.token.size, current.map);
+        const aim = aimOf(active.token, active.at);
+        const rest = aim.stop ?? aim.rest;
         const now = performance.now();
         drops.current.set(active.token.id, { ...rest, until: now + DROP_WAIT_MS });
+        ownMoves.current.set(active.token.id, now + OWN_MOVE_MS);
+        const { reach } = active.token;
+        if (!prefersReducedMotion() && reach) {
+          reels.current.push({ points: routePoints({ x: active.token.x, y: active.token.y }, rest, Number.POSITIVE_INFINITY), toward: 'end', startsAt: now, duration: TAPE_MS });
+          if (aim.stop) {
+            reels.current.push({ points: routePoints(aim.stop, aim.rest, Number.NEGATIVE_INFINITY), toward: 'start', startsAt: now, duration: EXCESS_MS });
+          }
+        }
         if (!prefersReducedMotion()) {
           const max = current.grid.cellSize * MAX_THROW_CELLS;
           const speed = Math.hypot(active.velocity.x, active.velocity.y);
@@ -347,6 +459,7 @@ export function useTokenLayer(options: TokenLayerOptions & LayerWiring): { cance
         const from = drawn(performance.now()).find((token) => token.id === tokenId);
         if (drag.current?.token.id === tokenId) drag.current = null;
         drops.current.delete(tokenId);
+        ownMoves.current.delete(tokenId);
         sendBack(tokenId, from);
       },
     };

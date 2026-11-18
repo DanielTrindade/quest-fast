@@ -6,7 +6,7 @@ import { Button } from './Button';
 export type MoveConfirmProps = {
   /** The token's name. */
   name: string;
-  /** "3 casas · 4,5 m". */
+  /** "3 casas, 4,5 m". */
   cost: string;
   /** Metres left this turn, before this move. */
   left: number;

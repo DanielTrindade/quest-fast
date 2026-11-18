@@ -37,7 +37,7 @@ export type MapCanvasProps = {
   };
   /** What the screen asks of the map: where the viewer is looking, and putting a refused drag back. */
   ref?: Ref<MapCanvasHandle>;
-} & Pick<TokenLayerOptions, 'onSelect' | 'canMove' | 'onGrab' | 'onDrag' | 'onDrop' | 'onCancelDrag' | 'motion' | 'pendingMove'>;
+} & Pick<TokenLayerOptions, 'onSelect' | 'canMove' | 'onGrab' | 'onDrag' | 'onDrop' | 'onCancelDrag' | 'motion' | 'pendingMove' | 'stopAtLimit'>;
 
 export type MapCanvasHandle = {
   /** The middle of the area in view, in map pixels: where a new token lands. */
@@ -119,15 +119,17 @@ function MapControls({ zoom, onZoom, onFrame, fullscreen, onFullscreenChange }: 
 export function MapCanvas({
   imageUrl, mapWidth, mapHeight, grid, label, className, tokens = NO_TOKENS, viewerId = null, selectedTokenId = null,
   onSelect, canMove, onGrab, onDrag, onDrop, onCancelDrag, motion, ref, fullscreen = false, onFullscreenChange,
-  pendingMove = null, moveConfirm,
+  pendingMove = null, moveConfirm, stopAtLimit = false,
 }: MapCanvasProps) {
   const overlayRef = useRef<MapOverlay | null>(null);
+  const moveLabelRef = useRef<HTMLParagraphElement>(null);
   const {
     frameRef, canvasRef, status, zoom, dragging, retry, zoomBy, frameMap, frameHandlers, canvasHandlers, requestDraw, viewCentre,
   } = useMapViewport({ imageUrl, mapWidth, mapHeight, grid, overlayRef });
   const { cancelDrag } = useTokenLayer({
     tokens, grid, map: { width: mapWidth, height: mapHeight }, viewerId, selectedId: selectedTokenId,
-    onSelect, canMove, onGrab, onDrag, onDrop, onCancelDrag, motion, pendingMove, overlayRef, requestDraw, themedRef: frameRef,
+    onSelect, canMove, onGrab, onDrag, onDrop, onCancelDrag, motion, pendingMove, stopAtLimit, overlayRef, requestDraw, themedRef: frameRef,
+    labelRef: moveLabelRef,
   });
   const pendingToken = pendingMove ? tokens.find((token) => token.id === pendingMove.tokenId) : undefined;
   const pendingCost = pendingToken && pendingMove ? describeMove(pendingToken, pendingMove, grid) : null;
@@ -156,6 +158,10 @@ export function MapCanvas({
         data-dragging={dragging}
         {...canvasHandlers}
       />
+
+      {/* What the dragged move costs, beside the token; the layer writes it. The list beside the map is the accessible form. */}
+      <p ref={moveLabelRef} hidden aria-hidden="true" data-slot="move-label"
+        className="pointer-events-none absolute top-0 left-0 m-0 rounded-control border border-border bg-card px-2.5 py-1 text-small whitespace-nowrap text-foreground edge-raised data-[over=true]:border-danger data-[over=true]:text-danger-text" />
 
       <p id={summaryId} className="sr-only">Mapa de {mapWidth} por {mapHeight} pixels. {describeGrid(grid, mapWidth, mapHeight)} {describeTokens(tokens)}{describeReach(tokens.find((token) => token.id === selectedTokenId))}</p>
       <p id={helpId} className="sr-only">
