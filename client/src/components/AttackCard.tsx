@@ -1,10 +1,15 @@
 import { DiceFive, ShieldWarning, Sword } from '@phosphor-icons/react';
-import type { Ability } from '@quest-fast/shared';
+import type { Ability, AttackCost } from '@quest-fast/shared';
 import { Button } from './Button';
 import { ABILITY_LABELS } from '../lib/5e';
+import { ATTACK_COST_LABELS } from '../lib/combat-labels';
 
 type AttackCardProps = {
   name: string; damage: string; damageType?: string; notes?: string; onRoll?: () => void; disabled?: boolean;
+  /** What using it spends on its user's turn. */
+  cost?: AttackCost;
+  /** Why the turn has nothing left for it: the button is off and says so. */
+  refusal?: string | null;
 } & (
   | { kind?: 'attack'; bonus: number }
   | { kind: 'save'; dc: number; saveAbility: Ability }
@@ -16,7 +21,8 @@ type AttackCardProps = {
  * or only calls for the save when it deals none (Graxa).
  */
 export function AttackCard(props: AttackCardProps) {
-  const { name, damage, damageType = '', notes = '', onRoll, disabled = false } = props;
+  const { name, damage, damageType = '', notes = '', onRoll, cost, refusal = null } = props;
+  const disabled = props.disabled === true || refusal !== null;
   return <div className="flex flex-wrap items-center justify-between gap-3 rounded-control border border-border bg-card p-3">
     <div className="min-w-0 flex-[1_1_160px] [overflow-wrap:anywhere]">
       <p className="flex items-center gap-2 font-semibold"><Sword size={18} aria-hidden="true" className="shrink-0 text-text-secondary" />{name}</p>
@@ -27,8 +33,10 @@ export function AttackCard(props: AttackCardProps) {
         {damage
           ? <div><dt>Dano e tipo</dt><dd>{damage}{damageType && <span className="font-sans text-text-secondary"> {damageType}</span>}</dd></div>
           : <div><dt>Dano</dt><dd className="font-sans">Sem dano</dd></div>}
+        {cost && <div><dt>Custo</dt><dd className="font-sans">{ATTACK_COST_LABELS[cost]}</dd></div>}
       </dl>
       {notes && <p className="mt-1 text-small text-text-secondary [overflow-wrap:anywhere]">{notes}</p>}
+      {onRoll && refusal && <p className="mt-1 text-small text-text-secondary [overflow-wrap:anywhere]">{refusal}</p>}
     </div>
     {onRoll && (props.kind === 'save' && !damage
       ? <Button variant="secondary" disabled={disabled} onClick={onRoll} aria-label={`Pedir salvaguarda de ${name}`}>

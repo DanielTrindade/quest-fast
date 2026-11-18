@@ -1,4 +1,4 @@
-import type { Ability, Attack, AttackInput, ImportedAttack } from '@quest-fast/shared';
+import { defaultAttackCost, type Ability, type Attack, type AttackCost, type AttackInput, type ImportedAttack } from '@quest-fast/shared';
 
 /**
  * Numbers stay text while they are typed: a number state turns the "-" of
@@ -15,6 +15,7 @@ export type FormAttack = {
   damage: string;
   damageType: string;
   notes: string;
+  cost: AttackCost;
 };
 
 /**
@@ -34,7 +35,17 @@ export function numberValue(text: string) {
 }
 
 export function emptyFormAttack(): FormAttack {
-  return { rowId: newRowId(), name: '', kind: 'attack', bonus: '0', dc: '', saveAbility: '', damage: '', damageType: '', notes: '' };
+  return { rowId: newRowId(), name: '', kind: 'attack', bonus: '0', dc: '', saveAbility: '', damage: '', damageType: '', notes: '', cost: 'attack' };
+}
+
+/**
+ * A row switched to another kind. A cost still at the old kind's default
+ * follows the new one (a save takes the whole action); one chosen by hand
+ * stays.
+ */
+export function withKind(attack: FormAttack, kind: FormAttack['kind']): FormAttack {
+  const cost = attack.cost === defaultAttackCost(attack.kind) ? defaultAttackCost(kind) : attack.cost;
+  return { ...attack, kind, cost };
 }
 
 /** Stored attacks, or imported ones whose blanks (`null`) are left for the editor to fill. */
@@ -49,12 +60,20 @@ export function toFormAttacks(attacks: ReadonlyArray<Attack | ImportedAttack>): 
     damage: attack.damage,
     damageType: attack.damageType,
     notes: attack.notes,
+    // A row imported from a PDF has no cost: the default of its kind.
+    cost: 'cost' in attack ? attack.cost : defaultAttackCost(attack.kind),
   }));
 }
 
 export function toAttackInputs(attacks: readonly FormAttack[]): AttackInput[] {
   return attacks.map((attack): AttackInput => {
-    const details = { name: attack.name, damage: attack.damage, damageType: attack.damageType.trim(), notes: attack.notes.trim() };
+    const details = {
+      name: attack.name,
+      damage: attack.damage,
+      damageType: attack.damageType.trim(),
+      notes: attack.notes.trim(),
+      cost: attack.cost,
+    };
     return attack.kind === 'save'
       ? { ...details, kind: 'save', dc: numberValue(attack.dc), saveAbility: attack.saveAbility || null }
       : { ...details, kind: 'attack', bonus: numberValue(attack.bonus) };

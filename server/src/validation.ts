@@ -1,4 +1,4 @@
-import { CHARACTER_LIMITS as L, isAbility, parseDiceExpression, type Attack } from '@quest-fast/shared';
+import { CHARACTER_LIMITS as L, defaultAttackCost, isAbility, isAttackCost, parseDiceExpression, type Attack } from '@quest-fast/shared';
 
 /**
  * Request parsing shared by the routes. A parser throws `InputError` through
@@ -37,7 +37,10 @@ export function parseAttack(value: unknown): Attack | undefined {
   const notes = attack.notes === undefined ? '' : attack.notes;
   if (typeof damageType !== 'string' || damageType.length > L.damageType) return undefined;
   if (typeof notes !== 'string' || notes.length > L.attackNotes) return undefined;
-  const details = { name, damage, damageType: damageType.trim(), notes: notes.trim() };
+  // Older clients send no cost: the default of the row's kind.
+  if (attack.cost !== undefined && !isAttackCost(attack.cost)) return undefined;
+  const cost = attack.cost ?? defaultAttackCost(attack.kind === 'save' ? 'save' : 'attack');
+  const details = { name, damage, damageType: damageType.trim(), notes: notes.trim(), cost };
 
   // A save DC has no attack roll: the target rolls the ability against it.
   if (attack.kind === 'save') {

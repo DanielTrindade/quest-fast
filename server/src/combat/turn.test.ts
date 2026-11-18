@@ -155,6 +155,92 @@ test('an attack rolled from the sheet in a running fight spends the turn too', a
   assert.equal((await send(s.player, `${s.root}/characters/${s.kaelen.id}/rolls`, 'POST', { kind: 'check', ability: 'dexterity' })).status, 201);
 });
 
+// --- The cost of a row -------------------------------------------------------------
+
+const OFF_HAND = { name: 'Adaga (mão inábil)', bonus: 5, damage: '1d4', damageType: 'Perfurante', cost: 'bonusAction' };
+const FIRE_BOLT = { name: 'Raio de Fogo', bonus: 5, damage: '1d10', damageType: 'Fogo', cost: 'action' };
+
+/** Kaelen's turn, with the sword, an off-hand dagger and a cantrip, and Extra Attack. */
+async function armedWithCosts() {
+  const turn = await kaelensTurn();
+  const armed = await send(turn.s.player, `${turn.s.root}/characters/${turn.s.kaelen.id}`, 'PATCH', {
+    ...sheet('Kaelen'),
+    attacksPerAction: 2,
+    attacks: [SWORD, OFF_HAND, FIRE_BOLT],
+  });
+  assert.equal(armed.status, 200, await armed.clone().text());
+  return turn;
+}
+
+test('a row stores its cost, and a row without one reads the default of its kind', async () => {
+  const s = await setup();
+  const path = `${s.root}/characters/${s.kaelen.id}`;
+  const save = { kind: 'save', name: 'Bola de Fogo', dc: 15, saveAbility: 'dexterity', damage: '8d6' };
+  const saved = await send(s.player, path, 'PATCH', { ...sheet('Kaelen'), attacks: [SWORD, OFF_HAND, save] });
+  assert.equal(saved.status, 200, await saved.clone().text());
+  const { character } = (await saved.json()) as { character: { attacks: { cost: string }[] } };
+  assert.deepEqual(character.attacks.map((attack) => attack.cost), ['attack', 'bonusAction', 'action']);
+
+  const refused = await send(s.player, path, 'PATCH', { ...sheet('Kaelen'), attacks: [{ ...SWORD, cost: 'dash' }] });
+  assert.equal(refused.status, 422);
+});
+
+test('an off-hand attack spends the bonus action and leaves the action whole', async () => {
+  const { s, at, turnOf } = await armedWithCosts();
+  assert.equal((await send(s.player, at('Kaelen', '/attack'), 'POST', { attackIndex: 1 })).status, 200);
+  const turn = await turnOf('Kaelen');
+  assert.deepEqual([turn.bonusActionUsed, turn.actionUsed], [true, false]);
+
+  const again = await send(s.player, at('Kaelen', '/attack'), 'POST', { attackIndex: 1 });
+  assert.equal(again.status, 422);
+  assert.match(((await again.json()) as { error: string }).error, /ação bônus/);
+  // The Attack action is still there, with its Extra Attack.
+  for (let attack = 0; attack < 2; attack += 1) {
+    assert.equal((await send(s.player, at('Kaelen', '/attack'), 'POST', { attackIndex: 0 })).status, 200);
+  }
+});
+
+test('a spell takes the whole action: no Extra Attack after it, and none before it', async () => {
+  const { s, at, turnOf } = await armedWithCosts();
+  assert.equal((await send(s.player, at('Kaelen', '/attack'), 'POST', { attackIndex: 2 })).status, 200);
+  const turn = await turnOf('Kaelen');
+  assert.deepEqual([turn.actionUsed, turn.bonusActionUsed, turn.attacksLeft], [true, false, 0]);
+  assert.equal((await send(s.player, at('Kaelen', '/attack'), 'POST', { attackIndex: 0 })).status, 422);
+
+  // The other way round: one sword attack spends the action, the cantrip is refused.
+  await encounterOf(await send(s.master, at('Kaelen', '/economy'), 'POST', { refund: 'action' }));
+  assert.equal((await send(s.player, at('Kaelen', '/attack'), 'POST', { attackIndex: 0 })).status, 200);
+  assert.equal((await send(s.player, at('Kaelen', '/attack'), 'POST', { attackIndex: 2 })).status, 422);
+});
+
+test('out of turn any row spends the reaction', async () => {
+  const s = await setup();
+  const armed = await send(s.player, `${s.root}/characters/${s.kaelen.id}`, 'PATCH', { ...sheet('Kaelen'), attacks: [OFF_HAND] });
+  assert.equal(armed.status, 200);
+  const { path, id } = await runningEncounter(s);
+  assert.equal((await send(s.player, `${path}/combatants/${id('Kaelen')}/attack`, 'POST', { attackIndex: 0 })).status, 200);
+  const kaelen = byName(await encounterOf(await s.master(path)), 'Kaelen').turn!;
+  assert.deepEqual([kaelen.reactionUsed, kaelen.bonusActionUsed], [true, false]);
+});
+
+test('a row rolled from the sheet spends its own cost', async () => {
+  const { s, turnOf } = await armedWithCosts();
+  const roll = () => send(s.player, `${s.root}/characters/${s.kaelen.id}/rolls`, 'POST', { kind: 'attack', attackIndex: 1 });
+  assert.equal((await roll()).status, 201);
+  const turn = await turnOf('Kaelen');
+  assert.deepEqual([turn.bonusActionUsed, turn.actionUsed], [true, false]);
+  assert.equal((await roll()).status, 422);
+});
+
+test('a row stored before the cost existed reads as the default of its kind', async () => {
+  const { s, at, turnOf } = await kaelensTurn();
+  // As stored before: no cost on the row.
+  s.app.db.update(characters).set({ attacks: [{ kind: 'attack', name: 'Espada', bonus: 5, damage: '1d8', damageType: '', notes: '' }] as never })
+    .where(eq(characters.id, s.kaelen.id)).run();
+  assert.equal((await send(s.player, at('Kaelen', '/attack'), 'POST', { attackIndex: 0 })).status, 200);
+  assert.equal((await turnOf('Kaelen')).actionUsed, true);
+});
+
 test('a player spends their own action and bonus action on their turn, and only the reaction off it', async () => {
   const s = await setup();
   const { path, id } = await runningEncounter(s);

@@ -43,7 +43,9 @@ import {
   spendTurn,
   speedFromText,
   tickConditions,
-  type TurnSpend,
+  attackSpend,
+  storedAttack,
+  type AttackCost,
   type ActiveCondition,
   healthBand,
   type CombatPayload,
@@ -266,7 +268,7 @@ function addCombatants(mutation: Mutation, body: Record<string, unknown>) {
           dexModifier: abilityModifier(statblock.abilityScores.dexterity) ?? 0,
           initiativeBonus: statblock.initiativeBonus,
           constitutionModifier: abilityModifier(statblock.abilityScores.constitution) ?? 0,
-          attacks: statblock.attacks,
+          attacks: statblock.attacks.map(storedAttack),
           speed: speedFromText(statblock.speed) ?? TURN_LIMITS.defaultSpeed,
           attacksPerAction: statblock.attacksPerAction,
           hidden,
@@ -810,21 +812,22 @@ function sourceOf(combatant: LoadedCombatant): 'character' | 'monster' {
 }
 
 /**
- * What an attack costs: on its own turn, one attack of an Attack action (the
- * first one spends the action); out of turn it is an opportunity attack, the
- * reaction. Before round 1 nobody's turn has begun, and nothing is counted.
+ * What using a row costs its user: on its own turn, the row's cost (an
+ * attack of an Attack action, the action, the bonus action or the reaction);
+ * out of turn it is an opportunity attack, the reaction. A target's save is
+ * free. Before round 1 nobody's turn has begun, and nothing is counted.
  */
-function attackCost(tx: Executor, encounter: EncounterRow, combatant: LoadedCombatant): string | null {
+function attackCost(tx: Executor, encounter: EncounterRow, combatant: LoadedCombatant, cost: AttackCost): string | null {
   if (encounter.round === 0) return null;
-  const spend: TurnSpend = encounter.activeCombatantId === combatant.row.id ? 'attack' : 'reaction';
+  const spend = attackSpend(cost, encounter.activeCombatantId === combatant.row.id);
   const result = spendTurn(budgetOf(combatant.row), spend, combatant.attacksPerAction);
   if (!result.ok) return result.error;
   writeBudget(tx, combatant.row.id, result.budget);
   return null;
 }
 
-function spendOnAttack(mutation: Mutation, combatant: LoadedCombatant) {
-  const refused = attackCost(mutation.tx, mutation.loaded.encounter, combatant);
+function spendOnAttack(mutation: Mutation, combatant: LoadedCombatant, cost: AttackCost) {
+  const refused = attackCost(mutation.tx, mutation.loaded.encounter, combatant, cost);
   if (refused) refuse(422, refused);
 }
 
@@ -833,7 +836,7 @@ function spendOnAttack(mutation: Mutation, combatant: LoadedCombatant) {
  * running encounter costs the same as one rolled from the combat. Returns
  * why it is refused, or null; the caller publishes the encounter it changed.
  */
-export function spendSheetAttack(tx: Executor, campaignId: string, characterId: string): string | null {
+export function spendSheetAttack(tx: Executor, campaignId: string, characterId: string, cost: AttackCost): string | null {
   const running = tx
     .select({ id: encounters.id })
     .from(encounters)
@@ -843,7 +846,7 @@ export function spendSheetAttack(tx: Executor, campaignId: string, characterId: 
   if (!running) return null;
   const loaded = loadEncounter(tx, findEncounter(tx, campaignId, running.id)!);
   const combatant = loaded.combatants.find((candidate) => candidate.row.characterId === characterId);
-  return combatant ? attackCost(tx, loaded.encounter, combatant) : null;
+  return combatant ? attackCost(tx, loaded.encounter, combatant, cost) : null;
 }
 
 const ECONOMY = ['action', 'bonusAction', 'reaction', 'dash'] as const;
@@ -906,7 +909,7 @@ function attack(mutation: Mutation, combatant: LoadedCombatant, body: Record<str
   if (body.secret !== undefined && typeof body.secret !== 'boolean') refuse(422, 'Valor inválido para "secreta".');
   const master = mutation.viewer.role === 'master';
   if (!master && body.secret === true) refuse(403, 'Apenas o mestre pode rolar em segredo.');
-  spendOnAttack(mutation, combatant);
+  spendOnAttack(mutation, combatant, chosen.cost);
 
   let target: LoadedCombatant | undefined;
   if (body.targetId !== undefined && body.targetId !== null) {

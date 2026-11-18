@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
-import { abilityModifier, generateInviteCode, type AbilityScores, type Attack } from '@quest-fast/shared';
+import { abilityModifier, defaultAttackCost, generateInviteCode, storedAttack, type AbilityScores, type Attack, type StoredAttack } from '@quest-fast/shared';
 import {
   campaignMembers,
   campaigns,
@@ -168,7 +168,13 @@ for (const sheet of charactersSeed) {
       saves: sheet.saves,
       // Stored as the API stores them: every field filled.
       attacks: sheet.attacks.map((attack): Attack => {
-        const details = { name: attack.name, damage: attack.damage, damageType: attack.damageType ?? '', notes: attack.notes ?? '' };
+        const details = {
+          name: attack.name,
+          damage: attack.damage,
+          damageType: attack.damageType ?? '',
+          notes: attack.notes ?? '',
+          cost: attack.cost ?? defaultAttackCost(attack.kind === 'save' ? 'save' : 'attack'),
+        };
         return attack.kind === 'save'
           ? { ...details, kind: 'save', dc: attack.dc, saveAbility: attack.saveAbility! }
           : { ...details, kind: 'attack', bonus: attack.bonus };
@@ -208,7 +214,8 @@ type SeedStatblock = {
   hpFormula: string;
   speed: string;
   abilityScores: AbilityScores;
-  attacks: Attack[];
+  /** Without a cost, the default of the kind. */
+  attacks: StoredAttack[];
   traits?: string;
 };
 const bestiary: SeedStatblock[] = [
@@ -261,7 +268,7 @@ const statblockIds = new Map<string, string>();
 for (const statblock of bestiary) {
   const id = randomUUID();
   statblockIds.set(statblock.name, id);
-  db.insert(statblocks).values({ id, campaignId: campaign.id, ...statblock }).run();
+  db.insert(statblocks).values({ id, campaignId: campaign.id, ...statblock, attacks: statblock.attacks.map(storedAttack) }).run();
 }
 
 const encounterId = randomUUID();
@@ -300,7 +307,7 @@ for (const [creature, names] of [['Goblin', ['Goblin 1', 'Goblin 2']], ['Lobo', 
         concentrating: false,
         dexModifier: abilityModifier(statblock.abilityScores.dexterity) ?? 0,
         constitutionModifier: abilityModifier(statblock.abilityScores.constitution) ?? 0,
-        attacks: statblock.attacks,
+        attacks: statblock.attacks.map(storedAttack),
       })
       .run();
   }

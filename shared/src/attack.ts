@@ -4,6 +4,8 @@
  * hit, a damage roll whose dice double on a critical.
  */
 import { DICE_COUNT_LIMIT, parseDiceExpression, rollDice, type DieResult, type RollMode, type RollResult } from './dice.ts';
+import type { Attack } from './api.ts';
+import { defaultAttackCost, isAttackCost } from './turn.ts';
 
 export type AttackHit = RollResult & {
   /** A natural 20 on the kept d20: always hits and doubles the damage dice. */
@@ -84,4 +86,25 @@ export function noRoll(): RollResult {
 /** Damage halved by a successful save, rounded down as the rule says. */
 export function halfDamage(amount: number): number {
   return Math.floor(amount / 2);
+}
+
+/** An attack as some older row stored it: without a kind, a damage type, notes or a cost. */
+type Optional = 'kind' | 'damageType' | 'notes' | 'cost';
+// Distributes over the kinds, so each keeps its own fields.
+export type StoredAttack = Attack extends infer Row ? (Row extends Attack ? Omit<Row, Optional> & Partial<Pick<Row, Optional>> : never) : never;
+
+/**
+ * A stored attack with every field filled: rows stored before the save DC
+ * have no kind (attack rolls), and rows stored before the cost read as the
+ * default of their kind.
+ */
+export function storedAttack(stored: StoredAttack): Attack {
+  const kind = stored.kind ?? 'attack';
+  return {
+    ...stored,
+    kind,
+    damageType: stored.damageType ?? '',
+    notes: stored.notes ?? '',
+    cost: isAttackCost(stored.cost) ? stored.cost : defaultAttackCost(kind),
+  } as Attack;
 }

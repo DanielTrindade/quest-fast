@@ -11,6 +11,7 @@ import {
   isChallengeRating,
   isSize,
   parseDiceExpression,
+  storedAttack,
   type AbilityScores,
   type Statblock,
   type StatblockSummary,
@@ -137,6 +138,7 @@ function toStatblock(db: Db, store: AssetStore, row: StatblockRow): Statblock {
   const path = imagePath(db, row.imageAssetId);
   return {
     ...row,
+    attacks: row.attacks.map(storedAttack),
     imageUrl: path ? store.urlFor(path) : null,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),

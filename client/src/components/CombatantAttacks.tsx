@@ -1,6 +1,6 @@
 import { useId, useState } from 'react';
 import { EyeSlash } from '@phosphor-icons/react';
-import type { Attack, RollMode } from '@quest-fast/shared';
+import { attackSpend, spendTurn, type Attack, type AttackCost, type RollMode, type TurnView } from '@quest-fast/shared';
 import { contentKeys } from '../lib/content-keys';
 import { AttackCard } from './AttackCard';
 import { RollModeControl } from './RollModeControl';
@@ -9,18 +9,29 @@ import { checkLabel } from './ui/segmented';
 
 export type AttackOptions = { targetId: string | null; mode: RollMode; secret: boolean };
 
+/** Why the turn has nothing left for a row, in the server's words; null when it does, or when the turn is not shown. */
+function refusalOf(turn: TurnView | null, cost: AttackCost, ownTurn: boolean): string | null {
+  if (!turn) return null;
+  const spent = spendTurn(turn, attackSpend(cost, ownTurn), turn.attacksPerAction);
+  return spent.ok ? null : spent.error;
+}
+
 /**
  * One combatant's attacks during the fight: a target, the roll mode and, for
  * the master, whether the roll is secret, shared by every attack below. It
  * only asks: the server rolls, compares with the AC and leaves the damage
  * for the master to apply.
  */
-export function CombatantAttacks({ name, attacks, targets, master = false, defaultSecret = false, pending = false, onAttack }: {
+export function CombatantAttacks({ name, attacks, targets, turn = null, active = false, master = false, defaultSecret = false, pending = false, onAttack }: {
   /** Who attacks: names the controls for screen readers. */
   name: string;
   attacks: Attack[];
   /** Everyone else this viewer sees. */
   targets: TargetOption[];
+  /** What is left of its turn, when this viewer sees it: a row it cannot pay for is off. */
+  turn?: TurnView | null;
+  /** Its own turn: out of it, any row spends the reaction. */
+  active?: boolean;
   /** Only the master may roll in secret. */
   master?: boolean;
   /** A monster attacks in secret unless the master says otherwise. */
@@ -54,7 +65,7 @@ export function CombatantAttacks({ name, attacks, targets, master = false, defau
         {/* Attacks have no id; the server takes the position in the sheet. */}
         {contentKeys(attacks).map(({ item: attack, key }, index) => (
           <li key={key} className="min-w-0">
-            <AttackCard {...attack} disabled={pending}
+            <AttackCard {...attack} disabled={pending} refusal={refusalOf(turn, attack.cost, active)}
               onRoll={() => onAttack(index, {
                 targetId: target || null,
                 // Advantage belongs to an attack roll; a save has none.
