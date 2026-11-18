@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { rm } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, like, or } from 'drizzle-orm';
 import sharp from 'sharp';
 import {
   abilityModifier,
@@ -52,6 +52,11 @@ import { createDiskAssetStore } from './assets/store.ts';
  *   npm run db:seed:showcase -- <discordId>  # your own account (log in once first)
  */
 
+if (process.env.NODE_ENV === 'production') {
+  console.error('O seed de vitrine é só para desenvolvimento local e não roda em produção.');
+  process.exit(1);
+}
+
 if (process.env.R2_BUCKET?.trim()) {
   console.error('O seed de vitrine grava imagens no disco local. Remova as variáveis R2_* do ambiente e rode de novo.');
   process.exit(1);
@@ -85,13 +90,31 @@ const camila = ensureUser({ discordId: `${SHOWCASE_PREFIX}camila`, name: 'Camila
 const joaquim = ensureUser({ discordId: `${SHOWCASE_PREFIX}joaquim`, name: 'Joaquim Pereira Lopes de Albuquerque Neto' });
 
 // Reruns replace the previous showcase instead of piling campaigns up in the list.
+// A name alone does not prove the campaign came from here: it must also be
+// mastered by this account or a showcase user, so a namesake run by someone
+// else in which the account only plays survives.
 async function removePreviousShowcase() {
-  const previous = db
+  const named = db
     .select({ id: campaigns.id })
     .from(campaigns)
     .innerJoin(campaignMembers, eq(campaignMembers.campaignId, campaigns.id))
     .where(and(eq(campaignMembers.userId, you!.id), inArray(campaigns.name, CAMPAIGN_NAMES)))
-    .all();
+    .all()
+    .map(({ id }) => id);
+  const previous = named.length
+    ? db
+        .select({ id: campaignMembers.campaignId })
+        .from(campaignMembers)
+        .innerJoin(users, eq(users.id, campaignMembers.userId))
+        .where(
+          and(
+            inArray(campaignMembers.campaignId, named),
+            eq(campaignMembers.role, 'master'),
+            or(eq(users.id, you!.id), like(users.discordId, `${SHOWCASE_PREFIX}%`)),
+          ),
+        )
+        .all()
+    : [];
   for (const { id } of previous) {
     // The scene's map asset is ON DELETE RESTRICT: scenes go before the campaign cascade.
     db.delete(scenes).where(eq(scenes.campaignId, id)).run();
@@ -733,7 +756,7 @@ const coroaBestiary = createStatblocks(coroa, [
     hpFormula: '7d8+21',
     speed: '9 m, natação 12 m',
     abilityScores: { strength: 16, dexterity: 13, constitution: 16, intelligence: 12, wisdom: 12, charisma: 13 },
-    attacks: [weapon('Garras', 5, '2d6+3', 'Cortante'), saveAttack('Olhar Mortal', 11, 'wisdom', '0', '', 'Amedrontado; falha por 5+: cai a 0 PV')],
+    attacks: [weapon('Garras', 5, '2d6+3', 'Cortante'), saveAttack('Olhar Mortal', 11, 'wisdom', '', '', 'Amedrontado; falha por 5+: cai a 0 PV')],
     traits: 'Anfíbia.\nAparência Horripilante: quem começa o turno a 9 m e a vê faz salvaguarda de Sabedoria CD 11 ou fica Amedrontado por 1 minuto.',
     actions: 'Aparência Ilusória: cobre-se com uma ilusão de mulher jovem e bela.',
     imageAssetId: seaHagImage,
