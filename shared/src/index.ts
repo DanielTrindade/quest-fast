@@ -42,6 +42,7 @@ export {
   failsSaveOutright,
   isSaveEffect,
   rollSave,
+  saveConditions,
   saveModifiers,
   storedAttack,
   type AttackHit,

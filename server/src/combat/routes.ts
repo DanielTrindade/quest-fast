@@ -46,6 +46,7 @@ import {
   damageAfterSave,
   failsSaveOutright,
   rollSave,
+  saveConditions,
   saveModifiers,
   storedAttack,
   type AttackCost,
@@ -946,6 +947,8 @@ function attack(mutation: Mutation, combatant: LoadedCombatant, body: Record<str
       saveModifierOf(target, chosen.saveAbility),
       chosen.dc,
       failsSaveOutright(chosen.saveAbility, target.conditions, target.hpCurrent === 0),
+      undefined,
+      saveConditions(chosen.saveAbility, target.conditions),
     )
     : undefined;
 

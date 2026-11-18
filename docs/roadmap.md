@@ -139,7 +139,8 @@ em quatro PRs (os três primeiros empilhados):
    com a metade, ou nada se a linha diz "Nenhum dano". Numa linha sem dano,
    quem falha fica com o efeito pendente para o mestre, e quem passa não fica
    com nada. Paralisado, Petrificado, Atordoado, Inconsciente ou a 0 PV falha
-   em Força e Destreza sem rolar. O bestiário guarda as salvaguardas
+   em Força e Destreza sem rolar; Exaustão tira 2 por nível, e Impedido rola
+   Destreza com desvantagem. O bestiário guarda as salvaguardas
    proficientes com o bônus do livro (o PDF de NPC as preenche), e a cópia do
    encontro rola com elas, inclusive na concentração. O jogador lê só "Passou"
    ou "Falhou" de um monstro. Diferença da spec: o combatente avulso rola com

@@ -144,20 +144,60 @@ export function failsSaveOutright(ability: Ability, conditions: readonly ActiveC
   return down || conditions.some((active) => FAILS_STR_DEX.has(active.condition));
 }
 
-/** A saving throw the server rolled. `outright`: failed without a roll, so the die is absent. */
+/**
+ * What the target's conditions do to a save that is rolled (2024): Exhaustion
+ * takes 2 per level off every D20 Test, and Restrained gives disadvantage on
+ * Dexterity saves. Failing outright (`failsSaveOutright`) comes first.
+ */
+export function saveConditions(ability: Ability, conditions: readonly ActiveCondition[]): { mode: RollMode; penalty: number } {
+  const exhaustion = conditions.find((active) => active.condition === 'exhaustion')?.level ?? 0;
+  const restrained = ability === 'dexterity' && conditions.some((active) => active.condition === 'restrained');
+  return { mode: restrained ? 'disadvantage' : 'normal', penalty: 2 * exhaustion };
+}
+
+/**
+ * A saving throw the server rolled. `modifier` already takes the penalty
+ * off; `d20` is the face kept, and under disadvantage `rolls` keeps both.
+ * `outright`: failed without a roll, so the die is absent.
+ */
 export type SaveRoll =
-  | { outright?: undefined; d20: number; modifier: number; total: number; success: boolean }
+  | {
+    outright?: undefined;
+    d20: number;
+    modifier: number;
+    total: number;
+    success: boolean;
+    mode?: Exclude<RollMode, 'normal'>;
+    rolls?: [number, number];
+    /** Exhaustion: what came off the modifier. */
+    penalty?: number;
+  }
   | { outright: true; success: false };
 
 /**
- * `1d20 + modifier` against the DC: it passes on a total equal or above it.
- * A natural 20 or 1 decides nothing here: in 2024 only an attack roll has
- * that rule.
+ * `1d20 + modifier` against the DC, under what the target's conditions
+ * impose: it passes on a total equal or above it. A natural 20 or 1 decides
+ * nothing here: in 2024 only an attack roll has that rule.
  */
-export function rollSave(modifier: number, dc: number, outright: boolean, random: () => number = Math.random): SaveRoll {
+export function rollSave(
+  modifier: number,
+  dc: number,
+  outright: boolean,
+  random: () => number = Math.random,
+  { mode, penalty }: { mode: RollMode; penalty: number } = { mode: 'normal', penalty: 0 },
+): SaveRoll {
   if (outright) return { outright: true, success: false };
-  const result = rollDice(`1d20${modifier >= 0 ? '+' : ''}${modifier}`, 'normal', random)!;
-  return { d20: result.dice[0]!.value, modifier, total: result.total, success: result.total >= dc };
+  const applied = modifier - penalty;
+  const result = rollDice(`1d20${applied >= 0 ? '+' : ''}${applied}`, mode, random)!;
+  const kept = result.dice.find((die) => !die.discarded) ?? result.dice[0]!;
+  return {
+    d20: kept.value,
+    modifier: applied,
+    total: result.total,
+    success: result.total >= dc,
+    ...(mode === 'normal' ? {} : { mode, rolls: [result.dice[0]!.value, result.dice[1]!.value] as [number, number] }),
+    ...(penalty > 0 ? { penalty } : {}),
+  };
 }
 
 /** The damage a target takes after its save: all on a failure; half, or none, on a success. */

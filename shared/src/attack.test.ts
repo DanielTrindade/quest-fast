@@ -9,6 +9,7 @@ import {
   rollAttackHit,
   rollDamage,
   rollSave,
+  saveConditions,
   saveModifiers,
   storedAttack,
 } from './attack.ts';
@@ -151,4 +152,20 @@ test("a creature's save modifiers: the book's bonus where it has one, the abilit
   assert.deepEqual(saveModifiers(scores, { dexterity: 6, wisdom: 3 }), {
     strength: -1, dexterity: 6, constitution: 0, intelligence: 0, wisdom: 3, charisma: -2,
   });
+});
+
+test('Exhaustion takes 2 per level off a save, and Restrained gives disadvantage on Dexterity only', () => {
+  assert.deepEqual(saveConditions('wisdom', [{ condition: 'exhaustion', level: 2 }]), { mode: 'normal', penalty: 4 });
+  assert.deepEqual(saveConditions('dexterity', [{ condition: 'restrained' }]), { mode: 'disadvantage', penalty: 0 });
+  assert.deepEqual(saveConditions('strength', [{ condition: 'restrained' }]), { mode: 'normal', penalty: 0 });
+});
+
+test('a save under Exhaustion can fail where the bare modifier would pass', () => {
+  const save = rollSave(2, 13, false, seq(face(11, 20)), { mode: 'normal', penalty: 2 });
+  assert.deepEqual(save, { d20: 11, modifier: 0, total: 11, success: false, penalty: 2 });
+});
+
+test('a save under disadvantage keeps the lower die and records both', () => {
+  const save = rollSave(2, 13, false, seq(face(19, 20), face(1, 20)), { mode: 'disadvantage', penalty: 0 });
+  assert.deepEqual(save, { d20: 1, modifier: 2, total: 3, success: false, mode: 'disadvantage', rolls: [19, 1] });
 });

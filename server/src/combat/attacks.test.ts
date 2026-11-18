@@ -297,6 +297,41 @@ test("a monster's save reaches a player as passed or failed, never its die or to
   assert.deepEqual(byName(await view(s.player), 'Goblin xamã').reminders, []);
 });
 
+test('Exhaustion takes its penalty off the save: a pass on the bare modifier becomes a failure', async (t) => {
+  // Every die lands on 11: 11 + 2 passes DC 13, 11 + 2 - 2 does not.
+  t.mock.method(Math, 'random', () => 10.5 / 20);
+  const { s, at, id, view } = await fight();
+  const flame = { kind: 'save', name: 'Chama Sagrada', dc: 13, saveAbility: 'dexterity', damage: '1d8', damageType: 'Radiante', onSave: 'none' };
+  assert.equal((await send(s.player, `${s.root}/characters/${s.kaelen.id}`, 'PATCH', { ...sheet('Kaelen'), attacks: [flame] })).status, 200);
+  await encounterOf(await send(s.master, at('Goblin 2', '/conditions/exhaustion'), 'PUT', { level: 1 }));
+  await attacked(await send(s.player, at('Kaelen', '/attack'), 'POST', { attackIndex: 0, targetId: id('Goblin 2') }));
+
+  const [master] = await rolls(s, s.master);
+  assert.deepEqual(master?.target?.save, { d20: 11, modifier: 0, total: 11, success: false, penalty: 2 });
+  // The same face on the 1d8: 5, whole, since the goblin failed.
+  assert.equal(pending(byName(await view(s.master), 'Goblin 2').reminders)[0]?.amount, 5);
+  // A player still reads only the outcome of a monster's save.
+  assert.deepEqual((await rolls(s, s.player))[0]?.target?.save, { success: false });
+});
+
+test('Restrained rolls a Dexterity save with disadvantage, and a failed Graxa stays pending', async (t) => {
+  // The first die of every roll lands on 19, the second on 1.
+  let call = 0;
+  t.mock.method(Math, 'random', () => (call++ % 2 === 0 ? 18.5 / 20 : 0));
+  const { s, at, id, view } = await fight();
+  const grease = { kind: 'save', name: 'Graxa', dc: 12, saveAbility: 'dexterity', damage: '' };
+  assert.equal((await send(s.player, `${s.root}/characters/${s.kaelen.id}`, 'PATCH', { ...sheet('Kaelen'), attacks: [grease] })).status, 200);
+  await encounterOf(await send(s.master, at('Goblin 2', '/conditions/restrained'), 'PUT', {}));
+  await attacked(await send(s.player, at('Kaelen', '/attack'), 'POST', { attackIndex: 0, targetId: id('Goblin 2') }));
+
+  const [master] = await rolls(s, s.master);
+  const save = master?.target?.save;
+  assert.ok(save && 'd20' in save);
+  assert.deepEqual([save.d20, save.mode, save.rolls, save.success], [1, 'disadvantage', [19, 1], false]);
+  const [called] = saves(byName(await view(s.master), 'Goblin 2').reminders);
+  assert.ok(called?.kind === 'pendingSave' && called.failed);
+});
+
 test('Paralyzed fails a Dexterity save without a roll', async (t) => {
   natural20(t);
   const { s, id, at, view, shamanAt } = await withShaman();
