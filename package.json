@@ -27,6 +27,7 @@
     "test:tokens": "npm --workspace client run test:tokens",
     "test:design": "npm run build-storybook && node scripts/verify-design-system.mjs",
     "db:seed": "node --env-file-if-exists=.env db/src/seed.ts",
+    "db:seed:showcase": "node --env-file-if-exists=.env server/src/seed-showcase.ts",
     "verify:app": "node scripts/verify-app.mjs",
     "verify:group": "node scripts/verify-group.mjs",
     "doctor": "react-doctor --blocking warning",

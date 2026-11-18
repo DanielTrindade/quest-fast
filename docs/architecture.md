@@ -136,6 +136,8 @@ src/
   events/         EventHub, persistência e redação do feed, WebSocket
   validation.ts   parsers de entrada compartilhados (InputError, ataques)
   testing.ts      helpers dos testes de integração
+  seed-showcase.ts vitrine de dados para revisar a interface (usa a
+                  normalização de imagens do servidor; não roda em produção)
 ```
 
 Cada módulo de domínio expõe uma função `xxxRoutes()` que devolve um `Hono`
