@@ -5,6 +5,7 @@ import { and, eq, inArray } from 'drizzle-orm';
 import sharp from 'sharp';
 import {
   abilityModifier,
+  defaultAttackCost,
   emptySpellSlots,
   freshTurn,
   generateInviteCode,
@@ -257,11 +258,11 @@ function slots(...totalsAndSpent: [number, number][]): SpellSlot[] {
 }
 
 function weapon(name: string, bonus: number, damage: string, damageType: string, notes = ''): Attack {
-  return { kind: 'attack', name, bonus, damage, damageType, notes };
+  return { kind: 'attack', name, bonus, damage, damageType, notes, cost: defaultAttackCost('attack') };
 }
 
 function saveAttack(name: string, dc: number, saveAbility: Ability, damage: string, damageType: string, notes = ''): Attack {
-  return { kind: 'save', name, dc, saveAbility, damage, damageType, notes };
+  return { kind: 'save', name, dc, saveAbility, damage, damageType, notes, cost: defaultAttackCost('save') };
 }
 
 function createCharacter(campaignId: string, sheet: SheetInput) {
