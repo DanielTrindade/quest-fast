@@ -145,7 +145,7 @@ test('a sheet in the pre-official shape is accepted with the documented defaults
   assert.deepEqual(character.expertise, []);
   assert.deepEqual(character.coins, { cp: 0, sp: 0, ep: 0, gp: 0, pp: 0 });
   // An attack without a kind, as older clients send it, is an attack roll.
-  assert.deepEqual(character.attacks[0], { kind: 'attack', name: 'Adaga', bonus: 7, damage: '1d4+4', damageType: '', notes: '' });
+  assert.deepEqual(character.attacks[0], { kind: 'attack', name: 'Adaga', bonus: 7, damage: '1d4+4', damageType: '', notes: '', cost: 'attack' });
   assert.equal(character.hpCurrent, 24);
 });
 
@@ -325,7 +325,7 @@ test('an attack row can be a save DC with the ability the target rolls', async (
 
   assert.equal(response.status, 201);
   assert.ok(character);
-  assert.deepEqual(character.attacks[1], { ...BREATH, notes: '' });
+  assert.deepEqual(character.attacks[1], { ...BREATH, notes: '', cost: 'action' });
   assert.equal('bonus' in character.attacks[1]!, false);
   assert.equal(character.attacks[0]?.kind, 'attack');
 });

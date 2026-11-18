@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { criticalExpression, halfDamage, isHit, rollAttackHit, rollDamage } from './attack.ts';
+import { criticalExpression, halfDamage, isHit, rollAttackHit, rollDamage, storedAttack } from './attack.ts';
 import { DICE_COUNT_LIMIT } from './dice.ts';
 
 // `random` returns a value in [0, 1); `face(n, sides)` makes that die land on n.
@@ -94,4 +94,13 @@ test('half damage rounds down', () => {
   assert.equal(halfDamage(7), 3);
   assert.equal(halfDamage(8), 4);
   assert.equal(halfDamage(1), 0);
+});
+
+test('a stored attack without the newer fields reads with their defaults', () => {
+  assert.deepEqual(storedAttack({ name: 'Adaga', bonus: 4, damage: '1d4+2' } as never), {
+    name: 'Adaga', bonus: 4, damage: '1d4+2', kind: 'attack', damageType: '', notes: '', cost: 'attack',
+  });
+  const save = storedAttack({ kind: 'save', name: 'Bola de Fogo', dc: 15, saveAbility: 'dexterity', damage: '8d6', damageType: 'Fogo', notes: '' });
+  assert.equal(save.cost, 'action');
+  assert.equal(storedAttack({ kind: 'attack', name: 'Adaga', bonus: 4, damage: '1d4', cost: 'bonusAction' }).cost, 'bonusAction');
 });

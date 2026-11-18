@@ -163,8 +163,8 @@ export const FichaLonga: Story = {
       subclass: 'Caminho do Berserker das Montanhas do Norte',
       attacks: [
         ...hazinDan.attacks,
-        { kind: 'attack', name: 'Arremesso de machadinha em fúria', bonus: 7, damage: '1d6+7', damageType: 'Cortante', notes: 'Com Fúria ativa' },
-        { kind: 'attack', name: 'Soco', bonus: 7, damage: '1+5', damageType: 'Contundente', notes: '' },
+        { kind: 'attack', cost: 'attack', name: 'Arremesso de machadinha em fúria', bonus: 7, damage: '1d6+7', damageType: 'Cortante', notes: 'Com Fúria ativa' },
+        { kind: 'attack', cost: 'attack', name: 'Soco', bonus: 7, damage: '1+5', damageType: 'Contundente', notes: '' },
       ],
     },
   },

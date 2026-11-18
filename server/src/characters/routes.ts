@@ -39,6 +39,7 @@ import {
   type ActiveCondition,
   type MyCharacter,
   type ArmorTraining,
+  storedAttack,
   type Attack,
   type CharacterSheet,
   type CharacterSummary,
@@ -473,13 +474,7 @@ function toSheet({ character: row, ownerName, avatarPath }: SelectedCharacter, s
   return {
     ...fields,
     ownerName,
-    // Attacks stored before the save DC existed have no kind: attack rolls.
-    attacks: attacks.map((attack) => ({
-      ...attack,
-      kind: attack.kind ?? 'attack',
-      damageType: attack.damageType ?? '',
-      notes: attack.notes ?? '',
-    }) as Attack),
+    attacks: attacks.map(storedAttack),
     spellSlots: emptySpellSlots().map((empty, circle) => spellSlots[circle] ?? empty),
     avatarUrl: avatarUrl(store, avatarPath),
   };
@@ -817,14 +812,16 @@ export function characterRoutes() {
     }
 
     const body = (await c.req.json().catch(() => ({}))) as LinkedRollRequest;
-    const parsed = parseLinkedRoll(body, toSheet(row, c.var.deps.assets));
+    const sheet = toSheet(row, c.var.deps.assets);
+    const parsed = parseLinkedRoll(body, sheet);
     if ('error' in parsed) return c.json({ error: parsed.error }, 422);
 
     const characterId = row.character.id;
-    const fighting = body.kind === 'attack';
+    // A valid attack roll has a valid index: parseLinkedRoll checked it.
+    const used = body.kind === 'attack' ? sheet.attacks[Number(body.attackIndex)] : undefined;
     const outcome = db.transaction((tx) => {
       // In a running fight the attack spends the turn as the combat's own does.
-      const refused = fighting ? spendSheetAttack(tx, c.var.campaignId, characterId) : null;
+      const refused = used ? spendSheetAttack(tx, c.var.campaignId, characterId, used.cost) : null;
       if (refused) return { error: refused };
       return {
         event: recordRollEvent(tx, {
@@ -838,7 +835,7 @@ export function characterRoutes() {
     });
     if ('error' in outcome) return c.json({ error: outcome.error }, 422);
     hub.publish(c.var.campaignId, outcome.event);
-    if (fighting) publishCharacterEncounters(c.var.deps, c.var.campaignId, characterId);
+    if (used) publishCharacterEncounters(c.var.deps, c.var.campaignId, characterId);
     return c.json({ event: outcome.event }, 201);
   });
 

@@ -1,10 +1,11 @@
 import { Plus, Trash } from '@phosphor-icons/react';
-import { ABILITIES, CHARACTER_LIMITS, parseDiceExpression, type Ability } from '@quest-fast/shared';
+import { ABILITIES, ATTACK_COSTS, CHARACTER_LIMITS, parseDiceExpression, type Ability, type AttackCost } from '@quest-fast/shared';
 import { Button } from './Button';
 import { Field } from './Field';
 import { SelectField } from './SelectField';
 import { ABILITY_LABELS } from '../lib/5e';
-import { emptyFormAttack, numberValue, type FormAttack } from '../lib/form-attacks';
+import { ATTACK_COST_LABELS } from '../lib/combat-labels';
+import { emptyFormAttack, numberValue, withKind, type FormAttack } from '../lib/form-attacks';
 import { attackFields, itemCard, itemHead, wideField } from './form-styles';
 
 const MAX_BONUS = CHARACTER_LIMITS.attackBonus;
@@ -23,8 +24,9 @@ export function AttackListEditor({ attacks, onChange, error, notesHint = 'Ex.: P
   error?: string;
   notesHint?: string;
 }) {
-  const update = (index: number, patch: Partial<FormAttack>) =>
-    onChange(attacks.map((attack, i) => (i === index ? { ...attack, ...patch } : attack)));
+  const replace = (index: number, change: (attack: FormAttack) => FormAttack) =>
+    onChange(attacks.map((attack, i) => (i === index ? change(attack) : attack)));
+  const update = (index: number, patch: Partial<FormAttack>) => replace(index, (attack) => ({ ...attack, ...patch }));
   return (
     <>
       {error && <p role="alert" className="text-small text-danger-text">{error}</p>}
@@ -47,7 +49,7 @@ export function AttackListEditor({ attacks, onChange, error, notesHint = 'Ex.: P
                   aria-invalid={Boolean(error) && attack.name.trim().length === 0}
                   onChange={(e) => update(index, { name: e.target.value })} />
                 <SelectField label="Bônus Atq/CD" value={attack.kind}
-                  onChange={(value) => update(index, { kind: value as FormAttack['kind'] })}>
+                  onChange={(value) => replace(index, (row) => withKind(row, value as FormAttack['kind']))}>
                   <option value="attack">Bônus de ataque</option>
                   <option value="save">CD de resistência</option>
                 </SelectField>
@@ -70,6 +72,10 @@ export function AttackListEditor({ attacks, onChange, error, notesHint = 'Ex.: P
                     </SelectField>
                   </>
                 )}
+                <SelectField label="Custo" value={attack.cost}
+                  onChange={(value) => update(index, { cost: value as AttackCost })}>
+                  {ATTACK_COSTS.map((cost) => <option key={cost} value={cost}>{ATTACK_COST_LABELS[cost]}</option>)}
+                </SelectField>
                 <Field label="Dano" autoComplete="off" spellCheck={false} value={attack.damage}
                   hint={attack.kind === 'save' ? 'Ex.: 8d6. Vazio se só impõe o efeito' : 'Ex.: 1d8+3 ou 1d8+3+1d6'}
                   aria-invalid={Boolean(error) && !(attack.kind === 'save' && attack.damage.trim() === '') && !parseDiceExpression(attack.damage)}

@@ -92,8 +92,8 @@ export const FichaLonga: Story = {
       name: 'Hazin Dan, o machado que atravessou as Planícies de Cinza',
       attacks: [
         ...hazinDan.attacks,
-        { kind: 'attack', name: 'Arremesso de machadinha em fúria', bonus: 7, damage: '1d6+7', damageType: 'Cortante', notes: 'Com Fúria ativa' },
-        { kind: 'attack', name: 'Soco', bonus: 7, damage: '1+5', damageType: 'Contundente', notes: '' },
+        { kind: 'attack', cost: 'attack', name: 'Arremesso de machadinha em fúria', bonus: 7, damage: '1d6+7', damageType: 'Cortante', notes: 'Com Fúria ativa' },
+        { kind: 'attack', cost: 'attack', name: 'Soco', bonus: 7, damage: '1+5', damageType: 'Contundente', notes: '' },
       ],
     },
   },
@@ -216,13 +216,20 @@ export const AtaqueComCd: Story = {
       await userEvent.click(within(region).getByRole('button', { name: /Adicionar ataque/ }));
       const attack = within(within(region).getByRole('group', { name: 'Ataque 1' }));
 
+      // A new row is a weapon of the Attack action; a save takes the whole action.
+      await expect(attack.getByLabelText('Custo')).toHaveValue('attack');
       // A save replaces the attack bonus with a DC and the ability of the save.
       await userEvent.selectOptions(attack.getByLabelText('Bônus Atq/CD'), 'save');
+      await expect(attack.getByLabelText('Custo')).toHaveValue('action');
       await expect(attack.queryByLabelText('Bônus')).toBeNull();
       await userEvent.type(attack.getByLabelText('CD'), '13');
       await expect(attack.getByLabelText('Atributo da resistência')).toHaveValue('');
       await userEvent.selectOptions(attack.getByLabelText('Atributo da resistência'), 'dexterity');
       await expect(attack.getByLabelText('Atributo da resistência')).toHaveValue('dexterity');
+      // A cost chosen by hand stays when the kind changes.
+      await userEvent.selectOptions(attack.getByLabelText('Custo'), 'bonusAction');
+      await userEvent.selectOptions(attack.getByLabelText('Bônus Atq/CD'), 'attack');
+      await expect(attack.getByLabelText('Custo')).toHaveValue('bonusAction');
 
       region.querySelector('[data-slot="page"]')?.scrollTo(0, 0);
     }

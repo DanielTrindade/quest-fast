@@ -42,3 +42,23 @@ export const SalvaguardaSemDano: Story = {
     await expect(args.onRoll).toHaveBeenCalled();
   },
 };
+export const ComCusto: Story = {
+  name: 'Com custo',
+  // An off-hand weapon spends the bonus action.
+  args: { ...dagger, name: 'Adaga (mão inábil)', cost: 'bonusAction' },
+  play: async ({ canvasElement }) => {
+    const [region] = within(canvasElement).getAllByRole('region', { name: /^Tema / });
+    await expect(within(region!).getByText('Ação bônus')).toBeVisible();
+  },
+};
+export const SemOQueGastar: Story = {
+  name: 'Sem o que gastar no turno',
+  // The turn has no bonus action left: the button is off and says why.
+  args: { ...dagger, name: 'Adaga (mão inábil)', cost: 'bonusAction', refusal: 'A ação bônus deste turno já foi usada.' },
+  play: async ({ canvasElement }) => {
+    const [region] = within(canvasElement).getAllByRole('region', { name: /^Tema / });
+    const card = within(region!);
+    await expect(card.getByRole('button', { name: 'Atacar com Adaga (mão inábil)' })).toBeDisabled();
+    await expect(card.getByText('A ação bônus deste turno já foi usada.')).toBeVisible();
+  },
+};

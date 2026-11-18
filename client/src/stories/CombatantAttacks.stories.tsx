@@ -60,3 +60,36 @@ export const JogadorComPersonagem: Story = {
 export const Enviando: Story = { args: { pending: true } };
 
 export const SemAtaques: Story = { name: 'Sem ataques', args: { name: 'Bandido', attacks: [] } };
+
+/**
+ * On its turn, Hazin has spent the action: the Attack action row and the
+ * spell are off and say why; the off-hand axe still has the bonus action.
+ */
+export const TurnoGasto: Story = {
+  name: 'Turno com a ação gasta',
+  args: {
+    name: 'Hazin Dan',
+    attacks: [
+      ...hazin.attacks,
+      { kind: 'attack', cost: 'bonusAction', name: 'Machadinha (mão inábil)', bonus: 7, damage: '1d6', damageType: 'Cortante', notes: 'Leve' },
+    ],
+    targets: playerCombatants.filter((combatant) => combatant.id !== 'c-hazin'),
+    master: false,
+    defaultSecret: false,
+    active: true,
+    turn: {
+      actionUsed: true, bonusActionUsed: false, reactionUsed: false, attacksLeft: 0, extraActions: 0, dashes: 0, movementUsed: 0,
+      speed: 9, movementLeft: 9, attacksPerAction: 2,
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const [region] = within(canvasElement).getAllByRole('region', { name: /^Tema / });
+    const panel = within(region!);
+    await expect(panel.getByRole('button', { name: 'Atacar com Machado Grande' })).toBeDisabled();
+    await expect(panel.getByRole('button', { name: 'Rolar dano de Sopro de fogo' })).toBeDisabled();
+    await expect(panel.getAllByText('Não há ataque nem ação sobrando neste turno.')[0]).toBeVisible();
+    await expect(panel.getByText('Ação bônus')).toBeVisible();
+    await userEvent.click(panel.getByRole('button', { name: 'Atacar com Machadinha (mão inábil)' }));
+    await expect(args.onAttack).toHaveBeenCalledWith(2, { targetId: null, mode: 'normal', secret: false });
+  },
+};

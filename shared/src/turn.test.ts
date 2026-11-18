@@ -2,11 +2,14 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   SQUARE_METERS,
+  attackSpend,
   classAttacksPerAction,
+  defaultAttackCost,
   effectiveSpeed,
   formatMeters,
   freshTurn,
   grantAction,
+  isAttackCost,
   isAttacksPerAction,
   movementCost,
   movementLeft,
@@ -217,4 +220,37 @@ test('movement is spent until it runs out, and refused past it', () => {
 
 test('a speed that dropped below what was walked leaves nothing, never less', () => {
   assert.equal(movementLeft({ dashes: 0, movementUsed: 6 }, 0), 0);
+});
+
+test('a row without a cost: an attack roll takes the Attack action, a save the whole action', () => {
+  assert.equal(defaultAttackCost('attack'), 'attack');
+  assert.equal(defaultAttackCost('save'), 'action');
+  assert.equal(isAttackCost('bonusAction'), true);
+  assert.equal(isAttackCost('dash'), false);
+});
+
+test('a row spends its cost on its own turn and the reaction out of turn', () => {
+  assert.equal(attackSpend('bonusAction', true), 'bonusAction');
+  assert.equal(attackSpend('action', true), 'action');
+  assert.equal(attackSpend('attack', false), 'reaction');
+  assert.equal(attackSpend('bonusAction', false), 'reaction');
+});
+
+test('a row with the action cost takes the whole action, with no Extra Attack after it', () => {
+  const spent = spendTurn(freshTurn(), attackSpend('action', true), 2);
+  assert.ok(spent.ok);
+  assert.equal(spent.budget.actionUsed, true);
+  assert.equal(spent.budget.attacksLeft, 0);
+  // Extra Attack is gone: another row of the Attack action has nothing to take.
+  assert.equal(spendTurn(spent.budget, attackSpend('attack', true), 2).ok, false);
+});
+
+test('a bonus action attack leaves the action and the Extra Attack alone', () => {
+  const attacked = spendTurn(freshTurn(), attackSpend('attack', true), 2);
+  assert.ok(attacked.ok);
+  const offHand = spendTurn(attacked.budget, attackSpend('bonusAction', true), 2);
+  assert.ok(offHand.ok);
+  assert.equal(offHand.budget.attacksLeft, 1);
+  assert.equal(offHand.budget.bonusActionUsed, true);
+  assert.equal(spendTurn(offHand.budget, attackSpend('bonusAction', true), 2).ok, false);
 });

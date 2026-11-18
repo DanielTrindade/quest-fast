@@ -122,6 +122,25 @@ em quatro PRs independentes:
    o que mudou foi só a abertura da cena; a barra é o controle deslizante
    nativo, sem a dependência `@radix-ui/react-slider`.
 
+Spec da #111 (ações e alvos) em
+[`history/2026-11-18-actions-and-targets.md`](history/2026-11-18-actions-and-targets.md),
+em quatro PRs (os três primeiros empilhados):
+
+1. **Custo por linha de ataque — entregue.** Cada linha da ficha e do
+   bestiário diz o que gasta no turno de quem a usa: Ação Atacar (com Ataque
+   Extra), Ação, Ação bônus ou Reação. Linha sem custo (salva antes, ou vinda
+   do PDF) lê Ação Atacar num ataque e Ação numa salvaguarda, então magia não
+   ganha Ataque Extra. Fora da vez, qualquer linha gasta a reação. A rolagem
+   pela ficha gasta o mesmo, e a aba Ações desabilita a linha que o turno não
+   paga, dizendo por quê.
+2. **Salvaguarda rolada no servidor.** Para monstros e personagens, contra a
+   CD; quem passa leva a metade (ou nada, conforme a linha).
+3. **Vários alvos em área.** Só linhas de salvaguarda: um dano para todos, a
+   salvaguarda de cada alvo.
+4. **PV pelo token.** PV e ajuste ao lado do mapa, PV dos monstros visível
+   para os jogadores, e o token livre do bestiário entra no combate com um
+   clique.
+
 ### Telas da campanha
 
 A campanha deixa de ser uma página única com âncoras. Na conta, **Meus

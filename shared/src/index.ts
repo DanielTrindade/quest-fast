@@ -37,7 +37,9 @@ export {
   noRoll,
   rollAttackHit,
   rollDamage,
+  storedAttack,
   type AttackHit,
+  type StoredAttack,
   type DamageDice,
 } from './attack.ts';
 export {
@@ -199,15 +201,19 @@ export {
   type TokenVisibility,
 } from './battlefield.ts';
 export {
+  ATTACK_COSTS,
   SQUARE_METERS,
   TURN_LIMITS,
   TURN_SPENDS,
+  attackSpend,
   classAttacksPerAction,
+  defaultAttackCost,
   effectiveSpeed,
   formatMeters,
   freshTurn,
   grantAction,
   hasAction,
+  isAttackCost,
   isAttacksPerAction,
   isTurnSpend,
   movementCost,
@@ -219,6 +225,7 @@ export {
   speedFromText,
   squaresBetween,
   squaresFor,
+  type AttackCost,
   type SquareGrid,
   type TurnBudget,
   type TurnSpend,

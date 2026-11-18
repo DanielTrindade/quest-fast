@@ -3,7 +3,7 @@ import type { DieResult, RollMode } from './dice.ts';
 import type { Ability, Skill } from './modifiers.ts';
 import type { ArmorTraining, Coins, DeathSaves, HitDie, Size, Spell, SpellSlot } from './sheet.ts';
 import type { GridSettings, TokenKind } from './battlefield.ts';
-import type { TurnBudget, TurnSpend } from './turn.ts';
+import type { AttackCost, TurnBudget, TurnSpend } from './turn.ts';
 import type { ActiveCondition, COMBATANT_SOURCES, CombatReminder, ENCOUNTER_STATUSES, HealthBand, HpOperation } from './combat.ts';
 
 /**
@@ -90,6 +90,8 @@ type AttackDetails = {
   /** e.g. "Cortante"; empty when not informed. */
   damageType: string;
   notes: string;
+  /** What using it spends on its user's turn. */
+  cost: AttackCost;
 };
 
 /**
@@ -106,10 +108,11 @@ export type Attack = AttackDetails & (
 
 /**
  * What clients send. Older clients omit `kind` (an attack roll), the damage
- * type and the notes. A save may arrive without its ability so validation can
- * point at it; it is never stored that way.
+ * type, the notes and the cost (`defaultAttackCost` of the kind). A save may
+ * arrive without its ability so validation can point at it; it is never
+ * stored that way.
  */
-export type AttackInput = Pick<AttackDetails, 'name' | 'damage'> & Partial<Pick<AttackDetails, 'damageType' | 'notes'>> & (
+export type AttackInput = Pick<AttackDetails, 'name' | 'damage'> & Partial<Pick<AttackDetails, 'damageType' | 'notes' | 'cost'>> & (
   | { kind?: 'attack'; bonus: number }
   | { kind: 'save'; dc: number; saveAbility: Ability | null }
 );

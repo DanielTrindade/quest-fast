@@ -1,4 +1,4 @@
-import type { ActiveCondition, CombatantView, Condition, DeathSaveStatus, EncounterStatus, HealthBand } from '@quest-fast/shared';
+import type { ActiveCondition, AttackCost, CombatantView, Condition, DeathSaveStatus, EncounterStatus, HealthBand } from '@quest-fast/shared';
 
 /** Visible labels of the combat, in Portuguese (D&D 2024). */
 
@@ -7,6 +7,14 @@ export const HEALTH_BAND_LABELS: Record<HealthBand, string> = {
   wounded: 'Ferido',
   bloodied: 'Muito ferido',
   defeated: 'Derrotado',
+};
+
+/** What a row of attacks spends on its user's turn. */
+export const ATTACK_COST_LABELS: Record<AttackCost, string> = {
+  attack: 'Ação Atacar',
+  action: 'Ação',
+  bonusAction: 'Ação bônus',
+  reaction: 'Reação',
 };
 
 export const ENCOUNTER_STATUS_LABELS: Record<EncounterStatus, string> = {

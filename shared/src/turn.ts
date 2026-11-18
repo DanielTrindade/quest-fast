@@ -231,6 +231,35 @@ export function spendTurn(
   }
 }
 
+// --- Attack cost ----------------------------------------------------------------
+
+/**
+ * What using a row of attacks spends on its user's turn. `attack` is one
+ * attack of an Attack action (Extra Attack gives the next ones); `action` is
+ * the whole action, so a spell never gets Extra Attack. A target's saving
+ * throw is free: only who uses the row pays.
+ */
+export const ATTACK_COSTS = ['attack', 'action', 'bonusAction', 'reaction'] as const satisfies readonly TurnSpend[];
+export type AttackCost = (typeof ATTACK_COSTS)[number];
+
+export function isAttackCost(value: unknown): value is AttackCost {
+  return typeof value === 'string' && (ATTACK_COSTS as readonly string[]).includes(value);
+}
+
+/**
+ * The cost of a row that does not say (stored before the cost existed, or
+ * imported from a PDF): an attack roll is a weapon of the Attack action, a
+ * save is a spell or a breath that takes the whole action.
+ */
+export function defaultAttackCost(kind: 'attack' | 'save'): AttackCost {
+  return kind === 'save' ? 'action' : 'attack';
+}
+
+/** What a row spends: its cost on its user's own turn; out of turn, the reaction (an opportunity attack). */
+export function attackSpend(cost: AttackCost, ownTurn: boolean): TurnSpend {
+  return ownTurn ? cost : 'reaction';
+}
+
 /**
  * The master gives something back: the action (ending an Attack action that
  * still owed attacks), the bonus action, the reaction or a Dash (its action
