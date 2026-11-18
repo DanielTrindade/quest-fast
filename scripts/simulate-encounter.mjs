@@ -879,7 +879,7 @@ const cellCentre = (scene, column, row) => ({
   x: scene.grid.offsetX + (column + 0.5) * scene.grid.cellSize,
   y: scene.grid.offsetY + (row + 0.5) * scene.grid.cellSize,
 });
-/** "Bram: 3 casas · 4,5 m. Restam 9 m neste turno." → "3 casas · 4,5 m", as the confirm bar shows it. */
+/** "Bram: 3 casas, 4,5 m. Restam 9 m neste turno." → "3 casas, 4,5 m", as the confirm bar shows it. */
 const costOf = (text) => text.replace(/^[^:]*:\s*/, '').split('.')[0];
 const samePoint = (a, b) => Math.abs(a.x - b.x) < 0.01 && Math.abs(a.y - b.y) < 0.01;
 /** Squares between two points, diagonals included (the 2024 rule). */
