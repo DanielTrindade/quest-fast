@@ -5,8 +5,8 @@ import { Avatar as Root, AvatarFallback, AvatarImage } from './ui/avatar';
 
 const SIZE = { sm: 'size-10', md: 'size-14', lg: 'size-20 text-h2', xl: 'size-24 text-h1' };
 
-// A character token gets a double ring, like a miniature's base.
-const CHARACTER = 'border-input bg-background p-1 shadow-[inset_0_0_0_2px_var(--color-surface-raised),inset_0_0_0_3px_var(--color-border-strong),0_2px_0_var(--color-edge-shadow)]';
+// A character is the map's piece: a matte metal rim, the accent band, a short base.
+const CHARACTER = 'border-0 bg-accent p-[5px] shadow-[inset_0_0_0_3px_var(--color-border-control),inset_0_1px_0_3px_var(--color-edge-light),0_2px_0_var(--color-edge-shadow)]';
 
 export function Avatar({ name, src, loading = false, variant = 'user', size = 'sm' }: {
   name: string; src?: string; loading?: boolean;
