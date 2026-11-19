@@ -106,6 +106,28 @@ test('an operation that leaves the fog too complex is refused', () => {
   assert.ok('revealed' in applyFog(rooms, reveal(rect(0, 0, 4, 4)), W, H), 'an operation that adds nothing still goes');
 });
 
+test('a hole rounded onto the outer edge is merged, so a later operation elsewhere changes nothing there', () => {
+  // On a 100 × 100 map, a hole at x = 0.4 rounds onto the room's edge x = 0.
+  const map = (revealed: MultiPolygon, operation: FogOperation) => {
+    const result = applyFog(revealed, operation, 100, 100);
+    assert.ok('revealed' in result);
+    return result.revealed;
+  };
+  const room = map(map([], reveal(rect(0, 0, 10, 10))), hide(rect(0.4, 2, 2, 4)));
+  assert.equal(isRevealed(room, 0, 4), false, 'the edge the hole reached is hidden');
+  assert.equal(isRevealed(room, 1, 4), false);
+  assert.equal(isRevealed(room, 5, 5), true);
+  assert.equal(area(room), 10 * 10 - 2 * 4);
+  for (const ring of room.flat()) for (const [x, y] of ring) assert.ok(Number.isInteger(x) && Number.isInteger(y));
+
+  for (const operation of [reveal(rect(0, 0, 1, 1)), reveal(rect(20, 20, 2, 2))]) {
+    const after = map(room, operation);
+    for (const [x, y] of [[0, 4], [1, 4], [2, 4], [5, 5], [0, 1]] as const) {
+      assert.equal(isRevealed(after, x, y), isRevealed(room, x, y), `${x}, ${y} after ${JSON.stringify(operation.shape)}`);
+    }
+  }
+});
+
 test('validateFogOperation reads every shape and refuses broken ones', () => {
   assert.deepEqual(validateFogOperation({ mode: 'reveal', shape: { kind: 'all' } }), { operation: reveal({ kind: 'all' }) });
   assert.deepEqual(validateFogOperation({ mode: 'hide', shape: rect(1, 2, 3, 4) }), { operation: hide(rect(1, 2, 3, 4)) });
