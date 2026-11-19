@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type RefObject } from 'react';
-import type { GridSettings } from '@quest-fast/shared';
+import type { GridSettings, SceneFog } from '@quest-fast/shared';
+import { drawFog } from '../lib/fog-draw';
+import type { FogLook } from '../lib/fog-tool';
 import { drawMap } from '../lib/map-draw';
 import { clampView, fitView, openingView, visibleRect, zoomViewAt, type MapView, type Size } from '../lib/map-view';
 import { easeSettle } from '../lib/spring';
@@ -39,11 +41,13 @@ function localPoint(event: PointerEvent<HTMLCanvasElement>): Point {
  * the next animation frame, so dragging never re-renders React; only the
  * zoom shown in the DOM is state.
  */
-export function useMapViewport({ imageUrl, mapWidth, mapHeight, grid, overlayRef }: {
+export function useMapViewport({ imageUrl, mapWidth, mapHeight, grid, fog = null, overlayRef }: {
   imageUrl: string;
   mapWidth: number;
   mapHeight: number;
   grid: GridSettings;
+  /** Drawn over the map and the grid, under the tokens. */
+  fog?: { fog: SceneFog; look: FogLook } | null;
   /** Read on every frame and press, so the layer never restarts the map. */
   overlayRef?: RefObject<MapOverlay | null>;
 }) {
@@ -54,6 +58,7 @@ export function useMapViewport({ imageUrl, mapWidth, mapHeight, grid, overlayRef
   const viewportRef = useRef<Size>({ width: 0, height: 0 });
   const mapRef = useRef<Size>({ width: mapWidth, height: mapHeight });
   const gridRef = useRef(grid);
+  const fogRef = useRef(fog);
   const drawRequest = useRef(0);
   const animation = useRef(0);
   const pointers = useRef(new Map<number, Point>());
@@ -85,6 +90,8 @@ export function useMapViewport({ imageUrl, mapWidth, mapHeight, grid, overlayRef
         themed: frameRef.current ?? context.canvas,
       });
       const view = viewRef.current;
+      const themed = frameRef.current ?? context.canvas;
+      if (view && imageRef.current && fogRef.current) drawFog(context, { ...fogRef.current, view, map: mapRef.current, themed });
       if (view && imageRef.current && overlayRef?.current?.draw(context, view, performance.now())) requestDrawRef.current();
     });
   }, [overlayRef]);
@@ -150,6 +157,11 @@ export function useMapViewport({ imageUrl, mapWidth, mapHeight, grid, overlayRef
     if (sizeChanged && viewRef.current) frameMap(false, true);
     else requestDraw();
   }, [mapWidth, mapHeight, grid, frameMap, requestDraw]);
+
+  useEffect(() => {
+    fogRef.current = fog;
+    requestDraw();
+  }, [fog, requestDraw]);
 
   useEffect(() => {
     const image = new Image();

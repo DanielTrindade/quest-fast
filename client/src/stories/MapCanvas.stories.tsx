@@ -6,7 +6,8 @@ import { MapCanvas, type MapCanvasProps } from '../components/MapCanvas';
 import { fitView } from '../lib/map-view';
 import { canMoveToken } from '../lib/token-labels';
 import { createMotionStore } from '../lib/token-motion';
-import { PRINTED_CELL, SYNTHETIC_MAP, alignedSceneGrid, defaultSceneGrid, syntheticMapUrl } from './fixtures/maps';
+import { fogOn, fogStart } from './fixtures/fog';
+import { PRINTED_CELL, PRINTED_OFFSET, SYNTHETIC_MAP, alignedSceneGrid, defaultSceneGrid, syntheticMapUrl } from './fixtures/maps';
 import { MASTER_ID, PLAYER_ID, cell, fightTokens, manyTokens, masterTokens, playerFightTokens, playerTokens, vitalityTokens } from './fixtures/tokens';
 
 const meta = {
@@ -447,5 +448,108 @@ export const CaidoEDerrotado: Story = {
     const { frame, map } = await readyMap(canvasElement);
     await expect(map.getByText(/7 tokens no mapa\. 1 caído, 1 derrotado\./)).toBeInTheDocument();
     await waitFor(() => expect(painted(frame)).toBe(true));
+  },
+};
+
+// --- Fog of war -----------------------------------------------------------
+
+/**
+ * The colour of the canvas at a map point, as [r, g, b]: the fog drawn over
+ * the map changes it. Read on the framed map, where `onPage` aims.
+ */
+function pixelAt(frame: HTMLElement, point: { x: number; y: number }): number[] {
+  const canvas = frame.querySelector('canvas')!;
+  const rect = canvas.getBoundingClientRect();
+  const { clientX, clientY } = onPage(frame, point);
+  const scale = canvas.width / rect.width;
+  const data = canvas.getContext('2d')!.getImageData(Math.round((clientX - rect.left) * scale), Math.round((clientY - rect.top) * scale), 1, 1).data;
+  return [data[0], data[1], data[2]];
+}
+
+const fogArgs = { ...tokenArgs, tokens: masterTokens(), viewerId: MASTER_ID, fog: fogOn };
+
+/** The master sees through the fog; the goblins and the ogre beyond the hall show faded, as hidden tokens do. */
+export const FogMestre: Story = {
+  name: 'Fog (mestre)',
+  args: fogArgs,
+  render: (args) => <TokenMap {...args} master />,
+  play: async ({ canvasElement }) => {
+    const { frame, map } = await framedMap(canvasElement);
+    await expect(map.getByText(/7 tokens no mapa\. Fog ligado: 3 áreas reveladas\./)).toBeInTheDocument();
+    await waitFor(() => expect(painted(frame)).toBe(true));
+  },
+};
+
+/** "Ver como jogador": opaque, and only what a player receives — the characters and the barrel in the hall. */
+export const FogComoJogador: Story = {
+  name: 'Fog (ver como jogador)',
+  args: { ...fogArgs, fogLook: 'player' },
+  render: (args) => <TokenMap {...args} master />,
+  play: async ({ canvasElement }) => {
+    const { frame, map } = await framedMap(canvasElement);
+    await expect(map.getByText(/3 tokens no mapa\. Fog ligado, como os jogadores veem: 3 áreas reveladas\./)).toBeInTheDocument();
+    // The same hidden corner of the map in two spots: opaque fog is one flat colour.
+    await waitFor(() => expect(pixelAt(frame, { x: 1700, y: 100 })).toEqual(pixelAt(frame, { x: 1650, y: 1100 })));
+  },
+};
+
+/** A fresh scene with the fog just turned on: everything hidden, characters still on the map. */
+export const FogTudoOculto: Story = {
+  name: 'Fog (tudo oculto)',
+  args: { ...fogArgs, tokens: playerTokens().filter((token) => token.kind === 'character'), viewerId: PLAYER_ID, fog: fogStart, fogLook: 'player' },
+  render: (args) => <TokenMap {...args} master={false} />,
+  play: async ({ canvasElement }) => {
+    const { map } = await framedMap(canvasElement);
+    await expect(map.getByText(/Fog ligado, como os jogadores veem: nada revelado\./)).toBeInTheDocument();
+  },
+};
+
+/** The rectangle grows to the printed grid around the cells it touched; the map does not pan. */
+export const FogRetangulo: Story = {
+  name: 'Fog: desenhar retângulo',
+  args: { ...fogArgs, fogTool: { mode: 'reveal', shape: 'rect' }, onFogShape: fn() },
+  render: (args) => <TokenMap {...args} master />,
+  play: async ({ canvasElement, args }) => {
+    const { frame, map } = await framedMap(canvasElement);
+    await expect(map.getByText(/Arraste para desenhar o retângulo do fog/)).toBeInTheDocument();
+    await dragOnMap(frame, cell(2, 2), cell(4, 3));
+    await expect(args.onFogShape).toHaveBeenCalledWith({
+      mode: 'reveal',
+      shape: { kind: 'rect', x: PRINTED_OFFSET + 2 * PRINTED_CELL, y: PRINTED_OFFSET + 2 * PRINTED_CELL, width: 3 * PRINTED_CELL, height: 2 * PRINTED_CELL },
+    });
+    // The tool took the press: no token was grabbed, even over the party.
+    const kaelen = masterTokens().find((token) => token.id === 'kaelen')!;
+    await dragOnMap(frame, kaelen, { x: kaelen.x + PRINTED_CELL, y: kaelen.y });
+    await expect(args.onGrab).not.toHaveBeenCalled();
+  },
+};
+
+/** Point by point, closed on the first one; the bar counts them and finishes with "Concluir" too. */
+export const FogPoligono: Story = {
+  name: 'Fog: desenhar polígono',
+  args: { ...fogArgs, fogTool: { mode: 'hide', shape: 'polygon' }, onFogShape: fn() },
+  render: (args) => <TokenMap {...args} master />,
+  play: async ({ canvasElement, args }) => {
+    const { frame, map } = await framedMap(canvasElement);
+    const corners = [cell(15, 3), cell(18, 3), cell(18, 6)];
+    for (const corner of corners) await pressOnMap(frame, corner);
+    const bar = within(map.getByRole('group', { name: 'Polígono do fog' }));
+    await expect(bar.getByText('3')).toBeInTheDocument();
+    await pressOnMap(frame, corners[0]!);
+    await waitFor(() => expect(args.onFogShape).toHaveBeenCalledTimes(1));
+    const [operation] = (args.onFogShape as ReturnType<typeof fn>).mock.calls[0]!;
+    await expect(operation.mode).toBe('hide');
+    await expect(operation.shape.points).toHaveLength(3);
+    await expect(map.queryByRole('group', { name: 'Polígono do fog' })).not.toBeInTheDocument();
+
+    // Two points, then Backspace takes one back and Esc drops the rest.
+    await pressOnMap(frame, cell(10, 10));
+    await pressOnMap(frame, cell(12, 10));
+    frame.focus();
+    await userEvent.keyboard('{Backspace}');
+    await expect(within(map.getByRole('group', { name: 'Polígono do fog' })).getByText('1')).toBeInTheDocument();
+    await userEvent.keyboard('{Escape}');
+    await expect(map.queryByRole('group', { name: 'Polígono do fog' })).not.toBeInTheDocument();
+    await expect(args.onFogShape).toHaveBeenCalledTimes(1);
   },
 };
