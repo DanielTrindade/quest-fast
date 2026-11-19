@@ -676,6 +676,12 @@ export type CombatantInput =
       hidden?: boolean;
     };
 
+/**
+ * A free token copied from the bestiary joins the encounter, sent to the same
+ * route as `CombatantInput`: a copy of its entry, and the token stands for it.
+ */
+export type TokenJoinInput = { source: 'token'; tokenId: string; hp: HitPointMode };
+
 /** The master's edits to a combatant; absent keys stay as they are. */
 export type CombatantPatch = {
   name?: string;
@@ -772,8 +778,8 @@ type CombatantRef = {
 };
 
 /**
- * A change of hit points. Stored whole; a player reading about a monster gets
- * neither the amount nor the hit points, only the band.
+ * A change of hit points. The whole table reads it, a monster's numbers
+ * included: the table follows the hit points of what it fights.
  */
 export type CombatHitPointsPayload = CombatantRef & {
   /** `combat.defeated` replaces the damage of the hit that takes a monster down. */

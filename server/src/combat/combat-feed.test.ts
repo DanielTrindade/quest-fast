@@ -25,7 +25,7 @@ function combatEvents(events: SessionEvent[], type: CombatSessionEvent['type']):
   return events.filter((event) => event.type === type) as CombatSessionEvent[];
 }
 
-test('damage to a monster reaches the master in full and a player only as a band', async () => {
+test('damage to a monster reaches the whole table in full', async () => {
   const { s, at, id } = await fight();
   await send(s.master, at('Goblin 2', '/hp'), 'POST', { operation: 'damage', amount: 4 });
 
@@ -45,9 +45,8 @@ test('damage to a monster reaches the master in full and a player only as a band
 
   const [player] = combatEvents(await feed(s, s.player), 'combat.damage');
   assert.equal(player?.id, master!.id);
-  const payload = player!.payload as Record<string, unknown>;
-  assert.equal(payload.band, 'bloodied');
-  for (const key of ['amount', 'hpCurrent', 'hpMax']) assert.equal(key in payload, false, key);
+  // The table follows a monster's hit points (#111): the player reads the same numbers.
+  assert.deepEqual(player!.payload, master!.payload);
 });
 
 test('the hit that takes a monster down is told once, as its defeat', async () => {
@@ -69,7 +68,7 @@ test('the hit that takes a monster down is told once, as its defeat', async () =
     band: 'defeated',
   });
   const [player] = combatEvents(await feed(s, s.player), 'combat.defeated');
-  assert.equal('amount' in player!.payload, false);
+  assert.deepEqual(player!.payload, defeated!.payload);
 });
 
 test("a character's hit points stay open to the table, and healing is told too", async () => {
@@ -157,7 +156,7 @@ test('a death save rolled and failures recorded are told with the count', async 
   ]);
 });
 
-test("a player's socket gets the band of a monster's damage, never the number", async (t) => {
+test("a player's socket gets a monster's damage, and nothing of a hidden one", async (t) => {
   const server = await createTestServer(PROFILES);
   const s = await setup({ app: server.app, db: server.db });
   const socket = connect(server.port, s.campaign.id, await signIn({ app: server.app }, 'rafael'));
@@ -180,6 +179,6 @@ test("a player's socket gets the band of a monster's damage, never the number", 
 
   const damage = events.filter((event) => event.type === 'combat.damage');
   assert.equal(damage.length, 1);
-  assert.equal(JSON.stringify(damage).includes('"amount"'), false);
+  assert.equal((damage[0]!.payload as { amount?: number }).amount, 4);
   assert.equal(JSON.stringify(events).includes('Bandido'), false);
 });

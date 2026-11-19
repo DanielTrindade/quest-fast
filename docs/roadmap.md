@@ -152,9 +152,13 @@ em quatro PRs (os três primeiros empilhados):
    alvo inválido recusa o uso inteiro, sem gastar nada. A aba Ações marca os
    alvos numa lista, e o feed mostra uma linha por alvo. Um alvo oculto sai da
    cópia do jogador, em vez de deixar o evento inteiro secreto.
-4. **PV pelo token.** PV e ajuste ao lado do mapa, PV dos monstros visível
-   para os jogadores, e o token livre do bestiário entra no combate com um
-   clique.
+4. **PV pelo token — entregue.** Selecionar um token mostra, ao lado do mapa,
+   o PV do combatente dele, com o ajuste para quem pode mudá-lo (o mestre, ou
+   o dono do personagem). O PV dos monstros visíveis passa a ser da mesa: o
+   jogador o lê na fila, no token e no feed, e continua sem ver CA, ataques e
+   iniciativa. O mestre põe um token livre do bestiário no encontro em
+   andamento (ou no em preparação) com um clique, com PV médio ou rolado; o
+   token passa a ser do combatente, no mesmo lugar.
 
 ### Telas da campanha
 
@@ -237,8 +241,9 @@ com as decisões do spike. Cinco entregas, cada uma usável na mesa:
 4. **Fog of war.** Revelar e ocultar com retângulo e polígono, regra em
    `shared/` e estado calculado no servidor; monstro na área oculta fora do
    payload do jogador.
-5. **Acabamento.** Token ligado ao combate, reconexão com o estado completo da
-   cena, seed com cena, `verify:app` e o Owlbear fora do README.
+5. **Acabamento.** Token ligado ao combate (o token livre do bestiário já
+   entra no combate pela #111), reconexão com o estado completo da cena, seed
+   com cena, `verify:app` e o Owlbear fora do README.
 
 ### Fase 3 — mundo
 

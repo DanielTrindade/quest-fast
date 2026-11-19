@@ -6,7 +6,7 @@ import { tokens } from '@quest-fast/db';
 import type { SceneResponse, SceneView, SocketMessage, TokenLockedResponse, TokenView } from '@quest-fast/shared';
 import { body, createTestServer, signIn, testImageBytes } from '../testing.ts';
 import { createTokenLocks } from './locks.ts';
-import { PROFILES, connect, runningEncounter, send, setup, until, type Request, type Setup } from '../combat/test-setup.ts';
+import { PROFILES, byName, connect, encounterOf, runningEncounter, send, setup, until, type Request, type Setup } from '../combat/test-setup.ts';
 
 /** A 600 × 400 map: the default grid has 20 px cells. */
 async function openScene(s: Setup) {
@@ -534,3 +534,60 @@ async function sheetOf(s: Setup, characterId: string) {
   const { id: _id, ownerId: _owner, avatarUrl: _url, createdAt: _created, updatedAt: _updated, ...sheet } = character;
   return sheet;
 }
+
+// --- A free token joins the fight ------------------------------------------------------
+
+/** A running fight and, on the open scene, a free goblin copied from the bestiary. */
+async function freeGoblin() {
+  const s = await setup();
+  const running = await runningEncounter(s);
+  const { path } = await openScene(s);
+  const scene = await sceneOf(await add(s, path, { kind: 'statblock', statblockId: s.goblin.id, x: 210, y: 130 }), 201);
+  const token = scene.tokens.find((candidate) => candidate.statblockId === s.goblin.id && candidate.kind === 'free')!;
+  const join = (request: Request, body: Record<string, unknown> = {}) =>
+    send(request, `${running.path}/combatants`, 'POST', { source: 'token', tokenId: token.id, hp: 'average', ...body });
+  return { s, running, path, token, join };
+}
+
+test('the master puts a free bestiary token in the fight: a numbered copy, and the token stands for it where it is', async () => {
+  const { s, path, token, join } = await freeGoblin();
+  const encounter = await encounterOf(await join(s.master), 201);
+  const goblin = byName(encounter, 'Goblin 3');
+  assert.deepEqual([goblin.source, goblin.hpMax, goblin.hpCurrent, goblin.hidden], ['statblock', 7, 7, false]);
+
+  const scene = await sceneOf(await s.master(path));
+  const joined = scene.tokens.find((candidate) => candidate.id === token.id)!;
+  assert.deepEqual(
+    [joined.kind, joined.combatantId, joined.name, joined.statblockId, joined.x, joined.y],
+    ['combatant', goblin.id, 'Goblin 3', s.goblin.id, token.x, token.y],
+  );
+  // Joined once: the token is no longer free.
+  assert.equal((await join(s.master)).status, 409);
+});
+
+test('a hidden free token joins as a hidden combatant', async () => {
+  const { s, path, token, join } = await freeGoblin();
+  await sceneOf(await send(s.master, `${path}/tokens/${token.id}`, 'PATCH', { hidden: true }));
+  const encounter = await encounterOf(await join(s.master), 201);
+  const copy = encounter.combatants.find((combatant) => combatant.source === 'statblock' && combatant.hidden);
+  assert.ok(copy);
+  const playerView = await encounterOf(await s.player(`${s.root}/encounters/${encounter.id}`));
+  assert.equal(playerView.combatants.some((combatant) => combatant.id === copy.id), false);
+});
+
+test('only the master puts a token in the fight, and only a free one from the bestiary', async () => {
+  const { s, running, path, join } = await freeGoblin();
+  assert.equal((await join(s.player)).status, 403);
+  assert.equal((await join(s.outsider)).status, 404);
+  assert.equal((await join(s.master, { tokenId: 'missing' })).status, 404);
+  assert.equal((await join(s.master, { hp: 'luck' })).status, 422);
+
+  const carriage = await sceneOf(await add(s, path, { kind: 'free', label: 'Carroça', size: 'large' }), 201);
+  const typed = named(carriage, 'Carroça');
+  assert.equal((await join(s.master, { tokenId: typed.id })).status, 422);
+  const kaelen = await sceneOf(await add(s, path, { kind: 'character', characterId: s.kaelen.id }), 201);
+  assert.equal((await join(s.master, { tokenId: named(kaelen, 'Kaelen').id })).status, 409);
+
+  // Nothing joined: the encounter keeps its five.
+  assert.equal((await encounterOf(await s.master(running.path))).combatants.length, 5);
+});
