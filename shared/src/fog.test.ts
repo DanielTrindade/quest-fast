@@ -183,12 +183,23 @@ test('isRevealed: inside, outside, in a hole, and on the edge', () => {
 
 test('scaleFog follows the map and clips to it', () => {
   const revealed = apply([], reveal(rect(100, 100, 200, 100)));
-  const doubled = scaleFog(revealed, 2, 2000, 1600);
+  const doubled = scaleFog(revealed, 2, 2, 2000, 1600);
   assert.equal(area(doubled), 400 * 200);
   assert.equal(isRevealed(doubled, 250, 250), true);
-  const narrow = scaleFog(revealed, 2, 500, 1600);
+  const narrow = scaleFog(revealed, 2, 2, 500, 1600);
   assert.equal(area(narrow), (500 - 200) * 200, 'clipped to the new, narrower map');
-  assert.deepEqual(scaleFog([], 2, 2000, 1600), []);
+  assert.deepEqual(scaleFog([], 2, 2, 2000, 1600), []);
+});
+
+test('scaleFog stretches each axis on its own, as the tokens move', () => {
+  // 1000 × 800 → 2000 × 800: twice as wide, as tall as before.
+  const revealed = apply([], reveal(rect(0, 0, 100, 100)));
+  const wider = scaleFog(revealed, 2, 1, 2000, 800);
+  assert.equal(area(wider), 200 * 100);
+  // A token at (50, 150) goes to (100, 150): still under the fog.
+  assert.equal(isRevealed(revealed, 50, 150), false);
+  assert.equal(isRevealed(wider, 100, 150), false);
+  assert.equal(isRevealed(wider, 150, 50), true);
 });
 
 test('with the fog on a player does not receive a token outside the revealed area', () => {

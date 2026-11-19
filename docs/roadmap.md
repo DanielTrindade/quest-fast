@@ -241,9 +241,12 @@ com as decisões do spike. Cinco entregas, cada uma usável na mesa:
 4. **Fog of war — em andamento.** Revelar e ocultar com retângulo e
    polígono, regra em `shared/` e estado calculado no servidor; monstro na
    área oculta fora do payload do jogador. O fog é só do mapa: o combate
-   continua seguindo o "escondido no encontro". Regras e contrato prontos;
-   faltam servidor, componentes e tela.
+   continua seguindo o "escondido no encontro". Regras, contrato e servidor
+   prontos; faltam componentes e tela.
    ([spec](history/2026-11-19-fog-of-war.md))
+   Diferenças da spec: na troca de mapa, o fog acompanha os tokens (cada eixo
+   pela própria razão), não o grid, que segue só a largura; e uma forma que
+   não fecha em coordenadas inteiras é recusada em vez de gravada.
 5. **Acabamento.** Token ligado ao combate (o token livre do bestiário já
    entra no combate pela #111), reconexão com o estado completo da cena, seed
    com cena, `verify:app` e o Owlbear fora do README.

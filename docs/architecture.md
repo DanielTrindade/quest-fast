@@ -380,8 +380,10 @@ entrega 2, o servidor dos tokens: a tabela `tokens`, as rotas em
 (`server/src/scenes/locks.ts`) e o socket recebendo `token.move`; e as telas
 dos tokens: o socket da campanha expõe o envio e um store de movimento fora
 do cache do TanStack Query (`useCampaignChannel`), que o canvas lê a cada
-quadro, para 30 mensagens por segundo nunca renderizarem o React. O fog vem
-na entrega 3.
+quadro, para 30 mensagens por segundo nunca renderizarem o React. Da
+entrega 3, as regras do fog em `shared/src/fog.ts` e o servidor: ligar e
+desligar no `PATCH` da cena (desligar guarda a área revelada) e
+`POST …/scenes/:sceneId/fog`, só do mestre; as telas do fog vêm depois.
 
 - **Onde as telas moram (#88).** Com a campanha dividida em rotas, a "seção
   Mapa" da spec não volta à página única: a lista de cenas do mestre é uma
@@ -411,7 +413,13 @@ na entrega 3.
   quem reconecta. O fog também decide visibilidade: token que não é de
   personagem com o centro na área oculta não sai do servidor para o jogador,
   assim como o token escondido pelo mestre e o do combatente escondido no
-  encontro. Tokens de personagem aparecem sempre.
+  encontro. Tokens de personagem aparecem sempre. No arrasto ao vivo vale a
+  posição recebida: o `token.moving` de uma criatura que entra na área oculta
+  para de chegar ao jogador ali. Trocar o mapa escala o fog em cada eixo como
+  os tokens, para o que estava oculto continuar oculto num mapa de outra
+  proporção; se o grid volta ao padrão, o fog volta a tudo oculto.
+  O fog é só do mapa: a iniciativa e a lista de alvos seguem o "escondido no
+  encontro".
 - **Movimento:** o `grab` é REST e trava o token (validade de 3 s, renovada a
   cada movimento, liberada ao soltar ou quando o socket fecha). Só quem tem a
   trava manda `token.move` pelo socket (30 Hz, sem banco), que o servidor

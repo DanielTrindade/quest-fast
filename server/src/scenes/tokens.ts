@@ -17,7 +17,7 @@ import type { Viewer } from '../events/hub.ts';
 import { shortText } from '../validation.ts';
 import type { HeldLock } from './locks.ts';
 import { moveRule, publishEncounter, spendMove } from './fight.ts';
-import { tokenVisibleTo, type LoadedScene, type LoadedToken } from './projection.ts';
+import { fogOf, tokenVisibleTo, type LoadedScene, type LoadedToken } from './projection.ts';
 import {
   answer,
   bodyOf,
@@ -137,7 +137,7 @@ function insertToken(db: Executor, scene: SceneRow, token: NewToken, x: number, 
  */
 function findToken(c: HonoContext<Context>, loaded: LoadedScene): LoadedToken {
   const token = loaded.tokens.find((candidate) => candidate.row.id === c.req.param('tokenId'));
-  if (!token || !tokenVisibleTo(token, viewerOf(c))) refuse(404, TOKEN_NOT_FOUND);
+  if (!token || !tokenVisibleTo(token, viewerOf(c), fogOf(loaded.scene))) refuse(404, TOKEN_NOT_FOUND);
   return token;
 }
 
@@ -182,18 +182,24 @@ async function change(
 
 /**
  * Who may receive the moves of a token: the master always; a player only on
- * the scene open for the table, and only a token they see where it was. Read
- * on every move, so hiding a token mid-drag takes effect at once. Null when
- * the token is gone or not of this campaign.
+ * the scene open for the table, and only a token they see at the position
+ * just received — a creature dragged under the fog stops reaching them there.
+ * Read on every move, so hiding a token or the fog mid-drag takes effect at
+ * once. Null when the token is gone or not of this campaign.
  */
-export function movingAudience(db: Executor, campaignId: string, tokenId: string): ((viewer: Viewer) => boolean) | null {
+export function movingAudience(
+  db: Executor,
+  campaignId: string,
+  tokenId: string,
+  at: { x: number; y: number },
+): ((viewer: Viewer) => boolean) | null {
   const row = db
     .select({
       kind: tokens.kind,
       hidden: tokens.hidden,
-      x: tokens.x,
-      y: tokens.y,
       sceneId: tokens.sceneId,
+      fogEnabled: scenes.fogEnabled,
+      fogRevealed: scenes.fogRevealed,
       combatantHidden: combatants.hidden,
       activeSceneId: campaigns.activeSceneId,
     })
@@ -205,8 +211,9 @@ export function movingAudience(db: Executor, campaignId: string, tokenId: string
     .get();
   if (!row) return null;
   const open = row.activeSceneId === row.sceneId;
-  const visibility = { kind: row.kind, hidden: row.hidden, combatantHidden: row.combatantHidden ?? false, x: row.x, y: row.y };
-  return (viewer) => viewer.role === 'master' || (open && isTokenVisible(visibility, viewer.role));
+  const visibility = { kind: row.kind, hidden: row.hidden, combatantHidden: row.combatantHidden ?? false, ...at };
+  const fog = fogOf(row);
+  return (viewer) => viewer.role === 'master' || (open && isTokenVisible(visibility, viewer.role, fog));
 }
 
 /**
@@ -223,7 +230,7 @@ export function settleAbandonedLock(deps: Deps, lock: HeldLock) {
     const holder = { role: lock.role, userId: lock.userId };
     const mayMove = lock.role === 'master' || (token.row.kind === 'character' && token.ownerId === lock.userId);
     // A fighter's move counts only once confirmed: an abandoned one goes back.
-    if (lock.last && mayMove && !token.fighter && tokenVisibleTo(token, holder)) {
+    if (lock.last && mayMove && !token.fighter && tokenVisibleTo(token, holder, fogOf(current.scene))) {
       const position = restingPoint(current.scene, token.size, lock.last.x, lock.last.y);
       tx.update(tokens).set(position).where(eq(tokens.id, token.row.id)).run();
     }
