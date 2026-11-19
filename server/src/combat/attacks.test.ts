@@ -419,6 +419,24 @@ test("a hidden target of an area stays out of a player's copy; an area of hidden
   assert.equal((await rolls(s, s.player)).length, 1);
 });
 
+test("areas of hidden targets only stay out of a player's feed pages, and the older history still pages", async () => {
+  const { s, id, at, shamanAt } = await breathing();
+  // An older event the player may read.
+  await attacked(await send(s.player, at('Kaelen', '/attack'), 'POST', { attackIndex: 0, targetIds: [id('Goblin 1')] }));
+  for (let use = 0; use < 3; use += 1) {
+    await encounterOf(await send(s.master, `${shamanAt}/economy`, 'POST', { refund: 'reaction' }));
+    await attacked(await send(s.master, `${shamanAt}/attack`, 'POST', { attackIndex: 0, targetIds: [id('Bandido')], secret: false }));
+  }
+  const [hiddenOnly] = (await attackEvents(s, s.master)).slice(-1);
+  assert.equal(hiddenOnly?.secret, true);
+
+  const first = await s.player(`${s.root}/feed?limit=1`);
+  assert.equal(first.status, 200);
+  const page = await body<FeedResponse>(first);
+  const attacks = page.events.filter((event) => event.type === 'roll' && (event as RollSessionEvent).payload.rollKind === 'attack');
+  assert.deepEqual(attacks.map((event) => (event as RollSessionEvent).payload.characterName), ['Kaelen']);
+});
+
 test('the live send of an area leaves the hidden target out too', async (t) => {
   const server = await createTestServer(PROFILES);
   const table = await setup({ app: server.app, db: server.db });

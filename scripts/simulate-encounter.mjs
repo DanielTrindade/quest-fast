@@ -410,14 +410,27 @@ async function clickAndWait(page, locator, pathPart) {
   return response;
 }
 
+/**
+ * Ticks exactly `names` among the targets of `attacker` and unticks the rest:
+ * an attack roll refuses more than one target, so a choice never piles up.
+ * Each checkbox reads "Name — PV or band"; the name starts it.
+ */
+async function chooseTargets(panel, attacker, names) {
+  const group = panel.getByRole('group', { name: `Alvos de ${attacker}`, exact: true });
+  await group.waitFor({ timeout: 15000 });
+  let found = 0;
+  for (const box of await group.getByRole('checkbox').all()) {
+    const label = (await box.locator('xpath=..').innerText()).trim();
+    const wanted = names.some((name) => label.startsWith(`${name} — `));
+    if (wanted) found += 1;
+    if ((await box.isChecked()) !== wanted) await box.setChecked(wanted);
+  }
+  if (found !== names.length) throw new Error(`${names.join(', ')} não está entre os alvos de ${attacker}`);
+}
+
 async function attack(page, attacker, weapon, target, { secret, mode } = {}) {
   const panel = await actingPanel(page, attacker);
-  const select = panel.getByLabel(`Alvo de ${attacker}`);
-  const value = target === null
-    ? ''
-    : await select.evaluate((element, name) => [...element.options].find((option) => option.text.startsWith(`${name} — `))?.value, target);
-  if (value === undefined) throw new Error(`${target} não está entre os alvos de ${attacker}`);
-  await select.selectOption(value);
+  await chooseTargets(panel, attacker, target === null ? [] : [target]);
   if (mode) await panel.locator(`fieldset[aria-label="Tipo de rolagem dos ataques de ${attacker}"] label`).filter({ hasText: new RegExp(`^\\s*${mode}\\s*$`) }).click();
   const secretBox = panel.getByRole('checkbox', { name: /Atacar em segredo/ });
   if (secret !== undefined && (await secretBox.count()) > 0 && (await secretBox.isChecked()) !== secret) await secretBox.setChecked(secret);

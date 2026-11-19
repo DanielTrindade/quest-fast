@@ -967,11 +967,12 @@ function attack(mutation: Mutation, combatant: LoadedCombatant, body: Record<str
   // A monster's attack is the master's unless told otherwise, like its
   // initiative; a character's is the table's. A hidden attacker would be
   // given away by the event. A hidden target of an attack roll too; among
-  // the targets of a save, a hidden one only leaves the player's copy.
+  // the targets of a save, a hidden one only leaves the player's copy, and
+  // an area of hidden ones only is secret, so the feed filters it in SQL.
   const secret =
     (master ? ((body.secret as boolean | undefined) ?? row.source !== 'character') : false) ||
     row.hidden ||
-    (chosen.kind === 'attack' && targets[0]?.row.hidden === true);
+    (targets.length > 0 && targets.every((target) => target.row.hidden));
 
   const base = {
     kind: 'roll' as const,
