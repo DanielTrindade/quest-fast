@@ -128,6 +128,24 @@ test('a hole rounded onto the outer edge is merged, so a later operation elsewhe
   }
 });
 
+test('a shape that never settles on integers is refused, leaving the fog as it was', () => {
+  // A tiny self-crossing polygon whose crossing keeps landing off the integers.
+  const knot = reveal({ kind: 'polygon', points: [[14.7, 2.1], [16.7, 10.6], [15.9, 3.5], [17.9, 18.6]] });
+  const result = applyFog([], knot, 100, 100);
+  assert.ok('error' in result, 'refused instead of storing a fractional point');
+  assert.match(result.error, /Tente desenhá-la de novo/);
+
+  // On top of a revealed room it is refused too, and the room stays.
+  const room = apply([], reveal(rect(0, 0, 50, 50)));
+  assert.ok('error' in applyFog(room, { mode: 'hide', shape: knot.shape }, 100, 100));
+
+  // Whatever is stored stays on integers, so a far reveal changes nothing near it.
+  const far = apply(room, reveal(rect(90, 90, 2, 2)));
+  for (const [x, y] of [[15.5, 3.4], [25, 25], [50, 20], [60, 20]] as const) {
+    assert.equal(isRevealed(far, x, y), isRevealed(room, x, y), `${x}, ${y}`);
+  }
+});
+
 test('validateFogOperation reads every shape and refuses broken ones', () => {
   assert.deepEqual(validateFogOperation({ mode: 'reveal', shape: { kind: 'all' } }), { operation: reveal({ kind: 'all' }) });
   assert.deepEqual(validateFogOperation({ mode: 'hide', shape: rect(1, 2, 3, 4) }), { operation: hide(rect(1, 2, 3, 4)) });

@@ -136,21 +136,26 @@ function onIntegers(polygons: MultiPolygon): boolean {
  * another hole: a shape the library never returns, that `isRevealed` reads
  * one way now and the next operation, which normalises it, another. The
  * rounded rings go through the library once more, which merges those; when
- * that adds a crossing off the integers, it is rounded again. A shape that
- * never settles on integers is kept consistent rather than integer.
+ * that adds a crossing off the integers, it is rounded again. Null when it
+ * never settles on integers (a tiny shape crossing itself can keep adding a
+ * crossing): a fractional point would be rounded by the next operation and
+ * change what an area it never touched shows, so such a shape is refused.
  */
-function normalised(polygons: MultiPolygon): MultiPolygon {
+function normalised(polygons: MultiPolygon): MultiPolygon | null {
   let current = rounded(polygons);
   for (let pass = 0; pass < 4; pass++) {
     const merged = current.length === 0 ? [] : clipping.union(current);
     if (onIntegers(merged)) return merged;
     current = rounded(merged);
   }
-  return current.length === 0 ? [] : clipping.union(current);
+  return null;
 }
+
+const FOG_UNSTABLE = 'Não foi possível aplicar essa forma ao fog. Tente desenhá-la de novo.';
 
 function settled(polygons: MultiPolygon): { revealed: MultiPolygon } | { error: string } {
   const revealed = normalised(polygons);
+  if (!revealed) return { error: FOG_UNSTABLE };
   return fogVertexCount(revealed) > FOG_LIMITS.maxVertices ? { error: FOG_TOO_COMPLEX } : { revealed };
 }
 
@@ -171,13 +176,15 @@ export function applyFog(
     return settled(mode === 'reveal' ? clipping.union(revealed, area) : clipping.difference(revealed, area));
   } catch {
     // The library gives up on rare degenerate input; the stored fog stays as it was.
-    return { error: 'Não foi possível aplicar essa forma ao fog. Tente desenhá-la de novo.' };
+    return { error: FOG_UNSTABLE };
   }
 }
 
 /**
  * The fog of a scene whose map was swapped for one `ratio` times as wide:
- * it follows the grid, scaled and clipped to the new map.
+ * it follows the grid, scaled and clipped to the new map. When the scaled
+ * area does not settle (see `normalised`), the map starts all hidden: the
+ * swap is never refused for the fog, and hiding too much leaks nothing.
  */
 export function scaleFog(revealed: MultiPolygon, ratio: number, mapWidth: number, mapHeight: number): MultiPolygon {
   if (revealed.length === 0) return [];
