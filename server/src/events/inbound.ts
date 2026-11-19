@@ -60,10 +60,12 @@ export function receiveFrom(
     const lock = deps.locks.holder(message.tokenId);
     if (!lock || lock.userId !== connection.userId || lock.campaignId !== connection.campaignId) return;
     const { x, y } = clampToMap(message.x, message.y, lock.mapWidth, lock.mapHeight);
-    const audience = movingAudience(deps.db, connection.campaignId, message.tokenId);
+    const audience = movingAudience(deps.db, connection.campaignId, message.tokenId, { x, y });
     if (!audience) return;
     // Hidden meanwhile (on the map or in the encounter): the PATCH would be a
-    // 404 for this sender, so the socket cannot move it either.
+    // 404 for this sender, so the socket cannot move it either. The fog never
+    // stops the sender: the master sees every token, a player only moves a
+    // character's, which shows under the fog.
     if (!audience(connection)) {
       deps.locks.release(message.tokenId, connection.userId);
       return;

@@ -6,8 +6,11 @@ import { assets, campaigns, scenes, tokens, type SceneRow } from '@quest-fast/db
 import {
   MAP_LIMITS as M,
   SCENE_LIMITS as S,
+  applyFog,
   clampToMap,
   defaultGrid,
+  scaleFog,
+  validateFogOperation,
   validateGrid,
   type GridSettings,
   type SceneListResponse,
@@ -79,20 +82,24 @@ function parseGrid(value: unknown, current: GridSettings, mapWidth: number): Gri
 }
 
 /**
- * A new map keeps the grid where it was when the proportion allows: the
- * master usually swaps a map for a better copy of the same one. A grid that
- * no longer fits starts over.
+ * A new map keeps the grid and the fog where they were when the proportion
+ * allows: the master usually swaps a map for a better copy of the same one.
+ * A grid that no longer fits starts over, and the fog with it (all hidden):
+ * what was revealed was drawn over another map.
  */
-function regrid(current: GridSettings, oldWidth: number, newWidth: number): GridSettings {
-  const ratio = newWidth / oldWidth;
+function remap(scene: SceneRow, map: NormalizedMap): GridColumns & Pick<SceneRow, 'fogRevealed'> {
+  const current = gridOf(scene);
+  const ratio = map.width / scene.mapWidth;
   const scaled = {
     ...current,
     cellSize: current.cellSize * ratio,
     offsetX: current.offsetX * ratio,
     offsetY: current.offsetY * ratio,
   };
-  if (Object.keys(validateGrid(scaled, newWidth)).length === 0) return scaled;
-  return { ...defaultGrid(newWidth), enabled: current.enabled, snap: current.snap };
+  if (Object.keys(validateGrid(scaled, map.width)).length === 0) {
+    return { ...columnsOf(scaled), fogRevealed: scaleFog(scene.fogRevealed, ratio, map.width, map.height) };
+  }
+  return { ...columnsOf({ ...defaultGrid(map.width), enabled: current.enabled, snap: current.snap }), fogRevealed: [] };
 }
 
 /** Reads the multipart `image`, normalises it and keeps the server's copy. */
@@ -143,6 +150,12 @@ const mapBody = bodyLimit({
   // Room for the multipart envelope and the name around the file itself.
   maxSize: M.maxBytes + 64 * 1024,
   onError: (c) => c.json({ error: MAP_TOO_LARGE }, 413),
+});
+
+/** A polygon of the most points, written out with decimals, stays well under this. */
+const fogBody = bodyLimit({
+  maxSize: 32 * 1024,
+  onError: (c) => c.json({ error: 'A forma do fog é grande demais.' }, 413),
 });
 
 /**
@@ -266,9 +279,47 @@ export function sceneRoutes() {
         const changes: Partial<SceneRow> = {};
         if (body.name !== undefined) changes.name = parseName(body.name);
         if (body.grid !== undefined) Object.assign(changes, columnsOf(parseGrid(body.grid, gridOf(scene), scene.mapWidth)));
+        if (body.fogEnabled !== undefined) {
+          if (typeof body.fogEnabled !== 'boolean') refuse(422, 'Informe se o fog fica ligado ou desligado.');
+          // Off keeps the revealed area, so turning it on again finds it as it was.
+          changes.fogEnabled = body.fogEnabled;
+        }
         // An empty change would still bump the version and reach the whole table.
-        if (Object.keys(changes).length === 0) refuse(422, 'Informe o nome ou o grid a alterar.');
+        if (Object.keys(changes).length === 0) refuse(422, 'Informe o nome, o grid ou o fog a alterar.');
         bumpVersion(tx, scene.id, changes);
+        return loadScene(scopeOf(c), tx, scene.id)!;
+      });
+      publish(c, loaded);
+      return answer(c, loaded);
+    } catch (error) {
+      return refused(c, error);
+    }
+  });
+
+  /**
+   * Reveals or hides a shape. The server applies it to the stored area and
+   * publishes the scene: tokens under a newly hidden area leave the players'
+   * payload, and those under a revealed one join it, with no other step. The
+   * fog may be off: the master prepares the scene before turning it on.
+   */
+  routes.post('/:sceneId/fog', async (c, next) => {
+    // Checked before the body limit, so a player learns nothing from the size.
+    try {
+      findScene(c, c.var.deps.db, { masterOnly: true });
+    } catch (error) {
+      return refused(c, error);
+    }
+    return fogBody(c, next);
+  }, async (c) => {
+    const { db } = c.var.deps;
+    try {
+      const read = validateFogOperation(await c.req.json().catch(() => null));
+      if ('error' in read) refuse(422, read.error);
+      const loaded = db.transaction((tx) => {
+        const { scene } = findScene(c, tx, { masterOnly: true });
+        const applied = applyFog(scene.fogRevealed, read.operation, scene.mapWidth, scene.mapHeight);
+        if ('error' in applied) refuse(422, applied.error);
+        bumpVersion(tx, scene.id, { fogRevealed: applied.revealed });
         return loadScene(scopeOf(c), tx, scene.id)!;
       });
       publish(c, loaded);
@@ -299,7 +350,7 @@ export function sceneRoutes() {
           mapAssetId: insertAsset(c, tx, map, path),
           mapWidth: map.width,
           mapHeight: map.height,
-          ...columnsOf(regrid(gridOf(scene), scene.mapWidth, map.width)),
+          ...remap(scene, map),
         });
         tx.delete(assets).where(eq(assets.id, scene.mapAssetId)).run();
         rescaleTokens(tx, scene, map);

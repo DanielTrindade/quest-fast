@@ -1,5 +1,5 @@
 import type { SceneRow, TokenRow } from '@quest-fast/db';
-import { initials, isTokenVisible, type SceneSummary, type SceneView, type Size, type TokenView } from '@quest-fast/shared';
+import { initials, isTokenVisible, type SceneFog, type SceneSummary, type SceneView, type Size, type TokenView } from '@quest-fast/shared';
 import type { Viewer } from '../events/hub.ts';
 import type { Fighter } from './fight.ts';
 
@@ -35,10 +35,15 @@ export type LoadedScene = {
   tokens: LoadedToken[];
 };
 
-/** Whether a viewer receives this token at all, over REST or the socket. */
-export function tokenVisibleTo(token: LoadedToken, viewer: Viewer): boolean {
+/** The fog as it leaves the server, the same for every viewer. */
+export function fogOf(scene: Pick<SceneRow, 'fogEnabled' | 'fogRevealed'>): SceneFog {
+  return { enabled: scene.fogEnabled, revealed: scene.fogRevealed };
+}
+
+/** Whether a viewer receives this token at all, over REST or the socket, where it rests. */
+export function tokenVisibleTo(token: LoadedToken, viewer: Viewer, fog: SceneFog): boolean {
   const { kind, hidden, x, y } = token.row;
-  return isTokenVisible({ kind, hidden, combatantHidden: token.combatantHidden, x, y }, viewer.role);
+  return isTokenVisible({ kind, hidden, combatantHidden: token.combatantHidden, x, y }, viewer.role, fog);
 }
 
 /** The reach of a creature tells a player its speed: only characters' reach the table. */
@@ -74,10 +79,11 @@ export function projectToken(token: LoadedToken, viewer: Viewer): TokenView {
  * The scene as one viewer may see it — the only shape that leaves the server,
  * over REST and over the socket. A player sees only the scene open for the
  * table (`null` for any other) and only the tokens `isTokenVisible` lets
- * through. The fog joins the projection in its own delivery.
+ * through: none hidden, and with the fog on, none but characters' under it.
  */
 export function projectScene({ scene, mapUrl, active, tokens }: LoadedScene, viewer: Viewer): SceneView | null {
   if (viewer.role !== 'master' && !active) return null;
+  const fog = fogOf(scene);
   return {
     id: scene.id,
     campaignId: scene.campaignId,
@@ -94,8 +100,8 @@ export function projectScene({ scene, mapUrl, active, tokens }: LoadedScene, vie
       opacity: scene.gridOpacity,
     },
     active,
-    fog: { enabled: scene.fogEnabled, revealed: scene.fogRevealed },
-    tokens: tokens.filter((token) => tokenVisibleTo(token, viewer)).map((token) => projectToken(token, viewer)),
+    fog,
+    tokens: tokens.filter((token) => tokenVisibleTo(token, viewer, fog)).map((token) => projectToken(token, viewer)),
     version: scene.version,
     createdAt: scene.createdAt.toISOString(),
   };
