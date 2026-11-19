@@ -211,6 +211,19 @@ export {
   type TokenVisibility,
 } from './battlefield.ts';
 export {
+  FOG_LIMITS,
+  FOG_MODES,
+  applyFog,
+  fogVertexCount,
+  isRevealed,
+  scaleFog,
+  validateFogOperation,
+  type FogMode,
+  type FogOperation,
+  type FogShape,
+  type SceneFog,
+} from './fog.ts';
+export {
   ATTACK_COSTS,
   SQUARE_METERS,
   TURN_LIMITS,

@@ -3,6 +3,7 @@ import type { DieResult, RollMode } from './dice.ts';
 import type { Ability, Skill } from './modifiers.ts';
 import type { ArmorTraining, Coins, DeathSaves, HitDie, Size, Spell, SpellSlot } from './sheet.ts';
 import type { GridSettings, TokenKind } from './battlefield.ts';
+import type { SceneFog } from './fog.ts';
 import type { AttackCost, TurnBudget, TurnSpend } from './turn.ts';
 import type { SaveBonuses, SaveEffect, SaveRoll } from './attack.ts';
 import type { ActiveCondition, COMBATANT_SOURCES, CombatReminder, ENCOUNTER_STATUSES, HealthBand, HpOperation } from './combat.ts';
@@ -847,8 +848,7 @@ export const COMBAT_EVENT_TYPES = [
 /**
  * A scene as its receiver may see it, from the REST routes and the socket
  * alike. The map is served by URL; the client draws it at `mapWidth` ×
- * `mapHeight`, the space every coordinate is in. The fog arrives in a later
- * delivery.
+ * `mapHeight`, the space every coordinate is in, the fog included.
  */
 export type SceneView = {
   id: string;
@@ -860,6 +860,12 @@ export type SceneView = {
   grid: GridSettings;
   /** Open for the table. Always true for a player, who sees no other scene. */
   active: boolean;
+  /**
+   * The same for every viewer: the master draws it see-through, a player
+   * opaque. What it covers is not only drawn over: a player never receives
+   * a token that is not a character's under it.
+   */
+  fog: SceneFog;
   /** Only the tokens the receiver may see: a player never gets a hidden one. */
   tokens: TokenView[];
   /** Grows with every saved change, opening and closing included; the client drops an older one. */
@@ -959,7 +965,14 @@ export type SceneSummary = Pick<SceneView, 'id' | 'name' | 'mapUrl' | 'mapWidth'
 export type SceneInput = {
   name?: string;
   grid?: Partial<GridSettings>;
+  /** Turning the fog off keeps the revealed area: on again, it is as it was. */
+  fogEnabled?: boolean;
 };
+
+/*
+ * The master reveals or hides a shape with `POST …/scenes/:sceneId/fog`,
+ * a `FogOperation` (`validateFogOperation`), and gets the `SceneResponse`.
+ */
 
 /** Opens a scene for the table, or closes the map with `null`. */
 export type ActiveSceneRequest = { sceneId: string | null };
