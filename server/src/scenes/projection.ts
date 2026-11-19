@@ -15,6 +15,8 @@ export type LoadedToken = {
   vitality: TokenView['vitality'];
   /** The combatant behind the token is hidden in the encounter. */
   combatantHidden: boolean;
+  /** The encounter of a combatant's token. */
+  encounterId: string | null;
   movingBy: TokenView['movingBy'];
   /** Its combatant in the running fight, once round 1 began. */
   fighter: Fighter | null;
@@ -55,6 +57,8 @@ export function projectToken(token: LoadedToken, viewer: Viewer): TokenView {
     initials: initials(token.name),
     characterId: row.characterId,
     combatantId: row.combatantId,
+    // A player learns nothing of an encounter in preparation, not even that it exists.
+    encounterId: viewer.role === 'master' ? token.encounterId : null,
     statblockId: row.statblockId,
     ownerId: token.ownerId,
     hidden: row.hidden,

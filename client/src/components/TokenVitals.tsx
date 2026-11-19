@@ -71,7 +71,12 @@ export function TokenVitals({ name, vitals, adjust, join }: {
   name: string;
   /** The combatant behind the token, as this viewer sees it; null out of the fight. */
   vitals: TokenVitalsView | null;
-  adjust?: { pending: boolean; onApply: (operation: HpOperation, amount: number) => void };
+  adjust?: {
+    pending: boolean;
+    /** Why the last change was refused; the screen already undid it. */
+    error?: string | null;
+    onApply: (operation: HpOperation, amount: number) => void;
+  };
   join?: { encounterName: string | null; hasFormula: boolean; pending: boolean; onJoin: (hp: HitPointMode) => void };
 }) {
   const headingId = useId();
@@ -86,6 +91,7 @@ export function TokenVitals({ name, vitals, adjust, join }: {
             full={vitals.hpCurrent !== null && vitals.hpMax !== null && vitals.hpCurrent >= vitals.hpMax}
             onApply={adjust.onApply} />
         )}
+        {vitals && adjust?.error && <p role="alert" className="m-0 text-small text-danger-text">{adjust.error}</p>}
         {!vitals && join && <Join name={name} {...join} />}
       </div>
     </Surface>

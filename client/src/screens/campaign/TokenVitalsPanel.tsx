@@ -8,16 +8,19 @@ import { errorMessage } from './campaign-screen';
 import { useEncounterActions, type EncounterActions } from './encounter-actions';
 
 /**
- * The encounter a token is read from: the running one or, for the master,
- * the one in preparation when none runs. The same queries the combat screens
- * use, so the socket keeps both in step.
+ * Where a token is read from, and where a free one would join. A combatant's
+ * token reads its own encounter (the master knows which, in preparation or
+ * ended too); a character's, the running one. A free token joins the running
+ * encounter or, for the master, the one in preparation. The same queries the
+ * combat screens use, so the socket keeps them in step.
  */
-function useTableEncounter(campaignId: string, isMaster: boolean) {
+function useTokenEncounter(campaignId: string, token: TokenView | undefined, isMaster: boolean) {
   const list = useQuery(encountersQuery(campaignId));
   const encounters = list.data?.encounters ?? [];
   const open = encounters.find((encounter) => encounter.status === 'active')
     ?? (isMaster ? encounters.find((encounter) => encounter.status === 'preparing') : undefined);
-  const detail = useQuery({ ...encounterQuery(campaignId, open?.id ?? ''), enabled: open !== undefined });
+  const readId = token?.encounterId ?? open?.id;
+  const detail = useQuery({ ...encounterQuery(campaignId, readId ?? ''), enabled: readId !== undefined });
   return { open, encounter: detail.data?.encounter };
 }
 
@@ -32,6 +35,8 @@ function adjustOf(encounter: EncounterView | undefined, combatant: CombatantView
   if (!isMaster && (combatant.ownerId === null || combatant.ownerId !== viewerId)) return undefined;
   return {
     pending: actions.busyIds.includes(combatant.id),
+    // A refused change is undone on the screen: it says why.
+    error: actions.error,
     onApply: (operation: Parameters<EncounterActions['hitPoints']>[1], amount: number) => actions.hitPoints(combatant, operation, amount),
   };
 }
@@ -51,7 +56,7 @@ export function TokenVitalsPanel({ campaignId, tokens, selectedId, isMaster, vie
   const token = tokens.find((candidate) => candidate.id === selectedId);
   const queryClient = useQueryClient();
   const notify = useNotify();
-  const { open, encounter } = useTableEncounter(campaignId, isMaster);
+  const { open, encounter } = useTokenEncounter(campaignId, token, isMaster);
   const actions = useEncounterActions(campaignId, encounter?.id ?? '');
   const statblockId = token?.kind === 'free' ? token.statblockId : null;
   const statblock = useQuery({

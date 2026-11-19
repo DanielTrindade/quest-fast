@@ -563,6 +563,11 @@ test('the master puts a free bestiary token in the fight: a numbered copy, and t
   );
   // Joined once: the token is no longer free.
   assert.equal((await join(s.master)).status, 409);
+
+  // The master knows which encounter the token reads; a player is never told.
+  assert.equal(joined.encounterId, encounter.id);
+  const forPlayer = (await sceneOf(await s.player(path))).tokens.find((candidate) => candidate.id === token.id)!;
+  assert.equal(forPlayer.encounterId, null);
 });
 
 test('a hidden free token joins as a hidden combatant', async () => {

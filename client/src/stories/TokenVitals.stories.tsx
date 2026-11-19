@@ -75,3 +75,13 @@ export const SemEncontro: Story = {
 export const Entrando: Story = {
   args: { name: 'Goblin', vitals: null, join: { encounterName: 'Emboscada na estrada', hasFormula: false, pending: true, onJoin: fn() } },
 };
+
+/** The server refused the change: the panel says so, and the hit points stay as they were. */
+export const AjusteRecusado: Story = {
+  name: 'Ajuste recusado',
+  args: { adjust: { pending: false, error: 'O combate não está em andamento.', onApply: fn() } },
+  play: async ({ canvasElement }) => {
+    const [region] = within(canvasElement).getAllByRole('region', { name: /^Tema / });
+    await expect(within(region!).getByRole('alert')).toHaveTextContent('O combate não está em andamento.');
+  },
+};

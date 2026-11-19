@@ -893,6 +893,8 @@ export type TokenView = {
   initials: string;
   characterId: string | null;
   combatantId: string | null;
+  /** The encounter of a combatant's token. Master only: always null for a player. */
+  encounterId: string | null;
   /** The bestiary entry a free token was copied from, kept as a reference. */
   statblockId: string | null;
   /** The player who may move it besides the master: the owner of the character. */

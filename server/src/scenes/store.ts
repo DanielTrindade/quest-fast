@@ -88,6 +88,7 @@ function loadTokens({ deps, campaignId }: SceneScope, db: Executor, sceneId: str
       combatantName: combatants.name,
       combatantSize: combatants.size,
       combatantHidden: combatants.hidden,
+      encounterId: combatants.encounterId,
       characterSpeed: characters.speed,
       characterConditions: characters.conditions,
       combatantSpeed: combatants.speed,
@@ -142,6 +143,7 @@ function loadTokens({ deps, campaignId }: SceneScope, db: Executor, sceneId: str
         ),
         ownerId: found.ownerId,
         combatantHidden: found.combatantHidden ?? false,
+        encounterId: found.encounterId,
         movingBy: lock ? { userId: lock.userId, name: lock.userName } : null,
       };
     });
