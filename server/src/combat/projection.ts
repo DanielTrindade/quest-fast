@@ -25,7 +25,8 @@ export function turnOf(combatant: LoadedCombatant): TurnView {
 function projectCombatant(combatant: LoadedCombatant, viewer: Viewer, round: number): CombatantView {
   const { row } = combatant;
   const master = viewer.role === 'master';
-  // Allies are open to the whole table; a monster's numbers are the master's.
+  // Allies are open to the whole table; a monster's numbers are the master's,
+  // except its hit points, which the table follows (#111).
   const known = master || row.source === 'character';
   return {
     id: row.id,
@@ -40,9 +41,9 @@ function projectCombatant(combatant: LoadedCombatant, viewer: Viewer, round: num
     dexModifier: master ? row.dexModifier : null,
     tieOrder: master ? row.tieOrder : null,
     ac: known ? combatant.ac : null,
-    hpMax: known ? combatant.hpMax : null,
-    hpCurrent: known ? combatant.hpCurrent : null,
-    hpTemp: known ? combatant.hpTemp : null,
+    hpMax: combatant.hpMax,
+    hpCurrent: combatant.hpCurrent,
+    hpTemp: combatant.hpTemp,
     healthBand: healthBand(combatant.hpCurrent, combatant.hpMax),
     defeated: defeated(combatant),
     conditions: combatant.conditions,
@@ -65,8 +66,8 @@ function projectCombatant(combatant: LoadedCombatant, viewer: Viewer, round: num
 /**
  * The encounter as one viewer may see it — the only shape that leaves the
  * server, over REST and over the socket. A player gets nothing of an
- * encounter in preparation (`null`), nothing of a hidden combatant, and only
- * the health band of a monster.
+ * encounter in preparation (`null`), nothing of a hidden combatant, and of a
+ * monster only its hit points and conditions: no AC, attacks or initiative.
  */
 export function projectEncounter(loaded: LoadedEncounter, viewer: Viewer): EncounterView | null {
   const { encounter } = loaded;

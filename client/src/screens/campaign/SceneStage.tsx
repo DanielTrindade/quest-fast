@@ -18,6 +18,7 @@ import { cn } from '../../lib/utils';
 import { errorMessage } from './campaign-screen';
 import { FightTurn } from './FightTurn';
 import { TokenPickerPanel } from './TokenPickerPanel';
+import { TokenVitalsPanel } from './TokenVitalsPanel';
 import { useFight } from './useFight';
 import { useTokenMoves } from './useTokenMoves';
 
@@ -189,6 +190,7 @@ export function SceneStage({ campaignId, scene, isMaster, mapClassName, allowFul
               onPreview={(grid) => setPreview(grid ? { sceneId: scene.id, grid } : null)} />
           )}
           {panel === 'tokens' && <TokenPickerPanel id={pickerId} campaignId={campaignId} scene={scene} mapRef={mapRef} />}
+          <TokenVitalsPanel key={selectedId} campaignId={campaignId} tokens={scene.tokens} selectedId={selectedId} isMaster={isMaster} viewerId={viewerId} />
           {fight && <FightTurn campaignId={campaignId} fight={fight} focus={focus} viewerId={viewerId} isMaster={isMaster} />}
           <TokenList tokens={scene.tokens} viewerId={viewerId} master={isMaster} selectedId={selectedId} onSelect={setSelected}
             onStep={(tokenId, direction) => {

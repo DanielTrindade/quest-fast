@@ -51,6 +51,7 @@ function make(id: string, fields: Partial<TokenView> & Pick<TokenView, 'name' | 
     initials: initials(fields.name),
     characterId: fields.kind === 'character' ? `c-${id}` : null,
     combatantId: fields.kind === 'combatant' ? `cb-${id}` : null,
+    encounterId: null,
     statblockId: null,
     ownerId: null,
     hidden: false,

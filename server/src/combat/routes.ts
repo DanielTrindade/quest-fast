@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { and, desc, eq, ne, sql } from 'drizzle-orm';
 import { Hono, type Context as HonoContext } from 'hono';
-import { characters, combatants, encounters, statblocks, type EncounterRow } from '@quest-fast/db';
+import { characters, combatants, encounters, scenes, statblocks, tokens, type EncounterRow } from '@quest-fast/db';
 import {
   COMBAT_LIMITS as C,
   ENCOUNTER_LIMITS as E,
@@ -108,6 +108,8 @@ type Mutation = {
   events: SessionEvent[];
   /** Sheets this change wrote: every other open encounter of theirs is published too. */
   characters: Set<string>;
+  /** Scenes this change wrote beyond those showing the encounter: a token that joined it. */
+  scenes: Set<string>;
   userName: string;
 };
 
@@ -203,6 +205,81 @@ function renameCopies(tx: Executor, renamed: readonly { id: string; name: string
   for (const { id, name } of renamed) tx.update(combatants).set({ name }).where(eq(combatants.id, id)).run();
 }
 
+/**
+ * Copies of a bestiary entry joining the encounter, numbered among those
+ * already in it. Each copy keeps the entry's values: editing it later never
+ * changes the fight. Returns the new combatants' ids.
+ */
+function insertCopies(mutation: Mutation, statblockId: string, count: number, hpMode: unknown, hidden: boolean): string[] {
+  const { tx, loaded } = mutation;
+  const statblock = tx
+    .select()
+    .from(statblocks)
+    .where(and(eq(statblocks.id, statblockId), eq(statblocks.campaignId, loaded.encounter.campaignId)))
+    .get();
+  if (!statblock) refuse(404, 'Criatura não encontrada.');
+  if (loaded.combatants.length + count > E.combatants) refuse(422, `Limite de ${E.combatants} combatentes por encontro.`);
+  const hp = hpMode ?? 'average';
+  if (hp !== 'average' && hp !== 'rolled') refuse(422, 'Escolha PV médio ou rolado.');
+  if (hp === 'rolled' && !statblock.hpFormula) refuse(422, `${statblock.name} não tem fórmula de PV para rolar.`);
+
+  const { names, renamed } = placeCopies(statblock.name, count, hidden, copyEntries(loaded.combatants));
+  renameCopies(tx, renamed);
+  return names.map((name) => {
+    // A roll can land below 1 with a negative modifier; a creature starts standing.
+    const hpMax = hp === 'rolled' ? Math.max(1, rollDice(statblock.hpFormula)!.total) : statblock.hpAverage;
+    const id = randomUUID();
+    tx.insert(combatants)
+      .values({
+        id,
+        encounterId: loaded.encounter.id,
+        source: 'statblock',
+        statblockId: statblock.id,
+        name,
+        size: statblock.size,
+        ac: statblock.ac,
+        hpMax,
+        hpCurrent: hpMax,
+        hpTemp: 0,
+        conditions: [],
+        concentrating: false,
+        dexModifier: abilityModifier(statblock.abilityScores.dexterity) ?? 0,
+        initiativeBonus: statblock.initiativeBonus,
+        constitutionModifier: abilityModifier(statblock.abilityScores.constitution) ?? 0,
+        saveModifiers: saveModifiers(statblock.abilityScores, statblock.saveBonuses),
+        attacks: statblock.attacks.map(storedAttack),
+        speed: speedFromText(statblock.speed) ?? TURN_LIMITS.defaultSpeed,
+        attacksPerAction: statblock.attacksPerAction,
+        hidden,
+      })
+      .run();
+    return id;
+  });
+}
+
+/**
+ * A free token copied from the bestiary joins the fight: a copy of its entry
+ * becomes a combatant (hidden if the token is) and the token stands for it
+ * from then on, where it is. The hit points have one home, the combatant.
+ */
+function joinToken(mutation: Mutation, body: Record<string, unknown>) {
+  const { tx, loaded } = mutation;
+  const tokenId = typeof body.tokenId === 'string' ? body.tokenId : '';
+  const token = tx
+    .select({ id: tokens.id, kind: tokens.kind, statblockId: tokens.statblockId, hidden: tokens.hidden, sceneId: tokens.sceneId })
+    .from(tokens)
+    .innerJoin(scenes, eq(scenes.id, tokens.sceneId))
+    .where(and(eq(tokens.id, tokenId), eq(scenes.campaignId, loaded.encounter.campaignId)))
+    .get();
+  if (!token) refuse(404, 'Token não encontrado.');
+  if (token.kind !== 'free') refuse(409, 'Este token já está ligado a um personagem ou combatente.');
+  if (!token.statblockId) refuse(422, 'Só um token do bestiário entra no combate assim; adicione os outros pela fila.');
+  const [combatantId] = insertCopies(mutation, token.statblockId, 1, body.hp, token.hidden);
+  // The combatant's name and size are the token's from now on.
+  tx.update(tokens).set({ kind: 'combatant', combatantId, label: null, size: null }).where(eq(tokens.id, token.id)).run();
+  mutation.scenes.add(token.sceneId);
+}
+
 function addCombatants(mutation: Mutation, body: Record<string, unknown>) {
   const { tx, loaded } = mutation;
   const encounterId = loaded.encounter.id;
@@ -239,49 +316,14 @@ function addCombatants(mutation: Mutation, body: Record<string, unknown>) {
 
   if (body.source === 'statblock') {
     const statblockId = typeof body.statblockId === 'string' ? body.statblockId : '';
-    const statblock = tx
-      .select()
-      .from(statblocks)
-      .where(and(eq(statblocks.id, statblockId), eq(statblocks.campaignId, campaignId)))
-      .get();
-    if (!statblock) refuse(404, 'Criatura não encontrada.');
     const count = boundedInteger(body.count ?? 1, 1, E.copies);
     if (count === undefined) refuse(422, `A quantidade deve ser um número entre 1 e ${E.copies}.`);
-    if (existing + count > E.combatants) refuse(422, `Limite de ${E.combatants} combatentes por encontro.`);
-    const hp = body.hp ?? 'average';
-    if (hp !== 'average' && hp !== 'rolled') refuse(422, 'Escolha PV médio ou rolado.');
-    if (hp === 'rolled' && !statblock.hpFormula) refuse(422, `${statblock.name} não tem fórmula de PV para rolar.`);
+    insertCopies(mutation, statblockId, count, body.hp, hidden);
+    return;
+  }
 
-    const { names, renamed } = placeCopies(statblock.name, count, hidden, copyEntries(loaded.combatants));
-    renameCopies(tx, renamed);
-    for (const name of names) {
-      // A roll can land below 1 with a negative modifier; a creature starts standing.
-      const hpMax = hp === 'rolled' ? Math.max(1, rollDice(statblock.hpFormula)!.total) : statblock.hpAverage;
-      tx.insert(combatants)
-        .values({
-          id: randomUUID(),
-          encounterId,
-          source: 'statblock',
-          statblockId: statblock.id,
-          name,
-          size: statblock.size,
-          ac: statblock.ac,
-          hpMax,
-          hpCurrent: hpMax,
-          hpTemp: 0,
-          conditions: [],
-          concentrating: false,
-          dexModifier: abilityModifier(statblock.abilityScores.dexterity) ?? 0,
-          initiativeBonus: statblock.initiativeBonus,
-          constitutionModifier: abilityModifier(statblock.abilityScores.constitution) ?? 0,
-          saveModifiers: saveModifiers(statblock.abilityScores, statblock.saveBonuses),
-          attacks: statblock.attacks.map(storedAttack),
-          speed: speedFromText(statblock.speed) ?? TURN_LIMITS.defaultSpeed,
-          attacksPerAction: statblock.attacksPerAction,
-          hidden,
-        })
-        .run();
-    }
+  if (body.source === 'token') {
+    joinToken(mutation, body);
     return;
   }
 
@@ -1154,6 +1196,7 @@ async function mutate(
   const encounterId = c.req.param('encounterId') ?? '';
   const events: SessionEvent[] = [];
   const touched = new Set<string>();
+  const joined = new Set<string>();
   let shown: string[] = [];
   let waiting: { id: string; characterId: string | null }[] = [];
 
@@ -1172,7 +1215,8 @@ async function mutate(
             combatant.row.characterId ? scenesShowing(tx, { characterId: combatant.row.characterId }) : []),
         ]),
       ];
-      run({ tx, loaded: before, viewer, events, characters: touched, userName: c.var.user.name }, body);
+      run({ tx, loaded: before, viewer, events, characters: touched, scenes: joined, userName: c.var.user.name }, body);
+      shown = [...new Set([...shown, ...joined])];
       tx.update(encounters)
         .set({ version: sql`${encounters.version} + 1` })
         .where(eq(encounters.id, encounter.id))

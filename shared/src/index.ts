@@ -257,6 +257,7 @@ export type {
   MyCharacter,
   MyCharacterListResponse,
   CombatantInput,
+  TokenJoinInput,
   CombatantPatch,
   TurnEconomyRequest,
   TurnView,

@@ -329,7 +329,9 @@ encontro e os combatentes, aplica as regras de `shared/src/combat.ts`,
 incrementa `version` e grava; depois publica `combat.updated` com o estado
 completo **projetado para cada conexão** e responde com a projeção de quem
 pediu. O jogador nunca recebe encontro em preparação, combatente escondido nem
-PV, CA ou iniciativa de monstro — vê só a faixa de saúde. Pelo mesmo motivo,
+CA, iniciativa, ataques ou lembretes de monstro. O PV de um monstro visível é
+da mesa (decisão da #111, que antes mostrava só a faixa de saúde): o jogador o
+lê na fila, no token e nos eventos de dano do feed, e só o mestre o muda. Pelo mesmo motivo,
 toda rolagem de iniciativa feita na preparação vai para o feed como secreta. O
 cliente descarta mensagem com `version` menor que a conhecida e refaz o fetch
 ao reconectar. Excluir um encontro publica `combat.deleted` só para quem podia

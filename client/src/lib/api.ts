@@ -13,6 +13,7 @@ import type {
   CharacterStateInput,
   CombatantInput,
   CombatantPatch,
+  TokenJoinInput,
   ConcentrationRequest,
   ConcentrationSaveRequest,
   AttackRequest,
@@ -330,7 +331,8 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify({ combatantIds }),
     }),
-  addCombatant: (campaignId: string, encounterId: string, input: CombatantInput) =>
+  /** Adds combatants, or puts a free bestiary token in the fight (`TokenJoinInput`). */
+  addCombatant: (campaignId: string, encounterId: string, input: CombatantInput | TokenJoinInput) =>
     request<EncounterResponse>(`/api/campaigns/${campaignId}/encounters/${encounterId}/combatants`, {
       method: 'POST',
       body: JSON.stringify(input),

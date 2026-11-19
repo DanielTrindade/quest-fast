@@ -511,10 +511,10 @@ test("a change to a character's sheet through one fight reaches every open encou
 
 function monsterSecrets(view: EncounterView, name: string) {
   const monster = byName(view, name);
-  return { hpCurrent: monster.hpCurrent, hpTemp: monster.hpTemp, concentrating: monster.concentrating, reminders: monster.reminders };
+  return { ac: monster.ac, attacks: monster.attacks, concentrating: monster.concentrating, reminders: monster.reminders };
 }
 
-test("a player's socket carries no number, DC nor reminder of a monster", async (t) => {
+test("a player's socket carries a monster's hit points but no AC, attack, DC nor reminder", async (t) => {
   const server = await createTestServer(PROFILES);
   const s = await setup({ app: server.app, db: server.db });
   const playerSocket = connect(server.port, s.campaign.id, await signIn({ app: server.app }, 'rafael'));
@@ -532,8 +532,9 @@ test("a player's socket carries no number, DC nor reminder of a monster", async 
   await until(() => updates.length >= 3);
 
   for (const view of updates) {
-    assert.deepEqual(monsterSecrets(view, 'Goblin 2'), { hpCurrent: null, hpTemp: null, concentrating: false, reminders: [] });
+    assert.deepEqual(monsterSecrets(view, 'Goblin 2'), { ac: null, attacks: [], concentrating: false, reminders: [] });
   }
-  assert.equal(byName(updates.at(-1)!, 'Goblin 2').healthBand, 'defeated');
+  const last = byName(updates.at(-1)!, 'Goblin 2');
+  assert.deepEqual([last.healthBand, last.hpCurrent, last.hpTemp], ['defeated', 0, 0]);
   assert.equal(JSON.stringify(updates).includes('"dc"'), false);
 });

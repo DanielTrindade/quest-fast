@@ -137,7 +137,7 @@ test('an encounter in preparation does not exist for a player', async () => {
   assert.equal(masterList.encounters.length, 1);
 });
 
-test('a player sees allies in full, monsters only by health band, and no hidden combatant', async () => {
+test("a player sees allies in full, a monster's hit points but not its other numbers, and no hidden combatant", async () => {
   const s = await setup();
   const { path, id } = await runningEncounter(s);
   s.app.db.update(combatants).set({ hpCurrent: 3 }).where(eq(combatants.id, id('Goblin 2'))).run();
@@ -148,9 +148,11 @@ test('a player sees allies in full, monsters only by health band, and no hidden 
     ['Goblin 1', 'Kaelen', 'Goblin 2', 'Mira'],
   );
   const goblin = byName(view, 'Goblin 2');
+  // The table follows a monster's hit points; its AC and initiative stay the master's.
+  assert.deepEqual([goblin.hpMax, goblin.hpCurrent, goblin.hpTemp], [7, 3, 0]);
   assert.deepEqual(
-    [goblin.hpMax, goblin.hpCurrent, goblin.hpTemp, goblin.ac, goblin.initiative, goblin.dexModifier, goblin.tieOrder],
-    [null, null, null, null, null, null, null],
+    [goblin.ac, goblin.initiative, goblin.dexModifier, goblin.tieOrder, goblin.attacks, goblin.speed],
+    [null, null, null, null, [], null],
   );
   assert.equal(goblin.healthBand, 'bloodied');
   assert.equal(goblin.hasInitiative, true);
@@ -745,7 +747,7 @@ test('combat.updated reaches each socket projected for its viewer', async (t) =>
   const playerView = playerUpdates[0]!;
   assert.equal(playerView.id, encounter.id);
   assert.equal(JSON.stringify(playerView).includes('Bandido'), false);
-  assert.equal(byName(playerView, 'Goblin 1').hpCurrent, null);
+  assert.equal(byName(playerView, 'Goblin 1').hpCurrent, 7);
   assert.equal(byName(playerView, 'Goblin 1').ac, null);
   const masterLatest = masterUpdates.at(-1)!;
   assert.equal(masterLatest.version, playerView.version);
