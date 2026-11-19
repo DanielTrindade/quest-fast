@@ -127,8 +127,30 @@ export function fogVertexCount(revealed: MultiPolygon): number {
   return revealed.reduce((total, polygon) => total + polygon.reduce((sum, ring) => sum + ring.length, 0), 0);
 }
 
+function onIntegers(polygons: MultiPolygon): boolean {
+  return polygons.every((polygon) => polygon.every((ring) => ring.every(([x, y]) => Number.isInteger(x) && Number.isInteger(y))));
+}
+
+/**
+ * Rounding each ring on its own can make a hole touch the outer ring or
+ * another hole: a shape the library never returns, that `isRevealed` reads
+ * one way now and the next operation, which normalises it, another. The
+ * rounded rings go through the library once more, which merges those; when
+ * that adds a crossing off the integers, it is rounded again. A shape that
+ * never settles on integers is kept consistent rather than integer.
+ */
+function normalised(polygons: MultiPolygon): MultiPolygon {
+  let current = rounded(polygons);
+  for (let pass = 0; pass < 4; pass++) {
+    const merged = current.length === 0 ? [] : clipping.union(current);
+    if (onIntegers(merged)) return merged;
+    current = rounded(merged);
+  }
+  return current.length === 0 ? [] : clipping.union(current);
+}
+
 function settled(polygons: MultiPolygon): { revealed: MultiPolygon } | { error: string } {
-  const revealed = rounded(polygons);
+  const revealed = normalised(polygons);
   return fogVertexCount(revealed) > FOG_LIMITS.maxVertices ? { error: FOG_TOO_COMPLEX } : { revealed };
 }
 
