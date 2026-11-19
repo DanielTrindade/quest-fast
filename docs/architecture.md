@@ -350,6 +350,11 @@ mesma transação, com os modificadores copiados do statblock (ou os da ficha,
 para um personagem). O dano pendente já sai inteiro ou pela metade, e o mestre
 ainda o ajusta antes de aplicar. Da salvaguarda de um monstro o jogador
 recebe só se passou ou falhou: com a CD, o d20 e o total entregariam o bônus.
+Uma linha de salvaguarda pode atingir vários alvos (uma área): todos são
+validados antes de gastar o turno, o dano é rolado uma vez e o evento guarda
+cada alvo com a própria salvaguarda. Um alvo oculto fica marcado no evento e
+sai da cópia do jogador; um evento sem nenhum alvo visível não chega a ele. Num
+ataque com rolagem de acerto, o alvo oculto continua tornando o evento secreto.
 
 Pedido de turno leva `expectedActiveCombatantId` e `expectedRound`: se não
 baterem com o turno atual, a resposta é 409 com o estado atual, o que evita

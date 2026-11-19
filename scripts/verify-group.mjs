@@ -95,6 +95,25 @@ const campaignUrl = `${base}/campaigns/${campaign.id}`;
 // other routes of the same campaign.
 const tableUrl = `${campaignUrl}/table`;
 
+
+/**
+ * Ticks exactly `names` among the targets of `attacker` and unticks the rest:
+ * an attack roll refuses more than one target, so a choice never piles up.
+ * Each checkbox reads "Name — PV or band"; the name starts it.
+ */
+async function chooseTargets(panel, attacker, names) {
+  const group = panel.getByRole('group', { name: `Alvos de ${attacker}`, exact: true });
+  await group.waitFor({ timeout: 15000 });
+  let found = 0;
+  for (const box of await group.getByRole('checkbox').all()) {
+    const label = (await box.locator('xpath=..').innerText()).trim();
+    const wanted = names.some((name) => label.startsWith(`${name} — `));
+    if (wanted) found += 1;
+    if ((await box.isChecked()) !== wanted) await box.setChecked(wanted);
+  }
+  if (found !== names.length) throw new Error(`${names.join(', ')} não está entre os alvos de ${attacker}`);
+}
+
 async function openUser(who, session) {
   const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
   await context.addCookies([{ name: 'qf_session', value: session, url: base }]);
@@ -380,11 +399,7 @@ try {
       if (!who) throw new Error(`${attacker} não está entre os combatentes do mestre`);
       await picker.selectOption(who);
     }
-    const select = panel.getByLabel(`Alvo de ${attacker}`);
-    // The label carries hit points or the health band; the name starts it.
-    const value = await select.evaluate((element, name) => [...element.options].find((option) => option.text.startsWith(`${name} — `))?.value, target);
-    if (!value) throw new Error(`${target} não está entre os alvos de ${attacker}`);
-    await select.selectOption(value);
+    await chooseTargets(panel, attacker, [target]);
     return panel;
   }
   const lastFeedText = (page) => feedRows(page).last().innerText();

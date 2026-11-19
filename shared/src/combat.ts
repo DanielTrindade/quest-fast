@@ -484,6 +484,8 @@ export const COMBAT_LIMITS = {
   /** One change of hit points. */
   hpAmount: { min: 1, max: 999 },
   conditionRounds: { min: 1, max: 100 },
+  /** Targets of one use of a save row (an area). */
+  attackTargets: 20,
 } as const;
 
 /** Challenge ratings of the 5e scale, as written in a statblock. */

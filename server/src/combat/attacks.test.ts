@@ -231,8 +231,8 @@ const SHAMAN = {
 };
 
 /** The running fight with a goblin shaman added: it casts a Dexterity save of 2d6. */
-async function withShaman() {
-  const table = await fight();
+async function withShaman(s?: Setup) {
+  const table = await fight(s);
   const shaman = (await body<StatblockResponse>(await send(table.s.master, `${table.s.root}/statblocks`, 'POST', SHAMAN))).statblock;
   const added = await encounterOf(
     await send(table.s.master, `${table.path}/combatants`, 'POST', { source: 'statblock', statblockId: shaman.id, count: 1, hp: 'average' }),
@@ -251,7 +251,7 @@ test("an attack against a save rolls the target's save: passing halves the pendi
   const [roll] = await rolls(s, s.master);
   assert.deepEqual(roll?.save, { dc: 13, ability: 'dexterity' });
   assert.equal(roll?.damage?.total, 12);
-  const save = roll?.target?.save;
+  const save = roll?.targets?.[0]?.save;
   assert.ok(save && 'd20' in save && save.d20 === 20 && save.success);
   const [reminder] = pending(byName(await view(s.master), 'Kaelen').reminders);
   assert.ok(reminder?.kind === 'pendingDamage');
@@ -277,7 +277,7 @@ test('a row that does nothing on a success leaves no damage when the target pass
   assert.equal((await send(s.player, `${s.root}/characters/${s.kaelen.id}`, 'PATCH', { ...sheet('Kaelen'), attacks: [flame] })).status, 200);
   await attacked(await send(s.player, at('Kaelen', '/attack'), 'POST', { attackIndex: 0, targetId: id('Goblin 2') }));
   assert.deepEqual(pending(byName(await view(s.master), 'Goblin 2').reminders), []);
-  assert.equal((await rolls(s, s.master))[0]?.target?.save?.success, true);
+  assert.equal((await rolls(s, s.master))[0]?.targets?.[0]?.save?.success, true);
 });
 
 test("a monster's save reaches a player as passed or failed, never its die or total", async (t) => {
@@ -289,9 +289,9 @@ test("a monster's save reaches a player as passed or failed, never its die or to
 
   // The copy rolls with the bestiary's +5, not the Dexterity modifier.
   const [master] = await rolls(s, s.master);
-  assert.deepEqual(master?.target?.save, { d20: 1, modifier: 5, total: 6, success: false });
+  assert.deepEqual(master?.targets?.[0]?.save, { d20: 1, modifier: 5, total: 6, success: false });
   const [player] = await rolls(s, s.player);
-  assert.deepEqual(player?.target?.save, { success: false });
+  assert.deepEqual(player?.targets?.[0]?.save, { success: false });
   // The damage on the monster is the master's to apply.
   assert.equal(pending(byName(await view(s.master), 'Goblin xamã').reminders)[0]?.amount, 2);
   assert.deepEqual(byName(await view(s.player), 'Goblin xamã').reminders, []);
@@ -307,11 +307,11 @@ test('Exhaustion takes its penalty off the save: a pass on the bare modifier bec
   await attacked(await send(s.player, at('Kaelen', '/attack'), 'POST', { attackIndex: 0, targetId: id('Goblin 2') }));
 
   const [master] = await rolls(s, s.master);
-  assert.deepEqual(master?.target?.save, { d20: 11, modifier: 0, total: 11, success: false, penalty: 2 });
+  assert.deepEqual(master?.targets?.[0]?.save, { d20: 11, modifier: 0, total: 11, success: false, penalty: 2 });
   // The same face on the 1d8: 5, whole, since the goblin failed.
   assert.equal(pending(byName(await view(s.master), 'Goblin 2').reminders)[0]?.amount, 5);
   // A player still reads only the outcome of a monster's save.
-  assert.deepEqual((await rolls(s, s.player))[0]?.target?.save, { success: false });
+  assert.deepEqual((await rolls(s, s.player))[0]?.targets?.[0]?.save, { success: false });
 });
 
 test('Restrained rolls a Dexterity save with disadvantage, and a failed Graxa stays pending', async (t) => {
@@ -325,7 +325,7 @@ test('Restrained rolls a Dexterity save with disadvantage, and a failed Graxa st
   await attacked(await send(s.player, at('Kaelen', '/attack'), 'POST', { attackIndex: 0, targetId: id('Goblin 2') }));
 
   const [master] = await rolls(s, s.master);
-  const save = master?.target?.save;
+  const save = master?.targets?.[0]?.save;
   assert.ok(save && 'd20' in save);
   assert.deepEqual([save.d20, save.mode, save.rolls, save.success], [1, 'disadvantage', [19, 1], false]);
   const [called] = saves(byName(await view(s.master), 'Goblin 2').reminders);
@@ -338,8 +338,126 @@ test('Paralyzed fails a Dexterity save without a roll', async (t) => {
   await encounterOf(await send(s.master, at('Kaelen', '/conditions/paralyzed'), 'PUT', {}));
   await attacked(await send(s.master, `${shamanAt}/attack`, 'POST', { attackIndex: 0, targetId: id('Kaelen') }));
   const [roll] = await rolls(s, s.master);
-  assert.deepEqual(roll?.target?.save, { outright: true, success: false });
+  assert.deepEqual(roll?.targets?.[0]?.save, { outright: true, success: false });
   assert.equal(pending(byName(await view(s.master), 'Kaelen').reminders)[0]?.amount, 12);
+});
+
+// --- An area: several targets ------------------------------------------------------
+
+const BREATH = { kind: 'save', name: 'Sopro de fogo', dc: 13, saveAbility: 'dexterity', damage: '2d6', damageType: 'Fogo' };
+
+/** Kaelen breathes fire: a Dexterity save of 2d6 that halves on a pass. */
+async function breathing(s?: Setup) {
+  const table = await withShaman(s);
+  const armed = await send(table.s.player, `${table.s.root}/characters/${table.s.kaelen.id}`, 'PATCH', { ...sheet('Kaelen'), attacks: [BREATH] });
+  assert.equal(armed.status, 200, await armed.clone().text());
+  const turnOf = async (name: string) => byName(await table.view(table.s.master), name).turn!;
+  return { ...table, turnOf };
+}
+
+test('an area rolls its damage once, each target its own save, and costs its user once', async (t) => {
+  // Every die lands on 9 of 20, 3 of 6: the goblins (+2) fail DC 13, the shaman (+5) passes.
+  t.mock.method(Math, 'random', () => 8.5 / 20);
+  const { s, at, id, view, shamanId, turnOf } = await breathing();
+  const targetIds = [id('Goblin 1'), id('Goblin 2'), shamanId];
+  await attacked(await send(s.player, at('Kaelen', '/attack'), 'POST', { attackIndex: 0, targetIds }));
+
+  const events = await attackEvents(s, s.master);
+  assert.equal(events.length, 1);
+  const [payload] = events.map((event) => event.payload);
+  assert.equal(payload?.damage?.total, 6);
+  assert.deepEqual(payload?.targets?.map((target) => [target.name, target.save?.success, target.damage]), [
+    ['Goblin 1', false, 6],
+    ['Goblin 2', false, 6],
+    ['Goblin xamã', true, 3],
+  ]);
+  const encounter = await view(s.master);
+  assert.deepEqual(
+    ['Goblin 1', 'Goblin 2', 'Goblin xamã'].map((name) => pending(byName(encounter, name).reminders).map((reminder) => reminder.amount)),
+    [[6], [6], [3]],
+  );
+  // Out of turn: one reaction for the whole area, and the next use is refused.
+  assert.equal((await turnOf('Kaelen')).reactionUsed, true);
+  assert.equal((await send(s.player, at('Kaelen', '/attack'), 'POST', { attackIndex: 0, targetIds })).status, 422);
+});
+
+test('an attack roll takes one target; a bad list refuses the whole use and spends nothing', async () => {
+  const { s, at, id, view, turnOf } = await breathing();
+  const sword = await send(s.player, `${s.root}/characters/${s.kaelen.id}`, 'PATCH', { ...sheet('Kaelen'), attacks: [SWORD, BREATH] });
+  assert.equal(sword.status, 200);
+  const use = (body: Record<string, unknown>) => send(s.player, at('Kaelen', '/attack'), 'POST', body);
+
+  assert.equal((await use({ attackIndex: 0, targetIds: [id('Goblin 1'), id('Goblin 2')] })).status, 422);
+  assert.equal((await use({ attackIndex: 1, targetIds: [id('Goblin 1'), id('Goblin 1')] })).status, 422);
+  assert.equal((await use({ attackIndex: 1, targetIds: Array.from({ length: 21 }, (_, n) => `x${n}`) })).status, 422);
+  assert.equal((await use({ attackIndex: 1, targetIds: [id('Goblin 1'), id('Kaelen')] })).status, 422);
+  assert.equal((await use({ attackIndex: 1, targetIds: [id('Goblin 1'), 7] })).status, 422);
+  // A hidden combatant is unknown to a player: 404, and Goblin 1 is left alone.
+  assert.equal((await use({ attackIndex: 1, targetIds: [id('Goblin 1'), id('Bandido')] })).status, 404);
+
+  assert.equal((await turnOf('Kaelen')).reactionUsed, false);
+  assert.deepEqual(pending(byName(await view(s.master), 'Goblin 1').reminders), []);
+  assert.deepEqual(await attackEvents(s, s.master), []);
+  // The single target of older clients still works.
+  await attacked(await use({ attackIndex: 1, targetId: id('Goblin 1') }));
+  assert.equal((await rolls(s, s.master))[0]?.targets?.length, 1);
+});
+
+test("a hidden target of an area stays out of a player's copy; an area of hidden ones does not reach them", async () => {
+  const { s, id, shamanAt } = await breathing();
+  await attacked(await send(s.master, `${shamanAt}/attack`, 'POST', { attackIndex: 0, targetIds: [id('Kaelen'), id('Bandido')], secret: false }));
+
+  const [master] = await rolls(s, s.master);
+  assert.deepEqual(master?.targets?.map((target) => target.name), ['Kaelen', 'Bandido']);
+  const [player] = await rolls(s, s.player);
+  assert.deepEqual(player?.targets?.map((target) => target.name), ['Kaelen']);
+  assert.ok(!JSON.stringify(player).includes('Bandido'));
+
+  await encounterOf(await send(s.master, `${shamanAt}/economy`, 'POST', { refund: 'reaction' }));
+  await attacked(await send(s.master, `${shamanAt}/attack`, 'POST', { attackIndex: 0, targetIds: [id('Bandido')], secret: false }));
+  assert.equal((await rolls(s, s.master)).length, 2);
+  assert.equal((await rolls(s, s.player)).length, 1);
+});
+
+test("areas of hidden targets only stay out of a player's feed pages, and the older history still pages", async () => {
+  const { s, id, at, shamanAt } = await breathing();
+  // An older event the player may read.
+  await attacked(await send(s.player, at('Kaelen', '/attack'), 'POST', { attackIndex: 0, targetIds: [id('Goblin 1')] }));
+  for (let use = 0; use < 3; use += 1) {
+    await encounterOf(await send(s.master, `${shamanAt}/economy`, 'POST', { refund: 'reaction' }));
+    await attacked(await send(s.master, `${shamanAt}/attack`, 'POST', { attackIndex: 0, targetIds: [id('Bandido')], secret: false }));
+  }
+  const [hiddenOnly] = (await attackEvents(s, s.master)).slice(-1);
+  assert.equal(hiddenOnly?.secret, true);
+
+  const first = await s.player(`${s.root}/feed?limit=1`);
+  assert.equal(first.status, 200);
+  const page = await body<FeedResponse>(first);
+  const attacks = page.events.filter((event) => event.type === 'roll' && (event as RollSessionEvent).payload.rollKind === 'attack');
+  assert.deepEqual(attacks.map((event) => (event as RollSessionEvent).payload.characterName), ['Kaelen']);
+});
+
+test('the live send of an area leaves the hidden target out too', async (t) => {
+  const server = await createTestServer(PROFILES);
+  const table = await setup({ app: server.app, db: server.db });
+  const socket = connect(server.port, table.campaign.id, await signIn({ app: server.app }, 'rafael'));
+  t.after(async () => {
+    socket.close();
+    await server.close();
+  });
+  await new Promise((resolve) => socket.once('open', resolve));
+  const { s, id, shamanAt } = await breathing(table);
+  const events: SessionEvent[] = [];
+  socket.on('message', (data) => {
+    const message = JSON.parse(data.toString()) as SocketMessage;
+    if (message.type === 'session.event') events.push(message.event);
+  });
+
+  await attacked(await send(s.master, `${shamanAt}/attack`, 'POST', { attackIndex: 0, targetIds: [id('Kaelen'), id('Bandido')], secret: false }));
+  const isArea = (event: SessionEvent) => event.type === 'roll' && (event as RollSessionEvent).payload.rollKind === 'attack';
+  await until(() => events.some(isArea));
+  const roll = events.find(isArea) as RollSessionEvent;
+  assert.deepEqual(roll.payload.targets?.map((target) => target.name), ['Kaelen']);
 });
 
 function saves(reminders: CombatReminder[]) {
@@ -400,7 +518,7 @@ test('a passed save without damage leaves nothing on the target', async (t) => {
   await attacked(await send(s.player, at('Kaelen', '/attack'), 'POST', { attackIndex: 0, targetId: id('Goblin 2') }));
   assert.deepEqual(saves(byName(await view(s.master), 'Goblin 2').reminders), []);
   const [roll] = await rolls(s, s.player);
-  assert.deepEqual(roll?.target?.save, { success: true });
+  assert.deepEqual(roll?.targets?.[0]?.save, { success: true });
 });
 
 test('who may attack with whom, and at whom', async () => {

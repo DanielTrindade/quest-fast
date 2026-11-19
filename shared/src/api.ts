@@ -324,8 +324,14 @@ export type RollPayload = {
   damage?: DamageRoll;
   /** A natural 20 on an attack roll: the damage dice were doubled. */
   critical?: boolean;
-  /** Who the attack was aimed at. A player never reads a monster's AC here. */
+  /** Who an attack roll was aimed at. A player never reads a monster's AC here. */
   target?: AttackTarget;
+  /**
+   * Who a save row reached, each with its own save and the damage it keeps.
+   * A save stored before the area existed has `target` instead. A player's
+   * copy leaves out the targets that were hidden.
+   */
+  targets?: AttackTarget[];
   /**
    * An attack against a save: no attack roll, the target rolls. The roll's
    * own `expression`/`dice`/`total` are then the damage. A save without
@@ -377,6 +383,10 @@ export type AttackTarget = {
    * the die and the total give the bonus away.
    */
   save?: SaveRoll | { success: boolean };
+  /** Only on a save row with damage: what this target keeps, after its save. */
+  damage?: number;
+  /** Hidden from the players when the attack was made: their copy leaves it out. */
+  hidden?: true;
 };
 
 export type SessionEvent = RollSessionEvent | CombatSessionEvent | SpellCastSessionEvent | UnknownSessionEvent;
@@ -728,7 +738,12 @@ export type ConcentrationSaveRequest = {
 export type AttackRequest = {
   /** Position in the combatant's attacks. */
   attackIndex: number;
-  /** Without one, only the attack roll is made; the damage comes later. */
+  /**
+   * Without any, only the attack roll is made; the damage comes later. More
+   * than one only on a save row (an area). Each target enters once.
+   */
+  targetIds?: string[];
+  /** What older clients send: one target, read as `targetIds: [targetId]`. */
   targetId?: string | null;
   mode?: RollMode;
   /** Master only; a monster's attack is secret unless told otherwise. */

@@ -290,9 +290,9 @@ export const MestreAtacando: Story = {
     const [region] = within(canvasElement).getAllByRole('region', { name: /^Tema / });
     const list = within(region);
     await openAttacks(region, 'Goblin 1');
-    await userEvent.selectOptions(list.getByLabelText('Alvo de Goblin 1'), 'c-hazin');
+    await userEvent.click(within(list.getByRole('group', { name: 'Alvos de Goblin 1' })).getByRole('checkbox', { name: /^Hazin Dan —/ }));
     await userEvent.click(list.getAllByRole('button', { name: 'Atacar com Cimitarra' })[0]!);
-    await expect(args.onAttack).toHaveBeenCalledWith('g1', 0, { targetId: 'c-hazin', mode: 'normal', secret: true });
+    await expect(args.onAttack).toHaveBeenCalledWith('g1', 0, { targetIds: ['c-hazin'], mode: 'normal', secret: true });
     await userEvent.click(list.getByRole('button', { name: 'Aplicar o dano em Hazin Dan' }));
     await expect(args.onApplyDamage).toHaveBeenCalledWith('c-hazin', 'd1', undefined);
   },
@@ -320,6 +320,6 @@ export const JogadorAtacando: Story = {
     await openAttacks(region, 'Hazin Dan');
     await expect(list.queryByRole('checkbox', { name: /segredo/ })).toBeNull();
     await userEvent.click(list.getByRole('button', { name: 'Atacar com Machado Grande' }));
-    await expect(args.onAttack).toHaveBeenCalledWith('c-hazin', 0, { targetId: null, mode: 'normal', secret: false });
+    await expect(args.onAttack).toHaveBeenCalledWith('c-hazin', 0, { targetIds: [], mode: 'normal', secret: false });
   },
 };

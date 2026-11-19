@@ -66,9 +66,9 @@ export const NaVez: Story = {
   args: { fight: fightOf(playerCombatants) },
   play: async ({ canvasElement, args }) => {
     const panel = firstTheme(canvasElement);
-    await userEvent.selectOptions(panel.getByLabelText('Alvo de Hazin Dan'), 'g2');
+    await userEvent.click(within(panel.getByRole('group', { name: 'Alvos de Hazin Dan' })).getByRole('checkbox', { name: /^Goblin 2 —/ }));
     await userEvent.click(panel.getByRole('button', { name: 'Atacar com Machado Grande' }));
-    await expect(args.fight!.actions.onAttack).toHaveBeenCalledWith('c-hazin', 0, { targetId: 'g2', mode: 'normal', secret: false });
+    await expect(args.fight!.actions.onAttack).toHaveBeenCalledWith('c-hazin', 0, { targetIds: ['g2'], mode: 'normal', secret: false });
   },
 };
 

@@ -145,8 +145,13 @@ em quatro PRs (os três primeiros empilhados):
    encontro rola com elas, inclusive na concentração. O jogador lê só "Passou"
    ou "Falhou" de um monstro. Diferença da spec: o combatente avulso rola com
    +0 e o mestre ainda não edita os modificadores dele.
-3. **Vários alvos em área.** Só linhas de salvaguarda: um dano para todos, a
-   salvaguarda de cada alvo.
+3. **Vários alvos em área — entregue.** Só uma linha de salvaguarda aceita
+   mais de um alvo (até 20, sem repetir): o custo é pago uma vez, o dano é
+   rolado uma vez, e cada alvo rola a própria salvaguarda e fica com o
+   próprio pendente. Um ataque com rolagem de acerto continua com um alvo. Um
+   alvo inválido recusa o uso inteiro, sem gastar nada. A aba Ações marca os
+   alvos numa lista, e o feed mostra uma linha por alvo. Um alvo oculto sai da
+   cópia do jogador, em vez de deixar o evento inteiro secreto.
 4. **PV pelo token.** PV e ajuste ao lado do mapa, PV dos monstros visível
    para os jogadores, e o token livre do bestiário entra no combate com um
    clique.

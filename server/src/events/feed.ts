@@ -170,7 +170,8 @@ export function readFeed(
     return visible ? [visible] : [];
   });
 
-  // The oldest id on the page is the cursor for the next "load more".
-  const nextCursor = hasOlder ? (events[0]!.id as string) : null;
+  // The oldest row read is the cursor for the next "load more", even when
+  // redaction left it out of this reader's page.
+  const nextCursor = hasOlder ? page[0]!.event.id : null;
   return { events, nextCursor };
 }

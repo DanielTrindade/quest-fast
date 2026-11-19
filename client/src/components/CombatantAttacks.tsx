@@ -7,10 +7,19 @@ import { RollModeControl } from './RollModeControl';
 import { TargetPicker, type TargetOption } from './TargetPicker';
 import { checkLabel } from './ui/segmented';
 
-export type AttackOptions = { targetId: string | null; mode: RollMode; secret: boolean };
+export type AttackOptions = { targetIds: string[]; mode: RollMode; secret: boolean };
 
-/** Why the turn has nothing left for a row, in the server's words; null when it does, or when the turn is not shown. */
-function refusalOf(turn: TurnView | null, cost: AttackCost, ownTurn: boolean): string | null {
+/**
+ * Why a row cannot be used now, in the server's words: an attack roll with
+ * more than one target, or a turn with nothing left for it. Null when it can,
+ * or when the turn is not shown.
+ */
+function refusalOf(attack: Attack, targets: number, turn: TurnView | null, ownTurn: boolean): string | null {
+  if (attack.kind === 'attack' && targets > 1) return 'Um ataque com rolagem de acerto tem um alvo só.';
+  return turnRefusal(turn, attack.cost, ownTurn);
+}
+
+function turnRefusal(turn: TurnView | null, cost: AttackCost, ownTurn: boolean): string | null {
   if (!turn) return null;
   const spent = spendTurn(turn, attackSpend(cost, ownTurn), turn.attacksPerAction);
   return spent.ok ? null : spent.error;
@@ -40,7 +49,7 @@ export function CombatantAttacks({ name, attacks, targets, turn = null, active =
   onAttack: (attackIndex: number, options: AttackOptions) => void;
 }) {
   const id = useId();
-  const [targetId, setTargetId] = useState('');
+  const [targetIds, setTargetIds] = useState<string[]>([]);
   const [mode, setMode] = useState<RollMode>('normal');
   const [secret, setSecret] = useState(defaultSecret);
 
@@ -48,11 +57,12 @@ export function CombatantAttacks({ name, attacks, targets, turn = null, active =
     return <p className="m-0 text-small text-text-secondary">Sem ataques cadastrados: use os dados livres.</p>;
   }
   // A target that left the fight is no longer offered.
-  const target = targets.some((candidate) => candidate.id === targetId) ? targetId : '';
+  const present = new Set(targets.map((candidate) => candidate.id));
+  const chosen = targetIds.filter((id) => present.has(id));
   return (
     <fieldset disabled={pending} className="m-0 grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 border-0 p-0">
       <legend className="sr-only">Ataques de {name}</legend>
-      <TargetPicker name={name} targets={targets} value={target} onChange={setTargetId} />
+      <TargetPicker name={name} targets={targets} value={chosen} onChange={setTargetIds} />
       <RollModeControl value={mode} onChange={setMode} disabled={pending} name={`${id}-mode`} label={`Tipo de rolagem dos ataques de ${name}`} />
       {master && (
         <label className={checkLabel}>
@@ -65,9 +75,9 @@ export function CombatantAttacks({ name, attacks, targets, turn = null, active =
         {/* Attacks have no id; the server takes the position in the sheet. */}
         {contentKeys(attacks).map(({ item: attack, key }, index) => (
           <li key={key} className="min-w-0">
-            <AttackCard {...attack} disabled={pending} refusal={refusalOf(turn, attack.cost, active)}
+            <AttackCard {...attack} disabled={pending} refusal={refusalOf(attack, chosen.length, turn, active)}
               onRoll={() => onAttack(index, {
-                targetId: target || null,
+                targetIds: chosen,
                 // Advantage belongs to an attack roll; a save has none.
                 mode: attack.kind === 'save' ? 'normal' : mode,
                 secret: master && secret,
