@@ -2,6 +2,7 @@
  * Pure rules of the battlefield (phase 4). Coordinates are in pixels of the
  * normalised map, the only space the server and every client share.
  */
+import { isRevealed, type SceneFog } from './fog.ts';
 import type { Role } from './role.ts';
 import type { Size } from './sheet.ts';
 
@@ -202,18 +203,24 @@ export type TokenVisibility = {
   hidden: boolean;
   /** The combatant behind a combatant token is hidden in the encounter. */
   combatantHidden: boolean;
+  /** Centre of the token, where the fog is checked: a live drag's position, or the stored one. */
+  x: number;
+  y: number;
 };
 
 /**
  * Whether a viewer receives a token at all, in any payload. The master sees
  * every one. A player never receives a token hidden on the map, nor the token
- * of a combatant hidden in the encounter. The fog rule (a token outside the
- * revealed area, character tokens excepted) joins with the fog delivery.
+ * of a combatant hidden in the encounter, nor — with the fog on — a token
+ * that is not a character's whose centre lies outside the revealed area.
+ * Character tokens show even under the fog.
  */
-export function isTokenVisible(token: TokenVisibility, role: Role): boolean {
+export function isTokenVisible(token: TokenVisibility, role: Role, fog: SceneFog | null = null): boolean {
   if (role === 'master') return true;
   if (token.hidden) return false;
-  return !(token.kind === 'combatant' && token.combatantHidden);
+  if (token.kind === 'combatant' && token.combatantHidden) return false;
+  if (token.kind === 'character' || !fog?.enabled) return true;
+  return isRevealed(fog.revealed, token.x, token.y);
 }
 
 /** What a token stands for, as far as its hit points go. */

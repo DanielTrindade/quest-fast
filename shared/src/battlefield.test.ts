@@ -139,21 +139,21 @@ test("a free token, an expired lock or one's own lock can be grabbed", () => {
 
 test('the master sees every token', () => {
   for (const kind of TOKEN_KINDS) {
-    assert.equal(isTokenVisible({ kind, hidden: true, combatantHidden: true }, 'master'), true, kind);
+    assert.equal(isTokenVisible({ kind, hidden: true, combatantHidden: true, x: 0, y: 0 }, 'master'), true, kind);
   }
 });
 
 test('a player never receives a token hidden on the map', () => {
   for (const kind of TOKEN_KINDS) {
-    assert.equal(isTokenVisible({ kind, hidden: true, combatantHidden: false }, 'player'), false, kind);
-    assert.equal(isTokenVisible({ kind, hidden: false, combatantHidden: false }, 'player'), true, kind);
+    assert.equal(isTokenVisible({ kind, hidden: true, combatantHidden: false, x: 0, y: 0 }, 'player'), false, kind);
+    assert.equal(isTokenVisible({ kind, hidden: false, combatantHidden: false, x: 0, y: 0 }, 'player'), true, kind);
   }
 });
 
 test('a player never receives the token of a combatant hidden in the encounter', () => {
-  assert.equal(isTokenVisible({ kind: 'combatant', hidden: false, combatantHidden: true }, 'player'), false);
+  assert.equal(isTokenVisible({ kind: 'combatant', hidden: false, combatantHidden: true, x: 0, y: 0 }, 'player'), false);
   // The flag only concerns combatant tokens: a character's token is its own.
-  assert.equal(isTokenVisible({ kind: 'character', hidden: false, combatantHidden: true }, 'player'), true);
+  assert.equal(isTokenVisible({ kind: 'character', hidden: false, combatantHidden: true, x: 0, y: 0 }, 'player'), true);
 });
 
 test('token kinds and limits', () => {

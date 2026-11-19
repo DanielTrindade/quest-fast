@@ -238,9 +238,12 @@ com as decisões do spike. Cinco entregas, cada uma usável na mesa:
    do canvas, corte no limite para o jogador e borda elástica, sem regra
    nova no servidor. Colisão, paredes e terreno difícil ficam para depois
    ([design system](design-system.md#alcance-caminho-e-limites-18-de-novembro-de-2026)).
-4. **Fog of war.** Revelar e ocultar com retângulo e polígono, regra em
-   `shared/` e estado calculado no servidor; monstro na área oculta fora do
-   payload do jogador.
+4. **Fog of war — em andamento.** Revelar e ocultar com retângulo e
+   polígono, regra em `shared/` e estado calculado no servidor; monstro na
+   área oculta fora do payload do jogador. O fog é só do mapa: o combate
+   continua seguindo o "escondido no encontro". Regras e contrato prontos;
+   faltam servidor, componentes e tela.
+   ([spec](history/2026-11-19-fog-of-war.md))
 5. **Acabamento.** Token ligado ao combate (o token livre do bestiário já
    entra no combate pela #111), reconexão com o estado completo da cena, seed
    com cena, `verify:app` e o Owlbear fora do README.

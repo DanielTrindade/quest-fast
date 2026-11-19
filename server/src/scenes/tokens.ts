@@ -191,6 +191,8 @@ export function movingAudience(db: Executor, campaignId: string, tokenId: string
     .select({
       kind: tokens.kind,
       hidden: tokens.hidden,
+      x: tokens.x,
+      y: tokens.y,
       sceneId: tokens.sceneId,
       combatantHidden: combatants.hidden,
       activeSceneId: campaigns.activeSceneId,
@@ -203,7 +205,7 @@ export function movingAudience(db: Executor, campaignId: string, tokenId: string
     .get();
   if (!row) return null;
   const open = row.activeSceneId === row.sceneId;
-  const visibility = { kind: row.kind, hidden: row.hidden, combatantHidden: row.combatantHidden ?? false };
+  const visibility = { kind: row.kind, hidden: row.hidden, combatantHidden: row.combatantHidden ?? false, x: row.x, y: row.y };
   return (viewer) => viewer.role === 'master' || (open && isTokenVisible(visibility, viewer.role));
 }
 

@@ -6,6 +6,14 @@ import { fileURLToPath, URL } from 'node:url';
 export default defineConfig({
   resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
   plugins: [react(), tailwindcss()],
+  build: {
+    rolldownOptions: {
+      // The fog's clipping library builds its state at import, which marks it
+      // as having side effects. Only the server applies the fog; the SPA uses
+      // the point checks, so the library can go when nothing calls it.
+      treeshake: { moduleSideEffects: (id: string) => !id.includes('/node_modules/polygon-clipping/') },
+    },
+  },
   server: {
     // Not Vite's default 5173: another project on this machine holds it, and a
     // silent fallback to 5174 would break the Discord Redirect URI, which is

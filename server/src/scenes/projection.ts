@@ -37,7 +37,8 @@ export type LoadedScene = {
 
 /** Whether a viewer receives this token at all, over REST or the socket. */
 export function tokenVisibleTo(token: LoadedToken, viewer: Viewer): boolean {
-  return isTokenVisible({ kind: token.row.kind, hidden: token.row.hidden, combatantHidden: token.combatantHidden }, viewer.role);
+  const { kind, hidden, x, y } = token.row;
+  return isTokenVisible({ kind, hidden, combatantHidden: token.combatantHidden, x, y }, viewer.role);
 }
 
 /** The reach of a creature tells a player its speed: only characters' reach the table. */
@@ -93,6 +94,7 @@ export function projectScene({ scene, mapUrl, active, tokens }: LoadedScene, vie
       opacity: scene.gridOpacity,
     },
     active,
+    fog: { enabled: scene.fogEnabled, revealed: scene.fogRevealed },
     tokens: tokens.filter((token) => tokenVisibleTo(token, viewer)).map((token) => projectToken(token, viewer)),
     version: scene.version,
     createdAt: scene.createdAt.toISOString(),
