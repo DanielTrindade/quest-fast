@@ -142,6 +142,24 @@ test('swapping the map scales the fog with the grid', async () => {
   assert.deepEqual([Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)], [0, 400, 0, 200]);
 });
 
+test('a map of another proportion keeps the fog over the same tokens', async () => {
+  const s = await setup();
+  const { path } = await crypt(s);
+  await send(s.master, path, 'PATCH', { fogEnabled: true });
+  await fog(s.master, path, revealRect(0, 0, 100, 100));
+  // A free token under the fog, just below the revealed corner.
+  await sceneOf(await send(s.master, `${path}/tokens`, 'POST', { kind: 'free', label: 'Emboscada', size: 'medium', x: 50, y: 150 }), 201);
+  assert.ok(!names(await playerView(s)).includes('Emboscada'));
+
+  // 600 × 400 → 1200 × 400: twice as wide, as tall as before.
+  const form = new FormData();
+  form.set('image', new Blob([await testImageBytes('png', 1200, 400)], { type: 'image/png' }), 'mapa.png');
+  const swapped = await sceneOf(await s.master(`${path}/map`, { method: 'PUT', body: form }));
+  const ambush = swapped.tokens.find((token) => token.name === 'Emboscada')!;
+  assert.deepEqual([ambush.x, ambush.y], [100, 150], 'the token followed each axis');
+  assert.deepEqual(names(await playerView(s)), ['Kaelen'], 'still under the fog for the player');
+});
+
 function collect(socket: WebSocket): SocketMessage[] {
   const messages: SocketMessage[] = [];
   socket.on('message', (data) => messages.push(JSON.parse(data.toString()) as SocketMessage));

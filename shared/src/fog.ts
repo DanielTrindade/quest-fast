@@ -181,14 +181,16 @@ export function applyFog(
 }
 
 /**
- * The fog of a scene whose map was swapped for one `ratio` times as wide:
- * it follows the grid, scaled and clipped to the new map. When the scaled
- * area does not settle (see `normalised`), the map starts all hidden: the
- * swap is never refused for the fog, and hiding too much leaks nothing.
+ * The fog of a scene whose map was swapped for one `ratioX` times as wide
+ * and `ratioY` times as tall: scaled on each axis exactly as the tokens are,
+ * so a token under the fog stays under it, then clipped to the new map. When
+ * the scaled area does not settle (see `normalised`), the map starts all
+ * hidden: the swap is never refused for the fog, and hiding too much leaks
+ * nothing.
  */
-export function scaleFog(revealed: MultiPolygon, ratio: number, mapWidth: number, mapHeight: number): MultiPolygon {
+export function scaleFog(revealed: MultiPolygon, ratioX: number, ratioY: number, mapWidth: number, mapHeight: number): MultiPolygon {
   if (revealed.length === 0) return [];
-  const scaled: MultiPolygon = revealed.map((polygon) => polygon.map((ring) => ring.map(([x, y]) => [x * ratio, y * ratio])));
+  const scaled: MultiPolygon = revealed.map((polygon) => polygon.map((ring) => ring.map(([x, y]) => [x * ratioX, y * ratioY])));
   try {
     const result = settled(clipping.intersection(scaled, mapRect(mapWidth, mapHeight)));
     return 'revealed' in result ? result.revealed : [];

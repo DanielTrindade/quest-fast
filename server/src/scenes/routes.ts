@@ -84,12 +84,16 @@ function parseGrid(value: unknown, current: GridSettings, mapWidth: number): Gri
 /**
  * A new map keeps the grid and the fog where they were when the proportion
  * allows: the master usually swaps a map for a better copy of the same one.
- * A grid that no longer fits starts over, and the fog with it (all hidden):
- * what was revealed was drawn over another map.
+ * The grid follows the width; the fog follows each axis on its own, as
+ * `rescaleTokens` moves the tokens, so what was hidden under it stays hidden
+ * even when the new map has another proportion. A grid that no longer fits
+ * starts over, and the fog with it (all hidden): what was revealed was drawn
+ * over another map.
  */
 function remap(scene: SceneRow, map: NormalizedMap): GridColumns & Pick<SceneRow, 'fogRevealed'> {
   const current = gridOf(scene);
   const ratio = map.width / scene.mapWidth;
+  const ratioY = map.height / scene.mapHeight;
   const scaled = {
     ...current,
     cellSize: current.cellSize * ratio,
@@ -97,7 +101,7 @@ function remap(scene: SceneRow, map: NormalizedMap): GridColumns & Pick<SceneRow
     offsetY: current.offsetY * ratio,
   };
   if (Object.keys(validateGrid(scaled, map.width)).length === 0) {
-    return { ...columnsOf(scaled), fogRevealed: scaleFog(scene.fogRevealed, ratio, map.width, map.height) };
+    return { ...columnsOf(scaled), fogRevealed: scaleFog(scene.fogRevealed, ratio, ratioY, map.width, map.height) };
   }
   return { ...columnsOf({ ...defaultGrid(map.width), enabled: current.enabled, snap: current.snap }), fogRevealed: [] };
 }

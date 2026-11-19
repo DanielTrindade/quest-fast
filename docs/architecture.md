@@ -415,7 +415,9 @@ desligar no `PATCH` da cena (desligar guarda a área revelada) e
   assim como o token escondido pelo mestre e o do combatente escondido no
   encontro. Tokens de personagem aparecem sempre. No arrasto ao vivo vale a
   posição recebida: o `token.moving` de uma criatura que entra na área oculta
-  para de chegar ao jogador ali. Trocar o mapa escala o fog junto com o grid.
+  para de chegar ao jogador ali. Trocar o mapa escala o fog em cada eixo como
+  os tokens, para o que estava oculto continuar oculto num mapa de outra
+  proporção; se o grid volta ao padrão, o fog volta a tudo oculto.
   O fog é só do mapa: a iniciativa e a lista de alvos seguem o "escondido no
   encontro".
 - **Movimento:** o `grab` é REST e trava o token (validade de 3 s, renovada a
