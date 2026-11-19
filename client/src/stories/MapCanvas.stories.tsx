@@ -40,9 +40,20 @@ async function readyMap(canvasElement: HTMLElement) {
  */
 async function framedMap(canvasElement: HTMLElement) {
   const ready = await readyMap(canvasElement);
-  await userEvent.click(ready.map.getByRole('button', { name: 'Enquadrar o mapa' }));
-  await new Promise((resolve) => setTimeout(resolve, 300));
+  await frameWhole(ready.frame, ready.map);
   return ready;
+}
+
+/**
+ * Frames the whole map and waits for the glide to end: the zoom shown is
+ * the framed one. A fixed wait raced the glide on a busy machine, and a
+ * drag aimed with `onPage` then landed off the token.
+ */
+async function frameWhole(frame: HTMLElement, map: ReturnType<typeof within>) {
+  await userEvent.click(map.getByRole('button', { name: 'Enquadrar o mapa' }));
+  const rect = frame.querySelector('canvas')!.getBoundingClientRect();
+  const framed = Math.round(fitView(SYNTHETIC_MAP, { width: rect.width, height: rect.height }).scale * 100);
+  await waitFor(() => expect(map.getByText(/\d+%$/).textContent).toMatch(new RegExp(`(^|\\D)${framed}%$`)));
 }
 
 export const Padrao: Story = {
@@ -263,8 +274,7 @@ export const TokensJogador: Story = {
     await expect(args.onGrab).not.toHaveBeenCalled();
 
     // Their own moves.
-    await userEvent.click(map.getByRole('button', { name: 'Enquadrar o mapa' }));
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    await frameWhole(frame, map);
     const kaelen = playerTokens().find((token) => token.id === 'kaelen')!;
     await dragOnMap(frame, kaelen, { x: kaelen.x, y: kaelen.y + PRINTED_CELL * 2 });
     await expect(args.onDrop).toHaveBeenCalledWith('kaelen', kaelen.x, kaelen.y + PRINTED_CELL * 2);
