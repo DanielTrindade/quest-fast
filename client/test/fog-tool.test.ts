@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { FOG_LIMITS, type SceneFog, type TokenView } from '@quest-fast/shared';
-import { CLOSE_RADIUS, closesPolygon, fogRect, polygonOperation, rectOperation, toMap, tokensForLook } from '../src/lib/fog-tool.ts';
+import { CLOSE_RADIUS, closesPolygon, fogRect, polygonOperation, rectOperation, toMap, tokensForLook, fogFailure } from '../src/lib/fog-tool.ts';
 
 const MAP = { width: 1000, height: 800 };
 const GRID = { enabled: true, cellSize: 50, offsetX: 10, offsetY: 0, snap: true, opacity: 0.6 };
@@ -75,4 +75,14 @@ test("on the master's map, what does not reach the table shows as hidden", () =>
   assert.deepEqual(shown.filter((item) => item.hidden).map((item) => item.id), ['ambush', 'trap', 'ogre']);
   assert.equal(tokensForLook(TABLE, null, 'master').find((item) => item.id === 'ambush')!.hidden, true, 'hidden in the encounter, fog or not');
   assert.equal(tokensForLook(TABLE, null, 'master').find((item) => item.id === 'ogre')!.hidden, false);
+});
+
+test("the fog panel shows the last action's refusal, never an older one", () => {
+  const refused = new Error('Forma recusada.');
+  // A shape refused, then a toggle that went through: nothing to show.
+  assert.equal(fogFailure('toggle', { shape: refused, toggle: null }), null);
+  assert.equal(fogFailure('shape', { shape: refused, toggle: null }), refused);
+  // A shape that went through after a refused toggle clears it too.
+  assert.equal(fogFailure('shape', { shape: null, toggle: refused }), null);
+  assert.equal(fogFailure(null, { shape: refused, toggle: refused }), null);
 });

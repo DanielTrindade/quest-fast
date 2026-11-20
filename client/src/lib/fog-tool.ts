@@ -80,5 +80,17 @@ export function tokensForLook(tokens: readonly TokenView[], fog: SceneFog | null
   return tokens.map((token) => (token.hidden || reachesTable(token) ? token : { ...token, hidden: true }));
 }
 
+/** What the master last asked of the fog: a shape (or the whole map), or turning it on or off. */
+export type FogAction = 'shape' | 'toggle';
+
+/**
+ * The refusal the fog panel shows: the last action's, and only while it
+ * stands. A shape refused and then a toggle that went through says nothing,
+ * however the two requests failed before.
+ */
+export function fogFailure<E>(last: FogAction | null, failures: Record<FogAction, E | null>): E | null {
+  return last ? failures[last] : null;
+}
+
 /** A press that moved at most this far, in CSS pixels, is a click that places a point. */
 export const TAP_SLOP = 6;

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { FogOperation, SceneView } from '@quest-fast/shared';
 import { api } from '../../lib/api';
-import type { FogLook, FogTool } from '../../lib/fog-tool';
+import { fogFailure, type FogAction, type FogLook, type FogTool } from '../../lib/fog-tool';
 import { mergeScene } from '../../lib/scene-cache';
 import { errorMessage } from './campaign-screen';
 
@@ -16,6 +16,7 @@ export function useFogControls(campaignId: string, scene: SceneView, isMaster: b
   const queryClient = useQueryClient();
   const [tool, setTool] = useState<FogTool | null>(null);
   const [playerView, setPlayerView] = useState(false);
+  const [last, setLast] = useState<FogAction | null>(null);
   const saved = ({ scene: next }: { scene: SceneView }) => mergeScene(queryClient, campaignId, next);
   const change = useMutation({
     mutationFn: (operation: FogOperation) => api.changeFog(campaignId, scene.id, operation),
@@ -25,8 +26,8 @@ export function useFogControls(campaignId: string, scene: SceneView, isMaster: b
     mutationFn: (enabled: boolean) => api.updateScene(campaignId, scene.id, { fogEnabled: enabled }),
     onSuccess: saved,
   });
-  // The last request decides what the toolbar says: a refusal stays until the next try.
-  const failed = change.isError ? change.error : toggle.isError ? toggle.error : null;
+  // The toolbar speaks of the last action only: an older refusal goes once another action is asked.
+  const failed = fogFailure(last, { shape: change.error, toggle: toggle.error });
 
   return {
     tool,
@@ -35,8 +36,14 @@ export function useFogControls(campaignId: string, scene: SceneView, isMaster: b
     setPlayerView,
     /** A player always sees the fog opaque; the master, unless looking as one. */
     look: (isMaster && !playerView ? 'master' : 'player') as FogLook,
-    apply: (operation: FogOperation) => change.mutate(operation),
-    setEnabled: (enabled: boolean) => toggle.mutate(enabled),
+    apply: (operation: FogOperation) => {
+      setLast('shape');
+      change.mutate(operation);
+    },
+    setEnabled: (enabled: boolean) => {
+      setLast('toggle');
+      toggle.mutate(enabled);
+    },
     busy: change.isPending || toggle.isPending,
     error: failed ? errorMessage(failed) : undefined,
     /** The panel closed: the map pans again and shows the master's own view. */
