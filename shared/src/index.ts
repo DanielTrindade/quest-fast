@@ -224,6 +224,22 @@ export {
   type SceneFog,
 } from './fog.ts';
 export {
+  CHAT_LIMITS,
+  chatLength,
+  chatSegments,
+  findMentions,
+  isEmote,
+  normalizeChatBody,
+  validateChatBody,
+  type ChatAuthor,
+  type ChatMention,
+  type ChatMessageResponse,
+  type ChatMessageView,
+  type ChatPageResponse,
+  type ChatQuote,
+  type ChatSendRequest,
+} from './chat.ts';
+export {
   ATTACK_COSTS,
   SQUARE_METERS,
   TURN_LIMITS,

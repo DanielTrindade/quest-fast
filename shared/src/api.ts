@@ -4,6 +4,7 @@ import type { Ability, Skill } from './modifiers.ts';
 import type { ArmorTraining, Coins, DeathSaves, HitDie, Size, Spell, SpellSlot } from './sheet.ts';
 import type { GridSettings, TokenKind } from './battlefield.ts';
 import type { SceneFog } from './fog.ts';
+import type { ChatMessageView } from './chat.ts';
 import type { AttackCost, TurnBudget, TurnSpend } from './turn.ts';
 import type { SaveBonuses, SaveEffect, SaveRoll } from './attack.ts';
 import type { ActiveCondition, COMBATANT_SOURCES, CombatReminder, ENCOUNTER_STATUSES, HealthBand, HpOperation } from './combat.ts';
@@ -485,7 +486,11 @@ export type SocketMessage =
    * saved: the drop arrives as `scene.updated`. Sent only to whoever sees the
    * token; `ts` is the server's clock, for the receiver's interpolation.
    */
-  | { type: 'token.moving'; tokenId: string; x: number; y: number; ts: number };
+  | { type: 'token.moving'; tokenId: string; x: number; y: number; ts: number }
+  /** A new message of the table chat, to every member. */
+  | { type: 'chat.message'; message: ChatMessageView }
+  /** A chat message was removed: its text is never sent again. */
+  | { type: 'chat.removed'; messageId: string };
 
 /**
  * What the client may send over the socket: only the position of the token it
