@@ -1,8 +1,9 @@
-import { useId, useRef, useState } from 'react';
-import { Broadcast, GridFour, MapPin, XCircle } from '@phosphor-icons/react';
+import { useId, useRef, useState, type RefObject } from 'react';
+import { Broadcast, Cloud, GridFour, MapPin, XCircle } from '@phosphor-icons/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { GridSettings as Grid, SceneView, TokenView } from '@quest-fast/shared';
 import { Button } from '../../components/Button';
+import { FogToolbar } from '../../components/FogToolbar';
 import { GridSettings } from '../../components/GridSettings';
 import { MapCanvas, type MapCanvasHandle } from '../../components/MapCanvas';
 import { Surface } from '../../components/Surface';
@@ -19,14 +20,16 @@ import { errorMessage } from './campaign-screen';
 import { FightTurn } from './FightTurn';
 import { TokenPickerPanel } from './TokenPickerPanel';
 import { TokenVitalsPanel } from './TokenVitalsPanel';
+import { useFogControls, type FogControls } from './useFogControls';
 import { useFight } from './useFight';
 import { useTokenMoves } from './useTokenMoves';
 
-type Panel = 'grid' | 'tokens' | null;
+type OpenPanel = 'grid' | 'tokens' | 'fog';
+type Panel = OpenPanel | null;
 
-/** The master's bar over the map: the table switch, the grid panel's and the token picker's. */
-function MasterBar({ campaignId, scene, panel, gridPanelId, pickerId, onToggle }: {
-  campaignId: string; scene: SceneView; panel: Panel; gridPanelId: string; pickerId: string; onToggle: (panel: 'grid' | 'tokens') => void;
+/** The master's bar over the map: the table switch, the token picker's, the grid panel's and the fog's. */
+function MasterBar({ campaignId, scene, panel, panelIds, onToggle }: {
+  campaignId: string; scene: SceneView; panel: Panel; panelIds: Record<OpenPanel, string>; onToggle: (panel: OpenPanel) => void;
 }) {
   const queryClient = useQueryClient();
   const notify = useNotify();
@@ -50,11 +53,14 @@ function MasterBar({ campaignId, scene, panel, gridPanelId, pickerId, onToggle }
           ? <><XCircle size={18} aria-hidden="true" /> Fechar para a mesa</>
           : <><Broadcast size={18} aria-hidden="true" /> Abrir para a mesa</>}
       </Button>
-      <Button variant="secondary" aria-expanded={panel === 'tokens'} aria-controls={pickerId} onClick={() => onToggle('tokens')}>
+      <Button variant="secondary" aria-expanded={panel === 'tokens'} aria-controls={panelIds.tokens} onClick={() => onToggle('tokens')}>
         <MapPin size={18} aria-hidden="true" /> {panel === 'tokens' ? 'Fechar tokens' : 'Pôr tokens'}
       </Button>
-      <Button variant="secondary" aria-expanded={panel === 'grid'} aria-controls={gridPanelId} onClick={() => onToggle('grid')}>
+      <Button variant="secondary" aria-expanded={panel === 'grid'} aria-controls={panelIds.grid} onClick={() => onToggle('grid')}>
         <GridFour size={18} aria-hidden="true" /> {panel === 'grid' ? 'Ocultar grid' : 'Ajustar grid'}
+      </Button>
+      <Button variant="secondary" aria-expanded={panel === 'fog'} aria-controls={panelIds.fog} onClick={() => onToggle('fog')}>
+        <Cloud size={18} aria-hidden="true" /> {panel === 'fog' ? 'Fechar fog' : 'Fog of war'}
       </Button>
     </div>
   );
@@ -82,6 +88,29 @@ function GridPanel({ id, campaignId, scene, onPreview }: {
         serverError={save.isError ? errorMessage(save.error) : undefined} />
     </Surface>
   );
+}
+
+/** The fog panel beside the map: what the master draws with, and the whole map at once. */
+function FogPanel({ id, scene, fog }: { id: string; scene: SceneView; fog: FogControls }) {
+  return (
+    <Surface id={id} className="min-w-0 self-start">
+      <h3 className="mb-4 font-display text-h2 font-semibold">Fog of war</h3>
+      <FogToolbar enabled={scene.fog.enabled} onEnabledChange={fog.setEnabled} tool={fog.tool} onToolChange={fog.setTool}
+        areas={scene.fog.revealed.length} onWholeMap={(mode) => fog.apply({ mode, shape: { kind: 'all' } })}
+        playerView={fog.playerView} onPlayerViewChange={fog.setPlayerView} busy={fog.busy} error={fog.error} />
+    </Surface>
+  );
+}
+
+/** The master's open panel beside the map, if any. */
+function MasterPanel({ panel, panelIds, campaignId, scene, mapRef, fog, onPreview }: {
+  panel: Panel; panelIds: Record<OpenPanel, string>; campaignId: string; scene: SceneView;
+  mapRef: RefObject<MapCanvasHandle | null>; fog: FogControls; onPreview: (grid: Grid | null) => void;
+}) {
+  if (panel === 'grid') return <GridPanel id={panelIds.grid} campaignId={campaignId} scene={scene} onPreview={onPreview} />;
+  if (panel === 'tokens') return <TokenPickerPanel id={panelIds.tokens} campaignId={campaignId} scene={scene} mapRef={mapRef} />;
+  if (panel === 'fog') return <FogPanel id={panelIds.fog} scene={scene} fog={fog} />;
+  return null;
 }
 
 /**
@@ -129,8 +158,7 @@ export function SceneStage({ campaignId, scene, isMaster, mapClassName, allowFul
   const stageRef = useRef<HTMLDivElement>(null);
   const [fullscreen, setFullscreen] = useFullscreenView(stageRef);
   const layout = stageLayout({ fullscreen, isMaster, mapClassName, name: scene.name });
-  const gridPanelId = useId();
-  const pickerId = useId();
+  const panelIds = { grid: useId(), tokens: useId(), fog: useId() };
   const mapRef = useRef<MapCanvasHandle>(null);
   const me = useQuery({ queryKey: ['me'], queryFn: api.me });
   const viewerId = me.data?.user.id ?? null;
@@ -151,8 +179,10 @@ export function SceneStage({ campaignId, scene, isMaster, mapClassName, allowFul
   const selectedId = scene.tokens.some((token) => token.id === selected) ? selected : null;
   const [preview, setPreview] = useState<{ sceneId: string; grid: Grid } | null>(null);
   const shownGrid = preview?.sceneId === scene.id ? preview.grid : scene.grid;
-  const toggle = (next: 'grid' | 'tokens') => {
+  const fog = useFogControls(campaignId, scene, isMaster);
+  const toggle = (next: OpenPanel) => {
     if (panel === 'grid') setPreview(null);
+    if (panel === 'fog') fog.putAway();
     setPanel(panel === next ? null : next);
   };
   // A token whose last drop is still unanswered waits for it before the next drag;
@@ -167,7 +197,7 @@ export function SceneStage({ campaignId, scene, isMaster, mapClassName, allowFul
   return (
     <div ref={stageRef} {...layout.region} className={layout.stage}>
       {isMaster && (
-        <MasterBar campaignId={campaignId} scene={scene} panel={panel} gridPanelId={gridPanelId} pickerId={pickerId} onToggle={toggle} />
+        <MasterBar campaignId={campaignId} scene={scene} panel={panel} panelIds={panelIds} onToggle={toggle} />
       )}
       <div className={layout.body}>
         <div className={layout.map} style={fullscreen ? undefined : { aspectRatio: `${scene.mapWidth} / ${scene.mapHeight}` }}>
@@ -175,6 +205,7 @@ export function SceneStage({ campaignId, scene, isMaster, mapClassName, allowFul
             tokens={scene.tokens} viewerId={viewerId} selectedTokenId={selectedId} onSelect={setSelected} canMove={canMove}
             onGrab={moves.onGrab} onDrag={moves.onDrag} onDrop={moves.onDrop} onCancelDrag={moves.onCancelDrag} motion={motion}
             fullscreen={fullscreen} onFullscreenChange={allowFullscreen ? setFullscreen : undefined}
+            fog={scene.fog} fogLook={fog.look} fogTool={fog.tool} onFogShape={fog.apply}
             pendingMove={moves.pending}
             stopAtLimit={(token) => stopsAtLimit(isMaster, fight?.fighterOf(token)?.id, fight?.encounter.activeCombatantId)}
             moveConfirm={{
@@ -185,14 +216,11 @@ export function SceneStage({ campaignId, scene, isMaster, mapClassName, allowFul
             }} />
         </div>
         <div className={layout.side}>
-          {panel === 'grid' && (
-            <GridPanel id={gridPanelId} campaignId={campaignId} scene={scene}
-              onPreview={(grid) => setPreview(grid ? { sceneId: scene.id, grid } : null)} />
-          )}
-          {panel === 'tokens' && <TokenPickerPanel id={pickerId} campaignId={campaignId} scene={scene} mapRef={mapRef} />}
+          <MasterPanel panel={panel} panelIds={panelIds} campaignId={campaignId} scene={scene} mapRef={mapRef} fog={fog}
+            onPreview={(grid) => setPreview(grid ? { sceneId: scene.id, grid } : null)} />
           <TokenVitalsPanel key={selectedId} campaignId={campaignId} tokens={scene.tokens} selectedId={selectedId} isMaster={isMaster} viewerId={viewerId} />
           {fight && <FightTurn campaignId={campaignId} fight={fight} focus={focus} viewerId={viewerId} isMaster={isMaster} />}
-          <TokenList tokens={scene.tokens} viewerId={viewerId} master={isMaster} selectedId={selectedId} onSelect={setSelected}
+          <TokenList tokens={scene.tokens} viewerId={viewerId} master={isMaster} fog={scene.fog} selectedId={selectedId} onSelect={setSelected}
             onStep={(tokenId, direction) => {
               const token = scene.tokens.find((candidate) => candidate.id === tokenId);
               if (token && !mayFight(token)) moves.onStep(tokenId, direction);

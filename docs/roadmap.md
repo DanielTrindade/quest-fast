@@ -238,11 +238,15 @@ com as decisões do spike. Cinco entregas, cada uma usável na mesa:
    do canvas, corte no limite para o jogador e borda elástica, sem regra
    nova no servidor. Colisão, paredes e terreno difícil ficam para depois
    ([design system](design-system.md#alcance-caminho-e-limites-18-de-novembro-de-2026)).
-4. **Fog of war — em andamento.** Revelar e ocultar com retângulo e
-   polígono, regra em `shared/` e estado calculado no servidor; monstro na
-   área oculta fora do payload do jogador. O fog é só do mapa: o combate
-   continua seguindo o "escondido no encontro". Regras, contrato e servidor
-   prontos; faltam componentes e tela.
+4. **Fog of war — entregue.** Na Mesa, o mestre abre "Fog of war", liga o fog
+   (a cena começa toda oculta) e revela ou oculta com retângulo, que encaixa
+   no grid, ou polígono clique a clique, além de revelar e ocultar tudo; vê o
+   fog translúcido, com os tokens que a mesa não vê esmaecidos e marcados
+   "Na área oculta" na lista, e pode "ver como jogador". O jogador vê o fog
+   opaco e não recebe monstro nem token livre na área oculta, em nenhum
+   payload; revelar traz o monstro na hora, pelo socket. Personagens aparecem
+   sempre. Regra em `shared/` e estado calculado no servidor. O fog é só do
+   mapa: o combate continua seguindo o "escondido no encontro".
    ([spec](history/2026-11-19-fog-of-war.md))
    Diferenças da spec: na troca de mapa, o fog acompanha os tokens (cada eixo
    pela própria razão), não o grid, que segue só a largura; e uma forma que

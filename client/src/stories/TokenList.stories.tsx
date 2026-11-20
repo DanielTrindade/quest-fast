@@ -2,7 +2,8 @@ import { useState } from 'react';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { expect, fn, userEvent, within } from 'storybook/test';
 import { TokenList, type TokenListProps } from '../components/TokenList';
-import { MASTER_ID, PLAYER_ID, manyTokens, masterTokens, playerTokens, vitalityTokens } from './fixtures/tokens';
+import { fogOn } from './fixtures/fog';
+import { MASTER_ID, PLAYER_ID, cell, manyTokens, masterTokens, playerTokens, vitalityTokens } from './fixtures/tokens';
 
 /** Selection kept in the story, as the screen keeps it. */
 function Selectable(props: TokenListProps) {
@@ -107,5 +108,32 @@ export const CaidoEDerrotado: Story = {
     const list = firstTheme(canvasElement);
     await expect(list.getByText('Caído')).toBeVisible();
     await expect(list.getByText('Derrotado')).toBeVisible();
+  },
+};
+
+/**
+ * The master's list under the fog: the goblins, the ogre and the bandit
+ * beyond the hall are "Na área oculta", the ambush in the hall is hidden in
+ * the encounter, and the characters show wherever they stand.
+ */
+export const ComFog: Story = {
+  name: 'Com fog (mestre)',
+  args: {
+    tokens: [...masterTokens(), { ...masterTokens().find((token) => token.id === 'goblin-1')!, id: 'ambush', name: 'Emboscada', combatantHidden: true, ...cell(16, 3) }],
+    fog: fogOn,
+  },
+  play: async ({ canvasElement }) => {
+    const list = firstTheme(canvasElement);
+    await expect(list.getAllByText('Na área oculta')).toHaveLength(4);
+    await expect(list.getByText('Escondido no encontro')).toBeInTheDocument();
+  },
+};
+
+/** A player's list never says what the fog hides: they only get what they may see. */
+export const ComFogJogador: Story = {
+  name: 'Com fog (jogador)',
+  args: { tokens: playerTokens(), viewerId: PLAYER_ID, master: false, fog: fogOn },
+  play: async ({ canvasElement }) => {
+    await expect(firstTheme(canvasElement).queryByText('Na área oculta')).not.toBeInTheDocument();
   },
 };
