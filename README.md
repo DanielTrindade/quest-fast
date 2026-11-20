@@ -248,7 +248,8 @@ No GCP, a `e2-micro` entra no nível gratuito nas regiões `us-central1`,
 `us-east1` e `us-west1`, com disco `pd-standard` de até 30 GB. Ela não tem
 memória para o build, por isso o `ship.sh` builda localmente. Mesmo sem o
 build, o 1 GB fica no limite: o `install.sh` cria 1 GB de swap e o app tem
-teto de 384 MB, senão a VM esgota a memória e trava, SSH inclusive. Para a VM não
+teto de 640 MB (o Caddy, de 128 MB), senão a VM esgota a memória e trava,
+SSH inclusive. Para a VM não
 expor SSH à internet, libere a porta 22 só para o IAP (`35.235.240.0/20`) e
 use `--tunnel-through-iap`; para a web, só 80 e 443.
 
@@ -278,16 +279,20 @@ Num fork, crie os mesmos recursos e preencha as variáveis do environment
 `producao`: `GCP_WORKLOAD_IDENTITY_PROVIDER`, `GCP_DEPLOY_SERVICE_ACCOUNT`,
 `GCP_PROJECT_ID`, `GCP_ZONE` e `PRODUCTION_URL`.
 
-Se o deploy falhar, o job abre uma issue "Deploy em produção falhou" (ou
+Se os testes ou o deploy da `master` falharem, estourarem o tempo ou forem
+cancelados, o job `notify` abre uma issue "Deploy em produção falhou" (ou
 comenta na que já estiver aberta), e quem acompanha o repositório é avisado.
+Feche a issue quando o deploy voltar a funcionar.
 
 #### Alertas
 
 `sh deploy/monitoring.sh <email>` cria no Cloud Monitoring uma verificação do
 `/api/health` a cada 5 minutos, de três regiões, e três alertas: site fora do
 ar, RAM acima de 92% por 30 minutos e leitura de disco acima de 40/s por 15
-minutos (a VM sem memória fica relendo o disco). `HOST` e `VM` trocam o
-endereço e a VM. O script pode ser repetido.
+minutos (a VM sem memória fica relendo o disco). `HOST`, `VM` e
+`GCLOUD_CONFIG` (padrão `quest-fast`) trocam o endereço, a VM e a configuração
+do `gcloud`. O script pode ser repetido: atualiza o que já existe e recria a
+verificação se o `HOST` mudar. Funciona também no Git Bash do Windows.
 
 Para receber os alertas também no celular, instale o app do Google Cloud, entre
 com a conta do projeto e rode o script de novo: ele inclui o canal do app.

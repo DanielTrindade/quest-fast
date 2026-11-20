@@ -51,7 +51,6 @@ jobs:
     permissions:
       contents: read
       id-token: write
-      issues: write
     env:
       GCLOUD_CONFIG: ''
       CLOUDSDK_CORE_PROJECT: ${{ vars.GCP_PROJECT_ID }}
@@ -67,21 +66,37 @@ jobs:
       - name: Instala o gcloud
         uses: google-github-actions/setup-gcloud@v3
       - name: Builda e sobe na VM
+        timeout-minutes: 12
         run: sh deploy/ship.sh
       - name: Confere o endereço público
         env:
           PRODUCTION_URL: ${{ vars.PRODUCTION_URL }}
-        run: curl --fail --silent --show-error --retry 10 --retry-all-errors --retry-delay 3 "$PRODUCTION_URL/api/health"
-      # Sem isto a falha fica só na aba Actions: em 19/11/2026 dois deploys
-      # falharam e o site ficou horas fora sem ninguém saber.
-      - name: Avisa que o deploy falhou
-        if: failure()
+        run: curl --fail --silent --show-error --max-time 10 --retry 10 --retry-all-errors --retry-delay 3 "$PRODUCTION_URL/api/health"
+
+  # Sem isto a falha fica só na aba Actions: em 19/11/2026 dois deploys
+  # falharam e o site ficou horas fora sem ninguém saber. Job à parte para
+  # rodar também quando o deploy estoura o timeout ou é cancelado.
+  notify:
+    name: Avisa que o deploy falhou
+    needs: [checks, deploy]
+    if: >-
+      always() && github.event_name != 'pull_request' && github.ref == 'refs/heads/master' &&
+      (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    steps:
+      - name: Abre ou comenta a issue
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          CHECKS_RESULT: ${{ needs.checks.result }}
+          DEPLOY_RESULT: ${{ needs.deploy.result }}
         run: |
           title="Deploy em produção falhou"
-          body="O deploy de ${GITHUB_SHA::7} falhou: $RUN_URL"
+          body="O deploy de ${GITHUB_SHA::7} não foi ao ar (checks: $CHECKS_RESULT, deploy: $DEPLOY_RESULT): $RUN_URL"
           open=$(gh issue list --state open --search "\"$title\" in:title" --json number --jq '.[0].number')
           if [ -n "$open" ]; then
             gh issue comment "$open" --body "$body"

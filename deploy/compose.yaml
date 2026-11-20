@@ -4,8 +4,12 @@ services:
   app:
     image: quest-fast:latest
     restart: unless-stopped
-    # Um vazamento derruba só o app, que o restart sobe de novo, e não a VM.
-    mem_limit: 384m
+    # Cabe o app (~150 MB) mais uma imagem no limite sendo decodificada
+    # (~400 MB; os uploads são processados um de cada vez). Acima disso o
+    # kernel derruba só o app, que o restart sobe de novo, e não a VM: sem
+    # swap no container, ele não fica relendo o disco.
+    mem_limit: 640m
+    memswap_limit: 640m
     env_file: app.env
     environment:
       NODE_ENV: production
@@ -18,6 +22,8 @@ services:
   caddy:
     image: caddy:2.10
     restart: unless-stopped
+    mem_limit: 128m
+    memswap_limit: 128m
     depends_on:
       - app
     ports:

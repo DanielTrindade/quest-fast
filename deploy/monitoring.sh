@@ -1,6 +1,6 @@
 #!/bin/sh
-# Cria no Cloud Monitoring a verificação de /api/health e os alertas da VM.
-# Pode ser repetido: o que já existe com o mesmo nome é mantido.
+# Cria ou atualiza no Cloud Monitoring a verificação de /api/health e os
+# alertas da VM. Pode ser repetido: recursos com o mesmo nome são atualizados.
 #
 #   sh deploy/monitoring.sh voce@exemplo.com
 set -eu
@@ -9,40 +9,70 @@ email=${1:?uso: sh deploy/monitoring.sh <email para os alertas>}
 config=${GCLOUD_CONFIG-quest-fast}
 host=${HOST:-34-44-15-122.sslip.io}
 vm=${VM:-quest-fast}
+regions=usa-iowa,usa-virginia,south-america
 
 g() {
   gcloud ${config:+--configuration="$config"} "$@"
 }
 
+fail() {
+  echo "$1" >&2
+  exit 1
+}
+
+# Captura a saída antes de cortar a primeira linha: num pipeline direto, uma
+# falha do gcloud sumiria e o script criaria recursos duplicados.
+first() {
+  out=$(g "$@") || fail "falhou: gcloud $*"
+  printf '%s\n' "$out" | head -n 1
+}
+
 project=$(g config get-value project 2>/dev/null)
+[ -n "$project" ] && [ "$project" != "(unset)" ] || fail "nenhum projeto na configuração '$config' do gcloud"
+
+instance_id=$(first compute instances list --filter="name=$vm" --format='value(id)')
+[ -n "$instance_id" ] || fail "VM '$vm' não encontrada no projeto $project"
+
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 
-email_channel=$(g beta monitoring channels list \
-  --filter="type=\"email\" AND labels.email_address=\"$email\"" --format='value(name)' | head -n 1)
+email_channel=$(first beta monitoring channels list \
+  --filter="type=\"email\" AND labels.email_address=\"$email\"" --format='value(name)')
 if [ -z "$email_channel" ]; then
-  email_channel=$(g beta monitoring channels create --display-name="E-mail $email" \
+  email_channel=$(g beta monitoring channels create --display-name="E-mail dos alertas" \
     --type=email --channel-labels=email_address="$email" --format='value(name)')
 fi
 
 # O canal do app do Google Cloud aparece sozinho quando você entra no app com a
 # conta do projeto; rode o script de novo depois disso para incluí-lo.
 channels="\"$email_channel\""
-for c in $(g beta monitoring channels list --filter='type="mobile_push"' --format='value(name)'); do
+mobile=$(g beta monitoring channels list --filter='type="mobile_push"' --format='value(name)') ||
+  fail "falhou ao listar os canais do app"
+for c in $mobile; do
   channels="$channels, \"$c\""
 done
 
-check=$(g monitoring uptime list-configs --filter="displayName=\"quest-fast health\"" --format='value(name)' | head -n 1)
+# No Git Bash, o MSYS converteria /api/health num caminho do Windows, e o check
+# passaria a testar a SPA, que responde 200 a qualquer rota.
+check=$(first monitoring uptime list-configs --filter="displayName=\"quest-fast health\"" --format='value(name)')
+if [ -n "$check" ]; then
+  current_host=$(g monitoring uptime describe "$check" --format='value(monitoredResource.labels.host)')
+  if [ "$current_host" != "$host" ]; then
+    g monitoring uptime delete "$check" --quiet
+    check=
+  else
+    MSYS2_ARG_CONV_EXCL='--path=' g monitoring uptime update "$check" \
+      --path=/api/health --period=5 --timeout=10 --set-regions="$regions"
+  fi
+fi
 if [ -z "$check" ]; then
-  g monitoring uptime create "quest-fast health" \
+  check=$(MSYS2_ARG_CONV_EXCL='--path=' g monitoring uptime create "quest-fast health" \
     --resource-type=uptime-url --resource-labels="host=$host,project_id=$project" \
     --protocol=https --path=/api/health --period=5 --timeout=10 \
-    --regions=usa-iowa,usa-virginia,south-america
-  check=$(g monitoring uptime list-configs --filter="displayName=\"quest-fast health\"" --format='value(name)' | head -n 1)
+    --regions="$regions" --format='value(name)')
 fi
 check_id=${check##*/}
-
-instance_id=$(g compute instances list --filter="name=$vm" --format='value(id)')
+[ -n "$check_id" ] || fail "não consegui o id da verificação de /api/health"
 
 cat > "$tmp/health.json" <<EOF
 {
@@ -87,7 +117,6 @@ cat > "$tmp/memory.json" <<EOF
       "evaluationInterval": "60s"
     }
   }],
-  "alertStrategy": { "autoClose": "3600s" },
   "notificationChannels": [$channels],
   "documentation": {
     "mimeType": "text/markdown",
@@ -110,7 +139,6 @@ cat > "$tmp/thrashing.json" <<EOF
       "evaluationInterval": "60s"
     }
   }],
-  "alertStrategy": { "autoClose": "3600s" },
   "notificationChannels": [$channels],
   "documentation": {
     "mimeType": "text/markdown",
@@ -121,7 +149,8 @@ EOF
 
 for policy in health memory thrashing; do
   name=$(sed -n 's/^  "displayName": "\(.*\)",$/\1/p' "$tmp/$policy.json")
-  existing=$(g monitoring policies list --filter="displayName=\"$name\"" --format='value(name)' | head -n 1)
+  [ -n "$name" ] || fail "sem displayName em $policy.json"
+  existing=$(first monitoring policies list --filter="displayName=\"$name\"" --format='value(name)')
   if [ -n "$existing" ]; then
     g monitoring policies update "$existing" --policy-from-file="$tmp/$policy.json"
   else
