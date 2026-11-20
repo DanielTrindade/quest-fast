@@ -375,8 +375,10 @@ export const ParaNoLimite: Story = {
     const release = await holdDrag(frame, kaelen, cell(22, 4));
     const label = frame.querySelector<HTMLElement>('[data-slot="move-label"]')!;
     await waitFor(() => expect(label).toBeVisible());
-    await expect(label).toHaveTextContent('2 casas além do deslocamento. Para em 3 casas, 4,5 m.');
-    await expectInside(label, frame);
+    // The label follows the drag frame by frame: its last text, then its place
+    // (which also follows its size, should the font arrive late) settle.
+    await waitFor(() => expect(label).toHaveTextContent('2 casas além do deslocamento. Para em 3 casas, 4,5 m.'));
+    await waitFor(() => expectInside(label, frame));
     await release();
     await expect(args.onDrop).toHaveBeenCalledWith('kaelen', kaelen.x + PRINTED_CELL * 3, kaelen.y);
     await waitFor(() => expect(label).not.toBeVisible());
