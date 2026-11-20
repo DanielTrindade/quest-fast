@@ -13,7 +13,7 @@ type Piece = { label: string; token: TokenView; selected?: boolean; lifted?: boo
 function piece(id: string, name: string, fields: Partial<TokenView> & Pick<TokenView, 'kind'>): TokenView {
   return {
     id, name, size: 'medium', avatarUrl: null, vitality: 'up', initials: initials(name), x: 0, y: 0,
-    characterId: null, combatantId: null, encounterId: null, statblockId: null, ownerId: null, hidden: false, movingBy: null, reach: null,
+    characterId: null, combatantId: null, encounterId: null, statblockId: null, ownerId: null, hidden: false, combatantHidden: false, movingBy: null, reach: null,
     ...fields,
   };
 }

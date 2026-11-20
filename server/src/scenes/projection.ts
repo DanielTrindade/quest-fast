@@ -68,6 +68,8 @@ export function projectToken(token: LoadedToken, viewer: Viewer): TokenView {
     statblockId: row.statblockId,
     ownerId: token.ownerId,
     hidden: row.hidden,
+    // A player never receives such a token: on theirs it is always false.
+    combatantHidden: viewer.role === 'master' && token.combatantHidden,
     x: row.x,
     y: row.y,
     movingBy: token.movingBy,

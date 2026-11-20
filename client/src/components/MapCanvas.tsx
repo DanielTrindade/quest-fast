@@ -1,8 +1,10 @@
-import { useId, useImperativeHandle, useRef, type Ref } from 'react';
+import { useEffect, useId, useImperativeHandle, useMemo, useRef, type KeyboardEvent, type Ref, type RefObject } from 'react';
 import { ArrowsIn, ArrowsOut, CornersOut, MagnifyingGlassMinus, MagnifyingGlassPlus, Warning } from '@phosphor-icons/react';
-import { formatMeters, squaresFor, type GridSettings, type TokenView } from '@quest-fast/shared';
+import { FOG_LIMITS, formatMeters, squaresFor, type FogOperation, type GridSettings, type SceneFog, type TokenView } from '@quest-fast/shared';
+import { useFogLayer, type PolygonProgress } from '../hooks/useFogLayer';
 import { useMapViewport, ZOOM_STEP, type MapOverlay } from '../hooks/useMapViewport';
 import { useTokenLayer, type TokenLayerOptions } from '../hooks/useTokenLayer';
+import { tokensForLook, type FogLook, type FogTool } from '../lib/fog-tool';
 import { gridCells } from '../lib/map-view';
 import { describeMove } from '../lib/reach-draw';
 import { cn } from '../lib/utils';
@@ -37,6 +39,17 @@ export type MapCanvasProps = {
   };
   /** What the screen asks of the map: where the viewer is looking, and putting a refused drag back. */
   ref?: Ref<MapCanvasHandle>;
+  /** The scene's fog, as the server sent it. */
+  fog?: SceneFog | null;
+  /**
+   * How the fog looks. `player` on the master's screen is "ver como jogador":
+   * opaque, and without the tokens a player would not receive.
+   */
+  fogLook?: FogLook;
+  /** The master's fog tool in hand: one finger draws instead of panning. */
+  fogTool?: FogTool | null;
+  /** A shape the master finished drawing, to send to the server. */
+  onFogShape?: (operation: FogOperation) => void;
 } & Pick<TokenLayerOptions, 'onSelect' | 'canMove' | 'onGrab' | 'onDrag' | 'onDrop' | 'onCancelDrag' | 'motion' | 'pendingMove' | 'stopAtLimit'>;
 
 export type MapCanvasHandle = {
@@ -47,6 +60,103 @@ export type MapCanvasHandle = {
 };
 
 const NO_TOKENS: readonly TokenView[] = [];
+
+/**
+ * The token layer and the fog tools share the canvas: with a fog tool in
+ * hand the press is the tool's, otherwise the tokens'. A press stays with
+ * the layer that took it until it ends.
+ */
+function layered(tokens: RefObject<MapOverlay | null>, fog: RefObject<MapOverlay | null>): MapOverlay {
+  let owner: MapOverlay | null = null;
+  return {
+    draw(context, view, now) {
+      const moving = tokens.current?.draw(context, view, now) ?? false;
+      fog.current?.draw(context, view, now);
+      return moving;
+    },
+    pointerDown(point, view) {
+      const layer = fog.current ?? tokens.current;
+      owner = layer?.pointerDown(point, view) ? layer : null;
+      return owner !== null;
+    },
+    pointerMove(point, view) {
+      owner?.pointerMove(point, view);
+    },
+    pointerUp(point, view) {
+      owner?.pointerUp(point, view);
+      owner = null;
+    },
+    cancel() {
+      owner?.cancel();
+      owner = null;
+    },
+  };
+}
+
+/** Loading the map, or failing to. */
+function MapStatus({ status, onRetry }: { status: string; onRetry: () => void }) {
+  if (status === 'loading') {
+    return (
+      <p role="status" className="absolute inset-0 m-0 grid place-items-center text-small text-text-secondary">
+        Carregando o mapa…
+      </p>
+    );
+  }
+  if (status !== 'error') return null;
+  return (
+    <div role="alert" className="absolute inset-0 grid place-content-center justify-items-center gap-3 p-4 text-center">
+      <p className="m-0 flex items-center gap-2 text-small text-danger-text">
+        <Warning size={18} weight="fill" aria-hidden="true" />
+        Não foi possível carregar o mapa.
+      </p>
+      <Button variant="secondary" onClick={onRetry}>Tentar de novo</Button>
+    </div>
+  );
+}
+
+/**
+ * The drawing tool hears a key first; what it does not take moves the map.
+ * Only a key pressed on the map itself: Enter on "Cancelar" or on a zoom
+ * button bubbles up here too, and must stay that button's.
+ */
+function keysFirst(tool: (key: string) => boolean, map: (event: KeyboardEvent<HTMLDivElement>) => void) {
+  return (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.target === event.currentTarget && tool(event.key)) event.preventDefault();
+    else map(event);
+  };
+}
+
+/** How to use the map, for the tool in hand. */
+const MAP_HELP = {
+  pan: 'Arraste para mover e use a roda do mouse ou dois dedos para aproximar. Pelo teclado, as setas movem o mapa, mais e menos aproximam e afastam, e zero enquadra o mapa inteiro.',
+  rect: 'Arraste para desenhar o retângulo do fog; dois dedos movem o mapa. Esc cancela.',
+  polygon: 'Clique para pôr cada ponto do polígono do fog e feche no primeiro ponto ou com Enter; Backspace tira o último ponto e Esc cancela. Dois dedos movem o mapa.',
+} as const;
+
+/** What the fog covers, for whoever cannot see the canvas. */
+function describeFog(fog: SceneFog | null, look: FogLook): string {
+  if (!fog?.enabled) return '';
+  const areas = fog.revealed.length;
+  const revealed = areas === 0 ? 'nada revelado' : areas === 1 ? '1 área revelada' : `${areas} áreas reveladas`;
+  return look === 'player' ? ` Fog ligado, como os jogadores veem: ${revealed}.` : ` Fog ligado: ${revealed}.`;
+}
+
+function PolygonBar({ polygon }: { polygon: PolygonProgress }) {
+  const enough = polygon.points >= FOG_LIMITS.minPoints;
+  return (
+    <div role="group" aria-label="Polígono do fog"
+      className="pointer-events-auto flex max-w-full flex-wrap items-center justify-center gap-2 rounded-panel border border-border bg-card p-2 edge-raised">
+      <p className="m-0 px-1 text-small text-text-secondary" aria-live="polite">
+        <span className="font-mono tabular-nums text-foreground">{polygon.points}</span>
+        {polygon.points === 1 ? ' ponto' : ' pontos'}
+        {polygon.points >= FOG_LIMITS.maxPoints && ` (limite de ${FOG_LIMITS.maxPoints})`}
+      </p>
+      <Button variant="ghost" size="sm" onClick={polygon.undo}>Desfazer ponto</Button>
+      <Button variant="ghost" size="sm" onClick={polygon.cancel}>Cancelar</Button>
+      <Button size="sm" disabled={!enough} onClick={polygon.finish}>Concluir</Button>
+    </div>
+  );
+}
 
 function describeTokens(tokens: readonly TokenView[]): string {
   const count = tokens.length;
@@ -119,18 +229,41 @@ function MapControls({ zoom, onZoom, onFrame, fullscreen, onFullscreenChange }: 
 export function MapCanvas({
   imageUrl, mapWidth, mapHeight, grid, label, className, tokens = NO_TOKENS, viewerId = null, selectedTokenId = null,
   onSelect, canMove, onGrab, onDrag, onDrop, onCancelDrag, motion, ref, fullscreen = false, onFullscreenChange,
-  pendingMove = null, moveConfirm, stopAtLimit,
+  pendingMove = null, moveConfirm, stopAtLimit, fog = null, fogLook = 'master', fogTool = null, onFogShape,
 }: MapCanvasProps) {
+  const tokenOverlayRef = useRef<MapOverlay | null>(null);
+  const fogOverlayRef = useRef<MapOverlay | null>(null);
+  /** What the viewport draws and hands presses to: both layers, joined once mounted. */
   const overlayRef = useRef<MapOverlay | null>(null);
   const moveLabelRef = useRef<HTMLParagraphElement>(null);
+  const fogLayer = useMemo(() => (fog ? { fog, look: fogLook } : null), [fog, fogLook]);
+  const shown = useMemo(() => tokensForLook(tokens, fog, fogLook), [tokens, fog, fogLook]);
+  const map = useMemo(() => ({ width: mapWidth, height: mapHeight }), [mapWidth, mapHeight]);
   const {
     frameRef, canvasRef, status, zoom, dragging, retry, zoomBy, frameMap, frameHandlers, canvasHandlers, requestDraw, viewCentre,
-  } = useMapViewport({ imageUrl, mapWidth, mapHeight, grid, overlayRef });
+  } = useMapViewport({ imageUrl, mapWidth, mapHeight, grid, fog: fogLayer, overlayRef });
   const { cancelDrag } = useTokenLayer({
-    tokens, grid, map: { width: mapWidth, height: mapHeight }, viewerId, selectedId: selectedTokenId,
-    onSelect, canMove, onGrab, onDrag, onDrop, onCancelDrag, motion, pendingMove, stopAtLimit, overlayRef, requestDraw, themedRef: frameRef,
+    tokens: shown, grid, map, viewerId, selectedId: selectedTokenId,
+    onSelect, canMove, onGrab, onDrag, onDrop, onCancelDrag, motion, pendingMove, stopAtLimit, overlayRef: tokenOverlayRef, requestDraw, themedRef: frameRef,
     labelRef: moveLabelRef,
   });
+  const drawing = useFogLayer({ tool: fogTool, grid, map, onShape: onFogShape, requestDraw, themedRef: frameRef });
+  const fogOverlay = drawing.overlay;
+  useEffect(() => {
+    overlayRef.current = layered(tokenOverlayRef, fogOverlayRef);
+    requestDraw();
+    return () => {
+      overlayRef.current = null;
+    };
+  }, [requestDraw]);
+  useEffect(() => {
+    fogOverlayRef.current = fogOverlay;
+    requestDraw();
+    return () => {
+      fogOverlayRef.current = null;
+    };
+  }, [fogOverlay, requestDraw]);
+  const onKeyDown = keysFirst(drawing.onKeyDown, frameHandlers.onKeyDown);
   const pendingToken = pendingMove ? tokens.find((token) => token.id === pendingMove.tokenId) : undefined;
   const pendingCost = pendingToken && pendingMove ? describeMove(pendingToken, pendingMove, grid) : null;
   useImperativeHandle(ref, () => ({ viewCentre, cancelDrag }), [viewCentre, cancelDrag]);
@@ -145,7 +278,7 @@ export function MapCanvas({
       aria-label={label}
       aria-describedby={`${summaryId} ${helpId}`}
       tabIndex={0}
-      {...frameHandlers}
+      onKeyDown={onKeyDown}
       data-slot="map-canvas"
       data-status={status}
       className={cn('relative isolate h-full min-h-0 w-full overflow-hidden rounded-panel border border-border bg-surface-secret outline-ring focus-visible:outline-2 focus-visible:outline-offset-2', className)}
@@ -153,9 +286,10 @@ export function MapCanvas({
       <canvas
         ref={canvasRef}
         aria-hidden="true"
-        className="absolute inset-0 size-full touch-none select-none not-data-[status=ready]:hidden data-[dragging=true]:cursor-grabbing data-[status=ready]:cursor-grab"
+        className="absolute inset-0 size-full touch-none select-none not-data-[status=ready]:hidden data-[dragging=true]:cursor-grabbing data-[status=ready]:cursor-grab data-[status=ready]:data-[drawing=true]:cursor-crosshair"
         data-status={status}
         data-dragging={dragging}
+        data-drawing={fogTool !== null}
         {...canvasHandlers}
       />
 
@@ -163,23 +297,15 @@ export function MapCanvas({
       <p ref={moveLabelRef} hidden aria-hidden="true" data-slot="move-label"
         className="pointer-events-none absolute top-0 left-0 m-0 rounded-control border border-border bg-card w-max max-w-[calc(100%-0.5rem)] px-2.5 py-1 text-small text-balance text-foreground edge-raised data-[over=true]:border-danger data-[over=true]:text-danger-text" />
 
-      <p id={summaryId} className="sr-only">Mapa de {mapWidth} por {mapHeight} pixels. {describeGrid(grid, mapWidth, mapHeight)} {describeTokens(tokens)}{describeReach(tokens.find((token) => token.id === selectedTokenId))}</p>
+      <p id={summaryId} className="sr-only">Mapa de {mapWidth} por {mapHeight} pixels. {describeGrid(grid, mapWidth, mapHeight)} {describeTokens(shown)}{describeReach(shown.find((token) => token.id === selectedTokenId))}{describeFog(fog, fogLook)}</p>
       <p id={helpId} className="sr-only">
-        Arraste para mover e use a roda do mouse ou dois dedos para aproximar. Pelo teclado, as setas movem o mapa, mais e menos aproximam e afastam, e zero enquadra o mapa inteiro.
+        {MAP_HELP[fogTool?.shape ?? 'pan']}
       </p>
 
-      {status === 'loading' && (
-        <p role="status" className="absolute inset-0 m-0 grid place-items-center text-small text-text-secondary">
-          Carregando o mapa…
-        </p>
-      )}
-      {status === 'error' && (
-        <div role="alert" className="absolute inset-0 grid place-content-center justify-items-center gap-3 p-4 text-center">
-          <p className="m-0 flex items-center gap-2 text-small text-danger-text">
-            <Warning size={18} weight="fill" aria-hidden="true" />
-            Não foi possível carregar o mapa.
-          </p>
-          <Button variant="secondary" onClick={retry}>Tentar de novo</Button>
+      <MapStatus status={status} onRetry={retry} />
+      {drawing.polygon && (
+        <div className="pointer-events-none absolute inset-x-2 top-2 flex justify-center">
+          <PolygonBar polygon={drawing.polygon} />
         </div>
       )}
       {pendingToken && pendingCost && moveConfirm && (

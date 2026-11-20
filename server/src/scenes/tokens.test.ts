@@ -255,10 +255,15 @@ test("a player's scene never carries a hidden token nor the token of a hidden co
   scene = await sceneOf(await s.master(path));
   assert.deepEqual(names(scene), ['Bandido', 'Goblin 1', 'Goblin 2', 'Kaelen', 'Mira']);
   assert.equal(named(scene, 'Goblin 2').hidden, true);
+  // The master learns which one is hidden in the encounter, for "ver como jogador".
+  assert.deepEqual(scene.tokens.filter((token) => token.combatantHidden).map((token) => token.name), ['Bandido']);
+  assert.equal(named(scene, 'Bandido').hidden, false);
 
   // The bandit is hidden in the encounter; Goblin 2, on the map.
   for (const read of [await s.player(path), await s.player(`${s.root}/scenes/active`)]) {
-    assert.deepEqual(names(await sceneOf(read)), ['Goblin 1', 'Kaelen', 'Mira']);
+    const seen = await sceneOf(read);
+    assert.deepEqual(names(seen), ['Goblin 1', 'Kaelen', 'Mira']);
+    assert.ok(seen.tokens.every((token) => !token.combatantHidden));
   }
 });
 
