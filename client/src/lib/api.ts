@@ -24,6 +24,9 @@ import type {
   InvitePreview,
   EncounterListResponse,
   EncounterResponse,
+  ChatMessageResponse,
+  ChatPageResponse,
+  ChatSendRequest,
   FeedResponse,
   FreeRollRequest,
   HpRequest,
@@ -282,6 +285,15 @@ export const api = {
     });
     return response?.scene ?? null;
   },
+
+  chat: (campaignId: string, cursor?: string) => {
+    const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : '';
+    return request<ChatPageResponse>(`/api/campaigns/${campaignId}/chat${query}`);
+  },
+  sendChat: (campaignId: string, input: ChatSendRequest) =>
+    request<ChatMessageResponse>(`/api/campaigns/${campaignId}/chat`, { method: 'POST', body: JSON.stringify(input) }),
+  removeChat: (campaignId: string, messageId: string) =>
+    request<void>(`/api/campaigns/${campaignId}/chat/${messageId}`, { method: 'DELETE' }),
 
   feed: (campaignId: string, cursor?: string) => {
     const query = cursor ? `?before=${encodeURIComponent(cursor)}` : '';
