@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { FOG_LIMITS } from '@quest-fast/shared';
-import { CLOSE_RADIUS, closesPolygon, fogRect, polygonOperation, rectOperation, toMap } from '../src/lib/fog-tool.ts';
+import { FOG_LIMITS, type SceneFog, type TokenView } from '@quest-fast/shared';
+import { CLOSE_RADIUS, closesPolygon, fogRect, polygonOperation, rectOperation, toMap, tokensForLook } from '../src/lib/fog-tool.ts';
 
 const MAP = { width: 1000, height: 800 };
 const GRID = { enabled: true, cellSize: 50, offsetX: 10, offsetY: 0, snap: true, opacity: 0.6 };
@@ -43,4 +43,36 @@ test('a polygon is sent with its points, within the limits', () => {
   assert.deepEqual(polygonOperation('reveal', points), { mode: 'reveal', shape: { kind: 'polygon', points: [[0, 0], [5, 0], [5, 5]] } });
   assert.equal(polygonOperation('reveal', points.slice(0, 2)), null);
   assert.equal(polygonOperation('reveal', Array.from({ length: FOG_LIMITS.maxPoints + 1 }, (_, i) => ({ x: i, y: i % 2 }))), null);
+});
+
+function token(id: string, kind: TokenView['kind'], fields: Partial<TokenView> = {}): TokenView {
+  return {
+    id, kind, name: id, size: 'medium', avatarUrl: null, vitality: 'up', initials: id[0]!.toUpperCase(),
+    characterId: null, combatantId: null, encounterId: null, statblockId: null, ownerId: null,
+    hidden: false, combatantHidden: false, x: 50, y: 50, movingBy: null, reach: null, ...fields,
+  };
+}
+
+const ROOM: SceneFog = { enabled: true, revealed: [[[[0, 0], [100, 0], [100, 100], [0, 100], [0, 0]]]] };
+const TABLE = [
+  token('hero', 'character', { x: 500 }),
+  token('goblin', 'combatant'),
+  token('ambush', 'combatant', { combatantHidden: true }),
+  token('trap', 'free', { hidden: true }),
+  token('ogre', 'combatant', { x: 500 }),
+];
+const ids = (tokens: readonly TokenView[]) => tokens.map((item) => item.id);
+
+test('as a player, only the tokens the server would send', () => {
+  assert.deepEqual(ids(tokensForLook(TABLE, ROOM, 'player')), ['hero', 'goblin'], 'fog on');
+  assert.deepEqual(ids(tokensForLook(TABLE, { ...ROOM, enabled: false }, 'player')), ['hero', 'goblin', 'ogre'], 'fog off');
+  assert.deepEqual(ids(tokensForLook(TABLE, null, 'player')), ['hero', 'goblin', 'ogre'], 'no fog');
+});
+
+test("on the master's map, what does not reach the table shows as hidden", () => {
+  const shown = tokensForLook(TABLE, ROOM, 'master');
+  assert.deepEqual(ids(shown), ids(TABLE));
+  assert.deepEqual(shown.filter((item) => item.hidden).map((item) => item.id), ['ambush', 'trap', 'ogre']);
+  assert.equal(tokensForLook(TABLE, null, 'master').find((item) => item.id === 'ambush')!.hidden, true, 'hidden in the encounter, fog or not');
+  assert.equal(tokensForLook(TABLE, null, 'master').find((item) => item.id === 'ogre')!.hidden, false);
 });

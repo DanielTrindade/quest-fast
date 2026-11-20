@@ -907,6 +907,12 @@ export type TokenView = {
   ownerId: string | null;
   /** Hidden by the master. Always false for a player, who never receives one. */
   hidden: boolean;
+  /**
+   * The combatant behind the token is hidden in the encounter: the players
+   * do not receive the token either. Lets the master's "ver como jogador"
+   * apply the server's rule whole. Always false for a player.
+   */
+  combatantHidden: boolean;
   /** Centre of the token, in map pixels. */
   x: number;
   y: number;

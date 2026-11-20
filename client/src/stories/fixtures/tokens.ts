@@ -55,6 +55,7 @@ function make(id: string, fields: Partial<TokenView> & Pick<TokenView, 'name' | 
     statblockId: null,
     ownerId: null,
     hidden: false,
+    combatantHidden: false,
     movingBy: null,
     reach: null,
     ...fields,

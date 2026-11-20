@@ -3,6 +3,7 @@ import type { Meta, StoryObj } from '@storybook/react-vite';
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test';
 import type { TokenView } from '@quest-fast/shared';
 import { MapCanvas, type MapCanvasProps } from '../components/MapCanvas';
+import { Button } from '../components/ui/button';
 import { fitView } from '../lib/map-view';
 import { canMoveToken } from '../lib/token-labels';
 import { createMotionStore } from '../lib/token-motion';
@@ -490,10 +491,19 @@ export const FogMestre: Story = {
   },
 };
 
-/** "Ver como jogador": opaque, and only what a player receives — the characters and the barrel in the hall. */
+/** A combatant hidden in the encounter, standing in the revealed hall: no player receives it. */
+function ambush(): TokenView {
+  return { ...masterTokens().find((token) => token.id === 'goblin-1')!, id: 'ambush', name: 'Emboscada', combatantHidden: true, ...cell(16, 3) };
+}
+
+/**
+ * "Ver como jogador": opaque, and only what a player receives — the
+ * characters and the barrel in the hall, not the ambush hidden in the
+ * encounter even though it stands in the light.
+ */
 export const FogComoJogador: Story = {
   name: 'Fog (ver como jogador)',
-  args: { ...fogArgs, fogLook: 'player' },
+  args: { ...fogArgs, tokens: [...masterTokens(), ambush()], fogLook: 'player' },
   render: (args) => <TokenMap {...args} master />,
   play: async ({ canvasElement }) => {
     const { frame, map } = await framedMap(canvasElement);
@@ -561,5 +571,50 @@ export const FogPoligono: Story = {
     await userEvent.keyboard('{Escape}');
     await expect(map.queryByRole('group', { name: 'Polígono do fog' })).not.toBeInTheDocument();
     await expect(args.onFogShape).toHaveBeenCalledTimes(1);
+
+    // Enter on "Cancelar" is that button's: it drops the shape, never sends it.
+    for (const corner of [cell(10, 10), cell(13, 10), cell(13, 13)]) await pressOnMap(frame, corner);
+    within(map.getByRole('group', { name: 'Polígono do fog' })).getByRole('button', { name: 'Cancelar' }).focus();
+    await userEvent.keyboard('{Enter}');
+    await expect(map.queryByRole('group', { name: 'Polígono do fog' })).not.toBeInTheDocument();
+    await expect(args.onFogShape).toHaveBeenCalledTimes(1);
+  },
+};
+
+/** The master's tool switch, as the toolbar does it. */
+function ToolSwitch(props: MapCanvasProps) {
+  const [shape, setShape] = useState<'polygon' | 'rect'>('polygon');
+  return (
+    <div className="grid h-full grid-rows-[auto_minmax(0,1fr)] gap-2">
+      <div className="flex gap-2">
+        <Button variant="secondary" size="sm" onClick={() => setShape('polygon')}>Polígono</Button>
+        <Button variant="secondary" size="sm" onClick={() => setShape('rect')}>Retângulo</Button>
+      </div>
+      <TokenMap {...props} master fogTool={{ mode: 'reveal', shape }} />
+    </div>
+  );
+}
+
+/** Changing tools drops the polygon being drawn: coming back starts empty, with no bar left over. */
+export const FogTrocaDeFerramenta: Story = {
+  name: 'Fog: trocar de ferramenta no meio',
+  args: { ...fogArgs, onFogShape: fn() },
+  render: (args) => <ToolSwitch {...args} />,
+  play: async ({ canvasElement, args }) => {
+    const { frame, map } = await framedMap(canvasElement);
+    const [region] = within(canvasElement).getAllByRole('region', { name: /^Tema / });
+    const controls = within(region!);
+    for (const corner of [cell(10, 10), cell(13, 10), cell(13, 13)]) await pressOnMap(frame, corner);
+    await expect(within(map.getByRole('group', { name: 'Polígono do fog' })).getByText('3')).toBeInTheDocument();
+
+    await userEvent.click(controls.getByRole('button', { name: 'Retângulo' }));
+    await expect(map.queryByRole('group', { name: 'Polígono do fog' })).not.toBeInTheDocument();
+    await userEvent.click(controls.getByRole('button', { name: 'Polígono' }));
+    await expect(map.queryByRole('group', { name: 'Polígono do fog' })).not.toBeInTheDocument();
+
+    // A new drawing starts from its first point.
+    await pressOnMap(frame, cell(5, 5));
+    await expect(within(map.getByRole('group', { name: 'Polígono do fog' })).getByText('1')).toBeInTheDocument();
+    await expect(args.onFogShape).not.toHaveBeenCalled();
   },
 };

@@ -1,4 +1,4 @@
-import { FOG_LIMITS, type FogMode, type FogOperation, type GridSettings } from '@quest-fast/shared';
+import { FOG_LIMITS, isTokenVisible, type FogMode, type FogOperation, type GridSettings, type SceneFog, type TokenView } from '@quest-fast/shared';
 import type { MapView, Size } from './map-view';
 
 export type Point = { x: number; y: number };
@@ -65,6 +65,19 @@ export function closesPolygon(points: readonly Point[], press: Point, view: MapV
 export function polygonOperation(mode: FogMode, points: readonly Point[]): FogOperation | null {
   if (points.length < FOG_LIMITS.minPoints || points.length > FOG_LIMITS.maxPoints) return null;
   return { mode, shape: { kind: 'polygon', points: points.map(({ x, y }) => [x, y] as [number, number]) } };
+}
+
+/**
+ * The tokens as a look shows them, with the server's rule whole
+ * (`isTokenVisible`): hidden on the map, hidden in the encounter, or not a
+ * character's and under the fog. As a player ("ver como jogador"), those
+ * are gone; on the master's own map, they show faded and dashed, as a hidden
+ * token does, since none of them reaches the table.
+ */
+export function tokensForLook(tokens: readonly TokenView[], fog: SceneFog | null, look: FogLook): readonly TokenView[] {
+  const reachesTable = (token: TokenView) => isTokenVisible(token, 'player', fog);
+  if (look === 'player') return tokens.filter(reachesTable);
+  return tokens.map((token) => (token.hidden || reachesTable(token) ? token : { ...token, hidden: true }));
 }
 
 /** A press that moved at most this far, in CSS pixels, is a click that places a point. */

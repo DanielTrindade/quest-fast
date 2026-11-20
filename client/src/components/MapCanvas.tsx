@@ -1,10 +1,10 @@
 import { useEffect, useId, useImperativeHandle, useMemo, useRef, type KeyboardEvent, type Ref, type RefObject } from 'react';
 import { ArrowsIn, ArrowsOut, CornersOut, MagnifyingGlassMinus, MagnifyingGlassPlus, Warning } from '@phosphor-icons/react';
-import { FOG_LIMITS, formatMeters, isTokenVisible, squaresFor, type FogOperation, type GridSettings, type SceneFog, type TokenView } from '@quest-fast/shared';
+import { FOG_LIMITS, formatMeters, squaresFor, type FogOperation, type GridSettings, type SceneFog, type TokenView } from '@quest-fast/shared';
 import { useFogLayer, type PolygonProgress } from '../hooks/useFogLayer';
 import { useMapViewport, ZOOM_STEP, type MapOverlay } from '../hooks/useMapViewport';
 import { useTokenLayer, type TokenLayerOptions } from '../hooks/useTokenLayer';
-import type { FogLook, FogTool } from '../lib/fog-tool';
+import { tokensForLook, type FogLook, type FogTool } from '../lib/fog-tool';
 import { gridCells } from '../lib/map-view';
 import { describeMove } from '../lib/reach-draw';
 import { cn } from '../lib/utils';
@@ -114,10 +114,14 @@ function MapStatus({ status, onRetry }: { status: string; onRetry: () => void })
   );
 }
 
-/** The drawing tool hears a key first; what it does not take moves the map. */
+/**
+ * The drawing tool hears a key first; what it does not take moves the map.
+ * Only a key pressed on the map itself: Enter on "Cancelar" or on a zoom
+ * button bubbles up here too, and must stay that button's.
+ */
 function keysFirst(tool: (key: string) => boolean, map: (event: KeyboardEvent<HTMLDivElement>) => void) {
   return (event: KeyboardEvent<HTMLDivElement>) => {
-    if (tool(event.key)) event.preventDefault();
+    if (event.target === event.currentTarget && tool(event.key)) event.preventDefault();
     else map(event);
   };
 }
@@ -135,14 +139,6 @@ function describeFog(fog: SceneFog | null, look: FogLook): string {
   const areas = fog.revealed.length;
   const revealed = areas === 0 ? 'nada revelado' : areas === 1 ? '1 área revelada' : `${areas} áreas reveladas`;
   return look === 'player' ? ` Fog ligado, como os jogadores veem: ${revealed}.` : ` Fog ligado: ${revealed}.`;
-}
-
-/** A player receives no token the fog hides; on the master's map it shows faded, as a hidden one. */
-function tokensUnderFog(tokens: readonly TokenView[], fog: SceneFog | null, look: FogLook): readonly TokenView[] {
-  if (!fog?.enabled) return look === 'player' ? tokens.filter((token) => !token.hidden) : tokens;
-  const visible = (token: TokenView) => isTokenVisible({ ...token, combatantHidden: false }, 'player', fog);
-  if (look === 'player') return tokens.filter(visible);
-  return tokens.map((token) => (token.hidden || visible(token) ? token : { ...token, hidden: true }));
 }
 
 function PolygonBar({ polygon }: { polygon: PolygonProgress }) {
@@ -241,7 +237,7 @@ export function MapCanvas({
   const overlayRef = useRef<MapOverlay | null>(null);
   const moveLabelRef = useRef<HTMLParagraphElement>(null);
   const fogLayer = useMemo(() => (fog ? { fog, look: fogLook } : null), [fog, fogLook]);
-  const shown = useMemo(() => tokensUnderFog(tokens, fog, fogLook), [tokens, fog, fogLook]);
+  const shown = useMemo(() => tokensForLook(tokens, fog, fogLook), [tokens, fog, fogLook]);
   const map = useMemo(() => ({ width: mapWidth, height: mapHeight }), [mapWidth, mapHeight]);
   const {
     frameRef, canvasRef, status, zoom, dragging, retry, zoomBy, frameMap, frameHandlers, canvasHandlers, requestDraw, viewCentre,

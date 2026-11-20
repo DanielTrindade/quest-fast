@@ -38,15 +38,20 @@ export function useFogLayer({ tool, grid, map, onShape, requestDraw, themedRef }
   const rect = useRef<{ from: Point; to: Point } | null>(null);
   const press = useRef<Point | null>(null);
   const points = useRef<Point[]>([]);
-  // The count belongs to the tool it was drawn with: another tool shows none.
   const toolKey = tool ? `${tool.mode}:${tool.shape}` : '';
-  const [placed, setPlaced] = useState({ key: '', count: 0 });
-  const count = placed.key === toolKey ? placed.count : 0;
+  const [count, setCount] = useState(0);
+  // Another tool, or none, drops the shape being drawn (the effect below
+  // clears its points), and its count with it: coming back to the same tool
+  // starts empty, with no bar left over.
+  const [countedFor, setCountedFor] = useState(toolKey);
+  if (countedFor !== toolKey) {
+    setCountedFor(toolKey);
+    setCount(0);
+  }
 
   const setPoints = useCallback((next: Point[]) => {
     points.current = next;
-    const current = latest.current.tool;
-    setPlaced({ key: current ? `${current.mode}:${current.shape}` : '', count: next.length });
+    setCount(next.length);
     requestDraw();
   }, [requestDraw]);
 
