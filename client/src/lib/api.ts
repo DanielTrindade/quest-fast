@@ -42,6 +42,7 @@ import type {
   TurnRequest,
   ActiveSceneRequest,
   PlaceEncounterRequest,
+  FogOperation,
   SceneInput,
   SceneListResponse,
   SceneResponse,
@@ -243,6 +244,12 @@ export const api = {
     request<SceneResponse>(`/api/campaigns/${campaignId}/scenes/${sceneId}`, {
       method: 'PATCH',
       body: JSON.stringify(input),
+    }),
+  /** Reveals or hides a shape; the server answers with the fog it computed. */
+  changeFog: (campaignId: string, sceneId: string, operation: FogOperation) =>
+    request<SceneResponse>(`/api/campaigns/${campaignId}/scenes/${sceneId}/fog`, {
+      method: 'POST',
+      body: JSON.stringify(operation),
     }),
   deleteScene: (campaignId: string, sceneId: string) =>
     request<void>(`/api/campaigns/${campaignId}/scenes/${sceneId}`, { method: 'DELETE' }),

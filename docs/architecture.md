@@ -383,7 +383,11 @@ do cache do TanStack Query (`useCampaignChannel`), que o canvas lê a cada
 quadro, para 30 mensagens por segundo nunca renderizarem o React. Da
 entrega 3, as regras do fog em `shared/src/fog.ts` e o servidor: ligar e
 desligar no `PATCH` da cena (desligar guarda a área revelada) e
-`POST …/scenes/:sceneId/fog`, só do mestre; as telas do fog vêm depois.
+`POST …/scenes/:sceneId/fog`, só do mestre; e a tela: a camada e as
+ferramentas do fog no `MapCanvas`, o painel "Fog of war" da Mesa
+(`useFogControls`, sem otimismo: o mapa muda com a resposta do servidor) e
+"ver como jogador" calculado no cliente com o mesmo `isTokenVisible`, para o
+que o `TokenView` do mestre traz `combatantHidden`.
 
 - **Onde as telas moram (#88).** Com a campanha dividida em rotas, a "seção
   Mapa" da spec não volta à página única: a lista de cenas do mestre é uma
