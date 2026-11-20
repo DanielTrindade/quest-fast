@@ -22,6 +22,14 @@ test('the limit counts characters as people do', () => {
   assert.ok('body' in validateChatBody('🎲'.repeat(CHAT_LIMITS.maxLength)));
 });
 
+test('the limit counts flags, skin tones, joined emoji and decomposed accents as one', () => {
+  for (const piece of ['👍🏽', '🇧🇷', '🏳️‍🌈', 'é']) {
+    assert.equal(chatLength(piece), 1, piece);
+    assert.ok('body' in validateChatBody(piece.repeat(CHAT_LIMITS.maxLength)), piece);
+    assert.ok('error' in validateChatBody(piece.repeat(CHAT_LIMITS.maxLength + 1)), piece);
+  }
+});
+
 test('only emoji, up to the limit, is an emote', () => {
   assert.ok(isEmote('😂'));
   assert.ok(isEmote('💀 💀 💀'));
@@ -84,4 +92,15 @@ test('segments cut the text at its mentions once', () => {
 
 test('segments ignore ranges outside the text', () => {
   assert.deepEqual(chatSegments('oi', [{ userId: 'x', start: 1, end: 9 }]), [{ text: 'oi', mention: false }]);
+});
+
+test('a name whose lower case grows keeps the offsets of the original text', () => {
+  const members = [{ userId: 'i', name: 'İlker' }];
+  for (const body of ['oi @İlker', 'oi @İlker tudo', 'oi @İlker, tudo?', 'oi @ilker!']) {
+    const mentions = findMentions(body, members);
+    assert.equal(mentions.length, 1, body);
+    const highlighted = chatSegments(body, mentions).filter(({ mention }) => mention).map(({ text }) => text);
+    assert.deepEqual(highlighted, [body.slice(3, 9)], body);
+  }
+  assert.deepEqual(findMentions('oi @İlkerzinho', members), []);
 });

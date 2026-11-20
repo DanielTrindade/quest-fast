@@ -57,9 +57,16 @@ export type ChatPageResponse = { messages: ChatMessageView[]; nextCursor: string
 export type ChatMessageResponse = { message: ChatMessageView };
 export type ChatSendRequest = { body: string; replyToId?: string };
 
-/** Length as a person counts it: an accented letter or an emoji is one, not two. */
+const graphemes = new Intl.Segmenter('pt-BR', { granularity: 'grapheme' });
+
+/**
+ * Length as a person counts it: an accented letter, a flag or an emoji with
+ * a skin tone is one character, however many code points it takes.
+ */
 export function chatLength(text: string): number {
-  return [...text].length;
+  let length = 0;
+  for (const _ of graphemes.segment(text)) length++;
+  return length;
 }
 
 /** What is stored: line breaks unified and the edges trimmed. */
@@ -83,11 +90,27 @@ const PICTOGRAPH = /^(?:\p{Extended_Pictographic}|\p{Regional_Indicator}|[#*0-9]
 export function isEmote(text: string): boolean {
   const squeezed = text.replace(/\s+/g, '');
   if (squeezed.length === 0) return false;
-  const graphemes = [...new Intl.Segmenter('pt-BR', { granularity: 'grapheme' }).segment(squeezed)];
-  return graphemes.length <= CHAT_LIMITS.emoteMax && graphemes.every(({ segment }) => PICTOGRAPH.test(segment));
+  const pieces = [...graphemes.segment(squeezed)];
+  return pieces.length <= CHAT_LIMITS.emoteMax && pieces.every(({ segment }) => PICTOGRAPH.test(segment));
 }
 
-const fold = (text: string) => text.toLocaleLowerCase('pt-BR');
+/**
+ * Lower case that never changes the length, so an offset in the folded text
+ * is the same in the original. A letter whose lower case grows ("İ" becomes
+ * "i" plus a combining dot) keeps only its first code point.
+ */
+function fold(text: string): string {
+  let folded = '';
+  for (const letter of text) {
+    const lower = letter.toLocaleLowerCase('pt-BR');
+    if (lower.length === letter.length) folded += lower;
+    else {
+      const first = String.fromCodePoint(lower.codePointAt(0)!);
+      folded += first.length === letter.length ? first : letter;
+    }
+  }
+  return folded;
+}
 /** A name ends where a word would not go on: "@Ana," names Ana, "@Anabela" does not. */
 const WORD = /[\p{L}\p{N}\p{M}_]/u;
 
@@ -101,21 +124,17 @@ export function findMentions(body: string, members: readonly { userId: string; n
     .map((member) => ({ userId: member.userId, name: fold(member.name.trim()) }))
     .filter((member) => member.name.length > 0)
     .sort((a, b) => b.name.length - a.name.length);
+  // Same length as `body`: an offset found here cuts the original text.
   const text = fold(body);
-  // Lower-casing may change the length of a few letters; then offsets would
-  // drift, so the original text is matched letter by letter instead.
-  const sameLength = text.length === body.length;
   const mentions: ChatMention[] = [];
 
   for (let at = body.indexOf('@'); at !== -1; at = body.indexOf('@', at + 1)) {
     if (at > 0 && WORD.test(body[at - 1]!)) continue;
-    const rest = sameLength ? text.slice(at + 1) : '';
     let longest = 0;
     for (const member of named) {
       if (longest > 0 && member.name.length < longest) break;
       const size = member.name.length;
-      const candidate = sameLength ? rest.slice(0, size) : fold(body.slice(at + 1, at + 1 + size));
-      if (candidate !== member.name) continue;
+      if (text.slice(at + 1, at + 1 + size) !== member.name) continue;
       const next = body[at + 1 + size];
       if (next !== undefined && WORD.test(next)) continue;
       longest = size;
