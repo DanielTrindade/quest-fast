@@ -104,3 +104,14 @@ test('a name whose lower case grows keeps the offsets of the original text', () 
   }
   assert.deepEqual(findMentions('oi @İlkerzinho', members), []);
 });
+
+test('greek names are mentioned whatever their case, final sigma included', () => {
+  const members = [{ userId: 'n', name: 'Νίκος' }];
+  for (const body of ['@ΝΊΚΟΣ', '@Νίκος', 'oi @νίκοσ, bora']) {
+    const mentions = findMentions(body, members);
+    assert.equal(mentions.length, 1, body);
+    const start = body.indexOf('@');
+    const highlighted = chatSegments(body, mentions).filter(({ mention }) => mention).map(({ text }) => text);
+    assert.deepEqual(highlighted, [body.slice(start, start + 6)], body);
+  }
+});

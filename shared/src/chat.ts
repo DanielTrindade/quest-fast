@@ -97,7 +97,8 @@ export function isEmote(text: string): boolean {
 /**
  * Lower case that never changes the length, so an offset in the folded text
  * is the same in the original. A letter whose lower case grows ("İ" becomes
- * "i" plus a combining dot) keeps only its first code point.
+ * "i" plus a combining dot) keeps only its first code point, and the two
+ * Greek sigmas are one letter.
  */
 function fold(text: string): string {
   let folded = '';
@@ -109,7 +110,9 @@ function fold(text: string): string {
       folded += first.length === letter.length ? first : letter;
     }
   }
-  return folded;
+  // Lower-casing letter by letter loses the final sigma's rule ("Σ" at a
+  // word's end becomes "ς" only in context): both sigmas fold to "σ".
+  return folded.replaceAll('ς', 'σ');
 }
 /** A name ends where a word would not go on: "@Ana," names Ana, "@Anabela" does not. */
 const WORD = /[\p{L}\p{N}\p{M}_]/u;
