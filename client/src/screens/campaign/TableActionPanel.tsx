@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import type { CastChoice, CharacterResponse, CombatantView, EncounterView, LinkedRollRequest, RollPayload } from '@quest-fast/shared';
@@ -20,6 +20,9 @@ import { fightActions, useEncounterActions } from './encounter-actions';
 import { EncounterTurnBar } from './EncounterPanel';
 import { SessionFeed } from './SessionFeed';
 import { TableChat } from './TableChat';
+import { PanelRail } from '../../components/PanelRail';
+import { useChatSession } from '../../hooks/useChatSession';
+import { cn } from '../../lib/utils';
 import { useChatUnread } from './useChatUnread';
 
 /** What the panel may do in the fight in progress, with the queue's own requests. */
@@ -193,36 +196,85 @@ function PlayerPanel({ campaignId, currentUserId, fight, player, ownCombatant }:
   );
 }
 
+/** What the full screen hands the panel: the map's tab and the panel's state, kept by the stage. */
+export type StagePanelState = {
+  map: ReactNode;
+  tab: ActionPanelTab;
+  onTabChange: (tab: ActionPanelTab) => void;
+  collapsed: boolean;
+  onCollapsedChange: (collapsed: boolean) => void;
+  /** Each new value puts the focus in the chat's field. */
+  focusChat: number;
+};
+
 /**
  * The table's side panel, wired: the turn on top, then the role's actions,
- * the free dice, while a map takes the middle the feed, and the table chat. Every request
- * goes through the same mutations as the queue, and the encounter is the one
- * in the query cache: nothing about the fight is held twice.
+ * the free dice, while a map takes the middle the feed, and the table chat.
+ * Every request goes through the same mutations as the queue, and the
+ * encounter is the one in the query cache: nothing about the fight is held
+ * twice.
+ *
+ * With `stage` it is the full screen's panel: five tabs with Mapa, icons
+ * only, filling the column, and folded into a rail when collapsed. Folded,
+ * the panel stays mounted (hidden), so the chat's draft and place survive.
  */
-export function TableActionPanel({ campaignId, isMaster, currentUserId, withFeed, className }: {
+export function TableActionPanel({ campaignId, isMaster, currentUserId, withFeed, stage, className }: {
   campaignId: string;
   isMaster: boolean;
   currentUserId: string;
   /** False while the feed sits in the middle of the table, with no map open. */
   withFeed: boolean;
+  stage?: StagePanelState;
   className?: string;
 }) {
-  const [tab, setTab] = useState<ActionPanelTab>('actions');
+  const session = useChatSession();
+  const [pageTab, setPageTab] = useState<ActionPanelTab>('actions');
+  const tab = stage ? stage.tab : pageTab;
+  const setTab = stage ? stage.onTabChange : setPageTab;
   const fight = useFight(campaignId);
   const player = useOwnCharacter(campaignId, currentUserId, !isMaster);
   const ownCombatant = ownCombatantOf(fight.encounter, player.own);
-  const chatUnread = useChatUnread(campaignId, currentUserId, tab === 'chat');
+  // Only the panel in sight reads: the page's one sleeps under the full screen.
+  const inSight = stage ? !stage.collapsed : !session.fullscreen;
+  const chatUnread = useChatUnread(campaignId, currentUserId, inSight && tab === 'chat');
+  const actionsSignal = panelSignal(isMaster, fight.encounter, ownCombatant);
+  const { setFullscreen } = session;
+  const staged = stage !== undefined;
+  useEffect(() => {
+    if (!staged) return undefined;
+    setFullscreen(true);
+    return () => setFullscreen(false);
+  }, [staged, setFullscreen]);
 
-  return (
-    <ActionPanel className={className} tab={tab} onTabChange={setTab}
-      actionsSignal={panelSignal(isMaster, fight.encounter, ownCombatant)}
+  const panel = (
+    <ActionPanel className={cn(className, stage?.collapsed && 'hidden')} tab={tab} onTabChange={setTab}
+      actionsSignal={actionsSignal}
       header={<TurnHeader fight={fight} isMaster={isMaster} currentUserId={currentUserId} />}
+      map={stage?.map}
+      compact={stage ? true : undefined}
+      fill={staged}
+      onCollapse={stage ? () => stage.onCollapsedChange(true) : undefined}
       actions={isMaster
         ? <MasterPanel campaignId={campaignId} fight={fight} />
         : <PlayerPanel campaignId={campaignId} currentUserId={currentUserId} fight={fight} player={player} ownCombatant={ownCombatant} />}
       dice={<DiceRoller campaignId={campaignId} isMaster={isMaster} framed={false} />}
       feed={withFeed ? <SessionFeed campaignId={campaignId} currentUserId={currentUserId} framed={false} /> : undefined}
-      chat={<TableChat campaignId={campaignId} viewerId={currentUserId} isMaster={isMaster} />}
+      chat={<TableChat campaignId={campaignId} viewerId={currentUserId} isMaster={isMaster} focusRequest={stage?.focusChat} />}
       chatUnread={chatUnread} />
+  );
+  if (!stage) return panel;
+  return (
+    <>
+      {stage.collapsed && (
+        <PanelRail tabs={['map', 'actions', 'dice', ...(withFeed ? ['feed' as const] : []), 'chat']}
+          actionsSignal={actionsSignal} chatUnread={chatUnread}
+          className="flex-row @min-[47.5rem]/stage:h-full @min-[47.5rem]/stage:flex-col"
+          onOpen={(next) => {
+            if (next) stage.onTabChange(next);
+            stage.onCollapsedChange(false);
+          }} />
+      )}
+      {panel}
+    </>
   );
 }
