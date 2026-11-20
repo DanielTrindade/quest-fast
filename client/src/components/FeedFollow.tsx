@@ -4,6 +4,8 @@ import { cn } from '../lib/utils';
 import { Button } from './Button';
 
 const NEW_RESULTS = ['novo resultado', 'novos resultados'] as const;
+/** How close to the bottom still counts as following the end: the end marker's height. */
+const END_SLACK = 32;
 
 /** The two shapes: the feed's (page flow, capped on desktop) and the chat's (fills its box). */
 const SHAPE = {
@@ -62,11 +64,23 @@ export function FeedFollow({ children, ids, hasMore, onLoadMore, loadingMore = f
   const anchorLost = seenId !== undefined && seenIndex < 0;
   const unseen = atEnd || seenId === undefined ? 0 : anchorLost ? count : count - 1 - seenIndex;
 
-  // The end marker is watched against the page viewport, so "at the end"
-  // holds both inside the desktop scroll box and in the mobile page flow.
+  // Outside the chat, the end marker is watched against the page viewport, so
+  // "at the end" holds both inside the desktop scroll box and in the mobile
+  // page flow.
   useEffect(() => {
     const end = endRef.current;
-    if (!end) return;
+    const viewport = viewportRef.current;
+    if (!end || !viewport) return undefined;
+    if (fill) {
+      // The chat scrolls inside its own box: where the reader is comes from
+      // that box's scroll, at once, instead of an observer's later callback.
+      const onScroll = () => {
+        setAtEnd(viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight <= END_SLACK);
+        setSeenId(newestRef.current);
+      };
+      viewport.addEventListener('scroll', onScroll, { passive: true });
+      return () => viewport.removeEventListener('scroll', onScroll);
+    }
     const observer = new IntersectionObserver(([entry]) => {
       if (!entry) return;
       setAtEnd(entry.isIntersecting);
@@ -74,7 +88,7 @@ export function FeedFollow({ children, ids, hasMore, onLoadMore, loadingMore = f
     });
     observer.observe(end);
     return () => observer.disconnect();
-  }, []);
+  }, [fill]);
 
   useLayoutEffect(() => {
     const viewport = viewportRef.current;
