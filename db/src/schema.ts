@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { index, integer, real, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import { index, integer, real, sqliteTable, text, uniqueIndex, type AnySQLiteColumn } from 'drizzle-orm/sqlite-core';
 import {
   ABILITIES,
   COMBATANT_SOURCES,
@@ -12,6 +12,7 @@ import {
   type AbilityScores,
   type ArmorTraining,
   type Attack,
+  type ChatMention,
   type Coins,
   type CombatReminder,
   type DeathSaves,
@@ -481,3 +482,39 @@ export const tokens = sqliteTable(
 );
 
 export type TokenRow = typeof tokens.$inferSelect;
+
+// --- Table chat ---------------------------------------------------------------
+
+/**
+ * The table chat, apart from the game: never in `session_events`, so the feed
+ * stays the game's and the chat keeps its own history (the latest
+ * `CHAT_LIMITS.retained` messages of each campaign). A removed message keeps
+ * its row, with no text, so a reply quoting it can say so.
+ */
+export const chatMessages = sqliteTable(
+  'chat_messages',
+  {
+    id: text('id').primaryKey(),
+    campaignId: text('campaign_id')
+      .notNull()
+      .references(() => campaigns.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id),
+    /** Plain text; empty once removed. */
+    body: text('body').notNull(),
+    /** Resolved on send against the members of that moment. */
+    mentions: text('mentions', { mode: 'json' }).$type<ChatMention[]>().notNull(),
+    /** The quoted message falls out of the history before the reply does: then the quote is gone. */
+    replyToId: text('reply_to_id').references((): AnySQLiteColumn => chatMessages.id, { onDelete: 'set null' }),
+    removedAt: integer('removed_at', { mode: 'timestamp' }),
+    removedBy: text('removed_by').references(() => users.id),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(now),
+  },
+  (table) => [
+    index('chat_messages_campaign_created_idx').on(table.campaignId, table.createdAt),
+    index('chat_messages_reply_to_idx').on(table.replyToId),
+  ],
+);
+
+export type ChatMessageRow = typeof chatMessages.$inferSelect;
