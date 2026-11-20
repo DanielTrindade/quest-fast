@@ -221,12 +221,8 @@ export const NovasMensagens: Story = {
     const viewport = canvasElement.querySelector<HTMLElement>('[data-slot=chat-panel] .overflow-y-auto')!;
     // It opens on the latest lines; the reader goes back up.
     await waitFor(() => expect(viewport.scrollTop).toBeGreaterThan(0));
-    // Kept at the top until the observer agrees the reader left the end: its
-    // callbacks may still be catching up with the first scroll to the end.
-    await waitFor(() => {
-      viewport.scrollTop = 0;
-      expect(viewport.parentElement).toHaveAttribute('data-at-end', 'false');
-    }, { timeout: 3000 });
+    viewport.scrollTop = 0;
+    await waitFor(() => expect(viewport.parentElement).toHaveAttribute('data-at-end', 'false'));
     await userEvent.click(chat.getByRole('button', { name: 'Chegar mensagem de outra pessoa' }));
     await expect(await chat.findByRole('button', { name: /1 nova mensagem/ })).toBeInTheDocument();
     // The own message always goes to the end.
