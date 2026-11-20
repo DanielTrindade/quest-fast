@@ -6,6 +6,7 @@ import { inviteRoutes } from './invites/routes.ts';
 import { invitePageHandler } from './invites/meta.ts';
 import { campaignRoutes } from './campaigns/routes.ts';
 import { assetRoutes } from './assets/routes.ts';
+import { chatRoutes } from './chat/routes.ts';
 import { characterRoutes, myCharacterRoutes } from './characters/routes.ts';
 import { diceRoutes } from './dice/routes.ts';
 import { feedRoutes } from './feed/routes.ts';
@@ -20,9 +21,11 @@ export type AppOptions = Deps & {
   /** When false the SPA is not served — used by the integration tests. */
   serveClient?: boolean;
   inviteAttempts?: AttemptLimiterOptions;
+  /** The chat's rate limit; tests pass a clock. */
+  chatRate?: AttemptLimiterOptions;
 };
 
-export function createApp({ serveClient = true, inviteAttempts, ...deps }: AppOptions) {
+export function createApp({ serveClient = true, inviteAttempts, chatRate, ...deps }: AppOptions) {
   const app = new Hono<Context>();
   // One budget for every route that takes an invite code, so alternating
   // between them does not multiply the guesses.
@@ -52,6 +55,7 @@ export function createApp({ serveClient = true, inviteAttempts, ...deps }: AppOp
   app.route('/api/campaigns/:campaignId/assets', assetRoutes());
   app.route('/api/campaigns/:campaignId/rolls', diceRoutes());
   app.route('/api/campaigns/:campaignId/feed', feedRoutes());
+  app.route('/api/campaigns/:campaignId/chat', chatRoutes(chatRate));
   app.route('/api/campaigns/:campaignId/statblocks', statblockRoutes());
   app.route('/api/campaigns/:campaignId/encounters', encounterRoutes());
   app.route('/api/campaigns/:campaignId/scenes', sceneRoutes());

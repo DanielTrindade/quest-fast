@@ -1,5 +1,5 @@
 import type { WebSocket } from 'ws';
-import { NOT_A_MEMBER_CLOSE_CODE, type EncounterView, type Role, type SceneView, type SessionEvent, type SocketMessage } from '@quest-fast/shared';
+import { NOT_A_MEMBER_CLOSE_CODE, type ChatMessageView, type EncounterView, type Role, type SceneView, type SessionEvent, type SocketMessage } from '@quest-fast/shared';
 import { redactEvent } from './redact.ts';
 
 export { NOT_A_MEMBER_CLOSE_CODE };
@@ -49,6 +49,10 @@ export type EventHub = {
     canSee: (viewer: Viewer) => boolean,
     except?: WebSocket,
   ): void;
+  /** Sends `chat.message` to the whole room: every member reads the same chat. */
+  publishChat(campaignId: string, message: ChatMessageView): void;
+  /** Sends `chat.removed` to the whole room; the removed text is never sent again. */
+  publishChatRemoved(campaignId: string, messageId: string): void;
   join(campaignId: string, viewer: Viewer, socket: WebSocket): void;
   /** Whether the user still has an open socket in the campaign's room. */
   connected(campaignId: string, userId: string): boolean;
@@ -141,6 +145,14 @@ export function createEventHub(): EventHub {
 
     publishTokenMoving(campaignId, moving, canSee, except) {
       send(campaignId, (connection) => (canSee(connection) ? { type: 'token.moving', ...moving } : null), except);
+    },
+
+    publishChat(campaignId, message) {
+      send(campaignId, () => ({ type: 'chat.message', message }));
+    },
+
+    publishChatRemoved(campaignId, messageId) {
+      send(campaignId, () => ({ type: 'chat.removed', messageId }));
     },
 
     publishCombatDeleted(campaignId, encounterId, couldSee) {

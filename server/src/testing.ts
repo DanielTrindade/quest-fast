@@ -69,11 +69,12 @@ type RequestApp = { app: TestApp['app'] };
  */
 export function createTestApp(
   profiles: Record<string, DiscordProfile>,
-  { assets = createMemoryAssetStore(), env = testEnv, serveClient = false, inviteAttempts, locks = createTokenLocks() }: {
+  { assets = createMemoryAssetStore(), env = testEnv, serveClient = false, inviteAttempts, chatRate, locks = createTokenLocks() }: {
     assets?: AssetStore;
     env?: Env;
     serveClient?: boolean;
     inviteAttempts?: AttemptLimiterOptions;
+    chatRate?: AttemptLimiterOptions;
     /** A test of the lock's lifetime passes one with a short TTL. */
     locks?: TokenLocks;
   } = {},
@@ -89,6 +90,7 @@ export function createTestApp(
     locks,
     serveClient,
     inviteAttempts,
+    chatRate,
   });
   return { db, app, hub, locks };
 }
@@ -97,7 +99,7 @@ export function createTestApp(
  * A real listening server with the WebSocket attached — the only way to
  * exercise the upgrade and the socket broadcast. Caller owns `close`.
  */
-export function createTestServer(profiles: Record<string, DiscordProfile>, options: { locks?: TokenLocks } = {}) {
+export function createTestServer(profiles: Record<string, DiscordProfile>, options: { locks?: TokenLocks; chatRate?: AttemptLimiterOptions } = {}) {
   const { db, app, hub, locks } = createTestApp(profiles, options);
   const server = createServer(getRequestListener(app.fetch));
   return new Promise<{

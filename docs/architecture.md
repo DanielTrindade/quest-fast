@@ -91,8 +91,8 @@ Tudo aqui é função pura, com teste unitário ao lado (`*.test.ts`, rodando no
 ### `db/` — persistência
 
 - `src/schema.ts`: tabelas `users`, `sessions`, `campaigns`,
-  `campaign_members`, `campaign_bans`, `assets`, `characters`, `session_events` e, do
-  combate, `statblocks`, `encounters` e `combatants`. Partes
+  `campaign_members`, `campaign_bans`, `assets`, `characters`, `session_events`,
+  `chat_messages` e, do combate, `statblocks`, `encounters` e `combatants`. Partes
   extensas da ficha (perícias, ataques, magias, inventário) e o `payload` dos
   eventos são colunas JSON. Um campo novo dentro delas não ganha migração: o
   servidor lê o JSON antigo com o padrão documentado (um ataque salvo sem
@@ -132,6 +132,7 @@ src/
   scenes/         cenas do VTT: mapa, grid, cena aberta e a projeção por papel
   dice/           rolagem livre
   feed/           leitura paginada do feed
+  chat/           chat da mesa: mensagens, menções, retenção e limite de frequência
   assets/         upload e normalização de imagens (store em disco, no R2 ou em memória)
   events/         EventHub, persistência e redação do feed, WebSocket
   validation.ts   parsers de entrada compartilhados (InputError, ataques)
@@ -153,6 +154,7 @@ montado em `app.ts`:
 | `/api/campaigns/:campaignId/assets` | `assets/` |
 | `/api/campaigns/:campaignId/rolls` | `dice/` |
 | `/api/campaigns/:campaignId/feed` | `feed/` |
+| `/api/campaigns/:campaignId/chat` | `chat/` |
 | `/api/campaigns/:campaignId/statblocks` | `statblocks/` |
 | `/api/campaigns/:campaignId/encounters` | `combat/` |
 | `/api/campaigns/:campaignId/scenes` | `scenes/` |
@@ -321,6 +323,20 @@ disso o socket fecha com 1009), no máximo 40 mensagens por segundo por socket
 (o excedente é descartado sem resposta) e só quem tem a trava do token é
 repassado. Novos tipos de evento (combate, tokens) entram no mesmo canal, e o
 cliente tem fallback para tipos que ainda não sabe renderizar.
+
+### Chat da mesa
+
+A conversa escrita da mesa fica fora do jogo: tabela própria
+(`chat_messages`), nunca `session_events`, para o Feed paginado continuar só
+com o jogo e o chat ter retenção própria. Ao gravar uma mensagem, a mesma
+transação apaga as mais antigas além das 500 da campanha; a publicação no hub
+(`publishChat`, para a sala inteira) vem depois. As menções são resolvidas no
+envio, contra os membros daquele momento, e guardadas com o trecho do texto
+(`{ userId, start, end }`), então trocar de nome não muda o destaque. A
+remoção (autor ou mestre; outro jogador recebe 403, porque vê a mensagem)
+apaga o texto no banco e sai como `chat.removed`, só com o id. O limite de
+frequência é o desenho do `createAttemptLimiter` de `invites/`, contando os
+envios aceitos por pessoa e campanha, em memória como o hub.
 
 ### Combate
 
