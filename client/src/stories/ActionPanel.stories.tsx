@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { expect, fn, userEvent, within } from 'storybook/test';
+import { expect, fn, userEvent, waitFor, within } from 'storybook/test';
 import type { RollSessionEvent } from '@quest-fast/shared';
-import { ActionPanel, type ActionPanelSignal, type ActionPanelTab } from '../components/ActionPanel';
+import { ActionPanel, type ActionPanelSignal, type ActionPanelTab, type ChatUnread } from '../components/ActionPanel';
+import { ChatPanel } from '../components/ChatPanel';
 import { FeedEventCard } from '../components/FeedEventCard';
 import { Field } from '../components/Field';
 import { MasterActions } from '../components/MasterActions';
@@ -14,6 +15,7 @@ import { hazinDan } from './fixtures/characters';
 import { partyMember } from './fixtures/my-characters';
 import { PLAYER_ID, playerCombatants } from './fixtures/encounters';
 import { masterWithHits } from './fixtures/table';
+import { CHAT_MEMBERS, VIEWER_ID, conversation } from './fixtures/chat';
 
 const roll: RollSessionEvent = {
   id: 'e1', campaignId: 'phandalin', userId: PLAYER_ID, userName: 'Daniel', type: 'roll', secret: false,
@@ -43,8 +45,19 @@ const feed = (
 const hazinOwn = playerCombatants.find((combatant) => combatant.id === 'c-hazin')!;
 const fightActions = { onHitPoints: fn(), onApplyCondition: fn(), onRemoveCondition: fn(), onConcentration: fn(), onAttack: fn(), onApplyDamage: fn(), onDismissReminder: fn(), onToggleHidden: fn() };
 
-function Panel({ role, withFeed = true, signal }: { role: 'player' | 'master'; withFeed?: boolean; signal?: ActionPanelSignal }) {
-  const [tab, setTab] = useState<ActionPanelTab>('actions');
+function Chat() {
+  const [draft, setDraft] = useState('');
+  return (
+    <ChatPanel messages={conversation} viewerId={VIEWER_ID} viewerMaster={false} members={CHAT_MEMBERS} state="ready" onRetry={fn()}
+      hasMore={false} onLoadMore={fn()} status="connected" draft={draft} onDraftChange={setDraft} replyTo={null} onReply={fn()}
+      onSend={fn()} onRemove={fn()} />
+  );
+}
+
+function Panel({ role, withFeed = true, signal, unread, initialTab = 'actions' }: {
+  role: 'player' | 'master'; withFeed?: boolean; signal?: ActionPanelSignal; unread?: ChatUnread; initialTab?: ActionPanelTab;
+}) {
+  const [tab, setTab] = useState<ActionPanelTab>(initialTab);
   const master = role === 'master';
   return (
     <ActionPanel tab={tab} onTabChange={setTab} actionsSignal={signal}
@@ -55,7 +68,8 @@ function Panel({ role, withFeed = true, signal }: { role: 'player' | 'master'; w
           fight={{ combatant: hazinOwn, targets: playerCombatants.filter((combatant) => combatant.id !== 'c-hazin'), active: true, busy: false, actions: fightActions }}
           onRoll={fn()} onOpenSheet={fn()} galleryAction={<Button variant="secondary">Meus personagens</Button>} />}
       dice={<Dice />}
-      feed={withFeed ? feed : undefined} />
+      feed={withFeed ? feed : undefined}
+      chat={<Chat />} chatUnread={tab === 'chat' ? null : unread} />
   );
 }
 
@@ -108,5 +122,38 @@ export const SemFeed: Story = {
   play: async ({ canvasElement }) => {
     const panel = firstTheme(canvasElement);
     await expect(panel.queryByRole('tab', { name: 'Feed' })).toBeNull();
+  },
+};
+
+/** Unread messages beside the tab: quiet in mono, accent only when one names the reader. */
+export const ChatComNaoLidas: Story = {
+  name: 'Chat com não lidas e menção',
+  args: { unread: { count: 3, mention: true } },
+  play: async ({ canvasElement }) => {
+    const panel = firstTheme(canvasElement);
+    await expect(panel.getByRole('tab', { name: 'Chat (3 mensagens novas, com menção a você)' })).toBeInTheDocument();
+  },
+};
+
+/** The chat takes the height left in the panel; the composer stays at the bottom. */
+export const ChatAberto: Story = {
+  name: 'Chat aberto',
+  args: { initialTab: 'chat', unread: { count: 2, mention: false } },
+  play: async ({ canvasElement }) => {
+    const panel = firstTheme(canvasElement);
+    await expect(panel.getByRole('tab', { name: 'Chat' })).toHaveAttribute('aria-selected', 'true');
+    await expect(panel.getByRole('combobox', { name: 'Mensagem para a mesa' })).toBeVisible();
+  },
+};
+
+/** Below ~330 px of panel the four tabs keep only their icons, with the name kept for screen readers. */
+export const PainelEstreito: Story = {
+  name: 'Painel estreito, só ícones',
+  args: { unread: { count: 12, mention: false } },
+  decorators: [(Story) => <div style={{ maxWidth: 300 }}><Story /></div>],
+  play: async ({ canvasElement }) => {
+    const panel = firstTheme(canvasElement);
+    // Measured after layout: the panel learns its width from a ResizeObserver.
+    await waitFor(() => expect(panel.getByRole('tab', { name: 'Dados' }).querySelector('.sr-only')).not.toBeNull());
   },
 };
