@@ -10,6 +10,9 @@ import { Surface } from '../../components/Surface';
 import { TokenList } from '../../components/TokenList';
 import { useCampaignChannel } from '../../hooks/useCampaignSocket';
 import { useFullscreenView } from '../../hooks/useFullscreenView';
+import { useStoredFlag } from '../../hooks/useStoredFlag';
+import type { ActionPanelTab } from '../../components/ActionPanel';
+import { StagePanel } from './StagePanel';
 import { useNotify } from '../../hooks/use-notify';
 import { api } from '../../lib/api';
 import { activeSceneQuery, mergeScene, sceneListQuery, sceneQuery } from '../../lib/scene-cache';
@@ -113,12 +116,47 @@ function MasterPanel({ panel, panelIds, campaignId, scene, mapRef, fog, onPrevie
   return null;
 }
 
+function stageClass(isMaster: boolean) {
+  return cn(
+    '@container/stage fixed inset-0 z-30 grid min-w-0 gap-3 overflow-hidden bg-background p-3 pb-[calc(var(--spacing-3)+env(safe-area-inset-bottom,0px))]',
+    isMaster ? 'grid-rows-[auto_minmax(0,1fr)]' : 'grid-rows-[minmax(0,1fr)]',
+  );
+}
+
+/** In the page, the map keeps its image's proportion. */
+const mapAspect = (scene: SceneView) => ({ aspectRatio: `${scene.mapWidth} / ${scene.mapHeight}` });
+
+/**
+ * The table panel's state on the full screen: its tab (Mapa first), folded or
+ * not (a preference of the browser, like the side menu) and the corner over
+ * the map where it may show the chat while folded.
+ */
+function useTablePanel(staged: boolean) {
+  const [tab, setTab] = useState<ActionPanelTab>('map');
+  const [folded, setFolded] = useStoredFlag('quest-fast:stage-panel-collapsed');
+  const [overlay, setOverlay] = useState<HTMLElement | null>(null);
+  return {
+    staged,
+    layout: staged ? (folded ? 'folded' as const : 'open' as const) : null,
+    setOverlay,
+    /** Grid, tokens and fog live in Mapa: opening one (`opening`) brings the panel there. */
+    showMap: (opening: boolean) => {
+      if (!staged || !opening) return;
+      setTab('map');
+      setFolded(false);
+    },
+    state: { tab, onTabChange: setTab, collapsed: folded, onCollapsedChange: setFolded, overlay },
+  };
+}
+
 /**
  * Where each part of the stage goes: in the page, or filling the window over
  * the app's bars (under dialogs and toasts), the map taking what is left.
  */
-function stageLayout({ fullscreen, isMaster, mapClassName, name }: {
+function stageLayout({ fullscreen, isMaster, mapClassName, name, panel }: {
   fullscreen: boolean; isMaster: boolean; mapClassName: string; name: string;
+  /** On the full screen with the table panel: open, folded, or none (the stage's own column). */
+  panel: 'open' | 'folded' | null;
 }) {
   if (!fullscreen) {
     return {
@@ -129,12 +167,23 @@ function stageLayout({ fullscreen, isMaster, mapClassName, name }: {
       side: 'grid min-w-0 content-start gap-4',
     };
   }
+  const region = { role: 'region', 'aria-label': `${name}, mapa em tela cheia` };
+  if (panel) {
+    // The table panel replaces the column: beside the map from 760 px, under it
+    // on a phone (about 46% of the height), or a rail of icons when folded.
+    return {
+      region,
+      stage: stageClass(isMaster),
+      body: 'grid min-h-0 min-w-0 grid-rows-[minmax(0,1fr)_auto] gap-3 @min-[47.5rem]/stage:grid-cols-[minmax(0,1fr)_auto] @min-[47.5rem]/stage:grid-rows-[minmax(0,1fr)]',
+      map: 'relative min-h-0 min-w-0',
+      side: panel === 'open'
+        ? 'flex h-[46dvh] min-h-0 min-w-0 flex-col @min-[47.5rem]/stage:h-auto @min-[47.5rem]/stage:w-[21rem]'
+        : 'flex min-w-0 @min-[47.5rem]/stage:min-h-0',
+    };
+  }
   return {
-    region: { role: 'region', 'aria-label': `${name}, mapa em tela cheia` },
-    stage: cn(
-      '@container/stage fixed inset-0 z-30 grid min-w-0 gap-3 overflow-hidden bg-background p-3 pb-[calc(var(--spacing-3)+env(safe-area-inset-bottom,0px))]',
-      isMaster ? 'grid-rows-[auto_minmax(0,1fr)]' : 'grid-rows-[minmax(0,1fr)]',
-    ),
+    region,
+    stage: stageClass(isMaster),
     body: 'grid min-h-0 min-w-0 grid-rows-[minmax(0,1fr)_auto] gap-3 @min-[52rem]/stage:grid-cols-[minmax(0,1fr)_18rem] @min-[52rem]/stage:grid-rows-[minmax(0,1fr)]',
     map: 'min-h-0 min-w-0',
     side: 'grid max-h-[35dvh] min-h-0 min-w-0 content-start gap-4 overflow-y-auto overscroll-contain @min-[52rem]/stage:max-h-none',
@@ -148,16 +197,22 @@ function stageLayout({ fullscreen, isMaster, mapClassName, name }: {
  * the panel is hidden. Whoever may move a token drags it on the map or moves
  * it with the arrows from the list.
  */
-export function SceneStage({ campaignId, scene, isMaster, mapClassName, allowFullscreen = false }: {
+export function SceneStage({ campaignId, scene, isMaster, mapClassName, allowFullscreen = false, tablePanel = false }: {
   campaignId: string; scene: SceneView; isMaster: boolean;
   /** The bounds of the map's height where it is shown; within them it follows the image's proportion. */
   mapClassName: string;
   /** The stage may fill the screen (not inside a dialog, whose frame would hold it). */
   allowFullscreen?: boolean;
+  /**
+   * The Mesa's table panel goes along to the full screen, with the column's
+   * content as its Mapa tab. Without it the full screen keeps the column.
+   */
+  tablePanel?: boolean;
 }) {
   const stageRef = useRef<HTMLDivElement>(null);
   const [fullscreen, setFullscreen] = useFullscreenView(stageRef);
-  const layout = stageLayout({ fullscreen, isMaster, mapClassName, name: scene.name });
+  const { staged, layout: panelLayout, setOverlay, showMap, state: panelState } = useTablePanel(fullscreen && tablePanel);
+  const layout = stageLayout({ fullscreen, isMaster, mapClassName, name: scene.name, panel: panelLayout });
   const panelIds = { grid: useId(), tokens: useId(), fog: useId() };
   const mapRef = useRef<MapCanvasHandle>(null);
   const me = useQuery({ queryKey: ['me'], queryFn: api.me });
@@ -184,6 +239,7 @@ export function SceneStage({ campaignId, scene, isMaster, mapClassName, allowFul
     if (panel === 'grid') setPreview(null);
     if (panel === 'fog') fog.putAway();
     setPanel(panel === next ? null : next);
+    showMap(panel !== next);
   };
   // A token whose last drop is still unanswered waits for it before the next drag;
   // in a fight a player moves their own only on its turn (the server says the same).
@@ -194,13 +250,31 @@ export function SceneStage({ campaignId, scene, isMaster, mapClassName, allowFul
   };
   const focus = selectedId ? fighterOfToken(selectedId) : null;
 
+  // The column beside the map: the master's open panel, the selected token,
+  // its turn and the token list. On the full screen it is the panel's Mapa.
+  const column = (
+    <>
+      <MasterPanel panel={panel} panelIds={panelIds} campaignId={campaignId} scene={scene} mapRef={mapRef} fog={fog}
+        onPreview={(grid) => setPreview(grid ? { sceneId: scene.id, grid } : null)} />
+      <TokenVitalsPanel key={selectedId} campaignId={campaignId} tokens={scene.tokens} selectedId={selectedId} isMaster={isMaster} viewerId={viewerId} />
+      {fight && <FightTurn campaignId={campaignId} fight={fight} focus={focus} viewerId={viewerId} isMaster={isMaster} />}
+      <TokenList tokens={scene.tokens} viewerId={viewerId} master={isMaster} fog={scene.fog} selectedId={selectedId} onSelect={setSelected}
+        onStep={(tokenId, direction) => {
+          const token = scene.tokens.find((candidate) => candidate.id === tokenId);
+          if (token && !mayFight(token)) moves.onStep(tokenId, direction);
+        }}
+        busyIds={moves.busyIds}
+        onToggleHidden={isMaster ? moves.onToggleHidden : undefined} onRemove={isMaster ? moves.onRemove : undefined} />
+    </>
+  );
+
   return (
     <div ref={stageRef} {...layout.region} className={layout.stage}>
       {isMaster && (
         <MasterBar campaignId={campaignId} scene={scene} panel={panel} panelIds={panelIds} onToggle={toggle} />
       )}
       <div className={layout.body}>
-        <div className={layout.map} style={fullscreen ? undefined : { aspectRatio: `${scene.mapWidth} / ${scene.mapHeight}` }}>
+        <div className={layout.map} style={fullscreen ? undefined : mapAspect(scene)}>
           <MapCanvas ref={mapRef} imageUrl={scene.mapUrl} mapWidth={scene.mapWidth} mapHeight={scene.mapHeight} grid={shownGrid} label={scene.name}
             tokens={scene.tokens} viewerId={viewerId} selectedTokenId={selectedId} onSelect={setSelected} canMove={canMove}
             onGrab={moves.onGrab} onDrag={moves.onDrag} onDrop={moves.onDrop} onCancelDrag={moves.onCancelDrag} motion={motion}
@@ -214,19 +288,11 @@ export function SceneStage({ campaignId, scene, isMaster, mapClassName, allowFul
               onFree: isMaster ? () => moves.confirm({ free: true }) : undefined,
               busy: moves.confirming,
             }} />
+          {/* Where the folded panel shows new chat lines; empty otherwise. */}
+          <div ref={setOverlay} className="pointer-events-none absolute bottom-12 left-2 z-10" />
         </div>
         <div className={layout.side}>
-          <MasterPanel panel={panel} panelIds={panelIds} campaignId={campaignId} scene={scene} mapRef={mapRef} fog={fog}
-            onPreview={(grid) => setPreview(grid ? { sceneId: scene.id, grid } : null)} />
-          <TokenVitalsPanel key={selectedId} campaignId={campaignId} tokens={scene.tokens} selectedId={selectedId} isMaster={isMaster} viewerId={viewerId} />
-          {fight && <FightTurn campaignId={campaignId} fight={fight} focus={focus} viewerId={viewerId} isMaster={isMaster} />}
-          <TokenList tokens={scene.tokens} viewerId={viewerId} master={isMaster} fog={scene.fog} selectedId={selectedId} onSelect={setSelected}
-            onStep={(tokenId, direction) => {
-              const token = scene.tokens.find((candidate) => candidate.id === tokenId);
-              if (token && !mayFight(token)) moves.onStep(tokenId, direction);
-            }}
-            busyIds={moves.busyIds}
-            onToggleHidden={isMaster ? moves.onToggleHidden : undefined} onRemove={isMaster ? moves.onRemove : undefined} />
+          {staged ? <StagePanel campaignId={campaignId} isMaster={isMaster} {...panelState} map={column} /> : column}
         </div>
       </div>
     </div>

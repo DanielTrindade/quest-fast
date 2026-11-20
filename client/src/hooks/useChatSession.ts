@@ -1,4 +1,4 @@
-import { createContext, useContext, type Dispatch, type RefObject, type SetStateAction } from 'react';
+import { createContext, useContext, type Dispatch, type SetStateAction } from 'react';
 import type { ChatMessageView } from '@quest-fast/shared';
 
 /**
@@ -6,7 +6,8 @@ import type { ChatMessageView } from '@quest-fast/shared';
  * the last line read and the field to focus. It lives at the campaign's
  * level, so a tab switch, entering or leaving the full screen (where the
  * panel mounts somewhere else) and going to another screen and back lose
- * none of it. Unread is this browser tab's only: the server has no "read".
+ * none of it. `fullscreen` says the stage's panel is the one in sight, so the
+ * page's panel, still mounted under it, reads nothing meanwhile. Unread is this browser tab's only: the server has no "read".
  */
 export type ChatSession = {
   draft: string;
@@ -16,7 +17,8 @@ export type ChatSession = {
   /** `undefined` until the chat is read once; `null` when it was read empty. */
   lastReadId: string | null | undefined;
   setLastReadId: (id: string | null) => void;
-  fieldRef: RefObject<HTMLTextAreaElement | null>;
+  fullscreen: boolean;
+  setFullscreen: (on: boolean) => void;
 };
 
 export const ChatSessionContext = createContext<ChatSession | null>(null);

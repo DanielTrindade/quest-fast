@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ChatMessageView } from '@quest-fast/shared';
 import { ChatPanel } from '../../components/ChatPanel';
@@ -29,13 +29,22 @@ function useChatMembers(campaignId: string, viewerId: string): ChatMember[] {
 }
 
 /** The chat of the table, wired: the cache, the socket's lines and the session's draft. */
-export function TableChat({ campaignId, viewerId, isMaster }: { campaignId: string; viewerId: string; isMaster: boolean }) {
+export function TableChat({ campaignId, viewerId, isMaster, focusRequest = 0 }: {
+  campaignId: string; viewerId: string; isMaster: boolean;
+  /** Each new value puts the focus in the field (opening the chat from the map). */
+  focusRequest?: number;
+}) {
   const queryClient = useQueryClient();
   const notify = useNotify();
   const status = useCampaignSocketStatus();
   const session = useChatSession();
   const chat = useQuery(chatQuery(campaignId, queryClient));
   const members = useChatMembers(campaignId, viewerId);
+  // Each panel (the page's and the full screen's) has its own field.
+  const fieldRef = useRef<HTMLTextAreaElement | null>(null);
+  useEffect(() => {
+    if (focusRequest > 0) fieldRef.current?.focus();
+  }, [focusRequest]);
   const [removingIds, setRemovingIds] = useState<ReadonlySet<string>>(() => new Set());
 
   const loadMore = useMutation({
@@ -94,13 +103,13 @@ export function TableChat({ campaignId, viewerId, isMaster }: { campaignId: stri
       replyTo={replyTo || null}
       onReply={(message) => {
         session.setReplyTo(message);
-        if (message) session.fieldRef.current?.focus();
+        if (message) fieldRef.current?.focus();
       }}
       onSend={(body, source) => send.mutate({ body, source, draft: session.draft, ...(session.replyTo ? { replyToId: session.replyTo.id } : {}) })}
       sending={send.isPending}
       sendError={send.isError ? sendFailure(send.error) : null}
       onRemove={(message) => remove.mutate(message)}
       removingIds={removingIds}
-      fieldRef={session.fieldRef} />
+      fieldRef={fieldRef} />
   );
 }

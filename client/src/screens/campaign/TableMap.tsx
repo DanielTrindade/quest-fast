@@ -34,7 +34,8 @@ function NoMap({ campaignId, isMaster }: { campaignId: string; isMaster: boolean
 /**
  * The map at the centre of the table: the scene open for everyone, with pan
  * and zoom, and for the master the table switch and the grid. When the master
- * closes it, it leaves every screen. Kept live by the campaign socket.
+ * closes it, it leaves every screen. Kept live by the campaign socket. On the
+ * full screen the table's panel goes along, with the stage's column as Mapa.
  */
 export function TableMap({ campaignId, isMaster }: { campaignId: string; isMaster: boolean }) {
   const active = useQuery(activeSceneQuery(campaignId));
@@ -57,7 +58,8 @@ export function TableMap({ campaignId, isMaster }: { campaignId: string; isMaste
       )}
       {scene && (
         <SceneStage key={scene.id} campaignId={campaignId} scene={scene} isMaster={isMaster} allowFullscreen
-          mapClassName="max-h-[min(70dvh,720px)] min-h-[200px]" />
+          mapClassName="max-h-[min(70dvh,720px)] min-h-[200px]"
+          tablePanel />
       )}
     </section>
   );
