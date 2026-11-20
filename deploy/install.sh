@@ -8,6 +8,19 @@ image=$1
 # O /tmp tem sticky bit: uma sobra de outro usuário bloquearia o próximo scp.
 trap 'rm -f "/tmp/$image" /tmp/compose.yaml /tmp/Caddyfile /tmp/backup.sh /tmp/install.sh' EXIT
 
+# Sem swap, a e2-micro (1 GB) que esgota a memória fica horas relendo o disco
+# em vez de acionar o OOM killer, e trava o SSH junto. Fica antes do docker
+# load, que é o pico de memória do deploy.
+# Um deploy interrompido pode deixar o arquivo sem assinatura de swap; como o
+# conteúdo é descartável, o mkswap roda sempre que ele não estiver ativo.
+if ! grep -q '^/swapfile ' /proc/swaps; then
+  [ -f /swapfile ] || fallocate -l 1G /swapfile
+  chmod 600 /swapfile
+  mkswap /swapfile
+  swapon /swapfile
+fi
+grep -q '^/swapfile ' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
+
 install -m 644 /tmp/compose.yaml /tmp/Caddyfile /srv/quest-fast/
 install -m 700 /tmp/backup.sh /srv/quest-fast/
 gunzip -c "/tmp/$image" | docker load

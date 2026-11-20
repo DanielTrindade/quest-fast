@@ -501,7 +501,9 @@ processo, como o `better-sqlite3`; no Windows, instala com `--ignore-scripts`.
   segunda barreira contra imagem-bomba). Uma imagem no limite chega a ~400 MB
   durante a decodificação, então os uploads são processados um de cada vez:
   pedidos em paralelo esperam na fila em vez de somar memória no processo
-  único. Aceita PNG, JPEG, WebP e GIF pelo formato
+  único. Em produção o container do app tem teto de 640 MB
+  (`deploy/compose.yaml`): cabe o processo (~150 MB) mais uma imagem no
+  limite; subir o lado máximo exige rever esse teto. Aceita PNG, JPEG, WebP e GIF pelo formato
   detectado no conteúdo; o resto, ou o que não decodifica, recebe 422 sem
   tocar no armazenamento nem gravar linha em `assets`. A saída é WebP q82 com
   até 512 px de lado (sem ampliar), orientação EXIF aplicada aos pixels e
