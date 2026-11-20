@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useChatSession } from '../../hooks/useChatSession';
 import { chatQuery, unreadSince, type ChatUnread } from '../../lib/chat-cache';
 
@@ -10,7 +10,8 @@ import { chatQuery, unreadSince, type ChatUnread } from '../../lib/chat-cache';
  */
 export function useChatUnread(campaignId: string, viewerId: string, visible: boolean): ChatUnread | null {
   const { lastReadId, setLastReadId } = useChatSession();
-  const chat = useQuery(chatQuery(campaignId));
+  const queryClient = useQueryClient();
+  const chat = useQuery(chatQuery(campaignId, queryClient));
   const messages = chat.data?.messages;
   const newest = messages?.at(-1)?.id ?? null;
   const settled = messages !== undefined;

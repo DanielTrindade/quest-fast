@@ -12,17 +12,46 @@ export type ChatCache = ChatPageResponse & { removedIds?: readonly string[] };
 
 export const chatKey = (campaignId: string) => ['chat', campaignId] as const;
 
-export function chatQuery(campaignId: string) {
-  return { queryKey: chatKey(campaignId), queryFn: (): Promise<ChatCache> => api.chat(campaignId) };
+/**
+ * The first page, reconciled with what this tab already knows: a removal that
+ * reached the socket while the request was out wins over the answer, and lines
+ * that arrived meanwhile stay at the end.
+ */
+export function chatQuery(campaignId: string, queryClient: QueryClient) {
+  return {
+    queryKey: chatKey(campaignId),
+    queryFn: async (): Promise<ChatCache> => reconcile(queryClient.getQueryData<ChatCache>(chatKey(campaignId)), await api.chat(campaignId)),
+  };
 }
 
 const blank = (message: ChatMessageView): ChatMessageView => ({ ...message, body: null, mentions: [], removed: true });
+
+/** A message as this tab may show it: nothing of a removed line, nor of its quote. */
+function redact(message: ChatMessageView, removed: ReadonlySet<string>): ChatMessageView {
+  const own = removed.has(message.id) && !message.removed ? blank(message) : message;
+  if (own.replyTo && own.replyTo.body !== null && removed.has(own.replyTo.id)) return { ...own, replyTo: { ...own.replyTo, body: null } };
+  return own;
+}
+
+const removedOf = (cache: ChatCache | undefined): ReadonlySet<string> => new Set(cache?.removedIds ?? []);
+
+export function reconcile(current: ChatCache | undefined, page: ChatPageResponse): ChatCache {
+  const removed = removedOf(current);
+  const known = new Set(page.messages.map(({ id }) => id));
+  const newest = page.messages.at(-1)?.createdAt ?? '';
+  const tail = (current?.messages ?? []).filter(({ id, createdAt }) => !known.has(id) && createdAt >= newest);
+  return {
+    messages: [...page.messages, ...tail].map((message) => redact(message, removed)),
+    nextCursor: page.nextCursor,
+    ...(current?.removedIds ? { removedIds: current.removedIds } : {}),
+  };
+}
 
 /** A message from the socket or from the sender's answer; the same id twice is one line. */
 export function mergeChatMessage(queryClient: QueryClient, campaignId: string, message: ChatMessageView): void {
   queryClient.setQueryData<ChatCache>(chatKey(campaignId), (current) => {
     if (!current) return undefined;
-    const incoming = current.removedIds?.includes(message.id) ? blank(message) : message;
+    const incoming = redact(message, removedOf(current));
     if (current.messages.some(({ id }) => id === message.id)) {
       return { ...current, messages: current.messages.map((existing) => existing.id === message.id && !existing.removed ? incoming : existing) };
     }
@@ -32,20 +61,15 @@ export function mergeChatMessage(queryClient: QueryClient, campaignId: string, m
 
 /**
  * A removed message loses its text here too, and so does every quote of it:
- * nothing of what was removed stays on screen.
+ * nothing of what was removed stays on screen. The id is kept, so a late
+ * answer, page or quote never brings it back.
  */
 export function removeChatMessage(queryClient: QueryClient, campaignId: string, messageId: string): void {
   queryClient.setQueryData<ChatCache>(chatKey(campaignId), (current) => {
     if (!current) return undefined;
-    return {
-      ...current,
-      removedIds: current.removedIds?.includes(messageId) ? current.removedIds : [...(current.removedIds ?? []), messageId],
-      messages: current.messages.map((message) => {
-        if (message.id === messageId) return blank(message);
-        if (message.replyTo?.id === messageId) return { ...message, replyTo: { ...message.replyTo, body: null } };
-        return message;
-      }),
-    };
+    const removedIds = current.removedIds?.includes(messageId) ? current.removedIds : [...(current.removedIds ?? []), messageId];
+    const removed = new Set(removedIds);
+    return { ...current, removedIds, messages: current.messages.map((message) => redact(message, removed)) };
   });
 }
 
@@ -54,8 +78,8 @@ export function prependChatPage(queryClient: QueryClient, campaignId: string, pa
   queryClient.setQueryData<ChatCache>(chatKey(campaignId), (current) => {
     if (!current) return page;
     const known = new Set(current.messages.map(({ id }) => id));
-    const removed = new Set(current.removedIds ?? []);
-    const older = page.messages.filter(({ id }) => !known.has(id)).map((message) => removed.has(message.id) ? blank(message) : message);
+    const removed = removedOf(current);
+    const older = page.messages.filter(({ id }) => !known.has(id)).map((message) => redact(message, removed));
     return { ...current, messages: [...older, ...current.messages], nextCursor: page.nextCursor };
   });
 }

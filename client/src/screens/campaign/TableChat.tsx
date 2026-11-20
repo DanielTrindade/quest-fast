@@ -34,7 +34,7 @@ export function TableChat({ campaignId, viewerId, isMaster }: { campaignId: stri
   const notify = useNotify();
   const status = useCampaignSocketStatus();
   const session = useChatSession();
-  const chat = useQuery(chatQuery(campaignId));
+  const chat = useQuery(chatQuery(campaignId, queryClient));
   const members = useChatMembers(campaignId, viewerId);
   const [removingIds, setRemovingIds] = useState<ReadonlySet<string>>(() => new Set());
 
@@ -44,12 +44,14 @@ export function TableChat({ campaignId, viewerId, isMaster }: { campaignId: stri
   });
 
   const send = useMutation({
-    mutationFn: ({ body, replyToId }: { body: string; replyToId?: string; source: 'draft' | 'reaction' }) =>
+    mutationFn: ({ body, replyToId }: { body: string; replyToId?: string; draft: string; source: 'draft' | 'reaction' }) =>
       api.sendChat(campaignId, { body, ...(replyToId ? { replyToId } : {}) }),
-    onSuccess: ({ message }, { source }) => {
+    // The field stays editable while the message goes: only what was sent is
+    // cleared, never a draft or a reply chosen after it left.
+    onSuccess: ({ message }, { source, draft, replyToId }) => {
       mergeChatMessage(queryClient, campaignId, message);
-      if (source === 'draft') session.setDraft('');
-      session.setReplyTo(null);
+      if (source === 'draft') session.setDraft((current) => (current === draft ? '' : current));
+      session.setReplyTo((current) => (current?.id === replyToId ? null : current));
     },
   });
 
@@ -69,8 +71,10 @@ export function TableChat({ campaignId, viewerId, isMaster }: { campaignId: stri
   });
 
   const nextCursor = chat.data?.nextCursor ?? null;
-  // A reply to a line removed meanwhile quotes it as removed, never its old text.
-  const replyTo = session.replyTo && chat.data?.messages.find(({ id }) => id === session.replyTo!.id);
+  // The reply shows the line as the cache has it now. Out of the loaded page,
+  // its state is unknown: the author stays, the old text does not.
+  const replyTo = session.replyTo
+    && (chat.data?.messages.find(({ id }) => id === session.replyTo!.id) ?? { ...session.replyTo, body: null });
 
   return (
     <ChatPanel messages={chat.data?.messages ?? []} viewerId={viewerId} viewerMaster={isMaster} members={members}
@@ -87,12 +91,12 @@ export function TableChat({ campaignId, viewerId, isMaster }: { campaignId: stri
         if (send.isError) send.reset();
         session.setDraft(draft);
       }}
-      replyTo={replyTo ?? session.replyTo}
+      replyTo={replyTo || null}
       onReply={(message) => {
         session.setReplyTo(message);
         if (message) session.fieldRef.current?.focus();
       }}
-      onSend={(body, source) => send.mutate({ body, source, ...(session.replyTo ? { replyToId: session.replyTo.id } : {}) })}
+      onSend={(body, source) => send.mutate({ body, source, draft: session.draft, ...(session.replyTo ? { replyToId: session.replyTo.id } : {}) })}
       sending={send.isPending}
       sendError={send.isError ? sendFailure(send.error) : null}
       onRemove={(message) => remove.mutate(message)}

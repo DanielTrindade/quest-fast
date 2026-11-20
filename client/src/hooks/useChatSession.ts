@@ -1,4 +1,4 @@
-import { createContext, useContext, type RefObject } from 'react';
+import { createContext, useContext, type Dispatch, type RefObject, type SetStateAction } from 'react';
 import type { ChatMessageView } from '@quest-fast/shared';
 
 /**
@@ -10,9 +10,9 @@ import type { ChatMessageView } from '@quest-fast/shared';
  */
 export type ChatSession = {
   draft: string;
-  setDraft: (draft: string) => void;
+  setDraft: Dispatch<SetStateAction<string>>;
   replyTo: ChatMessageView | null;
-  setReplyTo: (message: ChatMessageView | null) => void;
+  setReplyTo: Dispatch<SetStateAction<ChatMessageView | null>>;
   /** `undefined` until the chat is read once; `null` when it was read empty. */
   lastReadId: string | null | undefined;
   setLastReadId: (id: string | null) => void;
