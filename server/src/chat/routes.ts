@@ -23,6 +23,10 @@ export function chatRoutes(rate: AttemptLimiterOptions = {}) {
 
   routes.post('/', requireCampaignRole(), async (c) => {
     const { db, assets, hub } = c.var.deps;
+    // The body is read first: from the budget check to its use there is no
+    // await, so concurrent requests are admitted one at a time and never all
+    // pass the same check before any of them counts.
+    const request = (await c.req.json().catch(() => null)) as { body?: unknown; replyToId?: unknown } | null;
     const key = `${c.var.campaignId}:${c.var.user.id}`;
     const wait = sent.retryAfter([key]);
     if (wait > 0) {
@@ -30,7 +34,6 @@ export function chatRoutes(rate: AttemptLimiterOptions = {}) {
       return c.json({ error: 'Calma: espere um instante antes da próxima mensagem.' }, 429);
     }
 
-    const request = (await c.req.json().catch(() => null)) as { body?: unknown; replyToId?: unknown } | null;
     const valid = validateChatBody(request?.body);
     if ('error' in valid) return c.json({ error: valid.error }, 422);
     const replyToId = request?.replyToId;

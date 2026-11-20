@@ -215,6 +215,15 @@ test('a message over the rate limit gets 429, and the next one after the window 
   assert.equal((await send(player, 'agora vai')).status, 201);
 });
 
+test('concurrent messages cannot get past the rate limit together', async () => {
+  const { app, player, campaign, send } = await setup({ now: () => 1_000_000 });
+  const statuses = (await Promise.all(Array.from({ length: 8 }, (_, i) => send(player, `rajada ${i}`)))).map(({ status }) => status);
+  assert.equal(statuses.filter((status) => status === 201).length, CHAT_LIMITS.rateLimit);
+  assert.equal(statuses.filter((status) => status === 429).length, 8 - CHAT_LIMITS.rateLimit);
+  const stored = app.db.select({ n: count() }).from(chatMessages).where(eq(chatMessages.campaignId, campaign.id)).get()!.n;
+  assert.equal(stored, CHAT_LIMITS.rateLimit);
+});
+
 function connect(port: number, campaignId: string, session: string) {
   return new WebSocket(`ws://127.0.0.1:${port}/api/campaigns/${campaignId}/ws`, { headers: { cookie: `${SESSION_COOKIE}=${session}` } });
 }
