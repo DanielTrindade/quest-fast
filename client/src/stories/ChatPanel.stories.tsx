@@ -161,10 +161,24 @@ export const Mencionar: Story = {
     const field = chat.getByRole('combobox', { name: 'Mensagem para a mesa' });
     await userEvent.type(field, 'valeu @b');
     const list = await chat.findByRole('listbox', { name: 'Membros da campanha' });
-    await expect(within(list).getByRole('option', { name: /Bruna/ })).toHaveAttribute('aria-selected', 'true');
+    await expect(within(list).getByRole('option', { name: /^Bruna Lyra/ })).toHaveAttribute('aria-selected', 'true');
     await userEvent.keyboard('{Enter}');
     await expect(field).toHaveValue('valeu @Bruna ');
+    // "Bruna Clara" still starts with it, yet the pick closed the list.
     await expect(chat.queryByRole('listbox')).toBeNull();
+    // Shift+Enter breaks the line even with the list open.
+    await userEvent.type(field, '@c');
+    await chat.findByRole('listbox');
+    await userEvent.keyboard('{Shift>}{Enter}{/Shift}');
+    await expect(field).toHaveValue('valeu @Bruna @c\n');
+    await userEvent.clear(field);
+    await userEvent.type(field, 'valeu @b');
+    await chat.findByRole('listbox');
+    await userEvent.keyboard('{Enter}');
+    // The next Enter sends exactly the mention picked.
+    await userEvent.keyboard('{Enter}');
+    await expect(field).toHaveValue('');
+    await expect(chat.getAllByText(/^@Bruna$/).length).toBeGreaterThan(0);
     await userEvent.type(field, '@');
     await chat.findByRole('listbox');
     await userEvent.keyboard('{Escape}');
@@ -207,8 +221,12 @@ export const NovasMensagens: Story = {
     const viewport = canvasElement.querySelector<HTMLElement>('[data-slot=chat-panel] .overflow-y-auto')!;
     // It opens on the latest lines; the reader goes back up.
     await waitFor(() => expect(viewport.scrollTop).toBeGreaterThan(0));
-    viewport.scrollTop = 0;
-    await waitFor(() => expect(viewport.parentElement).toHaveAttribute('data-at-end', 'false'));
+    // Kept at the top until the observer agrees the reader left the end: its
+    // callbacks may still be catching up with the first scroll to the end.
+    await waitFor(() => {
+      viewport.scrollTop = 0;
+      expect(viewport.parentElement).toHaveAttribute('data-at-end', 'false');
+    }, { timeout: 3000 });
     await userEvent.click(chat.getByRole('button', { name: 'Chegar mensagem de outra pessoa' }));
     await expect(await chat.findByRole('button', { name: /1 nova mensagem/ })).toBeInTheDocument();
     // The own message always goes to the end.
@@ -216,5 +234,21 @@ export const NovasMensagens: Story = {
     await userEvent.keyboard('{Enter}');
     await waitFor(() => expect(viewport.scrollTop + viewport.clientHeight).toBeGreaterThanOrEqual(viewport.scrollHeight - 2));
     unbox(canvasElement);
+  },
+};
+
+/** A line announced to screen readers and then removed leaves the announcement too. */
+export const AnuncioRemovido: Story = {
+  name: 'Anúncio some com a remoção',
+  args: { viewerMaster: true, initial: conversation.slice(0, 3) },
+  play: async ({ canvasElement }) => {
+    const chat = firstTheme(canvasElement);
+    const announcer = canvasElement.querySelector('[data-slot=chat-announcer]')!;
+    await userEvent.click(chat.getByRole('button', { name: 'Chegar mensagem de outra pessoa' }));
+    await waitFor(() => expect(announcer).toHaveTextContent('Bruna: chegou mensagem nova'));
+    const removes = chat.getAllByRole('button', { name: 'Remover a mensagem de Bruna' });
+    await userEvent.click(removes.at(-1)!);
+    await waitFor(() => expect(announcer).toHaveTextContent(''));
+    await expect(canvasElement.textContent).not.toContain('chegou mensagem nova');
   },
 };
