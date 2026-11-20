@@ -31,12 +31,16 @@ function useMentions({ draft, members, onDraftChange, field }: {
     onDraftChange(next.text);
     setCaret(next.caret);
     setActive(0);
+    // The pick ends this query, even when a longer name still starts with it
+    // ("Bruna" and "Bruna Clara"); typing again reopens it.
+    setDismissed(query.start);
     requestAnimationFrame(() => field.current?.setSelectionRange(next.caret, next.caret));
   };
 
   /** True when the key belonged to the open list. */
   const onKey = (event: KeyboardEvent<HTMLTextAreaElement>): boolean => {
-    if (candidates.length === 0) return false;
+    // Shift+Enter keeps breaking the line, list open or not.
+    if (candidates.length === 0 || (event.key === 'Enter' && event.shiftKey)) return false;
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       setActive((current + (event.key === 'ArrowDown' ? 1 : -1) + candidates.length) % candidates.length);
     } else if (event.key === 'Enter' || event.key === 'Tab') pick(candidates[current]!);

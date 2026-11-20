@@ -157,3 +157,22 @@ export const PainelEstreito: Story = {
     await waitFor(() => expect(panel.getByRole('tab', { name: 'Dados' }).querySelector('.sr-only')).not.toBeNull());
   },
 };
+
+/** A focused tab keeps its focus when the panel narrows past the icons-only width and back. */
+export const FocoAoEstreitar: Story = {
+  name: 'Foco ao estreitar o painel',
+  decorators: [(Story) => <div data-slot="resizable" style={{ maxWidth: 360 }}><Story /></div>],
+  play: async ({ canvasElement }) => {
+    const panel = firstTheme(canvasElement);
+    const box = canvasElement.querySelector<HTMLElement>('[data-slot=resizable]')!;
+    const tab = panel.getByRole('tab', { name: 'Dados' });
+    tab.focus();
+    box.style.maxWidth = '300px';
+    await waitFor(() => expect(tab.querySelector('.sr-only')).not.toBeNull());
+    await expect(panel.getByRole('tab', { name: 'Dados' })).toHaveFocus();
+    box.style.maxWidth = '360px';
+    await waitFor(() => expect(panel.getByRole('tab', { name: 'Dados' }).querySelector('.sr-only')).toBeNull());
+    await expect(panel.getByRole('tab', { name: 'Dados' })).toHaveFocus();
+  },
+};
+

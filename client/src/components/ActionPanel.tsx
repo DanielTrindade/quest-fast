@@ -115,14 +115,16 @@ export function ActionPanel({ header, actions, dice, feed, chat, tab, onTabChang
           <TabsList aria-label="Seções do painel" className="w-full">
             {tabs.map(({ id, label, icon: Icon }) => {
               const trigger = (
-                <TabsTrigger key={id} value={id} className={cn(iconsOnly && 'gap-1 px-2')}>
+                <TabsTrigger value={id} className={cn(iconsOnly && 'gap-1 px-2')}>
                   <Icon size={16} aria-hidden="true" />
                   <span className={cn(iconsOnly && 'sr-only')}>{label}</span>
                   {id === 'actions' && actionsSignal && <Signal signal={actionsSignal} />}
                   {id === 'chat' && chatUnread && chatUnread.count > 0 && <Unread unread={chatUnread} />}
                 </TabsTrigger>
               );
-              return iconsOnly ? <Tooltip key={id} label={label} side="bottom">{trigger}</Tooltip> : trigger;
+              // Always wrapped, only switched off: swapping the wrapper would remount
+            // the tab and drop its focus when the panel crosses the width.
+            return <Tooltip key={id} label={label} side="bottom" disabled={!iconsOnly}>{trigger}</Tooltip>;
             })}
           </TabsList>
         </TooltipProvider>

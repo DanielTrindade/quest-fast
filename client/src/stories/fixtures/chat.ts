@@ -13,7 +13,9 @@ export const AUTHORS = {
 
 export const CHAT_MEMBERS: ChatMember[] = Object.values(AUTHORS)
   .filter(({ userId }) => userId !== VIEWER_ID)
-  .map(({ userId, name, character }) => ({ userId, name, characterName: character?.name ?? null }));
+  .map(({ userId, name, character }) => ({ userId, name, characterName: character?.name ?? null }))
+  // A name that starts another's: picking the shorter one must close the list.
+  .concat({ userId: 'u-bruna-clara', name: 'Bruna Clara', characterName: null });
 
 const ALL_MEMBERS = Object.values(AUTHORS).map(({ userId, name }) => ({ userId, name }));
 
