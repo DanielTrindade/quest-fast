@@ -143,6 +143,8 @@ export function useTokenLayer(options: TokenLayerOptions & LayerWiring): { cance
   const ownMoves = useRef(new Map<string, number>());
   // The label's node, held here: the layer writes to it every frame, outside React.
   const labelNode = useRef<HTMLElement | null>(null);
+  /** The label's text as last written, the frame width it was laid out in, and its size. */
+  const labelBox = useRef({ text: '', frame: 0, width: 0, height: 0 });
   const images = useRef(new Map<string, HTMLImageElement>());
   const loading = useRef(new Set<string>());
   const { tokens, selectedId, viewerId, grid, map, motion, requestDraw, overlayRef, pendingMove } = options;
@@ -151,6 +153,22 @@ export function useTokenLayer(options: TokenLayerOptions & LayerWiring): { cance
     latest.current = options;
     labelNode.current = options.labelRef?.current ?? null;
   });
+
+  // The label is measured when its text changes, but it can grow after that:
+  // the interface font may arrive later and widen it. Placed with the old
+  // size, it would poke out of the map's edge, so its size follows it.
+  const { labelRef } = options;
+  useEffect(() => {
+    const element = labelRef?.current;
+    if (!element) return;
+    const observer = new ResizeObserver(() => {
+      labelBox.current.width = element.offsetWidth;
+      labelBox.current.height = element.offsetHeight;
+      requestDraw();
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [labelRef, requestDraw]);
 
   // Avatars load once each; a token draws its initials until its image is in.
   useEffect(() => {
@@ -277,9 +295,9 @@ export function useTokenLayer(options: TokenLayerOptions & LayerWiring): { cance
     };
 
     /** The label beside the dragged token: written only when it changes, placed every frame. */
-    const label = { text: '', frame: 0, width: 0, height: 0 };
     const placeLabel = (view: MapView, token: DrawnToken | undefined, dragging: Drag | null) => {
       const element = labelNode.current;
+      const label = labelBox.current;
       if (!element) return;
       if (!dragging || !token?.reach || !token.ghost) {
         if (!element.hidden) element.hidden = true;
