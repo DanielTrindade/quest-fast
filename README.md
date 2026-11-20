@@ -232,8 +232,9 @@ bucket **privado** do R2.
 | `compose.yaml`, `Caddyfile` | app e proxy; `SITE_ADDRESS` vem do `.env` ao lado |
 | `setup-vm.sh` | Docker, atualizações automáticas, pasta de dados e timer do backup |
 | `ship.sh` | builda a imagem na sua máquina (ou no CI) e a sobe na VM pelo `gcloud` |
-| `install.sh` | roda na VM: backup, `docker compose up` e espera o `/api/health` |
+| `install.sh` | roda na VM: swap, backup, `docker compose up` e espera o `/api/health` |
 | `backup.sh` | cópia consistente do SQLite (API de backup) e dos uploads para o R2 |
+| `monitoring.sh` | verificação do `/api/health` e alertas do Cloud Monitoring |
 | `app.env.example`, `backup.env.example` | segredos; na VM, `chmod 600`, um arquivo para cada |
 
 O token do backup fica fora do `app.env`, então o app nunca o enxerga.
@@ -245,7 +246,9 @@ domínio próprio no bucket (veja a seção seguinte).
 
 No GCP, a `e2-micro` entra no nível gratuito nas regiões `us-central1`,
 `us-east1` e `us-west1`, com disco `pd-standard` de até 30 GB. Ela não tem
-memória para o build, por isso o `ship.sh` builda localmente. Para a VM não
+memória para o build, por isso o `ship.sh` builda localmente. Mesmo sem o
+build, o 1 GB fica no limite: o `install.sh` cria 1 GB de swap e o app tem
+teto de 384 MB, senão a VM esgota a memória e trava, SSH inclusive. Para a VM não
 expor SSH à internet, libere a porta 22 só para o IAP (`35.235.240.0/20`) e
 use `--tunnel-through-iap`; para a web, só 80 e 443.
 
@@ -274,6 +277,20 @@ repetir o último deploy, rode o workflow CI na `master` pela aba Actions.
 Num fork, crie os mesmos recursos e preencha as variáveis do environment
 `producao`: `GCP_WORKLOAD_IDENTITY_PROVIDER`, `GCP_DEPLOY_SERVICE_ACCOUNT`,
 `GCP_PROJECT_ID`, `GCP_ZONE` e `PRODUCTION_URL`.
+
+Se o deploy falhar, o job abre uma issue "Deploy em produção falhou" (ou
+comenta na que já estiver aberta), e quem acompanha o repositório é avisado.
+
+#### Alertas
+
+`sh deploy/monitoring.sh <email>` cria no Cloud Monitoring uma verificação do
+`/api/health` a cada 5 minutos, de três regiões, e três alertas: site fora do
+ar, RAM acima de 92% por 30 minutos e leitura de disco acima de 40/s por 15
+minutos (a VM sem memória fica relendo o disco). `HOST` e `VM` trocam o
+endereço e a VM. O script pode ser repetido.
+
+Para receber os alertas também no celular, instale o app do Google Cloud, entre
+com a conta do projeto e rode o script de novo: ele inclui o canal do app.
 
 O bucket de backup não tem acesso público (nem domínio, nem `r2.dev`). Em
 **Settings → Object lifecycle rules**, crie uma regra que apaga objetos com

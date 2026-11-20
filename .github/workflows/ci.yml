@@ -51,6 +51,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
+      issues: write
     env:
       GCLOUD_CONFIG: ''
       CLOUDSDK_CORE_PROJECT: ${{ vars.GCP_PROJECT_ID }}
@@ -71,3 +72,19 @@ jobs:
         env:
           PRODUCTION_URL: ${{ vars.PRODUCTION_URL }}
         run: curl --fail --silent --show-error --retry 10 --retry-all-errors --retry-delay 3 "$PRODUCTION_URL/api/health"
+      # Sem isto a falha fica só na aba Actions: em 19/11/2026 dois deploys
+      # falharam e o site ficou horas fora sem ninguém saber.
+      - name: Avisa que o deploy falhou
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="Deploy em produção falhou"
+          body="O deploy de ${GITHUB_SHA::7} falhou: $RUN_URL"
+          open=$(gh issue list --state open --search "\"$title\" in:title" --json number --jq '.[0].number')
+          if [ -n "$open" ]; then
+            gh issue comment "$open" --body "$body"
+          else
+            gh issue create --title "$title" --body "$body"
+          fi

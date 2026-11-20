@@ -4,6 +4,8 @@ services:
   app:
     image: quest-fast:latest
     restart: unless-stopped
+    # Um vazamento derruba só o app, que o restart sobe de novo, e não a VM.
+    mem_limit: 384m
     env_file: app.env
     environment:
       NODE_ENV: production
