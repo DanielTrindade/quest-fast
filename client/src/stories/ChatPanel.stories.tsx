@@ -225,6 +225,10 @@ export const NovasMensagens: Story = {
     await waitFor(() => expect(viewport.parentElement).toHaveAttribute('data-at-end', 'false'));
     await userEvent.click(chat.getByRole('button', { name: 'Chegar mensagem de outra pessoa' }));
     await expect(await chat.findByRole('button', { name: /1 nova mensagem/ })).toBeInTheDocument();
+    // Reading on through the history keeps the count until the end is reached.
+    viewport.scrollTop = 10;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    await expect(chat.getByRole('button', { name: /1 nova mensagem/ })).toBeInTheDocument();
     // The own message always goes to the end.
     await userEvent.type(chat.getByRole('combobox', { name: 'Mensagem para a mesa' }), 'voltei');
     await userEvent.keyboard('{Enter}');

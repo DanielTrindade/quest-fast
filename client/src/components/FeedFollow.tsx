@@ -74,8 +74,14 @@ export function FeedFollow({ children, ids, hasMore, onLoadMore, loadingMore = f
     if (fill) {
       // The chat scrolls inside its own box: where the reader is comes from
       // that box's scroll, at once, instead of an observer's later callback.
+      // Like the observer, it acts only when the reader reaches or leaves the
+      // end: scrolling within the history keeps the unread count.
+      let wasAtEnd = true;
       const onScroll = () => {
-        setAtEnd(viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight <= END_SLACK);
+        const near = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight <= END_SLACK;
+        if (near === wasAtEnd) return;
+        wasAtEnd = near;
+        setAtEnd(near);
         setSeenId(newestRef.current);
       };
       viewport.addEventListener('scroll', onScroll, { passive: true });
