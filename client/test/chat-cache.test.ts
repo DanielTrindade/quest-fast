@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { QueryClient } from '@tanstack/react-query';
 import type { ChatMessageView } from '@quest-fast/shared';
-import { chatKey, mergeChatMessage, prependChatPage, reconcile, removeChatMessage, unreadSince, type ChatCache } from '../src/lib/chat-cache.ts';
+import { api } from '../src/lib/api.ts';
+import { chatKey, chatQuery, mergeChatMessage, prependChatPage, reconcile, removeChatMessage, unreadSince, type ChatCache } from '../src/lib/chat-cache.ts';
 
 const CAMPAIGN = 'c1';
 
@@ -121,5 +122,25 @@ test('lines that arrived while the first page was out stay at its end', () => {
   const next = reconcile({ messages: [message('m1'), later], nextCursor: null }, { messages: [message('m1'), message('m2')], nextCursor: 'm1' });
   assert.deepEqual(next.messages.map(({ id }) => id), ['m1', 'm2', 'm9']);
   assert.equal(next.nextCursor, 'm1');
+});
+
+test('the first page reconciles with the cache as it is when the answer lands', async () => {
+  const queryClient = seeded([message('m1')]);
+  let release!: (page: ChatCache) => void;
+  const original = api.chat;
+  api.chat = () => new Promise((resolve) => { release = resolve; });
+  try {
+    const fetching = queryClient.fetchQuery(chatQuery(CAMPAIGN, queryClient));
+    // While the GET is out, the socket removes m1 and brings m2.
+    removeChatMessage(queryClient, CAMPAIGN, 'm1');
+    mergeChatMessage(queryClient, CAMPAIGN, message('m2', 'u-bruna', { createdAt: '2026-11-20T22:01:00.000Z' }));
+    release({ messages: [message('m1')], nextCursor: null });
+    const next = await fetching;
+    assert.equal(next.messages[0]!.body, null);
+    assert.deepEqual(next.messages.map(({ id }) => id), ['m1', 'm2']);
+    assert.deepEqual(next.removedIds, ['m1']);
+  } finally {
+    api.chat = original;
+  }
 });
 

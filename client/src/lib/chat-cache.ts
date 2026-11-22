@@ -20,7 +20,11 @@ export const chatKey = (campaignId: string) => ['chat', campaignId] as const;
 export function chatQuery(campaignId: string, queryClient: QueryClient) {
   return {
     queryKey: chatKey(campaignId),
-    queryFn: async (): Promise<ChatCache> => reconcile(queryClient.getQueryData<ChatCache>(chatKey(campaignId)), await api.chat(campaignId)),
+    queryFn: async (): Promise<ChatCache> => {
+      const page = await api.chat(campaignId);
+      // Read after the answer, not before: what came by the socket meanwhile counts.
+      return reconcile(queryClient.getQueryData<ChatCache>(chatKey(campaignId)), page);
+    },
   };
 }
 
