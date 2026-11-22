@@ -232,8 +232,12 @@ export function SceneStage({ campaignId, scene, isMaster, mapClassName, allowFul
   const [panel, setPanel] = useState<Panel>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const selectedId = scene.tokens.some((token) => token.id === selected) ? selected : null;
-  const [preview, setPreview] = useState<{ sceneId: string; grid: Grid } | null>(null);
-  const shownGrid = preview?.sceneId === scene.id ? preview.grid : scene.grid;
+  // A draft belongs to the scene and to the place the grid panel was in: going
+  // full screen and back remounts the panel on the saved grid, and the map
+  // follows it instead of keeping a draft the form no longer shows.
+  const [preview, setPreview] = useState<{ key: string; grid: Grid } | null>(null);
+  const previewKey = `${scene.id}:${staged}`;
+  const shownGrid = preview?.key === previewKey ? preview.grid : scene.grid;
   const fog = useFogControls(campaignId, scene, isMaster);
   const toggle = (next: OpenPanel) => {
     if (panel === 'grid') setPreview(null);
@@ -255,7 +259,7 @@ export function SceneStage({ campaignId, scene, isMaster, mapClassName, allowFul
   const column = (
     <>
       <MasterPanel panel={panel} panelIds={panelIds} campaignId={campaignId} scene={scene} mapRef={mapRef} fog={fog}
-        onPreview={(grid) => setPreview(grid ? { sceneId: scene.id, grid } : null)} />
+        onPreview={(grid) => setPreview(grid ? { key: previewKey, grid } : null)} />
       <TokenVitalsPanel key={selectedId} campaignId={campaignId} tokens={scene.tokens} selectedId={selectedId} isMaster={isMaster} viewerId={viewerId} />
       {fight && <FightTurn campaignId={campaignId} fight={fight} focus={focus} viewerId={viewerId} isMaster={isMaster} />}
       <TokenList tokens={scene.tokens} viewerId={viewerId} master={isMaster} fog={scene.fog} selectedId={selectedId} onSelect={setSelected}

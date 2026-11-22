@@ -39,7 +39,9 @@ function useChatToasts(campaignId: string, viewerId: string, active: boolean): {
       setLatestId(fresh.id);
     }
   }
+  // Unfolded, nothing is pending: folding again must not announce an old line.
   if (!active && shown.length > 0) setShown([]);
+  if (!active && latestId !== null) setLatestId(null);
   useExpiry(shown, setShown);
   return present(messages ?? [], shown, active ? latestId : null);
 }
