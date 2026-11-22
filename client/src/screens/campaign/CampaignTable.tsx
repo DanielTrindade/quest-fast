@@ -15,6 +15,10 @@ import { TableMap } from './TableMap';
  * narrow screen the panel comes right after the map, before the feed: the
  * history can be long, and the actions must not wait at the end of it. The
  * order in the markup is that one, so focus follows it too.
+ *
+ * On a wide screen, with the chat open, the panel takes the whole height and
+ * stops scrolling: the chat fills what is left and scrolls inside, the field
+ * pinned at the bottom. On a phone the chat keeps its own height.
  */
 export function CampaignTable({ campaignId }: { campaignId: string }) {
   const { campaign, isMaster, currentUserId } = useCampaignScreen(campaignId);
@@ -29,7 +33,7 @@ export function CampaignTable({ campaignId }: { campaignId: string }) {
         </div>
 
         <TableActionPanel campaignId={campaignId} isMaster={isMaster} currentUserId={currentUserId} withFeed={!feedInMiddle}
-          className="@min-[860px]:sticky @min-[860px]:top-4 @min-[860px]:col-start-2 @min-[860px]:row-span-3 @min-[860px]:row-start-1 @min-[860px]:max-h-[calc(100dvh-2rem)] @min-[860px]:overflow-y-auto @min-[860px]:overscroll-contain @min-[860px]:[&>[data-slot=panel-fade]]:block" />
+          className="@min-[860px]:sticky @min-[860px]:top-4 @min-[860px]:col-start-2 @min-[860px]:row-span-3 @min-[860px]:row-start-1 @min-[860px]:max-h-[calc(100dvh-2rem)] @min-[860px]:overflow-y-auto @min-[860px]:overscroll-contain @min-[860px]:[&>[data-slot=panel-fade]]:block @min-[860px]:data-[tab=chat]:h-[calc(100dvh-2rem)] @min-[860px]:data-[tab=chat]:overflow-hidden @min-[860px]:data-[tab=chat]:[&>[data-slot=panel-fade]]:hidden @min-[860px]:[&[data-tab=chat]_[data-slot=chat-tab]]:h-auto @min-[860px]:[&[data-tab=chat]_[data-slot=chat-tab]]:max-h-none @min-[860px]:[&[data-tab=chat]_[data-slot=chat-tab]]:min-h-0 @min-[860px]:[&[data-tab=chat]_[data-slot=chat-tab]]:flex-1" />
 
         {feedInMiddle && (
           <div className="min-w-0 @min-[860px]:col-start-1 @min-[860px]:row-start-2">

@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Outlet, useLocation, useNavigate } from '@tanstack/react-router';
 import { AppShell, type NavItem } from '../components/AppShell';
 import { CampaignSocketChannel, CampaignSocketStatus, useCampaignSocket } from '../hooks/useCampaignSocket';
+import { ChatSessionProvider } from '../hooks/ChatSessionProvider';
 import { useStoredFlag } from '../hooks/useStoredFlag';
 import { api } from '../lib/api';
 import { encountersQuery } from '../lib/combat-cache';
@@ -25,8 +26,8 @@ const ACCOUNT_LINKS: NavItem[] = [
 ];
 
 /**
- * The campaign layout: the shell, the one socket of the campaign room and the
- * screen of the current route. The socket lives here so the round badge and
+ * The campaign layout: the shell, the one socket of the campaign room, the
+ * chat's session and the screen of the current route. The socket lives here so the round badge and
  * every cached fight stay live whichever screen is open.
  */
 export function CampaignWorkspace({ campaignId, user }: {
@@ -62,7 +63,10 @@ export function CampaignWorkspace({ campaignId, user }: {
     collapsed={collapsed} onCollapsedChange={setCollapsed}>
     <CampaignSocketStatus value={socketStatus}>
       <CampaignSocketChannel value={channel}>
-        <Outlet />
+        {/* The chat's draft, reply and unread outlive any one screen of the campaign. */}
+        <ChatSessionProvider key={campaignId}>
+          <Outlet />
+        </ChatSessionProvider>
       </CampaignSocketChannel>
     </CampaignSocketStatus>
   </AppShell>;

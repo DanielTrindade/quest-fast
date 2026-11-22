@@ -19,6 +19,8 @@ import { DiceRoller } from './DiceRoller';
 import { fightActions, useEncounterActions } from './encounter-actions';
 import { EncounterTurnBar } from './EncounterPanel';
 import { SessionFeed } from './SessionFeed';
+import { TableChat } from './TableChat';
+import { useChatUnread } from './useChatUnread';
 
 /** What the panel may do in the fight in progress, with the queue's own requests. */
 function useFight(campaignId: string) {
@@ -193,7 +195,7 @@ function PlayerPanel({ campaignId, currentUserId, fight, player, ownCombatant }:
 
 /**
  * The table's side panel, wired: the turn on top, then the role's actions,
- * the free dice and, while a map takes the middle, the feed. Every request
+ * the free dice, while a map takes the middle the feed, and the table chat. Every request
  * goes through the same mutations as the queue, and the encounter is the one
  * in the query cache: nothing about the fight is held twice.
  */
@@ -209,6 +211,7 @@ export function TableActionPanel({ campaignId, isMaster, currentUserId, withFeed
   const fight = useFight(campaignId);
   const player = useOwnCharacter(campaignId, currentUserId, !isMaster);
   const ownCombatant = ownCombatantOf(fight.encounter, player.own);
+  const chatUnread = useChatUnread(campaignId, currentUserId, tab === 'chat');
 
   return (
     <ActionPanel className={className} tab={tab} onTabChange={setTab}
@@ -218,6 +221,8 @@ export function TableActionPanel({ campaignId, isMaster, currentUserId, withFeed
         ? <MasterPanel campaignId={campaignId} fight={fight} />
         : <PlayerPanel campaignId={campaignId} currentUserId={currentUserId} fight={fight} player={player} ownCombatant={ownCombatant} />}
       dice={<DiceRoller campaignId={campaignId} isMaster={isMaster} framed={false} />}
-      feed={withFeed ? <SessionFeed campaignId={campaignId} currentUserId={currentUserId} framed={false} /> : undefined} />
+      feed={withFeed ? <SessionFeed campaignId={campaignId} currentUserId={currentUserId} framed={false} /> : undefined}
+      chat={<TableChat campaignId={campaignId} viewerId={currentUserId} isMaster={isMaster} />}
+      chatUnread={chatUnread} />
   );
 }

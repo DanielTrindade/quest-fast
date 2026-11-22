@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState } from 
 import { useQueryClient } from '@tanstack/react-query';
 import type { ClientSocketMessage } from '@quest-fast/shared';
 import { campaignSocketUrl, openCampaignSocket, type CampaignSocket, type SocketStatus } from '../lib/campaign-socket';
+import { chatKey, mergeChatMessage, removeChatMessage } from '../lib/chat-cache';
 import { mergeEncounter, removeEncounter } from '../lib/combat-cache';
 import { mergeFeedEvent } from '../lib/feed-cache';
 import { closeScene, mergeScene, scenesKey } from '../lib/scene-cache';
@@ -40,7 +41,8 @@ export function useCampaignChannel(): CampaignChannel {
 
 /**
  * Connects to the campaign room and merges pushed events into the feed cache,
- * encounter updates into the combat cache and scene updates into the scenes.
+ * encounter updates into the combat cache, scene updates into the scenes and
+ * chat lines into the chat.
  * Only while `enabled`: the layout passes whether the campaign answered, so a
  * campaign that is missing or not the viewer's never opens a socket that would
  * retry forever behind the error.
@@ -67,6 +69,8 @@ export function useCampaignSocket(campaignId: string, enabled: boolean): { statu
       onStatus: setStatus,
       onReconnected: () => {
         queryClient.invalidateQueries({ queryKey: ['feed', campaignId] });
+        // Chat lines and removals missed while offline are not replayed either.
+        queryClient.invalidateQueries({ queryKey: chatKey(campaignId) });
         // Combat updates missed while offline are not replayed either.
         queryClient.invalidateQueries({ queryKey: ['encounters', campaignId] });
         queryClient.invalidateQueries({ queryKey: ['encounter', campaignId] });
@@ -89,6 +93,8 @@ export function useCampaignSocket(campaignId: string, enabled: boolean): { statu
           mergeScene(queryClient, campaignId, message.scene);
         } else if (message.type === 'scene.closed') closeScene(queryClient, campaignId, message.sceneId);
         else if (message.type === 'token.moving') motion.push(message, performance.now());
+        else if (message.type === 'chat.message') mergeChatMessage(queryClient, campaignId, message.message);
+        else if (message.type === 'chat.removed') removeChatMessage(queryClient, campaignId, message.messageId);
         else if (message.type === 'characters.changed') {
           // Only a hint: the roster, the open sheets and the gallery ask again.
           void queryClient.invalidateQueries({ queryKey: ['characters', campaignId] });
