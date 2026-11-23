@@ -266,9 +266,13 @@ com as decisões do spike. Cinco entregas, cada uma usável na mesa:
    Diferenças da spec: na troca de mapa, o fog acompanha os tokens (cada eixo
    pela própria razão), não o grid, que segue só a largura; e uma forma que
    não fecha em coordenadas inteiras é recusada em vez de gravada.
-5. **Acabamento.** Token ligado ao combate (o token livre do bestiário já
-   entra no combate pela #111), reconexão com o estado completo da cena, seed
-   com cena, `verify:app` e o Owlbear fora do README.
+5. **Acabamento — em andamento.** Spec em
+   [`history/2026-11-23-vtt-finishing.md`](history/2026-11-23-vtt-finishing.md),
+   em três PRs independentes. Token ligado ao combate (o token livre do
+   bestiário já entra no combate pela #111): o token da vez ganha anel e
+   entalhe, e cada combatente um arco com a saúde que resta, tirados do
+   encontro que o cliente já recebe. Falta a reconexão com o estado completo
+   da cena, o seed com cena, `verify:app` e `verify:group` no mapa e o README.
 
 ### Fase 3 — mundo
 

@@ -1,5 +1,6 @@
 import { SIZES, initials, type TokenView } from '@quest-fast/shared';
 import type { PickerCharacter, PickerEncounter, PickerStatblock } from '../../components/TokenPicker';
+import type { FightMarks, TokenHealth } from '../../lib/token-combat';
 import { PRINTED_CELL, PRINTED_OFFSET, SYNTHETIC_MAP } from './maps';
 
 export const MASTER_ID = 'u-lia';
@@ -184,4 +185,22 @@ export function worstTokens(names: { guardian: string; thalindra: string; mover:
     make('w-free', { name: 'Carroça tombada e barris de pólvora seca', kind: 'free', size: 'large', ...junction(14, 8) }),
     make('w-ar', { name: 'محمد العلي', kind: 'free', ...cell(15, 3) }),
   ];
+}
+
+/**
+ * The fight's marks on Kaelen's turn: Kaelen whole, Mira hurt, Goblin 1
+ * nearly down, Goblin 2 untouched, the ogre bloodied. The barrel is not in
+ * the fight; the bandit only on the master's map.
+ */
+export function fightMarksFor(tokens: readonly TokenView[], turn = 'kaelen'): FightMarks {
+  const health: Record<string, TokenHealth> = {
+    kaelen: { band: 'unhurt', fraction: 1 },
+    mira: { band: 'wounded', fraction: 0.7 },
+    'goblin-1': { band: 'bloodied', fraction: 0.15 },
+    'goblin-2': { band: 'unhurt', fraction: 1 },
+    ogre: { band: 'bloodied', fraction: 0.45 },
+    bandit: { band: 'unhurt', fraction: 1 },
+  };
+  return new Map(tokens.filter((candidate) => candidate.id in health)
+    .map((candidate) => [candidate.id, { turn: candidate.id === turn, health: candidate.vitality === 'up' ? health[candidate.id] : null }]));
 }

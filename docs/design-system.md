@@ -375,3 +375,12 @@ A parte 5 da #138 leva o painel da Mesa para a tela cheia do mapa (opção C da 
 - **Estado que atravessa a troca de modo.** O painel da tela cheia é outra instância, montada dentro do palco. Rascunho, resposta e não lidas vêm do estado do chat da campanha, então entrar e sair da tela cheia não perde nada. O painel da página, embaixo, não marca nada como lido enquanto a tela cheia está aberta.
 - **Movimento.** Recolher, expandir e trocar de aba não animam: é navegação frequente.
 
+## Vez e saúde no mapa (23 de novembro de 2026)
+
+A entrega 5 do VTT liga o token ao combate em andamento (stories em `Componentes/MapCanvas`, "Vez e saúde no combate" e "Vez do ogro, com caídos", e em `Componentes/TokenList`, "Em combate"). Nenhum token novo.
+
+- **Vez atual.** O token do combatente da vez ganha um anel sólido em `accent-text`, por fora do anel de seleção, e um entalhe acima da peça apontando para ela, os dois com contorno em `surface-secret` para ler sobre qualquer mapa. O entalhe acha a peça mesmo com tokens amontoados. Nada pulsa: um anel animado faria o canvas redesenhar a cada quadro durante o combate inteiro.
+- **Saúde.** Um arco fino em volta da peça, começando no alto e seguindo no sentido horário, com o trilho em `surface-secret`. A cor segue a faixa de saúde, como no `HealthBand`: `success` (ileso), `text-secondary` (ferido) e `danger` (muito ferido). O arco mostra o PV quando quem vê o tem e, sem PV, a faixa (cheio, 2/3, 1/3). A 0 PV não há arco: a peça já mostra caído ou derrotado. Com o arco, o anel de seleção passa para fora dele e vira um círculo, porque os dentes da criatura cruzariam o arco; o anel da vez fica sempre por fora da seleção. Vale para monstros e personagens do encontro em andamento; um token fora do combate não muda.
+- **Token escondido.** Os marcadores esmaecem junto com a peça.
+- **Em palavras.** A lista de tokens diz "Vez atual" (como a fila de iniciativa) e a faixa ("Ileso", "Ferido", "Muito ferido"); o resumo acessível do mapa termina em "Vez de Kaelen.".
+- **De onde vem.** Do encontro em andamento que o cliente já tem, projetado por papel no servidor (`lib/token-combat.ts`, com teste em `client/test/token-combat.test.ts`). O jogador não aprende nada que a fila de iniciativa não mostre: quando o servidor esconde de quem é a vez, nenhum token ganha o anel.

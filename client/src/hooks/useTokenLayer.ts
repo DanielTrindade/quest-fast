@@ -7,6 +7,7 @@ import { drawReach, drawRoute, type RoutePoint } from '../lib/reach-draw';
 import { LAND, REFUSE, SINK, createSpring, easeAcross, easeSettle, stepSpring, type Spring, type SpringConfig } from '../lib/spring';
 import { drawTokens, type DrawnToken, type Dust } from '../lib/token-draw';
 import { DRAG_THRESHOLD, restingPoint, screenRadius, toMapPoint, toScreenPoint, tokenAt } from '../lib/token-geometry';
+import type { FightMarks } from '../lib/token-combat';
 import type { TokenMotionSource } from '../lib/token-motion';
 
 type Point = { x: number; y: number };
@@ -66,6 +67,8 @@ export type TokenLayerOptions = {
    * where dropped: free, or for the master to move it anyway.
    */
   stopAtLimit?: (token: TokenView) => boolean;
+  /** The running fight's turn and health, by token id: drawn around the pieces. */
+  marks?: FightMarks;
 };
 
 type LayerWiring = {
@@ -147,7 +150,7 @@ export function useTokenLayer(options: TokenLayerOptions & LayerWiring): { cance
   const labelBox = useRef({ text: '', frame: 0, width: 0, height: 0 });
   const images = useRef(new Map<string, HTMLImageElement>());
   const loading = useRef(new Set<string>());
-  const { tokens, selectedId, viewerId, grid, map, motion, requestDraw, overlayRef, pendingMove } = options;
+  const { tokens, selectedId, viewerId, grid, map, motion, requestDraw, overlayRef, pendingMove, marks } = options;
 
   useEffect(() => {
     latest.current = options;
@@ -213,7 +216,7 @@ export function useTokenLayer(options: TokenLayerOptions & LayerWiring): { cance
   // What the canvas must show at once: drawn on the next frame.
   useEffect(() => {
     requestDraw();
-  }, [tokens, selectedId, viewerId, grid, map.width, map.height, pendingMove, requestDraw]);
+  }, [tokens, selectedId, viewerId, grid, map.width, map.height, pendingMove, marks, requestDraw]);
 
   // One layer for the component's life; it reads the props through `latest`.
   const overlay = useMemo<MapOverlay & { sendBack: (tokenId: string) => void }>(() => {
@@ -381,6 +384,7 @@ export function useTokenLayer(options: TokenLayerOptions & LayerWiring): { cance
           images: images.current,
           themed,
           dust: dust.current,
+          marks: current.marks,
         });
         return animating || (current.motion?.animating(now) ?? false) || drops.current.size > 0;
       },

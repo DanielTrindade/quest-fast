@@ -7,6 +7,7 @@ import { useTokenLayer, type TokenLayerOptions } from '../hooks/useTokenLayer';
 import { tokensForLook, type FogLook, type FogTool } from '../lib/fog-tool';
 import { gridCells } from '../lib/map-view';
 import { describeMove } from '../lib/reach-draw';
+import { turnName, type FightMarks } from '../lib/token-combat';
 import { cn } from '../lib/utils';
 import { MoveConfirm } from './MoveConfirm';
 import { Button } from './ui/button';
@@ -50,6 +51,11 @@ export type MapCanvasProps = {
   fogTool?: FogTool | null;
   /** A shape the master finished drawing, to send to the server. */
   onFogShape?: (operation: FogOperation) => void;
+  /**
+   * The running fight's marks, by token id: the ring of whose turn it is and
+   * each combatant's health arc. The list beside the map says both in words.
+   */
+  fightMarks?: FightMarks;
 } & Pick<TokenLayerOptions, 'onSelect' | 'canMove' | 'onGrab' | 'onDrag' | 'onDrop' | 'onCancelDrag' | 'motion' | 'pendingMove' | 'stopAtLimit'>;
 
 export type MapCanvasHandle = {
@@ -158,7 +164,13 @@ function PolygonBar({ polygon }: { polygon: PolygonProgress }) {
   );
 }
 
-function describeTokens(tokens: readonly TokenView[]): string {
+function describeTokens(tokens: readonly TokenView[], marks?: FightMarks): string {
+  const turn = turnName(tokens, marks);
+  const states = describeStates(tokens);
+  return turn ? `${states} Vez de ${turn}.` : states;
+}
+
+function describeStates(tokens: readonly TokenView[]): string {
   const count = tokens.length;
   if (count === 0) return 'Nenhum token no mapa.';
   const total = count === 1 ? '1 token no mapa.' : `${count} tokens no mapa.`;
@@ -229,7 +241,7 @@ function MapControls({ zoom, onZoom, onFrame, fullscreen, onFullscreenChange }: 
 export function MapCanvas({
   imageUrl, mapWidth, mapHeight, grid, label, className, tokens = NO_TOKENS, viewerId = null, selectedTokenId = null,
   onSelect, canMove, onGrab, onDrag, onDrop, onCancelDrag, motion, ref, fullscreen = false, onFullscreenChange,
-  pendingMove = null, moveConfirm, stopAtLimit, fog = null, fogLook = 'master', fogTool = null, onFogShape,
+  pendingMove = null, moveConfirm, stopAtLimit, fog = null, fogLook = 'master', fogTool = null, onFogShape, fightMarks,
 }: MapCanvasProps) {
   const tokenOverlayRef = useRef<MapOverlay | null>(null);
   const fogOverlayRef = useRef<MapOverlay | null>(null);
@@ -244,7 +256,7 @@ export function MapCanvas({
   } = useMapViewport({ imageUrl, mapWidth, mapHeight, grid, fog: fogLayer, overlayRef });
   const { cancelDrag } = useTokenLayer({
     tokens: shown, grid, map, viewerId, selectedId: selectedTokenId,
-    onSelect, canMove, onGrab, onDrag, onDrop, onCancelDrag, motion, pendingMove, stopAtLimit, overlayRef: tokenOverlayRef, requestDraw, themedRef: frameRef,
+    onSelect, canMove, onGrab, onDrag, onDrop, onCancelDrag, motion, pendingMove, stopAtLimit, marks: fightMarks, overlayRef: tokenOverlayRef, requestDraw, themedRef: frameRef,
     labelRef: moveLabelRef,
   });
   const drawing = useFogLayer({ tool: fogTool, grid, map, onShape: onFogShape, requestDraw, themedRef: frameRef });
@@ -297,7 +309,7 @@ export function MapCanvas({
       <p ref={moveLabelRef} hidden aria-hidden="true" data-slot="move-label"
         className="pointer-events-none absolute top-0 left-0 m-0 rounded-control border border-border bg-card w-max max-w-[calc(100%-0.5rem)] px-2.5 py-1 text-small text-balance text-foreground edge-raised data-[over=true]:border-danger data-[over=true]:text-danger-text" />
 
-      <p id={summaryId} className="sr-only">Mapa de {mapWidth} por {mapHeight} pixels. {describeGrid(grid, mapWidth, mapHeight)} {describeTokens(shown)}{describeReach(shown.find((token) => token.id === selectedTokenId))}{describeFog(fog, fogLook)}</p>
+      <p id={summaryId} className="sr-only">Mapa de {mapWidth} por {mapHeight} pixels. {describeGrid(grid, mapWidth, mapHeight)} {describeTokens(shown, fightMarks)}{describeReach(shown.find((token) => token.id === selectedTokenId))}{describeFog(fog, fogLook)}</p>
       <p id={helpId} className="sr-only">
         {MAP_HELP[fogTool?.shape ?? 'pan']}
       </p>

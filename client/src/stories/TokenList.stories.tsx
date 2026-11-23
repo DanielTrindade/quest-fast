@@ -3,7 +3,7 @@ import type { Meta, StoryObj } from '@storybook/react-vite';
 import { expect, fn, userEvent, within } from 'storybook/test';
 import { TokenList, type TokenListProps } from '../components/TokenList';
 import { fogOn } from './fixtures/fog';
-import { MASTER_ID, PLAYER_ID, cell, manyTokens, masterTokens, playerTokens, vitalityTokens } from './fixtures/tokens';
+import { MASTER_ID, PLAYER_ID, cell, fightMarksFor, fightTokens, manyTokens, masterTokens, playerTokens, vitalityTokens } from './fixtures/tokens';
 
 /** Selection kept in the story, as the screen keeps it. */
 function Selectable(props: TokenListProps) {
@@ -108,6 +108,18 @@ export const CaidoEDerrotado: Story = {
     const list = firstTheme(canvasElement);
     await expect(list.getByText('Caído')).toBeVisible();
     await expect(list.getByText('Derrotado')).toBeVisible();
+  },
+};
+
+/** In a fight: whose turn it is, and each combatant's health in words, as the map rings it. */
+export const EmCombate: Story = {
+  name: 'Em combate',
+  args: { tokens: fightTokens(), fightMarks: fightMarksFor(fightTokens()) },
+  play: async ({ canvasElement }) => {
+    const list = firstTheme(canvasElement);
+    await expect(list.getByText('Vez atual')).toBeVisible();
+    await expect(list.getAllByText('Muito ferido')).toHaveLength(2);
+    await expect(list.getByText('Ferido')).toBeVisible();
   },
 };
 
