@@ -78,6 +78,12 @@ export type TokenMotionStore = TokenMotionSource & {
   push(message: Point & { tokenId: string; ts: number }, receivedAt: number): void;
   /** Forgets a token's drag: the saved position (`scene.updated`) wins from here. */
   clear(tokenId: string): void;
+  /**
+   * Forgets every drag: the connection fell, and no move nor the drop that
+   * ends it will arrive. The tokens rest where the scene says until it is
+   * asked again.
+   */
+  reset(): void;
 };
 
 /** One track per token, outside React: 30 updates a second never re-render. */
@@ -96,6 +102,12 @@ export function createMotionStore(): TokenMotionStore {
     },
     clear(tokenId) {
       tracks.delete(tokenId);
+    },
+    reset() {
+      if (tracks.size === 0) return;
+      tracks.clear();
+      // An idle canvas wakes up to draw them where they rest.
+      for (const listener of listeners) listener();
     },
     positionOf(tokenId, now, options) {
       const track = tracks.get(tokenId);

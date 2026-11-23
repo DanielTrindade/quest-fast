@@ -61,6 +61,12 @@ export type TokenDragController = {
   forget: (tokenId: string) => void;
   /** The gesture holds the lock (it was granted). */
   granted: (tokenId: string) => boolean;
+  /**
+   * The connection fell: the server let go of every lock this viewer held
+   * and settled the token itself. The gesture in hand, dragged or held for
+   * confirmation, ends with nothing sent. Returns its token, if there was one.
+   */
+  interrupt: () => string | null;
 };
 
 /**
@@ -105,6 +111,13 @@ export function createTokenDrag({ grab, save, throttle, refused, onHeld, onSettl
         return back();
       });
     void request.finally(() => finish(gesture));
+  };
+
+  const forget = (gesture: Gesture) => {
+    end(gesture);
+    // A grant still on its way finds the gesture over and puts nothing back.
+    gesture.forgotten = true;
+    finish(gesture);
   };
 
   const cancel = (tokenId: string) => {
@@ -187,13 +200,16 @@ export function createTokenDrag({ grab, save, throttle, refused, onHeld, onSettl
 
     forget(tokenId) {
       const gesture = current;
-      if (gesture?.tokenId !== tokenId) return;
-      end(gesture);
-      // A grant still on its way finds the gesture over and puts nothing back.
-      gesture.forgotten = true;
-      finish(gesture);
+      if (gesture?.tokenId === tokenId) forget(gesture);
     },
 
     granted: (tokenId) => current?.tokenId === tokenId && current.granted,
+
+    interrupt() {
+      const gesture = current;
+      if (!gesture) return null;
+      forget(gesture);
+      return gesture.tokenId;
+    },
   };
 }

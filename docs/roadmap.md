@@ -271,8 +271,14 @@ com as decisões do spike. Cinco entregas, cada uma usável na mesa:
    em três PRs independentes. Token ligado ao combate (o token livre do
    bestiário já entra no combate pela #111): o token da vez ganha anel e
    entalhe, e cada combatente um arco com a saúde que resta, tirados do
-   encontro que o cliente já recebe. Falta a reconexão com o estado completo
-   da cena, o seed com cena, `verify:app` e `verify:group` no mapa e o README.
+   encontro que o cliente já recebe. Na queda da conexão, o arrasto em curso
+   ou o movimento esperando confirmação é desfeito com um aviso (o servidor já
+   soltou a trava) e os arrastos de outras pessoas param onde a cena diz. Um
+   toque que não pega o token por um motivo passageiro (último movimento ainda
+   salvando, combate ainda carregando) avisa em vez de virar pan em silêncio
+   (#109). Diferença da spec: sem story da queda, porque nada muda nos
+   componentes; a lógica tem teste em `client/test`. Falta o seed com cena,
+   `verify:app` e `verify:group` no mapa e o README.
 
 ### Fase 3 — mundo
 
