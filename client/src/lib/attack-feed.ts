@@ -72,7 +72,9 @@ export function damageText(payload: RollPayload): string | null {
   const { damage } = payload;
   if (!damage) return null;
   const type = damage.damageType ? ` ${damage.damageType.toLowerCase()}` : ' de dano';
-  const dice = damage.expression ? ` (${damage.expression})` : '';
+  // The situational modifier's dice after the attack's own: "(2d8+3 +2d6)".
+  const rolled = [damage.expression, damage.bonus?.expression].filter(Boolean).join(' ');
+  const dice = rolled ? ` (${rolled})` : '';
   return `${damage.total}${type}${dice}`;
 }
 

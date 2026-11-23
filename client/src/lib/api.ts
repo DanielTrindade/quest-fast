@@ -31,6 +31,7 @@ import type {
   FreeRollRequest,
   HpRequest,
   InitiativeRequest,
+  DamageRollRequest,
   LinkedRollRequest,
   MeResponse,
   MembersResponse,
@@ -303,8 +304,8 @@ export const api = {
   roll: (campaignId: string, body: FreeRollRequest) =>
     request<RollResponse>(`/api/campaigns/${campaignId}/rolls`, { method: 'POST', body: JSON.stringify(body) }),
   /** The damage of an attack rolled without a target, once, by who attacked. */
-  rollDamage: (campaignId: string, eventId: string) =>
-    request<RollResponse>(`/api/campaigns/${campaignId}/rolls/${eventId}/damage`, { method: 'POST' }),
+  rollDamage: (campaignId: string, eventId: string, body: DamageRollRequest = {}) =>
+    request<RollResponse>(`/api/campaigns/${campaignId}/rolls/${eventId}/damage`, { method: 'POST', body: JSON.stringify(body) }),
   characterRoll: (campaignId: string, characterId: string, body: LinkedRollRequest) =>
     request<RollResponse>(`/api/campaigns/${campaignId}/characters/${characterId}/rolls`, {
       method: 'POST',

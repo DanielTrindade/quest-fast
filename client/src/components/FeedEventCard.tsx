@@ -8,15 +8,7 @@ import { formatEventTime } from '../lib/format';
 import { Button } from './Button';
 import { DiceResult } from './DiceResult';
 import { Badge } from './ui/badge';
-
-function rollSummary(payload: RollPayload): string {
-  const kept = payload.dice.filter((die) => !die.discarded);
-  let text = kept.map((die) => `${die.value}`).join(' + ');
-  if (payload.modifier !== 0) {
-    text += ` ${payload.modifier > 0 ? '+' : '−'} ${Math.abs(payload.modifier)}`;
-  }
-  return text;
-}
+import { rollDecomposition, rolledDice } from '../lib/roll-labels';
 
 function rollAction(payload: RollPayload): string {
   if (payload.rollKind === 'skill') {
@@ -79,8 +71,8 @@ function AttackEventCard({ event, onRollDamage, pending }: { event: RollSessionE
     <>
       <FeedMeta event={event} />
       {showsAttackRoll(payload) ? (
-        <DiceResult compact label={headline} total={payload.total} decomposition={rollSummary(payload)}
-          dice={payload.dice} mode={payload.mode} natural={payload.natural} />
+        <DiceResult compact label={headline} total={payload.total} decomposition={rollDecomposition(payload)}
+          dice={rolledDice(payload)} mode={payload.mode} natural={payload.natural} />
       ) : (
         <p className={combat}><Sword size={16} aria-hidden="true" /><span>{headline}</span></p>
       )}
@@ -117,8 +109,8 @@ function RollEventCard({ event, ...actions }: { event: RollSessionEvent } & Dama
   return (
     <>
       <FeedMeta event={event} />
-      <DiceResult compact label={headline} total={payload.total} decomposition={rollSummary(payload)}
-        dice={payload.dice} mode={payload.mode} natural={payload.natural} />
+      <DiceResult compact label={headline} total={payload.total} decomposition={rollDecomposition(payload)}
+        dice={rolledDice(payload)} mode={payload.mode} natural={payload.natural} />
     </>
   );
 }

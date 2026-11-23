@@ -17,6 +17,15 @@ test('a thrown or ranged weapon reads its normal and long range', () => {
   assert.deepEqual(parseRange('9/9 m'), { normal: 9, long: null });
 });
 
+test('metres written with their squares, as the table does, read as one distance', () => {
+  assert.deepEqual(parseRange('36m/24q'), { normal: 36, long: null });
+  assert.deepEqual(parseRange('18 m / 12 quadrados'), { normal: 18, long: null });
+  assert.deepEqual(parseRange('1,5m/1q'), { normal: 1.5, long: null });
+  assert.deepEqual(parseRange('9 m (6 casas)'), { normal: 9, long: null });
+  // What follows the distance is notes, not range: it stays text.
+  assert.equal(parseRange('27m/18q pode puxar 3m/2q se acertar'), null);
+});
+
 test('feet turn into metres as the rules do', () => {
   assert.deepEqual(parseRange('30 ft'), { normal: 9, long: null });
   assert.deepEqual(parseRange('20/60 pés'), { normal: 6, long: 18 });

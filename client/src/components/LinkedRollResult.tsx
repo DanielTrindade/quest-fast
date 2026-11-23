@@ -2,7 +2,7 @@ import { ShieldWarning } from '@phosphor-icons/react';
 import type { RollPayload } from '@quest-fast/shared';
 import { ABILITY_LABELS } from '../lib/5e';
 import { isSaveCall } from '../lib/attack-feed';
-import { rollActionLabel, rollDecomposition } from '../lib/roll-labels';
+import { rollActionLabel, rollDecomposition, rolledDice } from '../lib/roll-labels';
 import { DiceResult } from './DiceResult';
 
 /**
@@ -27,6 +27,6 @@ export function LinkedRollResult({ payload, name }: { payload: RollPayload; name
   }
   return (
     <DiceResult label={`${rollActionLabel(payload)} de ${name}`} total={payload.total}
-      decomposition={rollDecomposition(payload)} dice={payload.dice} mode={payload.mode} natural={payload.natural} />
+      decomposition={rollDecomposition(payload)} dice={rolledDice(payload)} mode={payload.mode} natural={payload.natural} />
   );
 }

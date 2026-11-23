@@ -267,14 +267,21 @@ em quatro PRs:
    leve) em volta do token de quem ataca, no tom de perigo. O texto vira
    metros por `parseRange` em `shared/` ("6/18 m", "30 ft"); o que não é
    distância fica só como texto. Só mostra: não recusa alvo.
-3. **Modificador no servidor — em andamento.** As rolagens da ficha, o
+3. **Modificador no servidor — entregue.** As rolagens da ficha, o
    ataque e a iniciativa no combate, a salvaguarda de concentração e o dano
    rolado depois aceitam `bonus: { roll, damage }`: dado e número com sinal,
    dado negativo inclusive (`+1d4`, `-1d4`, `+2`). O servidor lê antes de
    gastar o turno, confere os limites da rolagem inteira, rola à parte e
    soma; no crítico, os dados do modificador de dano dobram. O evento guarda
    a parcela (`bonus`), que sai da cópia do jogador num ataque de monstro.
-4. **Modificador na tela.** A barra "Modificadores" na aba Ações e na ficha.
+4. **Modificador na tela — em andamento.** A barra "Modificadores" (No d20,
+   No dano) no topo da aba Ações e na ficha aberta na Mesa, guardada na aba
+   do navegador até ser limpa, com selo "Ativo". Toda rolagem da Mesa leva o
+   texto: ficha, ataque, iniciativa, concentração e o "Rolar dano" do feed. O
+   resultado mostra a parcela à parte, e o dado subtraído em `danger`. O
+   alcance passa a aceitar a escrita da mesa, metros com quadrados
+   ("36m/24q"). Diferença da spec: os botões de rolagem não dizem, um a um,
+   que somam; a barra diz onde vale e mostra o selo.
 
 ### Telas da campanha
 
