@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import type { CombatantView, EncounterView, TokenView } from '@quest-fast/shared';
 import { encounterQuery, encountersQuery } from '../../lib/combat-cache';
+import { fighterOf as fighterIn } from '../../lib/token-combat';
 
 export type Fight = {
   encounter: EncounterView;
@@ -28,9 +29,7 @@ export function useFight(campaignId: string): Fight | null | undefined {
   if (!encounter) return undefined;
   if (encounter.status !== 'active' || encounter.round === 0) return null;
 
-  const fighterOf: Fight['fighterOf'] = (token) =>
-    encounter.combatants.find((combatant) =>
-      (token.characterId !== null && combatant.characterId === token.characterId) || combatant.id === token.combatantId) ?? null;
+  const fighterOf: Fight['fighterOf'] = (token) => fighterIn(encounter, token);
   const active = encounter.combatants.find((combatant) => combatant.id === encounter.activeCombatantId) ?? null;
   return { encounter, fighterOf, active };
 }

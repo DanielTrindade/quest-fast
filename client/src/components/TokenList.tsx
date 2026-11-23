@@ -1,7 +1,9 @@
 import { useId, useState, type KeyboardEvent } from 'react';
 import { CloudSlash, Eye, EyeSlash, HandGrabbing, Heartbeat, Skull, Sword, Trash } from '@phosphor-icons/react';
 import { isRevealed, type SceneFog, type TokenView } from '@quest-fast/shared';
+import { HEALTH_BAND_LABELS } from '../lib/combat-labels';
 import { SIZE_LABELS } from '../lib/sheet-labels';
+import type { FightMarks, TokenFightMark } from '../lib/token-combat';
 import { TOKEN_KIND_LABELS, canMoveToken } from '../lib/token-labels';
 import { cn } from '../lib/utils';
 import { Button } from './Button';
@@ -30,6 +32,8 @@ export type TokenListProps = {
   busyIds?: ReadonlySet<string>;
   /** The scene's fog: the master's rows say which tokens it keeps from the table. */
   fog?: SceneFog | null;
+  /** The running fight's turn and health, by token id: what the map rings, in words. */
+  fightMarks?: FightMarks;
 };
 
 /** A token the fog keeps from the players: not a character's, its centre outside the revealed area. */
@@ -55,8 +59,9 @@ function RemoveToken({ token, busy, onRemove }: { token: TokenView; busy: boolea
   );
 }
 
-function TokenRow({ token, selected, own, movable, master, busy, helpId, onSelect, onStep, onToggleHidden, onRemove, viewerId, fogged }: {
+function TokenRow({ token, selected, own, movable, master, busy, helpId, onSelect, onStep, onToggleHidden, onRemove, viewerId, fogged, mark }: {
   token: TokenView;
+  mark: TokenFightMark | undefined;
   /** Under the fog (the master's list only). */
   fogged: boolean;
   selected: boolean;
@@ -90,7 +95,7 @@ function TokenRow({ token, selected, own, movable, master, busy, helpId, onSelec
         <TokenDisc token={token} />
         <span className="grid min-w-0 gap-0.5">
           <span className="font-semibold [overflow-wrap:anywhere] text-foreground">{token.name}</span>
-          <TokenTags token={token} own={own} viewerId={viewerId} fogged={fogged} />
+          <TokenTags token={token} own={own} viewerId={viewerId} fogged={fogged} mark={mark} />
         </span>
       </button>
       {master && <MasterActions token={token} busy={busy} onToggleHidden={onToggleHidden} onRemove={onRemove} />}
@@ -98,16 +103,20 @@ function TokenRow({ token, selected, own, movable, master, busy, helpId, onSelec
   );
 }
 
-function TokenTags({ token, own, viewerId, fogged }: { token: TokenView; own: boolean; viewerId: string | null; fogged: boolean }) {
+function TokenTags({ token, own, viewerId, fogged, mark }: {
+  token: TokenView; own: boolean; viewerId: string | null; fogged: boolean; mark: TokenFightMark | undefined;
+}) {
   const movingBy = token.movingBy && token.movingBy.userId !== viewerId ? token.movingBy.name : null;
   return (
     <span className="flex flex-wrap gap-x-3 gap-y-0.5 text-small text-text-secondary [&>span]:inline-flex [&>span]:min-w-0 [&>span]:items-center [&>span]:gap-1 [&>span]:[overflow-wrap:anywhere] [&_svg]:shrink-0">
+      {mark?.turn && <span className="font-semibold text-accent-text">Vez atual</span>}
       <span>{TOKEN_KIND_LABELS[token.kind]}</span>
       <span>{SIZE_LABELS[token.size]}</span>
       {own && <span className="font-semibold text-accent-text">Seu personagem</span>}
       {token.hidden && <span><EyeSlash size={14} aria-hidden="true" /> Escondido</span>}
       {token.combatantHidden && <span><Sword size={14} aria-hidden="true" /> Escondido no encontro</span>}
       {fogged && <span><CloudSlash size={14} aria-hidden="true" /> Na área oculta</span>}
+      {mark?.health && token.vitality === 'up' && <span>{HEALTH_BAND_LABELS[mark.health.band]}</span>}
       {token.vitality === 'down' && <span className="font-semibold text-danger-text"><Heartbeat size={14} aria-hidden="true" /> Caído</span>}
       {token.vitality === 'defeated' && <span><Skull size={14} aria-hidden="true" /> Derrotado</span>}
       {movingBy && <span><HandGrabbing size={14} aria-hidden="true" /> {movingBy} está movendo</span>}
@@ -140,7 +149,7 @@ function MasterActions({ token, busy, onToggleHidden, onRemove }: {
  * move it one cell, for whoever may move it. The master also hides, reveals
  * and removes. Presentational: the screen does the requests.
  */
-export function TokenList({ tokens, viewerId, master, selectedId, onSelect, onStep, onToggleHidden, onRemove, busyIds, fog = null }: TokenListProps) {
+export function TokenList({ tokens, viewerId, master, selectedId, onSelect, onStep, onToggleHidden, onRemove, busyIds, fog = null, fightMarks }: TokenListProps) {
   const headingId = useId();
   const helpId = useId();
   return (
@@ -158,6 +167,7 @@ export function TokenList({ tokens, viewerId, master, selectedId, onSelect, onSt
           {tokens.map((token) => (
             <TokenRow key={token.id} token={token} viewerId={viewerId} master={master} helpId={helpId}
               fogged={master && underFog(token, fog)}
+              mark={fightMarks?.get(token.id)}
               selected={token.id === selectedId}
               own={token.kind === 'character' && viewerId !== null && token.ownerId === viewerId}
               movable={canMoveToken(token, viewerId, master)}

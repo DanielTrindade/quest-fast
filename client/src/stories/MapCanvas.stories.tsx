@@ -9,7 +9,7 @@ import { canMoveToken } from '../lib/token-labels';
 import { createMotionStore } from '../lib/token-motion';
 import { fogOn, fogStart } from './fixtures/fog';
 import { PRINTED_CELL, PRINTED_OFFSET, SYNTHETIC_MAP, alignedSceneGrid, defaultSceneGrid, syntheticMapUrl } from './fixtures/maps';
-import { MASTER_ID, PLAYER_ID, cell, fightTokens, manyTokens, masterTokens, playerFightTokens, playerTokens, vitalityTokens } from './fixtures/tokens';
+import { MASTER_ID, PLAYER_ID, cell, fightMarksFor, fightTokens, manyTokens, masterTokens, playerFightTokens, playerTokens, vitalityTokens } from './fixtures/tokens';
 
 const meta = {
   title: 'Componentes/MapCanvas',
@@ -460,6 +460,34 @@ export const CaidoEDerrotado: Story = {
   play: async ({ canvasElement }) => {
     const { frame, map } = await readyMap(canvasElement);
     await expect(map.getByText(/7 tokens no mapa\. 1 caído, 1 derrotado\./)).toBeInTheDocument();
+    await waitFor(() => expect(painted(frame)).toBe(true));
+  },
+};
+
+/**
+ * Kaelen's turn: a ring and a notch above his piece. Every combatant has its
+ * health arc, full for Kaelen and Goblin 2, emptying for the rest; the
+ * barrel, outside the fight, has none.
+ */
+export const VezESaude: Story = {
+  name: 'Vez e saúde no combate',
+  args: { ...tokenArgs, tokens: fightTokens(), viewerId: MASTER_ID, fightMarks: fightMarksFor(fightTokens()) },
+  render: (args) => <TokenMap {...args} master />,
+  play: async ({ canvasElement }) => {
+    const { frame, map } = await readyMap(canvasElement);
+    await expect(map.getByText(/7 tokens no mapa\. Vez de Kaelen\./)).toBeInTheDocument();
+    await waitFor(() => expect(painted(frame)).toBe(true));
+  },
+};
+
+/** Late in the fight, on the ogre's turn: the fallen and the defeated carry no arc. */
+export const VezDoOgroComCaidos: Story = {
+  name: 'Vez do ogro, com caídos',
+  args: { ...tokenArgs, tokens: vitalityTokens(), viewerId: MASTER_ID, fightMarks: fightMarksFor(vitalityTokens(), 'ogre') },
+  render: (args) => <TokenMap {...args} master />,
+  play: async ({ canvasElement }) => {
+    const { frame, map } = await readyMap(canvasElement);
+    await expect(map.getByText(/1 caído, 1 derrotado\. Vez de Ogro\./)).toBeInTheDocument();
     await waitFor(() => expect(painted(frame)).toBe(true));
   },
 };

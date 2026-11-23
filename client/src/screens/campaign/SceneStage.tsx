@@ -1,4 +1,4 @@
-import { useId, useRef, useState, type RefObject } from 'react';
+import { useId, useMemo, useRef, useState, type RefObject } from 'react';
 import { Broadcast, Cloud, GridFour, MapPin, XCircle } from '@phosphor-icons/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { GridSettings as Grid, SceneView, TokenView } from '@quest-fast/shared';
@@ -17,6 +17,7 @@ import { useNotify } from '../../hooks/use-notify';
 import { api } from '../../lib/api';
 import { activeSceneQuery, mergeScene, sceneListQuery, sceneQuery } from '../../lib/scene-cache';
 import { stopsAtLimit } from '../../lib/move-path';
+import { fightMarks } from '../../lib/token-combat';
 import { canMoveToken } from '../../lib/token-labels';
 import { cn } from '../../lib/utils';
 import { errorMessage } from './campaign-screen';
@@ -24,7 +25,7 @@ import { FightTurn } from './FightTurn';
 import { TokenPickerPanel } from './TokenPickerPanel';
 import { TokenVitalsPanel } from './TokenVitalsPanel';
 import { useFogControls, type FogControls } from './useFogControls';
-import { useFight } from './useFight';
+import { useFight, type Fight } from './useFight';
 import { useTokenMoves } from './useTokenMoves';
 
 type OpenPanel = 'grid' | 'tokens' | 'fog';
@@ -114,6 +115,15 @@ function MasterPanel({ panel, panelIds, campaignId, scene, mapRef, fog, onPrevie
   if (panel === 'tokens') return <TokenPickerPanel id={panelIds.tokens} campaignId={campaignId} scene={scene} mapRef={mapRef} />;
   if (panel === 'fog') return <FogPanel id={panelIds.fog} scene={scene} fog={fog} />;
   return null;
+}
+
+/**
+ * The running fight's turn and health for the map and the list, kept while
+ * the tokens and the encounter are the same: the map redraws when they change.
+ */
+function useFightMarks(tokens: readonly TokenView[], fight: Fight | null) {
+  const encounter = fight?.encounter ?? null;
+  return useMemo(() => fightMarks(tokens, encounter), [tokens, encounter]);
 }
 
 function stageClass(isMaster: boolean) {
@@ -258,6 +268,7 @@ export function SceneStage({ campaignId, scene, isMaster, mapClassName, allowFul
     return isMaster || !fighter || fighter.id === fight?.encounter.activeCombatantId;
   };
   const focus = selectedId ? fighterOfToken(selectedId) : null;
+  const marks = useFightMarks(scene.tokens, fight);
 
   // The column beside the map: the master's open panel, the selected token,
   // its turn and the token list. On the full screen it is the panel's Mapa.
@@ -267,7 +278,7 @@ export function SceneStage({ campaignId, scene, isMaster, mapClassName, allowFul
         onPreview={(grid) => setPreview(grid ? { key: previewKey, grid } : null)} />
       <TokenVitalsPanel key={selectedId} campaignId={campaignId} tokens={scene.tokens} selectedId={selectedId} isMaster={isMaster} viewerId={viewerId} />
       {fight && <FightTurn campaignId={campaignId} fight={fight} focus={focus} viewerId={viewerId} isMaster={isMaster} />}
-      <TokenList tokens={scene.tokens} viewerId={viewerId} master={isMaster} fog={scene.fog} selectedId={selectedId} onSelect={setSelected}
+      <TokenList tokens={scene.tokens} viewerId={viewerId} master={isMaster} fog={scene.fog} fightMarks={marks} selectedId={selectedId} onSelect={setSelected}
         onStep={(tokenId, direction) => {
           const token = scene.tokens.find((candidate) => candidate.id === tokenId);
           if (token && !mayFight(token)) moves.onStep(tokenId, direction);
@@ -289,7 +300,7 @@ export function SceneStage({ campaignId, scene, isMaster, mapClassName, allowFul
             onGrab={moves.onGrab} onDrag={moves.onDrag} onDrop={moves.onDrop} onCancelDrag={moves.onCancelDrag} motion={motion}
             fullscreen={fullscreen} onFullscreenChange={allowFullscreen ? setFullscreen : undefined}
             fog={scene.fog} fogLook={fog.look} fogTool={fog.tool} onFogShape={fog.apply}
-            pendingMove={moves.pending}
+            pendingMove={moves.pending} fightMarks={marks}
             stopAtLimit={(token) => stopsAtLimit(isMaster, fight?.fighterOf(token)?.id, fight?.encounter.activeCombatantId)}
             moveConfirm={{
               onConfirm: () => moves.confirm(),
