@@ -39,7 +39,7 @@
     "better-sqlite3@13.0.3": true
   },
   "devDependencies": {
-    "@playwright/test": "^1.65.0",
+    "@playwright/test": "^1.65.1",
     "react-doctor": "^0.9.23"
   }
 }
