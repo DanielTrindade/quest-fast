@@ -1020,6 +1020,8 @@ function attack(mutation: Mutation, combatant: LoadedCombatant, body: Record<str
     kind: 'roll' as const,
     rollKind: 'attack' as const,
     attackName: chosen.name,
+    // As the row reads now: editing the sheet later does not rewrite the feed.
+    ...(chosen.range ? { attackRange: chosen.range } : {}),
     characterName: combatant.name,
     attackerSource: sourceOf(combatant),
     ...(row.characterId ? { characterId: row.characterId } : {}),
@@ -1086,7 +1088,7 @@ function saveAttack(
   chosen: Extract<Attack, { kind: 'save' }>,
   targets: LoadedCombatant[],
   secret: boolean,
-  base: Pick<RollPayload, 'kind' | 'rollKind' | 'attackName' | 'characterName' | 'attackerSource' | 'characterId'>,
+  base: Pick<RollPayload, 'kind' | 'rollKind' | 'attackName' | 'attackRange' | 'characterName' | 'attackerSource' | 'characterId'>,
 ) {
   const save = { dc: chosen.dc, ability: chosen.saveAbility };
   let payload: RollPayload;

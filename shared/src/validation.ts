@@ -90,6 +90,9 @@ function attackListError(attacks: ReadonlyArray<AttackInput | ImportedAttack>, m
   if (attacks.some((attack) => tooLong(attack.damageType, L.damageType) || tooLong(attack.notes, L.attackNotes))) {
     return `Tipo de dano até ${L.damageType} caracteres e notas até ${L.attackNotes}.`;
   }
+  if (attacks.some((attack) => 'range' in attack && tooLong(attack.range, L.attackRange))) {
+    return `Alcance até ${L.attackRange} caracteres.`;
+  }
   return undefined;
 }
 

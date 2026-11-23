@@ -15,6 +15,7 @@ export type FormAttack = {
   damage: string;
   damageType: string;
   notes: string;
+  range: string;
   cost: AttackCost;
   /** Only read on a save with damage. */
   onSave: SaveEffect;
@@ -37,7 +38,7 @@ export function numberValue(text: string) {
 }
 
 export function emptyFormAttack(): FormAttack {
-  return { rowId: newRowId(), name: '', kind: 'attack', bonus: '0', dc: '', saveAbility: '', damage: '', damageType: '', notes: '', cost: 'attack', onSave: 'half' };
+  return { rowId: newRowId(), name: '', kind: 'attack', bonus: '0', dc: '', saveAbility: '', damage: '', damageType: '', notes: '', range: '', cost: 'attack', onSave: 'half' };
 }
 
 /**
@@ -62,6 +63,8 @@ export function toFormAttacks(attacks: ReadonlyArray<Attack | ImportedAttack>): 
     damage: attack.damage,
     damageType: attack.damageType,
     notes: attack.notes,
+    // The PDF has no range column: an imported row starts without one.
+    range: 'range' in attack ? attack.range : '',
     // A row imported from a PDF has no cost: the default of its kind.
     cost: 'cost' in attack ? attack.cost : defaultAttackCost(attack.kind),
     onSave: attack.kind === 'save' && 'onSave' in attack ? attack.onSave : 'half',
@@ -75,6 +78,7 @@ export function toAttackInputs(attacks: readonly FormAttack[]): AttackInput[] {
       damage: attack.damage,
       damageType: attack.damageType.trim(),
       notes: attack.notes.trim(),
+      range: attack.range.trim(),
       cost: attack.cost,
     };
     return attack.kind === 'save'

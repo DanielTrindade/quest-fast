@@ -173,6 +173,8 @@ function attackEvent(id: string, payload: RollSessionEvent['payload'], extra: Pa
 const hitForMaster = attackEvent('a1', { ...sword, target: { ...goblinTarget, hit: true, ac: 15 }, damage: slash });
 /** The same hit as a player reads it: no monster AC. */
 const hitForPlayer = attackEvent('a2', { ...sword, target: { ...goblinTarget, hit: true }, damage: slash });
+/** The range as the row read when it was used. */
+const thrown = attackEvent('a14', { ...sword, attackName: 'Machadinha', attackRange: '6/18 m', target: { ...goblinTarget, hit: true }, damage: slash });
 const miss = attackEvent('a3', { ...sword, dice: [{ value: 4, sides: 20 }], total: 9, target: { ...goblinTarget, hit: false, ac: 15 } });
 const critical = attackEvent('a4', {
   ...sword,
@@ -297,6 +299,7 @@ export const AtaqueAcerto: Story = {
   args: { event: hitForMaster },
   play: reads('Acertou (CA 15)'),
 };
+export const AtaqueComAlcance: Story = { name: 'Ataque com alcance', args: { event: thrown }, play: reads('Alcance 6/18 m') };
 export const AtaqueAcertoJogador: Story = { name: 'Ataque: acerto (jogador)', args: { event: hitForPlayer }, play: reads('Acertou') };
 export const AtaqueErro: Story = { name: 'Ataque: erro', args: { event: miss }, play: reads('Errou (CA 15)') };
 export const AtaqueCritico: Story = { name: 'Ataque: crítico', args: { event: critical }, play: reads('Crítico') };

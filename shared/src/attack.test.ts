@@ -110,8 +110,9 @@ test('half damage rounds down', () => {
 
 test('a stored attack without the newer fields reads with their defaults', () => {
   assert.deepEqual(storedAttack({ name: 'Adaga', bonus: 4, damage: '1d4+2' } as never), {
-    name: 'Adaga', bonus: 4, damage: '1d4+2', kind: 'attack', damageType: '', notes: '', cost: 'attack',
+    name: 'Adaga', bonus: 4, damage: '1d4+2', kind: 'attack', damageType: '', notes: '', range: '', cost: 'attack',
   });
+  assert.equal(storedAttack({ kind: 'attack', name: 'Adaga', bonus: 4, damage: '1d4', range: '6/18 m' }).range, '6/18 m');
   const save = storedAttack({ kind: 'save', name: 'Bola de Fogo', dc: 15, saveAbility: 'dexterity', damage: '8d6', damageType: 'Fogo', notes: '' });
   assert.equal(save.cost, 'action');
   assert.equal(save.kind === 'save' && save.onSave, 'half');

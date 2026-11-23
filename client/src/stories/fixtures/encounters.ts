@@ -30,8 +30,8 @@ const base = {
   turn: null,
 } satisfies Partial<CombatantView>;
 
-const SCIMITAR: Attack = { kind: 'attack', cost: 'attack', name: 'Cimitarra', bonus: 4, damage: '1d6+2', damageType: 'Cortante', notes: '' };
-const SHORTBOW: Attack = { kind: 'attack', cost: 'attack', name: 'Arco curto', bonus: 4, damage: '1d6+2', damageType: 'Perfurante', notes: 'Distância 24/96 m' };
+const SCIMITAR: Attack = { kind: 'attack', cost: 'attack', name: 'Cimitarra', bonus: 4, damage: '1d6+2', damageType: 'Cortante', notes: '', range: '1,5 m' };
+const SHORTBOW: Attack = { kind: 'attack', cost: 'attack', name: 'Arco curto', bonus: 4, damage: '1d6+2', damageType: 'Perfurante', notes: '', range: '24/96 m' };
 
 function monster(id: string, name: string, initiative: number | null, hpCurrent: number, hpMax: number, band: HealthBand, extra: Partial<CombatantView> = {}): CombatantView {
   return {
@@ -68,8 +68,8 @@ const hazin: CombatantView = {
   healthBand: 'wounded',
   deathSaves: { successes: 0, failures: 0 },
   attacks: [
-    { kind: 'attack', cost: 'attack', name: 'Machado Grande', bonus: 7, damage: '1d12+5', damageType: 'Cortante', notes: 'Pesada, duas mãos' },
-    { kind: 'save', cost: 'action', onSave: 'half', name: 'Sopro de fogo', dc: 13, saveAbility: 'dexterity', damage: '2d6', damageType: 'Fogo', notes: 'Cone de 4,5 m' },
+    { kind: 'attack', cost: 'attack', name: 'Machado Grande', bonus: 7, damage: '1d12+5', damageType: 'Cortante', notes: 'Pesada, duas mãos', range: '1,5 m' },
+    { kind: 'save', cost: 'action', onSave: 'half', name: 'Sopro de fogo', dc: 13, saveAbility: 'dexterity', damage: '2d6', damageType: 'Fogo', notes: 'Cone de 4,5 m', range: '' },
   ],
 };
 

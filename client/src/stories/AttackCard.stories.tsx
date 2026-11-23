@@ -12,6 +12,19 @@ export const ComTipoENotas: Story = {
   name: 'Com tipo de dano e notas',
   args: { ...dagger, name: 'Machado Grande Hetto', bonus: 7, damage: '1d12+5', damageType: 'Cortante', notes: 'Pesada, duas mãos' },
 };
+export const ComAlcance: Story = {
+  name: 'Com alcance',
+  args: { ...dagger, name: 'Machadinha', damageType: 'Cortante', notes: 'Leve, arremesso', range: '6/18 m' },
+  play: async ({ canvasElement }) => {
+    const [region] = within(canvasElement).getAllByRole('region', { name: /^Tema / });
+    await expect(within(region!).getByText('Alcance')).toBeVisible();
+    await expect(within(region!).getByText('6/18 m')).toBeVisible();
+  },
+};
+export const AlcanceNoLimite: Story = {
+  name: 'Alcance no limite',
+  args: { ...dagger, range: 'Toque, ou 18/36 m arremessada' },
+};
 export const Consulta: Story = { args: { ...dagger, onRoll: undefined } };
 export const Rolando: Story = { args: { ...dagger, disabled: true } };
 export const NomeLongo: Story = { args: { ...dagger, name: 'Espada curta élfica dos caminhos esquecidos', bonus: -1, damage: '1d4+4 mais 2d6 de veneno' } };

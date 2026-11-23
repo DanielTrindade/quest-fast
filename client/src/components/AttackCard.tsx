@@ -10,14 +10,16 @@ type RowKind =
 
 type AttackCardProps = {
   name: string; damage: string; damageType?: string; notes?: string; onRoll?: () => void; disabled?: boolean;
+  /** How far it reaches, as the sheet writes it; nothing shows when empty. */
+  range?: string;
   /** What using it spends on its user's turn. */
   cost?: AttackCost;
   /** Why the turn has nothing left for it: the button is off and says so. */
   refusal?: string | null;
 } & RowKind;
 
-/** The row's numbers: hit bonus or DC, damage and type, what a pass leaves, the cost. */
-function Details({ row, damage, damageType, cost }: { row: RowKind; damage: string; damageType: string; cost?: AttackCost }) {
+/** The row's numbers: hit bonus or DC, damage and type, what a pass leaves, the range, the cost. */
+function Details({ row, damage, damageType, range, cost }: { row: RowKind; damage: string; damageType: string; range: string; cost?: AttackCost }) {
   return (
     <dl className="mt-2 flex flex-wrap gap-x-4 gap-y-2 *:min-w-0 [&_dd]:font-mono [&_dd]:tabular-nums [&_dt]:text-micro [&_dt]:text-text-secondary">
       {row.kind === 'save'
@@ -29,6 +31,7 @@ function Details({ row, damage, damageType, cost }: { row: RowKind; damage: stri
       {row.kind === 'save' && damage && (
         <div><dt>Se passar</dt><dd className="font-sans">{row.onSave === 'none' ? 'Nenhum dano' : 'Metade'}</dd></div>
       )}
+      {range && <div><dt>Alcance</dt><dd className="font-sans">{range}</dd></div>}
       {cost && <div><dt>Custo</dt><dd className="font-sans">{ATTACK_COST_LABELS[cost]}</dd></div>}
     </dl>
   );
@@ -65,12 +68,12 @@ function RollButton({ name, save, damage, disabled, onRoll }: {
  * or only calls for the save when it deals none (Graxa).
  */
 export function AttackCard(props: AttackCardProps) {
-  const { name, damage, damageType = '', notes = '', onRoll, cost, refusal = null } = props;
+  const { name, damage, damageType = '', notes = '', range = '', onRoll, cost, refusal = null } = props;
   const disabled = props.disabled === true || refusal !== null;
   return <div className="flex flex-wrap items-center justify-between gap-3 rounded-control border border-border bg-card p-3">
     <div className="min-w-0 flex-[1_1_160px] [overflow-wrap:anywhere]">
       <p className="flex items-center gap-2 font-semibold"><Sword size={18} aria-hidden="true" className="shrink-0 text-text-secondary" />{name}</p>
-      <Details row={props} damage={damage} damageType={damageType} cost={cost} />
+      <Details row={props} damage={damage} damageType={damageType} range={range} cost={cost} />
       {notes && <p className="mt-1 text-small text-text-secondary [overflow-wrap:anywhere]">{notes}</p>}
       {onRoll && refusal && <p className="mt-1 text-small text-text-secondary [overflow-wrap:anywhere]">{refusal}</p>}
     </div>

@@ -93,6 +93,11 @@ type AttackDetails = {
   /** e.g. "Cortante"; empty when not informed. */
   damageType: string;
   notes: string;
+  /**
+   * How far it reaches, as the sheet writes it ("1,5 m", "18 m", "6/18 m");
+   * empty when not informed. Text, like a spell's range: the table reads it.
+   */
+  range: string;
   /** What using it spends on its user's turn. */
   cost: AttackCost;
 };
@@ -111,11 +116,11 @@ export type Attack = AttackDetails & (
 
 /**
  * What clients send. Older clients omit `kind` (an attack roll), the damage
- * type, the notes and the cost (`defaultAttackCost` of the kind). A save may
+ * type, the notes, the range and the cost (`defaultAttackCost` of the kind). A save may
  * arrive without its ability so validation can point at it; it is never
  * stored that way.
  */
-export type AttackInput = Pick<AttackDetails, 'name' | 'damage'> & Partial<Pick<AttackDetails, 'damageType' | 'notes' | 'cost'>> & (
+export type AttackInput = Pick<AttackDetails, 'name' | 'damage'> & Partial<Pick<AttackDetails, 'damageType' | 'notes' | 'range' | 'cost'>> & (
   | { kind?: 'attack'; bonus: number }
   | { kind: 'save'; dc: number; saveAbility: Ability | null; /** `half` when absent. */ onSave?: SaveEffect }
 );
@@ -314,6 +319,8 @@ export type RollPayload = {
   characterId?: string;
   characterName?: string;
   attackName?: string;
+  /** The attack's range as it was when used; absent when the row had none. */
+  attackRange?: string;
   ability?: Ability;
   /** Only for `rollKind: 'skill'`: which skill was tested. */
   skill?: Skill;

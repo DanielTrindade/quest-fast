@@ -71,7 +71,7 @@ export const TurnoGasto: Story = {
     name: 'Hazin Dan',
     attacks: [
       ...hazin.attacks,
-      { kind: 'attack', cost: 'bonusAction', name: 'Machadinha (mão inábil)', bonus: 7, damage: '1d6', damageType: 'Cortante', notes: 'Leve' },
+      { kind: 'attack', cost: 'bonusAction', name: 'Machadinha (mão inábil)', bonus: 7, damage: '1d6', damageType: 'Cortante', notes: 'Leve', range: '1,5 m' },
     ],
     targets: playerCombatants.filter((combatant) => combatant.id !== 'c-hazin'),
     master: false,

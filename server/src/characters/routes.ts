@@ -908,7 +908,13 @@ function parseLinkedRoll(body: LinkedRollRequest, sheet: CharacterSheet): Linked
     const index = body?.attackIndex;
     const attack = Number.isInteger(index) ? sheet.attacks[Number(index)] : undefined;
     if (!attack) return { error: 'Ataque inválido.' };
-    const details = { rollKind: 'attack' as const, attackName: attack.name, attackerSource: 'character' as const };
+    const details = {
+      rollKind: 'attack' as const,
+      attackName: attack.name,
+      // As the row reads now: editing the sheet later does not rewrite the feed.
+      ...(attack.range ? { attackRange: attack.range } : {}),
+      attackerSource: 'character' as const,
+    };
     if (attack.kind === 'save') {
       // The target rolls the save: there is no attack roll, only the damage.
       if (mode !== 'normal') return { error: 'Vantagem e desvantagem não se aplicam a um ataque por salvaguarda.' };

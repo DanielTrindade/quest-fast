@@ -29,6 +29,8 @@ export const CHARACTER_LIMITS = {
   damage: 30,
   damageType: 30,
   attackNotes: 120,
+  /** As short as a spell's range. */
+  attackRange: 30,
   listItems: 30,
   listItem: 200,
   spells: 60,

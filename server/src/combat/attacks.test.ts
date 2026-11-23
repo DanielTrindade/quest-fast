@@ -35,7 +35,7 @@ const GIANT_STATBLOCK = {
   attacks: [{ name: 'Rocha', bonus: 10, damage: '10d100' }],
 };
 
-const SWORD = { name: 'Espada longa', bonus: 5, damage: '1d8+3', damageType: 'Cortante' };
+const SWORD = { name: 'Espada longa', bonus: 5, damage: '1d8+3', damageType: 'Cortante', range: '1,5 m' };
 
 /** Every die lands on its highest face: a natural 20, always a critical. */
 function natural20(t: TestContext) {
@@ -86,6 +86,7 @@ test('a hit rolls the damage and leaves it pending on the target, not applied', 
 
   const [roll] = await rolls(s, s.master);
   assert.equal(roll?.attackName, 'Espada longa');
+  assert.equal(roll?.attackRange, '1,5 m');
   assert.equal(roll?.critical, true);
   assert.deepEqual(roll?.target, { combatantId: id('Goblin 2'), name: 'Goblin 2', source: 'monster', hit: true, ac: 15 });
   // A critical doubles the dice, not the modifier: 2d8+3 at their highest.
