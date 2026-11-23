@@ -135,8 +135,13 @@ function useTablePanel(staged: boolean) {
   const [tab, setTab] = useState<ActionPanelTab>('map');
   const [folded, setFolded] = useStoredFlag('quest-fast:stage-panel-collapsed');
   const [overlay, setOverlay] = useState<HTMLElement | null>(null);
+  // Counts the switches between the page and the full screen: the column
+  // remounts on each, and what it held as a draft is gone for good.
+  const [mode, setMode] = useState({ staged, switches: 0 });
+  if (mode.staged !== staged) setMode({ staged, switches: mode.switches + 1 });
   return {
     staged,
+    switches: mode.switches,
     layout: staged ? (folded ? 'folded' as const : 'open' as const) : null,
     setOverlay,
     /** Grid, tokens and fog live in Mapa: opening one (`opening`) brings the panel there. */
@@ -211,7 +216,7 @@ export function SceneStage({ campaignId, scene, isMaster, mapClassName, allowFul
 }) {
   const stageRef = useRef<HTMLDivElement>(null);
   const [fullscreen, setFullscreen] = useFullscreenView(stageRef);
-  const { staged, layout: panelLayout, setOverlay, showMap, state: panelState } = useTablePanel(fullscreen && tablePanel);
+  const { staged, switches, layout: panelLayout, setOverlay, showMap, state: panelState } = useTablePanel(fullscreen && tablePanel);
   const layout = stageLayout({ fullscreen, isMaster, mapClassName, name: scene.name, panel: panelLayout });
   const panelIds = { grid: useId(), tokens: useId(), fog: useId() };
   const mapRef = useRef<MapCanvasHandle>(null);
@@ -232,11 +237,11 @@ export function SceneStage({ campaignId, scene, isMaster, mapClassName, allowFul
   const [panel, setPanel] = useState<Panel>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const selectedId = scene.tokens.some((token) => token.id === selected) ? selected : null;
-  // A draft belongs to the scene and to the place the grid panel was in: going
-  // full screen and back remounts the panel on the saved grid, and the map
-  // follows it instead of keeping a draft the form no longer shows.
+  // A draft belongs to the scene and to one mounting of the grid panel: going
+  // full screen (or back) remounts the panel on the saved grid, and the map
+  // drops the draft for good instead of keeping one the form no longer shows.
   const [preview, setPreview] = useState<{ key: string; grid: Grid } | null>(null);
-  const previewKey = `${scene.id}:${staged}`;
+  const previewKey = `${scene.id}:${switches}`;
   const shownGrid = preview?.key === previewKey ? preview.grid : scene.grid;
   const fog = useFogControls(campaignId, scene, isMaster);
   const toggle = (next: OpenPanel) => {
