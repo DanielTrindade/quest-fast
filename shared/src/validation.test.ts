@@ -184,3 +184,9 @@ test('statblock texts have a size limit', () => {
   const errors = validateStatblockInput(validStatblock({ traits: long, actions: long, reactions: long }));
   assert.deepEqual(Object.keys(errors).sort(), ['actions', 'reactions', 'traits']);
 });
+
+test('an attack range longer than a spell\'s is rejected; an older client may leave it out', () => {
+  assert.deepEqual(validateCharacterInput(validInput({ attacks: [{ name: 'Adaga', bonus: 7, damage: '1d4+4', range: '6/18 m' }] })), {});
+  const errors = validateCharacterInput(validInput({ attacks: [{ name: 'Adaga', bonus: 7, damage: '1d4+4', range: 'x'.repeat(31) }] }));
+  assert.equal(errors.attacks, 'Alcance até 30 caracteres.');
+});

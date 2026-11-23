@@ -267,8 +267,8 @@ function slots(...totalsAndSpent: [number, number][]): SpellSlot[] {
   return result;
 }
 
-function weapon(name: string, bonus: number, damage: string, damageType: string, notes = ''): Attack {
-  return { kind: 'attack', name, bonus, damage, damageType, notes, cost: defaultAttackCost('attack') };
+function weapon(name: string, bonus: number, damage: string, damageType: string, notes = '', range = ''): Attack {
+  return { kind: 'attack', name, bonus, damage, damageType, notes, range, cost: defaultAttackCost('attack') };
 }
 
 function saveAttack(
@@ -279,8 +279,9 @@ function saveAttack(
   damageType: string,
   notes = '',
   onSave: SaveEffect = 'half',
+  range = '',
 ): Attack {
-  return { kind: 'save', name, dc, saveAbility, onSave, damage, damageType, notes, cost: defaultAttackCost('save') };
+  return { kind: 'save', name, dc, saveAbility, onSave, damage, damageType, notes, range, cost: defaultAttackCost('save') };
 }
 
 function createCharacter(campaignId: string, sheet: SheetInput) {
@@ -491,8 +492,8 @@ const isolde = createCharacter(coroa, {
   weaponProficiencies: 'Armas Simples e Marciais',
   toolProficiencies: 'Kit de caligrafia',
   attacks: [
-    weapon('Espada longa', 7, '1d8+4', 'Cortante', 'Versátil (1d10)'),
-    weapon('Azagaia', 7, '1d6+4', 'Perfurante', 'Arremesso 9/36 m'),
+    weapon('Espada longa', 7, '1d8+4', 'Cortante', 'Versátil (1d10)', '1,5 m'),
+    weapon('Azagaia', 7, '1d6+4', 'Perfurante', 'Arremesso', '9/36 m'),
     weapon('Destruição Divina', 7, '1d8+4+2d8', 'Radiante', 'Gasta um espaço de 1º círculo'),
   ],
   features: [
@@ -550,7 +551,7 @@ const kael = createCharacter(coroa, {
   toolProficiencies: 'Ferramentas de navegador, veículos aquáticos',
   attacks: [
     weapon('Machado grande', 7, '1d12+4', 'Cortante', 'Pesado, duas mãos. +2 em fúria'),
-    weapon('Machadinha', 7, '1d6+4', 'Cortante', 'Arremesso 6/18 m'),
+    weapon('Machadinha', 7, '1d6+4', 'Cortante', 'Arremesso', '6/18 m'),
     saveAttack('Sopro de Fogo', 13, 'dexterity', '3d10', 'Ígneo', 'Cone de 4,5 m'),
   ],
   features: ['Fúria (4/descanso longo)', 'Defesa sem Armadura', 'Ataque Descuidado', 'Sentido de Perigo', 'Ataque Extra', 'Movimento Rápido', 'Frenesi'],
@@ -644,9 +645,9 @@ const bart = createCharacter(coroa, {
   weaponProficiencies: 'Armas Simples',
   toolProficiencies: 'Ferramentas de funileiro, ferramentas de alquimista',
   attacks: [
-    weapon('Adaga', 4, '1d4+2', 'Perfurante', 'Acuidade, arremesso 6/18 m'),
-    weapon('Raio de Fogo', 7, '2d10', 'Ígneo', 'Truque, 36 m'),
-    saveAttack('Bola de Fogo', 15, 'dexterity', '8d6', 'Ígneo', 'Esfera de 6 m, 45 m'),
+    weapon('Adaga', 4, '1d4+2', 'Perfurante', 'Acuidade, arremesso', '6/18 m'),
+    weapon('Raio de Fogo', 7, '2d10', 'Ígneo', 'Truque', '36 m'),
+    saveAttack('Bola de Fogo', 15, 'dexterity', '8d6', 'Ígneo', 'Esfera de 6 m', 'half', '45 m'),
   ],
   features: ['Recuperação Arcana', 'Grimório', 'Esculpir Magias', 'Truque Potente', 'Erudito (Arcanismo)'],
   speciesTraits: ['Esperteza Gnômica', 'Ilusão Menor', 'Falar com Bestas Pequenas'],
@@ -781,7 +782,7 @@ const coroaBestiary = createStatblocks(coroa, [
     speed: '9 m, natação 9 m',
     abilityScores: { strength: 14, dexterity: 10, constitution: 14, intelligence: 12, wisdom: 14, charisma: 11 },
     attacksPerAction: 2,
-    attacks: [weapon('Cajado-pinça', 4, '1d6+2', 'Concussão', 'Alcance 3 m; agarrar CD 14'), weapon('Mordida', 4, '1d4+2', 'Perfurante')],
+    attacks: [weapon('Cajado-pinça', 4, '1d6+2', 'Concussão', 'Agarrar CD 14', '3 m'), weapon('Mordida', 4, '1d4+2', 'Perfurante')],
     traits: 'Escorregadio: vantagem para escapar de agarrões.\nSensibilidade à Luz Solar.',
   },
 ]);
@@ -1085,7 +1086,7 @@ const aurelia = createCharacter(ruinas, {
   toolProficiencies: 'Kit de caligrafia',
   attacks: [
     weapon('Maça', 4, '1d6+1', 'Concussão'),
-    saveAttack('Chama Sagrada', 14, 'dexterity', '2d8', 'Radiante', 'Ignora cobertura, 18 m', 'none'),
+    saveAttack('Chama Sagrada', 14, 'dexterity', '2d8', 'Radiante', 'Ignora cobertura', 'none', '18 m'),
     weapon('Besta leve', 3, '1d8', 'Perfurante', 'Munição 24/96 m'),
   ],
   features: ['Canalizar Divindade (2/descanso)', 'Labareda Protetora (3/dia)', 'Expulsar Mortos-Vivos', 'Destruir Mortos-Vivos (ND 1/2)', 'Radiância da Aurora'],

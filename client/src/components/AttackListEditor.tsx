@@ -89,6 +89,8 @@ export function AttackListEditor({ attacks, onChange, error, notesHint = 'Ex.: P
                 )}
                 <Field label="Tipo de dano" maxLength={CHARACTER_LIMITS.damageType} value={attack.damageType} hint="Ex.: Cortante"
                   onChange={(e) => update(index, { damageType: e.target.value })} />
+                <Field label="Alcance" maxLength={CHARACTER_LIMITS.attackRange} value={attack.range} hint="Ex.: 1,5 m ou 6/18 m"
+                  onChange={(e) => update(index, { range: e.target.value })} />
                 <Field className={wideField} label="Notas" maxLength={CHARACTER_LIMITS.attackNotes} value={attack.notes}
                   hint={notesHint}
                   onChange={(e) => update(index, { notes: e.target.value })} />

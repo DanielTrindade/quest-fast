@@ -97,6 +97,7 @@ export function diceRoutes() {
           mode: 'normal',
           rollKind: 'attack',
           attackName: attack.attackName,
+          ...(attack.attackRange ? { attackRange: attack.attackRange } : {}),
           characterName: attack.characterName,
           ...(attack.characterId ? { characterId: attack.characterId } : {}),
           ...(attack.attackerSource ? { attackerSource: attack.attackerSource } : {}),

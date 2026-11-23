@@ -35,12 +35,15 @@ export function parseAttack(value: unknown): Attack | undefined {
   if (damage.length === 0 ? attack.kind !== 'save' : !parseDiceExpression(damage)) return undefined;
   const damageType = attack.damageType === undefined ? '' : attack.damageType;
   const notes = attack.notes === undefined ? '' : attack.notes;
+  // Older clients send no range: the row has none.
+  const range = attack.range === undefined ? '' : attack.range;
   if (typeof damageType !== 'string' || damageType.length > L.damageType) return undefined;
   if (typeof notes !== 'string' || notes.length > L.attackNotes) return undefined;
+  if (typeof range !== 'string' || range.trim().length > L.attackRange) return undefined;
   // Older clients send no cost: the default of the row's kind.
   if (attack.cost !== undefined && !isAttackCost(attack.cost)) return undefined;
   const cost = attack.cost ?? defaultAttackCost(attack.kind === 'save' ? 'save' : 'attack');
-  const details = { name, damage, damageType: damageType.trim(), notes: notes.trim(), cost };
+  const details = { name, damage, damageType: damageType.trim(), notes: notes.trim(), range: range.trim(), cost };
 
   // A save DC has no attack roll: the target rolls the ability against it.
   if (attack.kind === 'save') {

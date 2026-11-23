@@ -38,8 +38,8 @@ export const hazinDan: CharacterSheet = {
   weaponProficiencies: 'Armas Simples e Marciais',
   toolProficiencies: 'Carpinteiro',
   attacks: [
-    { kind: 'attack', cost: 'attack', name: 'Machado Grande Hetto', bonus: 7, damage: '1d12+5', damageType: 'Cortante', notes: 'Pesada, duas mãos' },
-    { kind: 'attack', cost: 'attack', name: 'Machadinha', bonus: 7, damage: '1d6+5', damageType: 'Cortante', notes: 'Leve, arremesso (6 m / 18 m)' },
+    { kind: 'attack', cost: 'attack', name: 'Machado Grande Hetto', bonus: 7, damage: '1d12+5', damageType: 'Cortante', notes: 'Pesada, duas mãos', range: '1,5 m' },
+    { kind: 'attack', cost: 'attack', name: 'Machadinha', bonus: 7, damage: '1d6+5', damageType: 'Cortante', notes: 'Leve, arremesso', range: '6/18 m' },
   ],
   features: [
     'Fúria',
@@ -104,8 +104,8 @@ export const lyraVentoclaro: CharacterSheet = {
   weaponProficiencies: 'Armas Simples',
   toolProficiencies: 'Kit de herbalismo',
   attacks: [
-    { kind: 'attack', cost: 'attack', name: 'Maça', bonus: 5, damage: '1d6+2', damageType: 'Contundente', notes: '' },
-    { kind: 'save', cost: 'action', onSave: 'half', name: 'Palavra Radiante', dc: 13, saveAbility: 'constitution', damage: '1d6', damageType: 'Radiante', notes: 'Criaturas à escolha a até 1,5 m' },
+    { kind: 'attack', cost: 'attack', name: 'Maça', bonus: 5, damage: '1d6+2', damageType: 'Contundente', notes: '', range: '1,5 m' },
+    { kind: 'save', cost: 'action', onSave: 'half', name: 'Palavra Radiante', dc: 13, saveAbility: 'constitution', damage: '1d6', damageType: 'Radiante', notes: 'Criaturas à escolha', range: '1,5 m' },
   ],
   features: ['Conjuração', 'Canalizar Divindade', 'Discípulo da Vida', 'Destruir Mortos-Vivos'],
   speciesTraits: ['Visão no Escuro', 'Resiliência Anã', 'Tenacidade Anã'],

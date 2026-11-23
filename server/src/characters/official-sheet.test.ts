@@ -145,7 +145,7 @@ test('a sheet in the pre-official shape is accepted with the documented defaults
   assert.deepEqual(character.expertise, []);
   assert.deepEqual(character.coins, { cp: 0, sp: 0, ep: 0, gp: 0, pp: 0 });
   // An attack without a kind, as older clients send it, is an attack roll.
-  assert.deepEqual(character.attacks[0], { kind: 'attack', name: 'Adaga', bonus: 7, damage: '1d4+4', damageType: '', notes: '', cost: 'attack' });
+  assert.deepEqual(character.attacks[0], { kind: 'attack', name: 'Adaga', bonus: 7, damage: '1d4+4', damageType: '', notes: '', range: '', cost: 'attack' });
   assert.equal(character.hpCurrent, 24);
 });
 
@@ -325,7 +325,7 @@ test('an attack row can be a save DC with the ability the target rolls', async (
 
   assert.equal(response.status, 201);
   assert.ok(character);
-  assert.deepEqual(character.attacks[1], { ...BREATH, notes: '', cost: 'action', onSave: 'half' });
+  assert.deepEqual(character.attacks[1], { ...BREATH, notes: '', range: '', cost: 'action', onSave: 'half' });
   assert.equal('bonus' in character.attacks[1]!, false);
   assert.equal(character.attacks[0]?.kind, 'attack');
 });
@@ -389,6 +389,26 @@ test('an attack roll from the sheet leaves its damage to roll once it hits', asy
   assert.equal(axe.event.payload.attackerSource, 'character');
   assert.deepEqual(axe.event.payload.damageRollable, { expression: HAZIN.attacks[0]!.damage, damageType: HAZIN.attacks[0]!.damageType ?? '' });
   assert.equal(axe.event.payload.damage, undefined);
+});
+
+test('an attack keeps its range, and the roll records it as it was', async () => {
+  const { player, campaign } = await appWithCampaign();
+  const axe = { ...HAZIN.attacks[0], range: '  6/18 m ' };
+  const { character } = await create(player, campaign.id, { ...HAZIN, attacks: [axe, { name: 'Soco', bonus: 7, damage: '1d4+5' }] });
+  assert.ok(character);
+  assert.equal(character.attacks[0]?.range, '6/18 m');
+  // An older client sends no range: the row has none.
+  assert.equal(character.attacks[1]?.range, '');
+
+  const thrown = await body<RollResponse>(await roll(player, campaign.id, character.id, { kind: 'attack', attackIndex: 0 }));
+  assert.equal(thrown.event.payload.attackRange, '6/18 m');
+  const punch = await body<RollResponse>(await roll(player, campaign.id, character.id, { kind: 'attack', attackIndex: 1 }));
+  assert.equal('attackRange' in punch.event.payload, false);
+
+  for (const range of ['x'.repeat(31), 18]) {
+    const refused = await create(player, campaign.id, { ...HAZIN, attacks: [{ ...axe, range }] });
+    assert.equal(refused.response.status, 422, String(range));
+  }
 });
 
 test('attacks stored before the save DC existed read as attack rolls', async () => {

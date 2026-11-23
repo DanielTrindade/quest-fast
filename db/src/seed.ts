@@ -78,7 +78,7 @@ const baseSheet: Omit<import('@quest-fast/shared').CharacterInput, 'name' | 'rac
   ac: 15,
   skills: ['acrobatics', 'stealth', 'perception'],
   saves: ['dexterity', 'intelligence'],
-  attacks: [{ name: 'Adaga', bonus: 7, damage: '1d4+4' }],
+  attacks: [{ name: 'Adaga', bonus: 7, damage: '1d4+4', range: '6/18 m' }],
   features: ['Ataque furtivo 2d6'],
   description: '',
   avatarAssetId: null,
@@ -114,8 +114,8 @@ const charactersSeed: Array<
     class: 'Ladina',
     ownerId: players[1].id,
     attacks: [
-      { name: 'Adaga', bonus: 7, damage: '1d4+4', damageType: 'Perfurante' },
-      { kind: 'save', name: 'Frasco de ácido', dc: 13, saveAbility: 'dexterity', damage: '2d6', damageType: 'Ácido', notes: 'Arremesso, 6 m' },
+      { name: 'Adaga', bonus: 7, damage: '1d4+4', damageType: 'Perfurante', range: '6/18 m' },
+      { kind: 'save', name: 'Frasco de ácido', dc: 13, saveAbility: 'dexterity', damage: '2d6', damageType: 'Ácido', notes: 'Arremesso', range: '6 m' },
     ],
   },
   {
@@ -130,7 +130,7 @@ const charactersSeed: Array<
     abilityScores: { strength: 17, dexterity: 12, constitution: 16, intelligence: 10, wisdom: 12, charisma: 9 },
     skills: ['athletics', 'perception'],
     saves: ['strength', 'constitution'],
-    attacks: [{ name: 'Machado de batalha', bonus: 6, damage: '1d10+3', damageType: 'Cortante', notes: 'Versátil (1d10)' }],
+    attacks: [{ name: 'Machado de batalha', bonus: 6, damage: '1d10+3', damageType: 'Cortante', notes: 'Versátil (1d10)', range: '1,5 m' }],
     subclass: 'Campeão',
     background: 'Soldado',
     alignment: 'Leal e Neutro',
@@ -178,6 +178,7 @@ for (const sheet of charactersSeed) {
           damage: attack.damage,
           damageType: attack.damageType ?? '',
           notes: attack.notes ?? '',
+          range: attack.range ?? '',
           cost: attack.cost ?? defaultAttackCost(attack.kind === 'save' ? 'save' : 'attack'),
         };
         return attack.kind === 'save'
@@ -236,8 +237,8 @@ const bestiary: SeedStatblock[] = [
     speed: '9 m',
     abilityScores: { strength: 8, dexterity: 15, constitution: 10, intelligence: 10, wisdom: 8, charisma: 8 },
     attacks: [
-      { kind: 'attack', name: 'Cimitarra', bonus: 4, damage: '1d6+2', damageType: 'Cortante', notes: '' },
-      { kind: 'attack', name: 'Arco curto', bonus: 4, damage: '1d6+2', damageType: 'Perfurante', notes: 'Distância 24/96 m' },
+      { kind: 'attack', name: 'Cimitarra', bonus: 4, damage: '1d6+2', damageType: 'Cortante', notes: '', range: '1,5 m' },
+      { kind: 'attack', name: 'Arco curto', bonus: 4, damage: '1d6+2', damageType: 'Perfurante', notes: '', range: '24/96 m' },
     ],
     traits: 'Fuga ágil: Desengajar ou Esconder como ação bônus.',
   },
@@ -251,7 +252,7 @@ const bestiary: SeedStatblock[] = [
     hpFormula: '2d8+2',
     speed: '12 m',
     abilityScores: { strength: 14, dexterity: 15, constitution: 12, intelligence: 3, wisdom: 12, charisma: 6 },
-    attacks: [{ kind: 'attack', name: 'Mordida', bonus: 4, damage: '1d6+2', damageType: 'Perfurante', notes: 'Alvo Grande ou menor: Caído' }],
+    attacks: [{ kind: 'attack', name: 'Mordida', bonus: 4, damage: '1d6+2', damageType: 'Perfurante', notes: 'Alvo Grande ou menor: Caído', range: '1,5 m' }],
     traits: 'Táticas de matilha: vantagem se um aliado estiver a 1,5 m do alvo.',
   },
   {
@@ -265,8 +266,8 @@ const bestiary: SeedStatblock[] = [
     speed: '9 m',
     abilityScores: { strength: 8, dexterity: 14, constitution: 12, intelligence: 10, wisdom: 15, charisma: 12 },
     attacks: [
-      { kind: 'attack', name: 'Bordão', bonus: 1, damage: '1d6-1', damageType: 'Concussão', notes: '' },
-      { kind: 'save', name: 'Chama sagrada', dc: 12, saveAbility: 'dexterity', damage: '1d8', damageType: 'Radiante', notes: 'Alcance 18 m' },
+      { kind: 'attack', name: 'Bordão', bonus: 1, damage: '1d6-1', damageType: 'Concussão', notes: '', range: '1,5 m' },
+      { kind: 'save', name: 'Chama sagrada', dc: 12, saveAbility: 'dexterity', damage: '1d8', damageType: 'Radiante', notes: '', range: '18 m' },
     ],
   },
 ];

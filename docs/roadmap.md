@@ -249,6 +249,25 @@ em quatro PRs (os três primeiros empilhados):
    andamento (ou no em preparação) com um clique, com PV médio ou rolado; o
    token passa a ser do combatente, no mesmo lugar.
 
+### Retorno da segunda sessão
+
+O modificador situacional nas rolagens
+([#133](https://github.com/DanielTrindade/quest-fast/issues/133)) e o alcance
+nos ataques ([#134](https://github.com/DanielTrindade/quest-fast/issues/134))
+entram antes da fase 3. Spec em
+[`history/2026-11-23-roll-bonus-and-range.md`](history/2026-11-23-roll-bonus-and-range.md),
+em quatro PRs:
+
+1. **Alcance no ataque — em andamento.** Cada linha de ataque da ficha e do
+   bestiário ganha "Alcance" em texto ("1,5 m", "6/18 m"), mostrado em
+   Mesa/Ações e gravado no evento do feed como era na hora do ataque. Sem
+   migração: os ataques já são JSON. A importação do PDF deixa o campo vazio.
+2. **Alcance no mapa.** "Ver alcance" na aba Ações desenha, em casas de
+   1,5 m, o alcance normal e o longo em volta do token de quem ataca.
+3. **Modificador no servidor.** Dado e número com sinal no d20 e no dano,
+   rolados à parte no servidor.
+4. **Modificador na tela.** A barra "Modificadores" na aba Ações e na ficha.
+
 ### Telas da campanha
 
 A campanha deixa de ser uma página única com âncoras. Na conta, **Meus

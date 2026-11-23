@@ -92,6 +92,9 @@ function AttackEventCard({ event, onRollDamage, pending }: { event: RollSessionE
           {damage && <span>Dano: <strong className="font-semibold tabular-nums">{damage}</strong></span>}
         </p>
       )}
+      {payload.attackRange && !payload.damageOf && (
+        <p data-slot="attack-range" className="m-0 mt-1 text-small text-text-secondary [overflow-wrap:anywhere]">Alcance {payload.attackRange}</p>
+      )}
       <AreaTargets payload={payload} />
       {onRollDamage && canRollDamage(payload) && (
         <div className="mt-2 [&>[data-slot=button]]:max-w-full [&>[data-slot=button]]:whitespace-normal">

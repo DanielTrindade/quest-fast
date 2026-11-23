@@ -90,15 +90,15 @@ export function halfDamage(amount: number): number {
   return Math.floor(amount / 2);
 }
 
-/** An attack as some older row stored it: without a kind, a damage type, notes or a cost. */
-type Optional = 'kind' | 'damageType' | 'notes' | 'cost' | 'onSave';
+/** An attack as some older row stored it: without a kind, a damage type, notes, a range or a cost. */
+type Optional = 'kind' | 'damageType' | 'notes' | 'range' | 'cost' | 'onSave';
 // Distributes over the kinds, so each keeps its own fields.
 export type StoredAttack = Attack extends infer Row ? (Row extends Attack ? Omit<Row, Optional> & Partial<Pick<Row, Optional & keyof Row>> : never) : never;
 
 /**
  * A stored attack with every field filled: rows stored before the save DC
- * have no kind (attack rolls), and rows stored before the cost read as the
- * default of their kind.
+ * have no kind (attack rolls), rows stored before the cost read as the
+ * default of their kind, and rows stored before the range have none.
  */
 export function storedAttack(stored: StoredAttack): Attack {
   const kind = stored.kind ?? 'attack';
@@ -107,6 +107,7 @@ export function storedAttack(stored: StoredAttack): Attack {
     kind,
     damageType: stored.damageType ?? '',
     notes: stored.notes ?? '',
+    range: stored.range ?? '',
     cost: isAttackCost(stored.cost) ? stored.cost : defaultAttackCost(kind),
     ...(kind === 'save' ? { onSave: 'onSave' in stored && isSaveEffect(stored.onSave) ? stored.onSave : 'half' } : {}),
   } as Attack;

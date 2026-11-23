@@ -92,8 +92,8 @@ export const FichaLonga: Story = {
       name: 'Hazin Dan, o machado que atravessou as Planícies de Cinza',
       attacks: [
         ...hazinDan.attacks,
-        { kind: 'attack', cost: 'attack', name: 'Arremesso de machadinha em fúria', bonus: 7, damage: '1d6+7', damageType: 'Cortante', notes: 'Com Fúria ativa' },
-        { kind: 'attack', cost: 'attack', name: 'Soco', bonus: 7, damage: '1+5', damageType: 'Contundente', notes: '' },
+        { kind: 'attack', cost: 'attack', name: 'Arremesso de machadinha em fúria', bonus: 7, damage: '1d6+7', damageType: 'Cortante', notes: 'Com Fúria ativa', range: '6/18 m' },
+        { kind: 'attack', cost: 'attack', name: 'Soco', bonus: 7, damage: '1+5', damageType: 'Contundente', notes: '', range: '1,5 m' },
       ],
     },
   },
