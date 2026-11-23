@@ -6,7 +6,7 @@ import { useMapViewport, ZOOM_STEP, type MapOverlay } from '../hooks/useMapViewp
 import { useTokenLayer, type TokenLayerOptions } from '../hooks/useTokenLayer';
 import { tokensForLook, type FogLook, type FogTool } from '../lib/fog-tool';
 import { gridCells } from '../lib/map-view';
-import { describeMove } from '../lib/reach-draw';
+import { describeMove, type ShownRange } from '../lib/reach-draw';
 import { turnName, type FightMarks } from '../lib/token-combat';
 import { cn } from '../lib/utils';
 import { MoveConfirm } from './MoveConfirm';
@@ -56,7 +56,7 @@ export type MapCanvasProps = {
    * each combatant's health arc. The list beside the map says both in words.
    */
   fightMarks?: FightMarks;
-} & Pick<TokenLayerOptions, 'onSelect' | 'canMove' | 'onGrab' | 'onDrag' | 'onDrop' | 'onCancelDrag' | 'motion' | 'pendingMove' | 'stopAtLimit'>;
+} & Pick<TokenLayerOptions, 'onSelect' | 'canMove' | 'onGrab' | 'onDrag' | 'onDrop' | 'onCancelDrag' | 'motion' | 'pendingMove' | 'stopAtLimit' | 'attackRange'>;
 
 export type MapCanvasHandle = {
   /** The middle of the area in view, in map pixels: where a new token lands. */
@@ -183,6 +183,14 @@ function describeStates(tokens: readonly TokenView[]): string {
   return states.length === 0 ? total : `${total} ${states.join(', ')}.`;
 }
 
+/** The range of an attack shown on the map, which the canvas draws as outlines. */
+function describeAttackRange(tokens: readonly TokenView[], range: ShownRange | null | undefined): string {
+  const token = range && tokens.find((candidate) => candidate.id === range.tokenId);
+  if (!range || !token) return '';
+  const long = range.long === null ? '' : ` e, com desvantagem, até ${formatMeters(range.long)}`;
+  return ` Alcance do ataque de ${token.name}: ${formatMeters(range.normal)}${long}.`;
+}
+
 /** The selected token's reach, which the canvas draws as a tinted area. */
 function describeReach(token: TokenView | undefined): string {
   if (!token?.reach) return '';
@@ -241,7 +249,7 @@ function MapControls({ zoom, onZoom, onFrame, fullscreen, onFullscreenChange }: 
 export function MapCanvas({
   imageUrl, mapWidth, mapHeight, grid, label, className, tokens = NO_TOKENS, viewerId = null, selectedTokenId = null,
   onSelect, canMove, onGrab, onDrag, onDrop, onCancelDrag, motion, ref, fullscreen = false, onFullscreenChange,
-  pendingMove = null, moveConfirm, stopAtLimit, fog = null, fogLook = 'master', fogTool = null, onFogShape, fightMarks,
+  pendingMove = null, moveConfirm, stopAtLimit, fog = null, fogLook = 'master', fogTool = null, onFogShape, fightMarks, attackRange = null,
 }: MapCanvasProps) {
   const tokenOverlayRef = useRef<MapOverlay | null>(null);
   const fogOverlayRef = useRef<MapOverlay | null>(null);
@@ -256,7 +264,7 @@ export function MapCanvas({
   } = useMapViewport({ imageUrl, mapWidth, mapHeight, grid, fog: fogLayer, overlayRef });
   const { cancelDrag } = useTokenLayer({
     tokens: shown, grid, map, viewerId, selectedId: selectedTokenId,
-    onSelect, canMove, onGrab, onDrag, onDrop, onCancelDrag, motion, pendingMove, stopAtLimit, marks: fightMarks, overlayRef: tokenOverlayRef, requestDraw, themedRef: frameRef,
+    onSelect, canMove, onGrab, onDrag, onDrop, onCancelDrag, motion, pendingMove, stopAtLimit, marks: fightMarks, attackRange, overlayRef: tokenOverlayRef, requestDraw, themedRef: frameRef,
     labelRef: moveLabelRef,
   });
   const drawing = useFogLayer({ tool: fogTool, grid, map, onShape: onFogShape, requestDraw, themedRef: frameRef });
@@ -309,7 +317,7 @@ export function MapCanvas({
       <p ref={moveLabelRef} hidden aria-hidden="true" data-slot="move-label"
         className="pointer-events-none absolute top-0 left-0 m-0 rounded-control border border-border bg-card w-max max-w-[calc(100%-0.5rem)] px-2.5 py-1 text-small text-balance text-foreground edge-raised data-[over=true]:border-danger data-[over=true]:text-danger-text" />
 
-      <p id={summaryId} className="sr-only">Mapa de {mapWidth} por {mapHeight} pixels. {describeGrid(grid, mapWidth, mapHeight)} {describeTokens(shown, fightMarks)}{describeReach(shown.find((token) => token.id === selectedTokenId))}{describeFog(fog, fogLook)}</p>
+      <p id={summaryId} className="sr-only">Mapa de {mapWidth} por {mapHeight} pixels. {describeGrid(grid, mapWidth, mapHeight)} {describeTokens(shown, fightMarks)}{describeReach(shown.find((token) => token.id === selectedTokenId))}{describeAttackRange(shown, attackRange)}{describeFog(fog, fogLook)}</p>
       <p id={helpId} className="sr-only">
         {MAP_HELP[fogTool?.shape ?? 'pan']}
       </p>

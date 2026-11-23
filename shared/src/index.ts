@@ -386,3 +386,4 @@ export {
   type AvatarCrop,
   type PixelRect,
 } from './avatar-crop.ts';
+export { parseRange, type AttackRange } from './range.ts';

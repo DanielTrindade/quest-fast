@@ -258,12 +258,15 @@ entram antes da fase 3. Spec em
 [`history/2026-11-23-roll-bonus-and-range.md`](history/2026-11-23-roll-bonus-and-range.md),
 em quatro PRs:
 
-1. **Alcance no ataque — em andamento.** Cada linha de ataque da ficha e do
+1. **Alcance no ataque — entregue.** Cada linha de ataque da ficha e do
    bestiário ganha "Alcance" em texto ("1,5 m", "6/18 m"), mostrado em
    Mesa/Ações e gravado no evento do feed como era na hora do ataque. Sem
    migração: os ataques já são JSON. A importação do PDF deixa o campo vazio.
-2. **Alcance no mapa.** "Ver alcance" na aba Ações desenha, em casas de
-   1,5 m, o alcance normal e o longo em volta do token de quem ataca.
+2. **Alcance no mapa — em andamento.** "Ver alcance" na aba Ações desenha,
+   em casas de 1,5 m, o alcance normal (contorno firme) e o longo (contorno
+   leve) em volta do token de quem ataca, no tom de perigo. O texto vira
+   metros por `parseRange` em `shared/` ("6/18 m", "30 ft"); o que não é
+   distância fica só como texto. Só mostra: não recusa alvo.
 3. **Modificador no servidor.** Dado e número com sinal no d20 e no dano,
    rolados à parte no servidor.
 4. **Modificador na tela.** A barra "Modificadores" na aba Ações e na ficha.

@@ -11,7 +11,51 @@ function colours(themed: Element) {
     reach: read('--color-accent'),
     over: read('--color-danger'),
     halo: read('--color-surface-secret'),
+    range: read('--color-danger'),
   };
+}
+
+/** An attack's range on the map: the token it starts from and the distances, in metres. */
+export type ShownRange = { tokenId: string; normal: number; long: number | null };
+
+/** One outline with its halo, so it reads over any map. */
+function outline(context: CanvasRenderingContext2D, box: { x: number; y: number; width: number; height: number }, stroke: string, halo: string, width: number, alpha: number) {
+  context.globalAlpha = 0.5 * alpha;
+  context.lineWidth = width + 2;
+  context.strokeStyle = halo;
+  context.strokeRect(box.x, box.y, box.width, box.height);
+  context.globalAlpha = alpha;
+  context.lineWidth = width;
+  context.strokeStyle = stroke;
+  context.strokeRect(box.x, box.y, box.width, box.height);
+}
+
+/**
+ * The squares an attack reaches from its token, counted like a move (the
+ * diagonal is one square): the normal range as a firm outline over a faint
+ * veil, and the long range, when there is one, as a lighter outline around
+ * it. In the danger tone, an attack's: the grid's lines are light and the
+ * accent tiles are the move, so neither may draw it.
+ */
+export function drawAttackRange(
+  context: CanvasRenderingContext2D,
+  input: { token: Point & { size: Size }; normal: number; long: number | null; cellSize: number; map: { width: number; height: number }; view: MapView; themed: Element },
+) {
+  const { range, halo } = colours(input.themed);
+  const box = (meters: number) => {
+    const area = reachArea(input.token, meters, { cellSize: input.cellSize }, input.map);
+    const from = toScreenPoint(input.view, { x: area.left, y: area.top });
+    const to = toScreenPoint(input.view, { x: area.right, y: area.bottom });
+    return { x: from.x + 1, y: from.y + 1, width: to.x - from.x - 2, height: to.y - from.y - 2 };
+  };
+  const normal = box(input.normal);
+  context.save();
+  if (input.long !== null) outline(context, box(input.long), range, halo, 2, 0.5);
+  context.globalAlpha = 0.1;
+  context.fillStyle = range;
+  context.fillRect(normal.x, normal.y, normal.width, normal.height);
+  outline(context, normal, range, halo, 3, 0.95);
+  context.restore();
 }
 
 /** Below this side on screen a tile is too small to read as one: the area is a plain tint. */

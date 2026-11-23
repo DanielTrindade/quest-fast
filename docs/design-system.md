@@ -384,3 +384,10 @@ A entrega 5 do VTT liga o token ao combate em andamento (stories em `Componentes
 - **Token escondido.** Os marcadores esmaecem junto com a peça.
 - **Em palavras.** A lista de tokens diz "Vez atual" (como a fila de iniciativa) e a faixa ("Ileso", "Ferido", "Muito ferido"); o resumo acessível do mapa termina em "Vez de Kaelen.".
 - **De onde vem.** Do encontro em andamento que o cliente já tem, projetado por papel no servidor (`lib/token-combat.ts`, com teste em `client/test/token-combat.test.ts`). O jogador não aprende nada que a fila de iniciativa não mostre: quando o servidor esconde de quem é a vez, nenhum token ganha o anel.
+
+## Alcance do ataque no mapa (23 de novembro de 2026)
+
+- **Pedido, não automático.** Na aba Ações da Mesa, a linha de ataque cujo alcance o mapa sabe ler ("1,5 m", "6/18 m", "30 ft") ganha "Ver alcance" (`aria-pressed`), ao lado de "Atacar". Só aparece quando quem ataca tem token na cena aberta. Um alcance por vez; atacar, trocar de combatente ou sair da aba Ações o apaga.
+- **Em casas, como o deslocamento.** A área conta casas de 1,5 m com a diagonal valendo uma, a mesma regra do alcance de movimento: o que o mapa mostra bate com o que a mesa conta.
+- **Só contorno, no tom de perigo.** O alcance normal é um contorno firme (3 px, com halo) sobre um véu de 10%; o longo, um contorno mais leve (2 px a 50%) em volta. Branco se confundia com as linhas do grid, e os ladrilhos em `accent` já são o movimento. O botão pressionado usa o mesmo tom (`danger-surface`, `danger-text`).
+- **Texto que não é distância** ("Toque", "Pessoal (cone de 4,5 m)") fica só como texto: áreas são da #113.

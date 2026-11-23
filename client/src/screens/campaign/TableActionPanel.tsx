@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useContext, useEffect, useState, type ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import type { CastChoice, CharacterResponse, CombatantView, EncounterView, LinkedRollRequest, RollPayload } from '@quest-fast/shared';
@@ -22,6 +22,7 @@ import { SessionFeed } from './SessionFeed';
 import { TableChat } from './TableChat';
 import { PanelRail } from '../../components/PanelRail';
 import { useChatSession } from '../../hooks/useChatSession';
+import { AttackRangeContext } from '../../lib/attack-range-context';
 import { cn } from '../../lib/utils';
 import { useChatUnread } from './useChatUnread';
 
@@ -230,7 +231,12 @@ export function TableActionPanel({ campaignId, isMaster, currentUserId, withFeed
   const session = useChatSession();
   const [pageTab, setPageTab] = useState<ActionPanelTab>('actions');
   const tab = stage ? stage.tab : pageTab;
-  const setTab = stage ? stage.onTabChange : setPageTab;
+  const ranges = useContext(AttackRangeContext);
+  // An attack's range belongs to the Ações tab: going to another tab puts it away.
+  const setTab = (next: ActionPanelTab) => {
+    if (next !== 'actions') ranges?.show(null);
+    (stage ? stage.onTabChange : setPageTab)(next);
+  };
   const fight = useFight(campaignId);
   const player = useOwnCharacter(campaignId, currentUserId, !isMaster);
   const ownCombatant = ownCombatantOf(fight.encounter, player.own);
@@ -270,7 +276,7 @@ export function TableActionPanel({ campaignId, isMaster, currentUserId, withFeed
           actionsSignal={actionsSignal} chatUnread={chatUnread}
           className="flex-row @min-[47.5rem]/stage:h-full @min-[47.5rem]/stage:flex-col"
           onOpen={(next) => {
-            if (next) stage.onTabChange(next);
+            if (next) setTab(next);
             stage.onCollapsedChange(false);
           }} />
       )}

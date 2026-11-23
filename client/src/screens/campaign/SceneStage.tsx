@@ -1,4 +1,4 @@
-import { useId, useMemo, useRef, useState, type RefObject } from 'react';
+import { useContext, useId, useMemo, useRef, useState, type RefObject } from 'react';
 import { Broadcast, Cloud, GridFour, MapPin, XCircle } from '@phosphor-icons/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { GridSettings as Grid, SceneView, TokenView } from '@quest-fast/shared';
@@ -17,6 +17,8 @@ import { useNotify } from '../../hooks/use-notify';
 import { api } from '../../lib/api';
 import { activeSceneQuery, mergeScene, sceneListQuery, sceneQuery } from '../../lib/scene-cache';
 import { stopsAtLimit } from '../../lib/move-path';
+import { AttackRangeContext, tokenOf } from '../../lib/attack-range-context';
+import type { ShownRange } from '../../lib/reach-draw';
 import { fightMarks, mayFight, moveRefusal, type MoveRefusal } from '../../lib/token-combat';
 import { cn } from '../../lib/utils';
 import { errorMessage } from './campaign-screen';
@@ -167,6 +169,19 @@ function useMoveGate({ campaignId, viewerId, isMaster, settling, fight }: {
   };
 }
 
+/**
+ * The attack range the Ações tab asked to see, around its attacker's token on
+ * this scene; nothing when the attacker has none here. Kept while the token
+ * and the range are the same: the map redraws when it changes.
+ */
+function useShownRange(tokens: readonly TokenView[]): ShownRange | null {
+  const shown = useContext(AttackRangeContext)?.shown ?? null;
+  const tokenId = shown ? tokenOf(tokens, shown.owner)?.id ?? null : null;
+  const normal = shown?.range.normal ?? 0;
+  const long = shown?.range.long ?? null;
+  return useMemo(() => (tokenId ? { tokenId, normal, long } : null), [tokenId, normal, long]);
+}
+
 function stageClass(isMaster: boolean) {
   return cn(
     '@container/stage fixed inset-0 z-30 grid min-w-0 gap-3 overflow-hidden bg-background p-3 pb-[calc(var(--spacing-3)+env(safe-area-inset-bottom,0px))]',
@@ -304,6 +319,7 @@ export function SceneStage({ campaignId, scene, isMaster, mapClassName, allowFul
   const canMove = useMoveGate({ campaignId, viewerId, isMaster, settling: moves.settling, fight: fightState });
   const focus = selectedId ? fighterOfToken(selectedId) : null;
   const marks = useFightMarks(scene.tokens, fight);
+  const attackRange = useShownRange(scene.tokens);
 
   // The column beside the map: the master's open panel, the selected token,
   // its turn and the token list. On the full screen it is the panel's Mapa.
@@ -335,7 +351,7 @@ export function SceneStage({ campaignId, scene, isMaster, mapClassName, allowFul
             onGrab={moves.onGrab} onDrag={moves.onDrag} onDrop={moves.onDrop} onCancelDrag={moves.onCancelDrag} motion={motion}
             fullscreen={fullscreen} onFullscreenChange={allowFullscreen ? setFullscreen : undefined}
             fog={scene.fog} fogLook={fog.look} fogTool={fog.tool} onFogShape={fog.apply}
-            pendingMove={moves.pending} fightMarks={marks}
+            pendingMove={moves.pending} fightMarks={marks} attackRange={attackRange}
             stopAtLimit={(token) => stopsAtLimit(isMaster, fight?.fighterOf(token)?.id, fight?.encounter.activeCombatantId)}
             moveConfirm={{
               onConfirm: () => moves.confirm(),

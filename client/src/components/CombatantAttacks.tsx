@@ -1,6 +1,8 @@
 import { useId, useState } from 'react';
 import { EyeSlash } from '@phosphor-icons/react';
 import { attackSpend, spendTurn, type Attack, type AttackCost, type RollMode, type TurnView } from '@quest-fast/shared';
+import { useRangeToggle } from '../hooks/useRangeToggle';
+import type { RangeOwner } from '../lib/attack-range-context';
 import { contentKeys } from '../lib/content-keys';
 import { AttackCard } from './AttackCard';
 import { RollModeControl } from './RollModeControl';
@@ -31,9 +33,11 @@ function turnRefusal(turn: TurnView | null, cost: AttackCost, ownTurn: boolean):
  * only asks: the server rolls, compares with the AC and leaves the damage
  * for the master to apply.
  */
-export function CombatantAttacks({ name, attacks, targets, turn = null, active = false, master = false, defaultSecret = false, pending = false, onAttack }: {
+export function CombatantAttacks({ name, owner = null, attacks, targets, turn = null, active = false, master = false, defaultSecret = false, pending = false, onAttack }: {
   /** Who attacks: names the controls for screen readers. */
   name: string;
+  /** Whose token the range is drawn around, in the Mesa; without it no row offers "Ver alcance". */
+  owner?: RangeOwner | null;
   attacks: Attack[];
   /** Everyone else this viewer sees. */
   targets: TargetOption[];
@@ -52,6 +56,7 @@ export function CombatantAttacks({ name, attacks, targets, turn = null, active =
   const [targetIds, setTargetIds] = useState<string[]>([]);
   const [mode, setMode] = useState<RollMode>('normal');
   const [secret, setSecret] = useState(defaultSecret);
+  const ranges = useRangeToggle(owner);
 
   if (attacks.length === 0) {
     return <p className="m-0 text-small text-text-secondary">Sem ataques cadastrados: use os dados livres.</p>;
@@ -76,12 +81,16 @@ export function CombatantAttacks({ name, attacks, targets, turn = null, active =
         {contentKeys(attacks).map(({ item: attack, key }, index) => (
           <li key={key} className="min-w-0">
             <AttackCard {...attack} disabled={pending} refusal={refusalOf(attack, chosen.length, turn, active)}
-              onRoll={() => onAttack(index, {
+              rangeToggle={ranges.offer(`${index}:${attack.name}`, attack.range)}
+              onRoll={() => {
+                ranges.clear();
+                onAttack(index, {
                 targetIds: chosen,
                 // Advantage belongs to an attack roll; a save has none.
-                mode: attack.kind === 'save' ? 'normal' : mode,
-                secret: master && secret,
-              })} />
+                  mode: attack.kind === 'save' ? 'normal' : mode,
+                  secret: master && secret,
+                });
+              }} />
           </li>
         ))}
       </ul>

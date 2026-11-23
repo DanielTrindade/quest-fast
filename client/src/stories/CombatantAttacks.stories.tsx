@@ -1,6 +1,8 @@
+import { useState, type ReactNode } from 'react';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { expect, fn, userEvent, within } from 'storybook/test';
 import { CombatantAttacks } from '../components/CombatantAttacks';
+import { AttackRangeContext, sameOwner, type ShownAttackRange } from '../lib/attack-range-context';
 import { masterCombatants, playerCombatants } from './fixtures/encounters';
 
 const goblin = masterCombatants.find((combatant) => combatant.id === 'g1')!;
@@ -54,6 +56,37 @@ export const JogadorComPersonagem: Story = {
     await userEvent.click(panel.getByRole('radio', { name: 'Desvantagem' }));
     await userEvent.click(panel.getByRole('button', { name: 'Rolar dano de Sopro de fogo' }));
     await expect(args.onAttack).toHaveBeenCalledWith(1, { targetIds: [], mode: 'normal', secret: false });
+  },
+};
+
+/** The Mesa's range channel, with every attacker on the map. */
+function OnTheMap({ children }: { children: ReactNode }) {
+  const [shown, setShown] = useState<ShownAttackRange | null>(null);
+  const channel = {
+    shown,
+    show: setShown,
+    clear: (owner: ShownAttackRange['owner']) => setShown((current) => (current && sameOwner(current.owner, owner) ? null : current)),
+    onMap: () => true,
+  };
+  return <AttackRangeContext value={channel}>{children}</AttackRangeContext>;
+}
+
+/**
+ * In the Mesa, a row with a range the map can draw offers "Ver alcance";
+ * attacking puts the range away.
+ */
+export const VerAlcanceNoMapa: Story = {
+  name: 'Ver alcance no mapa',
+  args: { owner: { characterId: null, combatantId: 'g1' } },
+  decorators: [(Story) => <OnTheMap><Story /></OnTheMap>],
+  play: async ({ canvasElement, args }) => {
+    const [region] = within(canvasElement).getAllByRole('region', { name: /^Tema / });
+    const panel = within(region!);
+    await userEvent.click(panel.getByRole('button', { name: 'Ver alcance de Arco curto no mapa' }));
+    await expect(panel.getByRole('button', { name: 'Ocultar alcance de Arco curto no mapa' })).toHaveAttribute('aria-pressed', 'true');
+    await userEvent.click(panel.getByRole('button', { name: 'Atacar com Arco curto' }));
+    await expect(args.onAttack).toHaveBeenCalled();
+    await expect(panel.getByRole('button', { name: 'Ver alcance de Arco curto no mapa' })).toHaveAttribute('aria-pressed', 'false');
   },
 };
 

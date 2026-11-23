@@ -1,4 +1,4 @@
-import { DiceFive, ShieldWarning, Sword } from '@phosphor-icons/react';
+import { DiceFive, Ruler, ShieldWarning, Sword } from '@phosphor-icons/react';
 import type { Ability, AttackCost, SaveEffect } from '@quest-fast/shared';
 import { Button } from './Button';
 import { ABILITY_LABELS } from '../lib/5e';
@@ -16,6 +16,8 @@ type AttackCardProps = {
   cost?: AttackCost;
   /** Why the turn has nothing left for it: the button is off and says so. */
   refusal?: string | null;
+  /** "Ver alcance": draws the range on the map around its user's token. Absent where there is no map to draw on. */
+  rangeToggle?: { shown: boolean; toggle: () => void } | null;
 } & RowKind;
 
 /** The row's numbers: hit bonus or DC, damage and type, what a pass leaves, the range, the cost. */
@@ -68,7 +70,7 @@ function RollButton({ name, save, damage, disabled, onRoll }: {
  * or only calls for the save when it deals none (Graxa).
  */
 export function AttackCard(props: AttackCardProps) {
-  const { name, damage, damageType = '', notes = '', range = '', onRoll, cost, refusal = null } = props;
+  const { name, damage, damageType = '', notes = '', range = '', onRoll, cost, refusal = null, rangeToggle = null } = props;
   const disabled = props.disabled === true || refusal !== null;
   return <div className="flex flex-wrap items-center justify-between gap-3 rounded-control border border-border bg-card p-3">
     <div className="min-w-0 flex-[1_1_160px] [overflow-wrap:anywhere]">
@@ -77,6 +79,16 @@ export function AttackCard(props: AttackCardProps) {
       {notes && <p className="mt-1 text-small text-text-secondary [overflow-wrap:anywhere]">{notes}</p>}
       {onRoll && refusal && <p className="mt-1 text-small text-text-secondary [overflow-wrap:anywhere]">{refusal}</p>}
     </div>
-    {onRoll && <RollButton name={name} save={props.kind === 'save'} damage={damage} disabled={disabled} onRoll={onRoll} />}
+    {(onRoll || rangeToggle) && (
+      <div className="flex flex-wrap items-center gap-2">
+        {rangeToggle && (
+          <Button variant="ghost" aria-pressed={rangeToggle.shown} onClick={rangeToggle.toggle} aria-label={`${rangeToggle.shown ? 'Ocultar' : 'Ver'} alcance de ${name} no mapa`}
+            className="aria-pressed:bg-danger-surface aria-pressed:text-danger-text">
+            <Ruler size={18} aria-hidden="true" />{rangeToggle.shown ? 'Ocultar alcance' : 'Ver alcance'}
+          </Button>
+        )}
+        {onRoll && <RollButton name={name} save={props.kind === 'save'} damage={damage} disabled={disabled} onRoll={onRoll} />}
+      </div>
+    )}
   </div>;
 }

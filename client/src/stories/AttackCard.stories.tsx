@@ -25,6 +25,26 @@ export const AlcanceNoLimite: Story = {
   name: 'Alcance no limite',
   args: { ...dagger, range: 'Toque, ou 18/36 m arremessada' },
 };
+/** In the Mesa, with its user on the map: the range can be drawn there. */
+export const VerAlcance: Story = {
+  name: 'Ver alcance',
+  args: { ...dagger, name: 'Machadinha', range: '6/18 m', rangeToggle: { shown: false, toggle: fn() } },
+  play: async ({ canvasElement, args }) => {
+    const [region] = within(canvasElement).getAllByRole('region', { name: /^Tema / });
+    const toggle = within(region!).getByRole('button', { name: 'Ver alcance de Machadinha no mapa' });
+    await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+    await userEvent.click(toggle);
+    await expect(args.rangeToggle!.toggle).toHaveBeenCalled();
+  },
+};
+export const AlcanceNoMapa: Story = {
+  name: 'Alcance no mapa',
+  args: { ...dagger, name: 'Machadinha', range: '6/18 m', rangeToggle: { shown: true, toggle: fn() } },
+  play: async ({ canvasElement }) => {
+    const [region] = within(canvasElement).getAllByRole('region', { name: /^Tema / });
+    await expect(within(region!).getByRole('button', { name: 'Ocultar alcance de Machadinha no mapa' })).toHaveAttribute('aria-pressed', 'true');
+  },
+};
 export const Consulta: Story = { args: { ...dagger, onRoll: undefined } };
 export const Rolando: Story = { args: { ...dagger, disabled: true } };
 export const NomeLongo: Story = { args: { ...dagger, name: 'Espada curta élfica dos caminhos esquecidos', bonus: -1, damage: '1d4+4 mais 2d6 de veneno' } };
