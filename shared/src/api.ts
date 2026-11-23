@@ -1,5 +1,6 @@
 import type { Role } from './role.ts';
 import type { DieResult, RollMode } from './dice.ts';
+import type { BonusRoll, RollBonusInput } from './roll-bonus.ts';
 import type { Ability, Skill } from './modifiers.ts';
 import type { ArmorTraining, Coins, DeathSaves, HitDie, Size, Spell, SpellSlot } from './sheet.ts';
 import type { GridSettings, TokenKind } from './battlefield.ts';
@@ -304,6 +305,8 @@ export type LinkedRollRequest = {
   skill?: Skill;
   /** Advantage and disadvantage apply only to a single d20. */
   mode?: RollMode;
+  /** The situational modifier, as typed: `roll` on the d20, `damage` on a save row's damage. */
+  bonus?: RollBonusInput;
 };
 
 export type RollPayload = {
@@ -314,6 +317,11 @@ export type RollPayload = {
   total: number;
   mode: RollMode;
   natural?: 1 | 20;
+  /**
+   * The situational modifier on this roll, rolled apart and already in the
+   * total. On a save row the roll is the damage, and this is the damage's.
+   */
+  bonus?: BonusRoll;
   /** Absent for a free roll; present for rolls linked to a sheet. */
   rollKind?: 'attack' | 'check' | 'save' | 'skill' | 'initiative' | 'spellAttack';
   characterId?: string;
@@ -373,9 +381,12 @@ export type DamageRoll = {
   expression: string;
   dice: DieResult[];
   modifier: number;
+  /** With the situational modifier, never below 0. */
   total: number;
   /** e.g. "Cortante"; empty when the attack does not say. */
   damageType: string;
+  /** The situational modifier on the damage, already in the total. */
+  bonus?: BonusRoll;
 };
 
 export type AttackTarget = {
@@ -712,6 +723,8 @@ export type CombatantPatch = {
 export type InitiativeRequest = {
   value?: number;
   mode?: RollMode;
+  /** Only `roll` counts: on the rolled d20, never on a typed value. */
+  bonus?: RollBonusInput;
   /** Master only; a monster's roll is secret unless told otherwise. */
   secret?: boolean;
 };
@@ -750,6 +763,8 @@ export type DeathSaveRequest = {
 export type ConcentrationSaveRequest = {
   reminderId: string;
   mode?: RollMode;
+  /** Only `roll` counts: on the save's d20. */
+  bonus?: RollBonusInput;
   /** Master only; a monster's roll is secret unless told otherwise. */
   secret?: boolean;
 };
@@ -765,9 +780,14 @@ export type AttackRequest = {
   /** What older clients send: one target, read as `targetIds: [targetId]`. */
   targetId?: string | null;
   mode?: RollMode;
+  /** `roll` on the attack roll, `damage` on the damage; a save row has no roll of its own. */
+  bonus?: RollBonusInput;
   /** Master only; a monster's attack is secret unless told otherwise. */
   secret?: boolean;
 };
+
+/** The damage of an attack without a target, rolled later: with the modifier of that moment. */
+export type DamageRollRequest = { bonus?: Pick<RollBonusInput, 'damage'> };
 
 /** Without an amount, the pending damage goes in whole, as rolled. */
 export type ApplyDamageRequest = { amount?: number };

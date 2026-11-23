@@ -1,8 +1,8 @@
 import { and, eq } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { sessionEvents } from '@quest-fast/db';
-import type { FreeRollRequest, RollMode, RollPayload, RollSessionEvent } from '@quest-fast/shared';
-import { isRollMode, isSingleD20, parseDiceExpression, rollDamage, rollDice } from '@quest-fast/shared';
+import type { DamageRollRequest, FreeRollRequest, RollMode, RollPayload, RollSessionEvent } from '@quest-fast/shared';
+import { BONUS_TOO_BIG, isRollMode, isSingleD20, parseDiceExpression, readRollBonus, rollDamage, rollDice } from '@quest-fast/shared';
 import type { Context } from '../context.ts';
 import { requireAuth, requireCampaignRole } from '../middleware.ts';
 import { recordRollEvent } from '../events/feed.ts';
@@ -61,10 +61,15 @@ export function diceRoutes() {
   /**
    * The damage of an attack rolled without a target, once, by who attacked.
    * The expression and the critical come from the stored event, never from
-   * the client. It stays as secret as its attack.
+   * the client; only the situational modifier of this moment comes with the
+   * request (Marca do Caçador). It stays as secret as its attack.
    */
-  routes.post('/:eventId/damage', requireCampaignRole(), (c) => {
+  routes.post('/:eventId/damage', requireCampaignRole(), async (c) => {
     const { db, hub } = c.var.deps;
+    const body = (await c.req.json().catch(() => ({}))) as DamageRollRequest;
+    const read = readRollBonus(body?.bonus);
+    if ('error' in read) return c.json({ error: read.error }, 422);
+    const extra = read.damage;
     const notFound = { error: 'Rolagem não encontrada.' };
     const outcome = db.transaction((tx) => {
       const row = tx
@@ -80,8 +85,11 @@ export function diceRoutes() {
       if (attack.damageRolled) return { status: 409 as const, body: { error: 'O dano deste ataque já foi rolado.' } };
 
       const critical = attack.critical === true;
-      const damage = rollDamage(attack.damageRollable.expression, critical);
-      if (!damage) return { status: 422 as const, body: { error: 'O dano deste ataque passa do limite de dados no crítico ou é inválido.' } };
+      const damage = rollDamage(attack.damageRollable.expression, critical, Math.random, extra);
+      if (!damage) {
+        const error = extra ? BONUS_TOO_BIG : 'O dano deste ataque passa do limite de dados no crítico ou é inválido.';
+        return { status: 422 as const, body: { error } };
+      }
       tx.update(sessionEvents)
         .set({ payload: { ...attack, damageRolled: true } })
         .where(eq(sessionEvents.id, row.id))

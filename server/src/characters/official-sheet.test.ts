@@ -460,3 +460,41 @@ test('a skill with expertise adds the proficiency bonus twice', async () => {
   const { event } = await body<RollResponse>(await roll(player, campaign.id, character.id, { kind: 'skill', skill: 'stealth' }));
   assert.equal(event.payload.expression, '1d20+8');
 });
+
+// --- Situational modifier (#133) ------------------------------------------------
+
+test('a linked roll adds the situational modifier apart, in its total', async () => {
+  const { player, campaign } = await appWithCampaign();
+  const { character } = await create(player, campaign.id, { ...HAZIN, attacks: [...HAZIN.attacks, BREATH] });
+  assert.ok(character);
+
+  const blessed = (await body<RollResponse>(await roll(player, campaign.id, character.id, { kind: 'save', ability: 'wisdom', bonus: { roll: '+1d4' } }))).event.payload;
+  assert.equal(blessed.bonus?.expression, '+1d4');
+  assert.equal(blessed.total, blessed.dice[0]!.value + blessed.modifier + blessed.bonus!.total);
+
+  const bane = (await body<RollResponse>(await roll(player, campaign.id, character.id, { kind: 'check', ability: 'strength', bonus: { roll: '-1d4' } }))).event.payload;
+  assert.equal(bane.bonus?.dice[0]?.negative, true);
+  assert.equal(bane.total, bane.dice[0]!.value + bane.modifier - bane.bonus!.dice[0]!.value);
+
+  // A save row has no roll of its own: its damage takes the damage's modifier.
+  const breath = (await body<RollResponse>(await roll(player, campaign.id, character.id, { kind: 'attack', attackIndex: 1, bonus: { roll: '+1d4', damage: '+2' } }))).event.payload;
+  assert.equal(breath.damage?.bonus?.total, 2);
+  assert.equal(breath.total, breath.damage?.total);
+  // A test has no damage: that modifier adds nothing to it.
+  const test = (await body<RollResponse>(await roll(player, campaign.id, character.id, { kind: 'skill', skill: 'athletics', bonus: { damage: '+1d6' } }))).event.payload;
+  assert.equal('bonus' in test, false);
+});
+
+test('a modifier that is not one, or that takes the roll past the limits, rolls nothing', async () => {
+  const { player, other, campaign } = await appWithCampaign();
+  const { character } = await create(player, campaign.id, HAZIN);
+  assert.ok(character);
+  for (const bonus of [{ roll: 'muito' }, { roll: 4 }, '+1d4', { roll: '+100d6' }]) {
+    const refused = await roll(player, campaign.id, character.id, { kind: 'check', ability: 'strength', bonus });
+    assert.equal(refused.status, 422, JSON.stringify(bonus));
+  }
+  const feed = await body<{ events: unknown[] }>(await player(`/api/campaigns/${campaign.id}/feed`));
+  assert.equal(feed.events.length, 0);
+  // The modifier gives no one a way into another's sheet.
+  assert.equal((await roll(other, campaign.id, character.id, { kind: 'check', ability: 'strength', bonus: { roll: '+1d4' } })).status, 403);
+});

@@ -28,7 +28,12 @@ import {
   placeCopies,
   previousTurn,
   removeCondition,
+  BONUS_TOO_BIG,
+  bonusFits,
+  readRollBonus,
   rollAttackHit,
+  rollTest,
+  type ParsedBonus,
   rollDamage,
   hasDamage,
   noRoll,
@@ -141,11 +146,11 @@ function setEncounter(mutation: Mutation, changes: Partial<EncounterRow>) {
 function rollInitiative(
   mutation: Mutation,
   combatant: LoadedCombatant,
-  options: { mode: RollMode; secret: boolean },
+  options: { mode: RollMode; secret: boolean; extra?: ParsedBonus },
 ) {
   const { row, sheet } = combatant;
   const bonus = sheet ? sheetInitiative(sheet) : row.dexModifier + row.initiativeBonus;
-  const result = rollDice(`1d20${bonus >= 0 ? '+' : ''}${bonus}`, options.mode)!;
+  const result = rollTestWith(bonus, options.mode, options.extra);
   mutation.tx.update(combatants).set({ initiative: result.total }).where(eq(combatants.id, row.id)).run();
   mutation.events.push(
     recordRollEvent(mutation.tx, {
@@ -165,6 +170,22 @@ function rollInitiative(
       },
     }),
   );
+}
+
+/**
+ * The situational modifiers a request carries, read before anything is
+ * rolled or spent: a typo refuses the whole request.
+ */
+function parseBonus(value: unknown): { roll?: ParsedBonus; damage?: ParsedBonus } {
+  const read = readRollBonus(value);
+  if ('error' in read) refuse(422, read.error);
+  return read;
+}
+
+/** A d20 test with the situational modifier, within the dice limits of one roll. */
+function rollTestWith(modifier: number, mode: RollMode, extra: ParsedBonus | undefined) {
+  if (extra && !bonusFits({ dice: 1, modifier }, extra)) refuse(422, BONUS_TOO_BIG);
+  return rollTest(modifier, mode, extra);
 }
 
 function parseMode(value: unknown): RollMode {
@@ -443,6 +464,8 @@ function setInitiative(mutation: Mutation, combatant: LoadedCombatant, body: Rec
     if (combatant.row.initiative !== null) refuse(409, 'Sua iniciativa já foi rolada neste combate.');
   }
   const mode = parseMode(body.mode);
+  // Only on a rolled d20: a typed value is final.
+  const extra = parseBonus(body.bonus).roll;
 
   if (body.value !== undefined) {
     mutation.tx
@@ -456,7 +479,7 @@ function setInitiative(mutation: Mutation, combatant: LoadedCombatant, body: Rec
   // The master's rolls for monsters are secret unless told otherwise; a
   // character's roll is the table's business.
   const secret = master ? ((body.secret as boolean | undefined) ?? combatant.row.source !== 'character') : false;
-  rollInitiative(mutation, combatant, { mode, secret });
+  rollInitiative(mutation, combatant, { mode, secret, extra });
 }
 
 function changeTurn(mutation: Mutation, body: Record<string, unknown>) {
@@ -830,12 +853,13 @@ function concentrationSave(mutation: Mutation, combatant: LoadedCombatant, body:
   const reminder = findReminder(combatant, body.reminderId, 'concentration');
   if (reminder.kind !== 'concentration') refuse(404, 'Lembrete não encontrado.');
   const mode = parseMode(body.mode);
+  const extra = parseBonus(body.bonus).roll;
   if (body.secret !== undefined && typeof body.secret !== 'boolean') refuse(422, 'Valor inválido para "secreta".');
   const { row } = combatant;
   // A monster's roll is the master's unless told otherwise; a character's is the table's.
   const secret = mutation.viewer.role === 'master' ? ((body.secret as boolean | undefined) ?? row.source !== 'character') : false;
   const bonus = saveModifierOf(combatant, 'constitution');
-  const result = rollDice(`1d20${bonus >= 0 ? '+' : ''}${bonus}`, mode)!;
+  const result = rollTestWith(bonus, mode, extra);
   mutation.events.push(
     recordRollEvent(mutation.tx, {
       campaignId: mutation.loaded.encounter.campaignId,
@@ -997,6 +1021,8 @@ function attack(mutation: Mutation, combatant: LoadedCombatant, body: Record<str
   const chosen = typeof index === 'number' && Number.isInteger(index) ? attacksOf(combatant)[index] : undefined;
   if (!chosen) refuse(422, 'Ataque inválido.');
   const mode = parseMode(body.mode);
+  // A save row has no roll of its own: only the damage's modifier counts there.
+  const extra = parseBonus(body.bonus);
   if (chosen.kind === 'save' && mode !== 'normal') {
     refuse(422, 'Vantagem e desvantagem não se aplicam a um ataque por salvaguarda.');
   }
@@ -1004,6 +1030,9 @@ function attack(mutation: Mutation, combatant: LoadedCombatant, body: Record<str
   const master = mutation.viewer.role === 'master';
   if (!master && body.secret === true) refuse(403, 'Apenas o mestre pode rolar em segredo.');
   const targets = parseTargets(mutation, combatant, chosen, body);
+  if (chosen.kind === 'attack' && extra.roll && !bonusFits({ dice: 1, modifier: chosen.bonus }, extra.roll)) refuse(422, BONUS_TOO_BIG);
+  // Whether the damage fits is known before anything is spent: a critical doubles the modifier's dice too.
+  if (extra.damage && hasDamage(chosen) && !rollDamage(chosen.damage, chosen.kind === 'attack', () => 0, extra.damage)) refuse(422, BONUS_TOO_BIG);
   spendOnAttack(mutation, combatant, chosen.cost);
 
   // A monster's attack is the master's unless told otherwise, like its
@@ -1028,12 +1057,12 @@ function attack(mutation: Mutation, combatant: LoadedCombatant, body: Record<str
   };
 
   if (chosen.kind === 'save') {
-    saveAttack(mutation, combatant, chosen, targets, secret, base);
+    saveAttack(mutation, combatant, chosen, targets, secret, base, extra.damage);
     return;
   }
 
   const [target] = targets;
-  const roll = rollAttackHit(chosen.bonus, mode);
+  const roll = rollAttackHit(chosen.bonus, mode, Math.random, extra.roll);
   const { critical, ...result } = roll;
   const payload: RollPayload = { ...base, ...result, critical };
   if (!target) {
@@ -1042,7 +1071,7 @@ function attack(mutation: Mutation, combatant: LoadedCombatant, body: Record<str
     const hit = isHit(roll, target.ac);
     payload.target = { ...aimedAt(target), hit, ac: target.ac };
     if (hit) {
-      const damage = rollDamage(chosen.damage, critical);
+      const damage = rollDamage(chosen.damage, critical, Math.random, extra.damage);
       if (!damage) refuse(422, 'O dano deste ataque passa do limite de dados no crítico ou é inválido.');
       payload.damage = { ...damage, damageType: chosen.damageType };
     }
@@ -1089,6 +1118,7 @@ function saveAttack(
   targets: LoadedCombatant[],
   secret: boolean,
   base: Pick<RollPayload, 'kind' | 'rollKind' | 'attackName' | 'attackRange' | 'characterName' | 'attackerSource' | 'characterId'>,
+  extra: ParsedBonus | undefined,
 ) {
   const save = { dc: chosen.dc, ability: chosen.saveAbility };
   let payload: RollPayload;
@@ -1096,7 +1126,7 @@ function saveAttack(
     // Only the effect: nothing to roll for the attacker.
     payload = { ...base, ...noRoll(), save };
   } else {
-    const damage = rollDamage(chosen.damage, false);
+    const damage = rollDamage(chosen.damage, false, Math.random, extra);
     if (!damage) refuse(422, 'A expressão de dano deste ataque é inválida.');
     payload = { ...base, ...damage, mode: 'normal', damage: { ...damage, damageType: chosen.damageType }, save };
   }

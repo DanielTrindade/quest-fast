@@ -26,14 +26,16 @@ function redactAttack(payload: RollPayload): RollPayload | null {
     visible = { ...visible, targets: shown };
   }
   if (payload.attackerSource === 'monster') {
-    const { damageRollable: _rollable, natural: _natural, ...rest } = visible;
+    // The situational modifier goes too: with the total of the roll, it is part of the bonus.
+    const { damageRollable: _rollable, natural: _natural, bonus: _bonus, ...rest } = visible;
+    const damage = rest.damage ? (({ bonus: _damageBonus, ...kept }) => kept)(rest.damage) : undefined;
     visible = {
       ...rest,
       expression: '',
       dice: [],
       modifier: 0,
       total: 0,
-      ...(rest.damage ? { damage: { ...rest.damage, expression: '', dice: [], modifier: 0 } } : {}),
+      ...(damage ? { damage: { ...damage, expression: '', dice: [], modifier: 0 } } : {}),
       redacted: true,
     };
   }
