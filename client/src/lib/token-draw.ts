@@ -167,8 +167,27 @@ function movingLabel(context: CanvasRenderingContext2D, name: string, centre: Po
 
 /** Outside the piece, inside the selection ring. */
 const HEALTH_GAP = 2;
-/** Outside the selection ring, which runs 5 px off the piece. */
-const TURN_GAP = 10;
+/** The selection ring's centre off the piece, with no health arc around it. */
+const SELECTION_GAP = 5;
+/** Between the selection ring's centre and the turn ring's: neither covers the other. */
+const TURN_STEP = 5;
+
+function healthWidth(radius: number) {
+  return Math.max(2.5, radius * 0.07);
+}
+
+/** How far the health arc's track reaches past the piece. */
+function healthReach(radius: number) {
+  return HEALTH_GAP + 1.5 + (healthWidth(radius) + 2) / 2;
+}
+
+/**
+ * Where the selection ring runs, off the piece: past the health arc when
+ * there is one, so the arc keeps its thickness when the token is selected.
+ */
+function selectionGap(radius: number, withHealth: boolean) {
+  return withHealth ? healthReach(radius) + 3 : SELECTION_GAP;
+}
 
 /**
  * The health arc around a combatant's piece: a track in the halo's tone and,
@@ -177,7 +196,7 @@ const TURN_GAP = 10;
  */
 function healthArc(context: CanvasRenderingContext2D, health: TokenHealth, centre: Point, radius: number, colours: Palette) {
   const ring = radius + HEALTH_GAP + 1.5;
-  const width = Math.max(2.5, radius * 0.07);
+  const width = healthWidth(radius);
   context.save();
   context.lineCap = 'round';
   context.beginPath();
@@ -200,8 +219,7 @@ function healthArc(context: CanvasRenderingContext2D, health: TokenHealth, centr
  * Whose turn it is: a solid ring around the piece, past the selection ring,
  * and a notch above it pointing down, so it reads even where tokens crowd.
  */
-function turnMarker(context: CanvasRenderingContext2D, centre: Point, radius: number, colours: Palette) {
-  const ring = radius + TURN_GAP;
+function turnMarker(context: CanvasRenderingContext2D, centre: Point, radius: number, ring: number, colours: Palette) {
   context.save();
   context.beginPath();
   context.arc(centre.x, centre.y, ring, 0, Math.PI * 2);
@@ -407,14 +425,23 @@ export function drawTokens(context: CanvasRenderingContext2D, scene: {
 
     medallion(context, token, centre, baseRadius, token.avatarUrl ? images.get(token.avatarUrl) : undefined, colours);
     const mark = marks?.get(token.id);
+    const radius = baseRadius * liftScale(token.lift);
+    const health = token.vitality === 'up' ? mark?.health ?? null : null;
+    const selectAt = radius + selectionGap(radius, health !== null);
     // A hidden token's marks fade with it: the table does not see them either.
     context.globalAlpha = token.hidden ? 0.55 : 1;
-    if (mark?.health && token.vitality === 'up') healthArc(context, mark.health, centre, baseRadius * liftScale(token.lift), colours);
-    if (mark?.turn) turnMarker(context, centre, baseRadius * liftScale(token.lift), colours);
+    if (health) healthArc(context, health, centre, radius, colours);
+    if (mark?.turn) turnMarker(context, centre, radius, selectAt + TURN_STEP, colours);
     context.globalAlpha = 1;
 
     if (token.id === selectedId) {
-      traceShape(context, shape, centre, baseRadius * liftScale(token.lift) + 5);
+      // Around the health arc, a ring: the piece's teeth would cross the arc.
+      if (health) {
+        context.beginPath();
+        context.arc(centre.x, centre.y, selectAt, 0, Math.PI * 2);
+      } else {
+        traceShape(context, shape, centre, selectAt);
+      }
       context.lineWidth = 3;
       context.lineJoin = 'round';
       context.strokeStyle = colours.focus;

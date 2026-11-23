@@ -467,11 +467,12 @@ export const CaidoEDerrotado: Story = {
 /**
  * Kaelen's turn: a ring and a notch above his piece. Every combatant has its
  * health arc, full for Kaelen and Goblin 2, emptying for the rest; the
- * barrel, outside the fight, has none.
+ * barrel, outside the fight, has none. The ogre is selected: the ring runs
+ * round its arc.
  */
 export const VezESaude: Story = {
   name: 'Vez e saúde no combate',
-  args: { ...tokenArgs, tokens: fightTokens(), viewerId: MASTER_ID, fightMarks: fightMarksFor(fightTokens()) },
+  args: { ...tokenArgs, tokens: fightTokens(), viewerId: MASTER_ID, fightMarks: fightMarksFor(fightTokens()), selectedTokenId: 'ogre' },
   render: (args) => <TokenMap {...args} master />,
   play: async ({ canvasElement }) => {
     const { frame, map } = await readyMap(canvasElement);
