@@ -681,7 +681,7 @@ test('the situational modifier goes into the hit and the damage, its damage dice
 
 test('a modifier that is not one, or past the limits, refuses the attack and spends nothing', async () => {
   const { s, at, view } = await fight();
-  for (const bonus of [{ roll: 'abc' }, { damage: 4 }, '+1d4', { damage: '+60d6' }]) {
+  for (const bonus of [{ roll: 'abc' }, { damage: 4 }, '+1d4', { damage: '+100d6' }]) {
     const refused = await send(s.player, at('Kaelen', '/attack'), 'POST', { attackIndex: 0, bonus });
     assert.equal(refused.status, 422, JSON.stringify(bonus));
   }
@@ -720,4 +720,26 @@ test('the damage rolled later takes the modifier of that moment', async (t) => {
   const { event } = await body<RollResponse>(rolled);
   assert.equal(event.payload.damage?.bonus?.expression, '+2d6');
   assert.equal(event.payload.damage?.total, 19 + 12);
+});
+
+test('a damage modifier that only a critical takes past the limit lets a normal hit through', async (t) => {
+  const { s, at, id, view } = await fight();
+  const huge = await send(s.player, `${s.root}/characters/${s.kaelen.id}`, 'PATCH', { ...sheet('Kaelen'), attacks: [{ ...SWORD, damage: '50d6' }] });
+  assert.equal(huge.status, 200, await huge.clone().text());
+  const swing = () => send(s.player, at('Kaelen', '/attack'), 'POST', { attackIndex: 0, targetId: id('Goblin 2'), bonus: { damage: '+1d6' } });
+
+  // A d20 of 11: a hit (11 + 5 against AC 15), not a critical. 51 dice fit.
+  const normal = t.mock.method(Math, 'random', () => 0.5);
+  const hit = await attacked(await swing());
+  assert.ok(hit);
+  const [roll] = await rolls(s, s.master);
+  assert.equal(roll?.damage?.bonus?.expression, '+1d6');
+  normal.mock.restore();
+
+  // A natural 20 doubles them to 102: refused, and the turn is as it was.
+  const spent = byName(await view(s.player), 'Kaelen').turn;
+  natural20(t);
+  assert.equal((await swing()).status, 422);
+  assert.deepEqual(byName(await view(s.player), 'Kaelen').turn, spent);
+  assert.equal((await rolls(s, s.master)).length, 1);
 });

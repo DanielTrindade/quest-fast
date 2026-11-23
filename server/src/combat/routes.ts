@@ -1031,8 +1031,9 @@ function attack(mutation: Mutation, combatant: LoadedCombatant, body: Record<str
   if (!master && body.secret === true) refuse(403, 'Apenas o mestre pode rolar em segredo.');
   const targets = parseTargets(mutation, combatant, chosen, body);
   if (chosen.kind === 'attack' && extra.roll && !bonusFits({ dice: 1, modifier: chosen.bonus }, extra.roll)) refuse(422, BONUS_TOO_BIG);
-  // Whether the damage fits is known before anything is spent: a critical doubles the modifier's dice too.
-  if (extra.damage && hasDamage(chosen) && !rollDamage(chosen.damage, chosen.kind === 'attack', () => 0, extra.damage)) refuse(422, BONUS_TOO_BIG);
+  // A damage that does not fit even without a critical is refused before anything is spent. Whether a
+  // critical's doubled dice fit is known only once the d20 is rolled: refused then, the whole attack rolls back.
+  if (extra.damage && hasDamage(chosen) && !rollDamage(chosen.damage, false, () => 0, extra.damage)) refuse(422, BONUS_TOO_BIG);
   spendOnAttack(mutation, combatant, chosen.cost);
 
   // A monster's attack is the master's unless told otherwise, like its
@@ -1072,7 +1073,7 @@ function attack(mutation: Mutation, combatant: LoadedCombatant, body: Record<str
     payload.target = { ...aimedAt(target), hit, ac: target.ac };
     if (hit) {
       const damage = rollDamage(chosen.damage, critical, Math.random, extra.damage);
-      if (!damage) refuse(422, 'O dano deste ataque passa do limite de dados no crítico ou é inválido.');
+      if (!damage) refuse(422, extra.damage ? BONUS_TOO_BIG : 'O dano deste ataque passa do limite de dados no crítico ou é inválido.');
       payload.damage = { ...damage, damageType: chosen.damageType };
     }
   }
