@@ -1,16 +1,21 @@
 import { randomUUID } from 'node:crypto';
+import { copyFileSync, mkdirSync, statSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
 import { eq } from 'drizzle-orm';
-import { abilityModifier, defaultAttackCost, generateInviteCode, saveModifiers, storedAttack, type AbilityScores, type SaveBonuses, type Attack, type StoredAttack } from '@quest-fast/shared';
+import { abilityModifier, applyFog, defaultAttackCost, generateInviteCode, saveModifiers, storedAttack, type AbilityScores, type SaveBonuses, type Attack, type StoredAttack } from '@quest-fast/shared';
 import {
+  assets,
   campaignMembers,
   campaigns,
   characters,
   combatants,
   createDb,
   encounters,
+  scenes,
   sessionEvents,
   sessions,
   statblocks,
+  tokens,
   users,
 } from './index.ts';
 
@@ -274,6 +279,7 @@ for (const statblock of bestiary) {
 
 const encounterId = randomUUID();
 db.insert(encounters).values({ id: encounterId, campaignId: campaign.id, name: 'Emboscada na estrada' }).run();
+const combatantIds = new Map<string, string>();
 for (const sheet of charactersSeed) {
   db.insert(combatants)
     .values({
@@ -292,9 +298,11 @@ const bestiaryByName = new Map(bestiary.map((entry) => [entry.name, entry]));
 for (const [creature, names] of [['Goblin', ['Goblin 1', 'Goblin 2']], ['Lobo', ['Lobo']]] as const) {
   const statblock = bestiaryByName.get(creature)!;
   for (const name of names) {
+    const id = randomUUID();
+    combatantIds.set(name, id);
     db.insert(combatants)
       .values({
-        id: randomUUID(),
+        id,
         encounterId,
         source: 'statblock',
         statblockId: statblockIds.get(creature)!,
@@ -313,6 +321,57 @@ for (const [creature, names] of [['Goblin', ['Goblin 1', 'Goblin 2']], ['Lobo', 
       })
       .run();
   }
+}
+
+// The map of the ambush, open to the table: the party and the foes on the
+// road, a crate by the overturned cart, and the wolf among the trees, under the fog. The
+// image is the server's own copy of a map (a JPEG `normaliseMap` made), so
+// the seed copies it as an upload would land on disk; it needs no `sharp`.
+// With R2 configured the file would not be where the server reads it from.
+const SEED_MAP = { file: join(import.meta.dirname, 'seed-assets', 'estrada-da-emboscada.jpg'), width: 1500, height: 1000 };
+const CELL = SEED_MAP.width / 30;
+let sceneName: string | null = null;
+if (process.env.R2_BUCKET?.trim()) {
+  console.warn('R2 configurado: o seed não cria a cena, porque grava o mapa no disco local.');
+} else {
+  const path = `campaigns/${campaign.id}/${randomUUID()}.jpg`;
+  const target = join(resolve(process.env.UPLOADS_DIR?.trim() || 'uploads'), path);
+  mkdirSync(dirname(target), { recursive: true });
+  copyFileSync(SEED_MAP.file, target);
+  const mapAssetId = randomUUID();
+  db.insert(assets)
+    .values({ id: mapAssetId, campaignId: campaign.id, uploadedById: master.id, path, mimeType: 'image/jpeg', size: statSync(target).size })
+    .run();
+
+  // The fields and the road are revealed; the woods to the east stay hidden.
+  const fog = applyFog([], { mode: 'reveal', shape: { kind: 'rect', x: 0, y: 0, width: 20 * CELL, height: SEED_MAP.height } }, SEED_MAP.width, SEED_MAP.height);
+  if ('error' in fog) throw new Error(fog.error);
+  const sceneId = randomUUID();
+  sceneName = 'Estrada da emboscada';
+  db.insert(scenes)
+    .values({
+      id: sceneId,
+      campaignId: campaign.id,
+      name: sceneName,
+      mapAssetId,
+      mapWidth: SEED_MAP.width,
+      mapHeight: SEED_MAP.height,
+      gridCellSize: CELL,
+      fogEnabled: true,
+      fogRevealed: fog.revealed,
+    })
+    .run();
+  const at = (column: number, row: number) => ({ x: (column + 0.5) * CELL, y: (row + 0.5) * CELL });
+  const placed = [
+    { kind: 'character' as const, characterId: characterIds.get('Elara Sombravil')!, ...at(4, 11) },
+    { kind: 'character' as const, characterId: characterIds.get('Bram Linha Longa')!, ...at(5, 10) },
+    { kind: 'combatant' as const, combatantId: combatantIds.get('Goblin 1')!, ...at(15, 10) },
+    { kind: 'combatant' as const, combatantId: combatantIds.get('Goblin 2')!, ...at(16, 12) },
+    { kind: 'combatant' as const, combatantId: combatantIds.get('Lobo')!, ...at(24, 6) },
+    { kind: 'free' as const, label: 'Caixote de suprimentos', size: 'medium' as const, ...at(12, 7) },
+  ];
+  for (const token of placed) db.insert(tokens).values({ id: randomUUID(), sceneId, ...token }).run();
+  db.update(campaigns).set({ activeSceneId: sceneId }).where(eq(campaigns.id, campaign.id)).run();
 }
 
 // The feed with a visible history: a public roll and a secret one (the seed
@@ -366,4 +425,5 @@ db.insert(sessions)
 
 console.log(`Campaign "${campaign.name}" created with invite code ${campaign.inviteCode}.`);
 console.log(`Encounter "Emboscada na estrada" ready to start, with ${bestiary.length} creatures in the bestiary.`);
+if (sceneName) console.log(`Scene "${sceneName}" open to the table, with the wolf under the fog.`);
 console.log(`Master session (qf_session cookie): ${session}`);

@@ -27,24 +27,25 @@ externo obrigatório além do OAuth do Discord.
   iniciativa com desempate, turnos e rodadas; dano, cura, PV temporário, as 15
   condições com exaustão e duração, concentração e testes contra a morte;
   ataques com alvo comparados à CA no servidor, crítico e dano ou salvaguarda
-  pendentes para o mestre resolver. Tudo projetado por papel no servidor: o
-  jogador vê monstros só pela faixa de saúde e nunca recebe PV, CA, bônus nem
-  combatentes ocultos.
+  pendentes para o mestre resolver. Tudo projetado por papel no servidor: a
+  mesa acompanha a saúde dos monstros, mas o jogador nunca recebe CA, bônus,
+  iniciativa nem combatentes ocultos.
 - **Campo de batalha (VTT):** cenas com mapa normalizado no servidor, grid
   configurável (incluindo opacidade das linhas) e tokens em canvas 2D; arrasto
   ao vivo a 30 Hz por WebSocket com trava no servidor e interpolação; estado
   visual de token caído ou derrotado; economia do turno no mapa em combate
   (ação, ação bônus, reação, Ataque Extra, área de alcance e deslocamento em
-  casas de 1,5 m confirmado).
+  casas de 1,5 m confirmado); vez atual e saúde no token; fog of war calculado
+  no servidor, que nunca manda ao jogador o monstro na área oculta; arrasto
+  desfeito com aviso quando a conexão cai.
 - **Dados e feed ao vivo:** rolagem livre e pela ficha (atributo, perícia,
   salvaguarda, ataque, iniciativa, ataque mágico), vantagem e desvantagem,
   rolagem secreta do mestre. Toda rolagem é feita no servidor, e a mesa
   acompanha rolagens, conjurações e eventos do combate na hora por WebSocket,
   com histórico paginado e redigido por papel.
 
-Fog of war no campo de batalha (revelar e ocultar áreas no servidor, mantendo
-monstros na névoa fora do payload do jogador) e mundo (NPCs, locais, quests e
-diários) são as próximas etapas: veja o [roadmap](docs/roadmap.md).
+O mundo (NPCs, locais, quests e diários) é a próxima etapa: veja o
+[roadmap](docs/roadmap.md).
 
 ## Stack
 
@@ -78,7 +79,7 @@ rode `nvm use`) e Git.
 npm ci
 cp .env.example .env      # preencha as três variáveis do Discord
 npm run db:migrate
-npm run db:seed           # campanha de exemplo + cookie de sessão
+npm run db:seed           # campanha de exemplo, com mapa aberto + cookie de sessão
 npm run build
 npm run dev               # http://localhost:3000
 ```
