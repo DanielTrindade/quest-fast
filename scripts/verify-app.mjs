@@ -1,5 +1,5 @@
-// Smoke check of the phase 0 flows, and the combat section of the seed
-// campaign, against a running server, in a real browser. It exists because a crash inside the create-campaign dialog shipped
+// Smoke check of the phase 0 flows, and the combat section and the map of
+// the seed campaign, against a running server, in a real browser. It exists because a crash inside the create-campaign dialog shipped
 // unnoticed: the API was fine and the screens rendered, but no check had ever
 // opened a dialog that mounts a form.
 //
@@ -132,6 +132,28 @@ try {
     if (scrollWidth > width) throw new Error(`encontro aberto: overflow em ${width}px (${scrollWidth})`);
   }
   ok('o encontro não corta conteúdo em 320/390/768/1280');
+
+  // 8) The seed's map is open to the table: the Mesa shows it with its tokens.
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.getByRole('link', { name: /^Mesa/ }).first().click();
+  await page.getByRole('heading', { name: 'Estrada da emboscada' }).waitFor({ timeout: 15000 });
+  await page.locator('[data-slot="map-canvas"] canvas').first().waitFor({ timeout: 15000 });
+  // The image may come from the browser's cache, with no response to watch:
+  // the check finds the request among the page's resources and asks again.
+  const mapUrl = await page.waitForFunction(
+    () => performance.getEntriesByType('resource').map((entry) => entry.name).find((name) => /\/uploads\/campaigns\/.+\.jpg$/.test(name)),
+    null,
+    { timeout: 15000 },
+  ).then((handle) => handle.jsonValue()).catch(() => {
+    throw new Error('a Mesa não pediu a imagem do mapa do seed');
+  });
+  const mapStatus = await page.evaluate((url) => fetch(url).then((response) => response.status), mapUrl);
+  if (mapStatus !== 200) throw new Error(`a imagem do mapa do seed respondeu ${mapStatus}`);
+  const tokenList = page.locator('section').filter({ has: page.getByRole('heading', { name: /^Tokens/, level: 2 }) }).first();
+  for (const name of ['Elara Sombravil', 'Bram Linha Longa', 'Goblin 1', 'Caixote de suprimentos']) {
+    await tokenList.getByText(name, { exact: true }).first().waitFor({ timeout: 10000 });
+  }
+  ok('a Mesa mostra o mapa do seed com os tokens');
 } catch (error) {
   problems.push(error.message);
 } finally {

@@ -3,7 +3,7 @@
 O que já existe, o que vem a seguir e o que está em aberto. Atualize este
 arquivo no PR que entrega ou muda o escopo de uma etapa.
 
-Atualizado em 2026-11-16.
+Atualizado em 2026-11-23.
 
 ## Entregue
 
@@ -81,11 +81,100 @@ usável na mesa:
    diferenças em
    [`history/2026-11-11-combat-attacks-polish.md`](history/2026-11-11-combat-attacks-polish.md).
 
+### Fase 4 — campo de batalha (VTT)
+
+Cenas com mapa, grid, tokens e fog of war em tempo real, substituindo o
+Owlbear Rodeo. É o item de maior risco técnico.
+
+**Spike — entregue (2026-11-12).** Medido com os mapas reais da mesa, fechou
+as questões abertas: canvas 2D direto; fog como multipolígono calculado no
+servidor e guardado numa coluna da `Scene`; token com trava no início do
+arrasto, envio a 30 Hz só pelo socket, interpolação em quem assiste e gravação
+ao soltar; mapas normalizados no servidor com `sharp` (até 4096 px, entrada
+até 25 MB). Números e alternativas em
+[`history/2026-11-12-vtt-spike.md`](history/2026-11-12-vtt-spike.md).
+
+A garantia de segurança do fog é sobre **tokens ocultos**: eles nunca chegam
+ao cliente do jogador. A imagem do mapa, essa sim, é baixada inteira.
+
+**Entregue (2026-11-23).** Spec aprovada em
+[`history/2026-11-12-vtt-battlefield-phase4.md`](history/2026-11-12-vtt-battlefield-phase4.md),
+que detalha os requisitos de
+[`history/2026-09-04-vtt-battlefield.md`](history/2026-09-04-vtt-battlefield.md)
+com as decisões do spike. Cinco entregas, cada uma usável na mesa:
+
+1. **Cena e mapa — entregue.** O mestre cria cenas no Preparo, envia o mapa
+   (normalizado no servidor com `sharp`, com progresso do envio), confere a
+   cena num diálogo, abre uma para a mesa e ajusta o grid; os jogadores veem a
+   cena aberta no centro da Mesa, com pan e zoom, inclusive no celular, e a
+   miniatura na Visão geral. Fechar o mapa o tira de todas as telas na hora.
+   Regras do grid e limites do mapa em `shared/`, rotas com RBAC,
+   `scene.updated`/`scene.closed` no socket e os componentes no Storybook
+   (`MapCanvas`, `SceneList`, `SceneForm`, `GridSettings` e `OpenScene`).
+2. **Tokens — entregue.** O mestre põe no mapa personagens, combatentes de um
+   encontro (um a um ou todos em fileira), criaturas do bestiário e tokens
+   livres, no centro da área que está vendo; esconde, revela e remove pela
+   lista ao lado do mapa (abaixo no celular). O tamanho vem da criatura. O
+   arrasto pega a trava no servidor, mostra o token se movendo ao vivo para a
+   mesa (30 Hz pelo socket, com interpolação em quem assiste) e grava ao
+   soltar; se outra pessoa já está movendo, o token volta e o aviso diz quem.
+   O jogador move só o próprio personagem, pelo mapa ou pelas setas da lista,
+   e nunca recebe um token oculto.
+3. **Turno no mapa — entregue.** Em combate, o servidor conta a ação, a ação
+   bônus, a reação e os ataques do Ataque Extra (pela classe e nível, ou pelo
+   valor da ficha) e o deslocamento em casas de 1,5 m, diagonais inclusive;
+   ataque fora da vez gasta a reação. Ao lado do mapa, o painel do turno
+   gasta e mostra o que resta, e o mestre devolve, concede ação e ajusta o
+   deslocamento das criaturas. Clicar num token mostra toda a área que ele
+   ainda alcança; o arrasto mostra o caminho e o custo, e o movimento só é
+   gasto quando quem move confirma a posição (pelo mapa ou pelas setas). O
+   jogador só move o próprio token na vez dele. Entrou antes do fog e mudou o
+   escopo do VTT, que deixava medição de fora.
+   ([spec](history/2026-11-13-turn-and-movement.md))
+   Depois, o token virou peça de mesa (silhueta pela origem, mola ao soltar)
+   e o arrasto ganhou alcance em ladrilhos, caminho casa a casa, custo fora
+   do canvas, corte no limite para o jogador e borda elástica, sem regra
+   nova no servidor. Colisão, paredes e terreno difícil ficam para depois
+   ([design system](design-system.md#alcance-caminho-e-limites-18-de-novembro-de-2026)).
+4. **Fog of war — entregue.** Na Mesa, o mestre abre "Fog of war", liga o fog
+   (a cena começa toda oculta) e revela ou oculta com retângulo, que encaixa
+   no grid, ou polígono clique a clique, além de revelar e ocultar tudo; vê o
+   fog translúcido, com os tokens que a mesa não vê esmaecidos e marcados
+   "Na área oculta" na lista, e pode "ver como jogador". O jogador vê o fog
+   opaco e não recebe monstro nem token livre na área oculta, em nenhum
+   payload; revelar traz o monstro na hora, pelo socket. Personagens aparecem
+   sempre. Regra em `shared/` e estado calculado no servidor. O fog é só do
+   mapa: o combate continua seguindo o "escondido no encontro".
+   ([spec](history/2026-11-19-fog-of-war.md))
+   Diferenças da spec: na troca de mapa, o fog acompanha os tokens (cada eixo
+   pela própria razão), não o grid, que segue só a largura; e uma forma que
+   não fecha em coordenadas inteiras é recusada em vez de gravada.
+5. **Acabamento — entregue.** Spec em
+   [`history/2026-11-23-vtt-finishing.md`](history/2026-11-23-vtt-finishing.md),
+   em três PRs independentes. Token ligado ao combate (o token livre do
+   bestiário já entra no combate pela #111): o token da vez ganha anel e
+   entalhe, e cada combatente um arco com a saúde que resta, tirados do
+   encontro que o cliente já recebe. Na queda da conexão, o arrasto em curso
+   ou o movimento esperando confirmação é desfeito com um aviso (o servidor já
+   soltou a trava) e os arrastos de outras pessoas param onde a cena diz. Um
+   toque que não pega o token por um motivo passageiro (último movimento ainda
+   salvando, combate ainda carregando) avisa em vez de virar pan em silêncio
+   (#109). Diferença da spec: sem story da queda, porque nada muda nos
+   componentes; a lógica tem teste em `client/test`. O `db:seed` abre para a
+   mesa a cena "Estrada da emboscada" (mapa versionado em
+   `db/src/seed-assets/`, já no formato que o servidor grava, sem `sharp` no
+   `db`), com o lobo na mata sob o fog; `verify:app` confere o mapa na Mesa e
+   `verify:group`, o arrasto ao vivo, o fog que esconde e revela o lobo e a
+   vez no token acompanhando o turno. Diferenças da spec: quem fica sob o fog
+   é o lobo, não um goblin, porque os goblins são os alvos do combate do
+   `verify:group`; e o `verify:group` voltou a passar no combate, que já não
+   cabia no orçamento do turno (dois ataques seguidos do mesmo goblin) nem na
+   saúde dos monstros aberta à mesa pela #111.
+
 ## Próximas etapas
 
-Em ordem. O mapa vem antes do mundo porque substitui o Owlbear, a ferramenta
-que mais pesa na mesa hoje depois que o combate substituiu o Avrae; NPCs,
-locais e diários continuam no Kanka até a fase 3.
+Em ordem. Com o mapa entregue (fase 4), o Owlbear saiu da mesa; NPCs, locais
+e diários continuam no Kanka até a fase 3.
 
 ### Ajustes da primeira sessão
 
@@ -197,88 +286,6 @@ mockups na [#88](https://github.com/DanielTrindade/quest-fast/issues/88).
    ser medido; a citação de uma resposta não leva o nome em negrito, para
    caber numa linha cortada com reticências. Aviso de menção fora da Mesa fica
    para uma issue própria.
-
-### Fase 4 — campo de batalha (VTT)
-
-Cenas com mapa, grid, tokens e fog of war em tempo real, substituindo o
-Owlbear Rodeo. É o item de maior risco técnico.
-
-**Spike — entregue (2026-11-12).** Medido com os mapas reais da mesa, fechou
-as questões abertas: canvas 2D direto; fog como multipolígono calculado no
-servidor e guardado numa coluna da `Scene`; token com trava no início do
-arrasto, envio a 30 Hz só pelo socket, interpolação em quem assiste e gravação
-ao soltar; mapas normalizados no servidor com `sharp` (até 4096 px, entrada
-até 25 MB). Números e alternativas em
-[`history/2026-11-12-vtt-spike.md`](history/2026-11-12-vtt-spike.md).
-
-A garantia de segurança do fog é sobre **tokens ocultos**: eles nunca chegam
-ao cliente do jogador. A imagem do mapa, essa sim, é baixada inteira.
-
-**Em andamento.** Spec aprovada em
-[`history/2026-11-12-vtt-battlefield-phase4.md`](history/2026-11-12-vtt-battlefield-phase4.md),
-que detalha os requisitos de
-[`history/2026-09-04-vtt-battlefield.md`](history/2026-09-04-vtt-battlefield.md)
-com as decisões do spike. Cinco entregas, cada uma usável na mesa:
-
-1. **Cena e mapa — entregue.** O mestre cria cenas no Preparo, envia o mapa
-   (normalizado no servidor com `sharp`, com progresso do envio), confere a
-   cena num diálogo, abre uma para a mesa e ajusta o grid; os jogadores veem a
-   cena aberta no centro da Mesa, com pan e zoom, inclusive no celular, e a
-   miniatura na Visão geral. Fechar o mapa o tira de todas as telas na hora.
-   Regras do grid e limites do mapa em `shared/`, rotas com RBAC,
-   `scene.updated`/`scene.closed` no socket e os componentes no Storybook
-   (`MapCanvas`, `SceneList`, `SceneForm`, `GridSettings` e `OpenScene`).
-2. **Tokens — entregue.** O mestre põe no mapa personagens, combatentes de um
-   encontro (um a um ou todos em fileira), criaturas do bestiário e tokens
-   livres, no centro da área que está vendo; esconde, revela e remove pela
-   lista ao lado do mapa (abaixo no celular). O tamanho vem da criatura. O
-   arrasto pega a trava no servidor, mostra o token se movendo ao vivo para a
-   mesa (30 Hz pelo socket, com interpolação em quem assiste) e grava ao
-   soltar; se outra pessoa já está movendo, o token volta e o aviso diz quem.
-   O jogador move só o próprio personagem, pelo mapa ou pelas setas da lista,
-   e nunca recebe um token oculto.
-3. **Turno no mapa — entregue.** Em combate, o servidor conta a ação, a ação
-   bônus, a reação e os ataques do Ataque Extra (pela classe e nível, ou pelo
-   valor da ficha) e o deslocamento em casas de 1,5 m, diagonais inclusive;
-   ataque fora da vez gasta a reação. Ao lado do mapa, o painel do turno
-   gasta e mostra o que resta, e o mestre devolve, concede ação e ajusta o
-   deslocamento das criaturas. Clicar num token mostra toda a área que ele
-   ainda alcança; o arrasto mostra o caminho e o custo, e o movimento só é
-   gasto quando quem move confirma a posição (pelo mapa ou pelas setas). O
-   jogador só move o próprio token na vez dele. Entrou antes do fog e mudou o
-   escopo do VTT, que deixava medição de fora.
-   ([spec](history/2026-11-13-turn-and-movement.md))
-   Depois, o token virou peça de mesa (silhueta pela origem, mola ao soltar)
-   e o arrasto ganhou alcance em ladrilhos, caminho casa a casa, custo fora
-   do canvas, corte no limite para o jogador e borda elástica, sem regra
-   nova no servidor. Colisão, paredes e terreno difícil ficam para depois
-   ([design system](design-system.md#alcance-caminho-e-limites-18-de-novembro-de-2026)).
-4. **Fog of war — entregue.** Na Mesa, o mestre abre "Fog of war", liga o fog
-   (a cena começa toda oculta) e revela ou oculta com retângulo, que encaixa
-   no grid, ou polígono clique a clique, além de revelar e ocultar tudo; vê o
-   fog translúcido, com os tokens que a mesa não vê esmaecidos e marcados
-   "Na área oculta" na lista, e pode "ver como jogador". O jogador vê o fog
-   opaco e não recebe monstro nem token livre na área oculta, em nenhum
-   payload; revelar traz o monstro na hora, pelo socket. Personagens aparecem
-   sempre. Regra em `shared/` e estado calculado no servidor. O fog é só do
-   mapa: o combate continua seguindo o "escondido no encontro".
-   ([spec](history/2026-11-19-fog-of-war.md))
-   Diferenças da spec: na troca de mapa, o fog acompanha os tokens (cada eixo
-   pela própria razão), não o grid, que segue só a largura; e uma forma que
-   não fecha em coordenadas inteiras é recusada em vez de gravada.
-5. **Acabamento — em andamento.** Spec em
-   [`history/2026-11-23-vtt-finishing.md`](history/2026-11-23-vtt-finishing.md),
-   em três PRs independentes. Token ligado ao combate (o token livre do
-   bestiário já entra no combate pela #111): o token da vez ganha anel e
-   entalhe, e cada combatente um arco com a saúde que resta, tirados do
-   encontro que o cliente já recebe. Na queda da conexão, o arrasto em curso
-   ou o movimento esperando confirmação é desfeito com um aviso (o servidor já
-   soltou a trava) e os arrastos de outras pessoas param onde a cena diz. Um
-   toque que não pega o token por um motivo passageiro (último movimento ainda
-   salvando, combate ainda carregando) avisa em vez de virar pan em silêncio
-   (#109). Diferença da spec: sem story da queda, porque nada muda nos
-   componentes; a lógica tem teste em `client/test`. Falta o seed com cena,
-   `verify:app` e `verify:group` no mapa e o README.
 
 ### Fase 3 — mundo
 

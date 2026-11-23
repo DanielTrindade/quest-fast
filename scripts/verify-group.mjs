@@ -3,7 +3,8 @@
 // com seu próprio cookie e a própria conexão WebSocket — então o feed ao vivo,
 // a ficha nova aparecendo na mesa e o filtro da rolagem secreta são exercitados
 // de verdade, entre clientes, não dentro de uma página só. No fim, a mesa roda
-// o combate do seed ("Emboscada na estrada") de ponta a ponta.
+// o combate do seed ("Emboscada na estrada") de ponta a ponta, no mapa da
+// cena do seed: o arrasto ao vivo, o fog e a vez do combate no token.
 //
 //   npm run build && npm run db:migrate && npm run db:seed
 //   npm run dev                # em outro terminal (porta 3000)
@@ -119,8 +120,85 @@ async function openUser(who, session) {
   await context.addCookies([{ name: 'qf_session', value: session, url: base }]);
   const page = await context.newPage();
   collectErrors(page, who);
+  // What the campaign socket delivers to this user, to tell a live update from a reload.
+  const frames = [];
+  page.on('websocket', (socket) => socket.on('framereceived', ({ payload }) => {
+    try {
+      frames.push(JSON.parse(String(payload)));
+    } catch {
+      // Not a message of the room.
+    }
+  }));
   await page.goto(tableUrl, { waitUntil: 'domcontentloaded' });
-  return { context, page };
+  return { context, page, frames };
+}
+
+// The map of the table: its token list, and the turn each row shows.
+const tokenPanel = (page) => page.locator('section').filter({ has: page.getByRole('heading', { name: /^Tokens/, level: 2 }) }).first();
+const tokenRows = (page) => tokenPanel(page).locator('button[aria-pressed]');
+const turnRows = async (page) => (await tokenRows(page).allInnerTexts()).filter((text) => text.includes('Vez atual'));
+
+/** Polls `read` until `accept` takes its answer, or fails with `label`. */
+async function until(read, accept, label, timeout = 10000) {
+  const deadline = Date.now() + timeout;
+  for (;;) {
+    const value = await read();
+    if (accept(value)) return value;
+    if (Date.now() > deadline) throw new Error(`${label} (último valor: ${JSON.stringify(value)})`);
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  }
+}
+
+/**
+ * The master opens the seed's map for the table from the Preparo and comes
+ * back to the Mesa. While a map is open the feed lives in the panel's Feed
+ * tab, so the steps that read the feed run with the map closed.
+ */
+async function openMap(page) {
+  await page.getByRole('link', { name: 'Preparo', exact: true }).first().click();
+  const row = page.locator('[data-slot="scene-row"]').filter({ hasText: 'Estrada da emboscada' });
+  await row.getByRole('button', { name: 'Abrir para a mesa' }).click();
+  await row.getByText('Aberta para a mesa').waitFor({ timeout: 10000 });
+  await page.getByRole('link', { name: /^Mesa/ }).first().click();
+  await page.getByRole('heading', { name: 'Estrada da emboscada' }).waitFor({ timeout: 15000 });
+}
+
+async function closeMap(page) {
+  await page.getByRole('button', { name: 'Fechar para a mesa' }).click();
+  await page.getByRole('heading', { name: 'Estrada da emboscada' }).waitFor({ state: 'detached', timeout: 15000 });
+}
+
+/**
+ * Frames the whole map and drags from one map point to another, as a hand
+ * would: the canvas fits the map with the same rule as `fitView`.
+ */
+async function dragOnMap(page, scene, from, to) {
+  const frame = page.locator('[data-slot="map-canvas"]').first();
+  await frame.scrollIntoViewIfNeeded();
+  await frame.getByRole('button', { name: 'Enquadrar o mapa' }).click();
+  const canvas = frame.locator('canvas');
+  // The framing glides for a few frames: wait until the canvas holds still.
+  let box = null;
+  for (let steady = 0, last = '', i = 0; steady < 3 && i < 50; i += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    box = await canvas.boundingBox();
+    const key = JSON.stringify(box);
+    steady = key === last ? steady + 1 : 0;
+    last = key;
+  }
+  const scale = Math.min(box.width / scene.map_width, box.height / scene.map_height);
+  const left = box.x + (box.width - scene.map_width * scale) / 2;
+  const top = box.y + (box.height - scene.map_height * scale) / 2;
+  const screen = (point) => ({ x: left + point.x * scale, y: top + point.y * scale });
+  const start = screen(from);
+  const end = screen(to);
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down();
+  for (let i = 1; i <= 12; i += 1) {
+    await page.mouse.move(start.x + ((end.x - start.x) * i) / 12, start.y + ((end.y - start.y) * i) / 12);
+    await new Promise((resolve) => setTimeout(resolve, 40));
+  }
+  await page.mouse.up();
 }
 
 const feedRows = (page) => page.locator('[data-slot="feed-list"] > li');
@@ -138,6 +216,13 @@ const browser = await chromium.launch({ channel, headless: true });
 try {
   // 1) Todos entram na campanha e o feed conecta ao vivo em cada um.
   const master = await openUser('mestre', members.master.session);
+  // The seed opens its map for the table; the first steps read the feed in
+  // the middle of the Mesa, where it is while no map is open (see 13b).
+  probes.add(`${base}/api/campaigns/${campaign.id}/scenes/active`);
+  await master.page.evaluate((url) => fetch(url, {
+    method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sceneId: null }),
+  }), `/api/campaigns/${campaign.id}/scenes/active`);
+  await master.page.reload({ waitUntil: 'domcontentloaded' });
   const rafael = await openUser('Rafael', members.rafael.session);
   const ana = await openUser('Ana', members.ana.session);
 
@@ -345,8 +430,60 @@ try {
   await rafael.page.locator('[data-slot="feed-status"][data-status="connected"]').waitFor({ timeout: 15000 });
   ok('em 390px a mesa mostra os dados, a administração fica em Jogadores e o Preparo não existe para o jogador');
 
-  // 14) Combate: o encontro em preparação não existe para os jogadores.
+  // 13b) O mestre abre o mapa do seed para a mesa, que o recebe ao vivo; o
+  //      lobo, na mata sob o fog, não chega aos jogadores.
   await rafael.page.setViewportSize({ width: 1280, height: 900 });
+  const scene = db.prepare("SELECT id, map_width, map_height, grid_cell_size FROM scenes WHERE campaign_id = ? AND name = 'Estrada da emboscada'").get(campaign.id);
+  if (!scene) throw new Error('o seed não criou a cena "Estrada da emboscada"');
+  await openMap(master.page);
+  for (const { page } of [master, rafael, ana]) {
+    await page.getByRole('heading', { name: 'Estrada da emboscada' }).waitFor({ timeout: 15000 });
+    await tokenRows(page).filter({ hasText: 'Goblin 1' }).first().waitFor({ timeout: 15000 });
+  }
+  await tokenRows(master.page).filter({ hasText: 'Lobo' }).first().waitFor({ timeout: 10000 });
+  for (const [who, page] of [['Rafael', rafael.page], ['Ana', ana.page]]) {
+    if ((await tokenRows(page).filter({ hasText: 'Lobo' }).first().count()) !== 0) throw new Error(`${who} vê o lobo sob o fog`);
+  }
+  ok('a mesa inteira vê o mapa do seed, e o lobo sob o fog só aparece para o mestre');
+
+  // 13c) O mestre arrasta o caixote: os jogadores o veem se mover ao vivo e
+  //      parar onde o servidor salvou.
+  const crate = db.prepare("SELECT id, x, y FROM tokens WHERE scene_id = ? AND label = 'Caixote de suprimentos'").get(scene.id);
+  const cell = scene.grid_cell_size;
+  const target = { x: crate.x + 3 * cell, y: crate.y + 2 * cell };
+  const seen = rafael.frames.length;
+  await Promise.all([
+    master.page.waitForResponse((response) => response.url().endsWith(`/tokens/${crate.id}`) && response.request().method() === 'PATCH', { timeout: 15000 }),
+    dragOnMap(master.page, scene, crate, target),
+  ]);
+  const saved = db.prepare('SELECT x, y FROM tokens WHERE id = ?').get(crate.id);
+  if (saved.x !== target.x || saved.y !== target.y) throw new Error(`o caixote parou em ${saved.x}, ${saved.y}, não em ${target.x}, ${target.y}`);
+  await until(
+    () => rafael.frames.slice(seen),
+    (frames) => frames.some((frame) => frame.type === 'scene.updated' && frame.scene.tokens.some((token) => token.id === crate.id && token.x === saved.x && token.y === saved.y)),
+    'Rafael não recebeu a posição nova do caixote',
+  );
+  if (!rafael.frames.slice(seen).some((frame) => frame.type === 'token.moving' && frame.tokenId === crate.id)) {
+    throw new Error('Rafael não viu o caixote se mover durante o arrasto');
+  }
+  ok('o arrasto do mestre chega ao vivo a Rafael, e o caixote para onde o servidor salvou');
+
+  // 13d) O mestre revela o mapa todo: o lobo chega aos jogadores pelo socket.
+  await master.page.getByRole('button', { name: 'Fog of war' }).click();
+  const fogPanel = master.page.locator('section[aria-label="Fog of war"]').first();
+  await fogPanel.getByRole('button', { name: 'Revelar tudo' }).click();
+  await fogPanel.getByRole('button', { name: 'Revelar o mapa' }).click();
+  for (const { page } of [rafael, ana]) {
+    await tokenRows(page).filter({ hasText: 'Lobo' }).first().waitFor({ timeout: 10000 });
+  }
+  await master.page.getByRole('button', { name: 'Fechar fog' }).click();
+  ok('revelar o mapa traz o lobo à tela dos jogadores, sem recarregar');
+  await closeMap(master.page);
+  for (const { page } of [rafael, ana]) {
+    await page.getByRole('heading', { name: 'Estrada da emboscada' }).waitFor({ state: 'detached', timeout: 15000 });
+  }
+
+  // 14) Combate: o encontro em preparação não existe para os jogadores.
   const encounter = db.prepare("SELECT id FROM encounters WHERE campaign_id = ? AND name = 'Emboscada na estrada'").get(campaign.id);
   if (!encounter) throw new Error('o seed não criou o encontro "Emboscada na estrada"');
   const encounterApi = `/api/campaigns/${campaign.id}/encounters/${encounter.id}`;
@@ -418,13 +555,15 @@ try {
   if ((await rafael.page.getByText(/Dano pendente/).count()) !== 0) throw new Error('Rafael vê o dano pendente de um ataque secreto');
   ok('o ataque secreto do mestre e o dano que ele deixa não chegam aos jogadores');
 
-  // 17) Ataque público do goblin: os jogadores leem totais, nunca o bônus.
-  await goblin.getByRole('checkbox', { name: /Atacar em segredo/ }).uncheck();
-  await goblin.getByRole('button', { name: 'Atacar com Cimitarra' }).click();
+  // 17) Ataque público do outro goblin (o primeiro já gastou a ação ou a
+  //     reação): os jogadores leem totais, nunca o bônus.
+  const second = await aim(master.page, 'Goblin 2', 'Kaelen');
+  await second.getByRole('checkbox', { name: /Atacar em segredo/ }).uncheck();
+  await second.getByRole('button', { name: 'Atacar com Cimitarra' }).click();
   for (const [who, page, before] of [['Rafael', rafael.page, rafaelCount], ['Ana', ana.page, anaCount]]) {
     await waitForCount(page, '[data-slot="feed-list"] > li', before + 1, `${who} recebe o ataque público`, 10000);
     const text = await lastFeedText(page);
-    if (!/Goblin 1 atacou Kaelen com Cimitarra/.test(text)) throw new Error(`${who} leu o ataque como: ${text}`);
+    if (!/Goblin 2 atacou Kaelen com Cimitarra/.test(text)) throw new Error(`${who} leu o ataque como: ${text}`);
     if (/1d20|\+ 4|1d6/.test(text)) throw new Error(`${who} vê os números do goblin: ${text}`);
   }
   ok('o ataque público do goblin chega aos jogadores só com acerto, crítico e dano');
@@ -440,7 +579,14 @@ try {
   for (let tries = 0; tries < 12 && !hit; tries++) {
     const counts = await Promise.all(table.map(([, page]) => feedCount(page)));
     const elara = await aim(ana.page, 'Elara Sombravil', 'Goblin 2');
-    await elara.getByRole('button', { name: 'Atacar com Adaga' }).click();
+    // Each miss spends Elara's action (on her turn) or her reaction (off it):
+    // the master moves the fight on until she has one again.
+    const dagger = elara.getByRole('button', { name: 'Atacar com Adaga' });
+    for (let turns = 0; turns < 8 && (await dagger.isDisabled()); turns++) {
+      await master.page.getByRole('button', { name: /Próximo turno/ }).click();
+      await new Promise((resolve) => setTimeout(resolve, 600));
+    }
+    await dagger.click();
     for (const [index, [who, page]] of table.entries()) {
       await waitForCount(page, '[data-slot="feed-list"] > li', counts[index] + 1, `${who} recebe o ataque de Elara`, 10000);
     }
@@ -458,7 +604,8 @@ try {
   if ((await ana.page.getByRole('button', { name: /Aplicar o dano/ }).count()) !== 0) throw new Error('Ana recebeu o botão de aplicar dano');
   ok('o ataque de Elara compara com a CA no servidor e só o mestre vê a CA e o dano pendente');
 
-  // 19) O mestre aplica o dano: os jogadores veem a faixa de saúde, não os PV.
+  // 19) O mestre aplica o dano: os jogadores acompanham a saúde do goblin
+  //     (os PV de um monstro são da mesa desde a #111), nunca a CA.
   await master.page.getByRole('button', { name: 'Aplicar o dano em Goblin 2' }).click();
   await master.page.getByRole('button', { name: 'Aplicar o dano em Goblin 2' }).waitFor({ state: 'detached', timeout: 10000 });
   // The card whose name is exactly this one: other cards mention it in their target lists.
@@ -478,9 +625,9 @@ try {
     ).catch(() => {
       throw new Error(`${who} não viu a faixa de saúde do goblin mudar`);
     });
-    if (/\d+\s*\/\s*7/.test(await cardText(page, 'Goblin 2'))) throw new Error(`${who} vê os PV do goblin`);
+    if (/15/.test(await cardText(page, 'Goblin 2'))) throw new Error(`${who} vê a CA do goblin`);
   }
-  ok('o dano aplicado pelo mestre chega aos jogadores só como faixa de saúde');
+  ok('o dano aplicado pelo mestre chega aos jogadores, sem a CA do goblin');
 
   // 20) Ana não ataca com o personagem de Rafael, nem pela interface nem pela API.
   if ((await ana.page.getByText('Ataques de Kaelen').count()) !== 0) throw new Error('Ana recebeu o painel de ataques de Kaelen');
@@ -515,6 +662,33 @@ try {
   );
   ok('Rafael encerra o próprio turno e a vez passa para todos');
 
+  // 21b) No mapa, a vez atual marca o token do combatente da vez, na tela de
+  //      todos, e acompanha o turno. Kaelen não tem token: na vez dele,
+  //      nenhum token é marcado.
+  const tokened = ['Elara Sombravil', 'Bram Linha Longa', 'Goblin 1', 'Goblin 2', 'Lobo'];
+  const activeName = () => master.page.evaluate(() =>
+    [...document.querySelectorAll('[aria-label="Ordem de iniciativa"] > li')]
+      .find((row) => row.getAttribute('aria-current') === 'step')?.querySelector('p')?.textContent ?? null);
+  await openMap(master.page);
+  const marked = new Set();
+  for (let turns = 0; turns < 8 && marked.size < 2; turns++) {
+    const name = await activeName();
+    const expected = tokened.includes(name) ? name : null;
+    for (const [who, page] of [['mestre', master.page], ['Rafael', rafael.page], ['Ana', ana.page]]) {
+      await until(
+        () => turnRows(page),
+        (rows) => (expected ? rows.length === 1 && rows[0].includes(expected) : rows.length === 0),
+        `${who} não marca a vez de ${name} no mapa`,
+      );
+    }
+    if (expected) marked.add(expected);
+    await master.page.getByRole('button', { name: /Próximo turno/ }).click();
+    await until(activeName, (next) => next !== name, 'a vez não passou');
+  }
+  if (marked.size < 2) throw new Error(`a vez no mapa só foi vista em ${[...marked].join(', ') || 'nenhum token'}`);
+  ok(`a vez atual acompanha o turno no mapa de todos (${[...marked].join(', ')})`);
+  await closeMap(master.page);
+
   // 22) O mestre encerra o combate e o resumo chega à mesa inteira.
   await master.page.getByRole('button', { name: 'Encerrar combate' }).click();
   await master.page.getByRole('group', { name: 'Encerrar o combate?' }).getByRole('button', { name: 'Encerrar e registrar resumo' }).click();
@@ -522,6 +696,9 @@ try {
     await page.getByText(/Combate encerrado: Emboscada na estrada/).first().waitFor({ timeout: 15000 });
   }
   ok('o mestre encerra o combate e o resumo chega ao feed de todos');
+
+  // The seed leaves its map open for the table: so does this run, for the next one.
+  await openMap(master.page);
 
   await master.context.close();
   await rafael.context.close();
