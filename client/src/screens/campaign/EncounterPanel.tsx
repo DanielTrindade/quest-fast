@@ -10,6 +10,7 @@ import { Surface } from '../../components/Surface';
 import { TurnBar } from '../../components/TurnBar';
 import { ApiError, api } from '../../lib/api';
 import { encounterQuery } from '../../lib/combat-cache';
+import { useRollBonus } from '../../lib/roll-bonus-context';
 import { stack } from '../../components/layout-styles';
 import { canGoBack, fightActions, useEncounterActions, type EncounterActions } from './encounter-actions';
 
@@ -151,6 +152,8 @@ export function EncounterPanel({ campaignId, encounterId, isMaster, currentUserI
 }) {
   const query = useQuery(encounterQuery(campaignId, encounterId));
   const actions = useEncounterActions(campaignId, encounterId);
+  // At the Mesa the queue's initiative takes the d20's modifier, like the panel's; in Preparo there is none.
+  const rollBonus = useRollBonus()?.roll;
   const encounter = query.data?.encounter;
 
   if (query.isPending) {
@@ -199,7 +202,9 @@ export function EncounterPanel({ campaignId, encounterId, isMaster, currentUserI
         master={isMaster}
         editable={encounter.status !== 'ended'}
         busyIds={actions.busyIds}
-        onRoll={!onTable || isMaster ? (id) => actions.run(id, () => api.combatantInitiative(...path, id, {})) : undefined}
+        onRoll={!onTable || isMaster
+          ? (id) => actions.run(id, () => api.combatantInitiative(...path, id, rollBonus ? { bonus: { roll: rollBonus } } : {}))
+          : undefined}
         onAssign={(id, value) => actions.run(id, () => api.combatantInitiative(...path, id, { value }))}
         onToggleHidden={(id, hidden) => actions.run(id, () => api.updateCombatant(...path, id, { hidden }))}
         onRemove={(id) => actions.run(id, () => api.removeCombatant(...path, id))}
