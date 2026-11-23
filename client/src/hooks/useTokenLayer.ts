@@ -3,7 +3,7 @@ import { squaresBetween, type GridSettings, type TokenView } from '@quest-fast/s
 import type { MapOverlay } from './useMapViewport';
 import type { MapView, Size } from '../lib/map-view';
 import { describeDrag, routeBetween, stopAtLimit } from '../lib/move-path';
-import { drawReach, drawRoute, type RoutePoint } from '../lib/reach-draw';
+import { drawAttackRange, drawReach, drawRoute, type RoutePoint, type ShownRange } from '../lib/reach-draw';
 import { LAND, REFUSE, SINK, createSpring, easeAcross, easeSettle, stepSpring, type Spring, type SpringConfig } from '../lib/spring';
 import { drawTokens, type DrawnToken, type Dust } from '../lib/token-draw';
 import { DRAG_THRESHOLD, restingPoint, screenRadius, toMapPoint, toScreenPoint, tokenAt } from '../lib/token-geometry';
@@ -69,6 +69,8 @@ export type TokenLayerOptions = {
   stopAtLimit?: (token: TokenView) => boolean;
   /** The running fight's turn and health, by token id: drawn around the pieces. */
   marks?: FightMarks;
+  /** The range of an attack its user asked to see, around their token. */
+  attackRange?: ShownRange | null;
 };
 
 type LayerWiring = {
@@ -150,7 +152,7 @@ export function useTokenLayer(options: TokenLayerOptions & LayerWiring): { cance
   const labelBox = useRef({ text: '', frame: 0, width: 0, height: 0 });
   const images = useRef(new Map<string, HTMLImageElement>());
   const loading = useRef(new Set<string>());
-  const { tokens, selectedId, viewerId, grid, map, motion, requestDraw, overlayRef, pendingMove, marks } = options;
+  const { tokens, selectedId, viewerId, grid, map, motion, requestDraw, overlayRef, pendingMove, marks, attackRange } = options;
 
   useEffect(() => {
     latest.current = options;
@@ -216,7 +218,7 @@ export function useTokenLayer(options: TokenLayerOptions & LayerWiring): { cance
   // What the canvas must show at once: drawn on the next frame.
   useEffect(() => {
     requestDraw();
-  }, [tokens, selectedId, viewerId, grid, map.width, map.height, pendingMove, marks, requestDraw]);
+  }, [tokens, selectedId, viewerId, grid, map.width, map.height, pendingMove, marks, attackRange, requestDraw]);
 
   // One layer for the component's life; it reads the props through `latest`.
   const overlay = useMemo<MapOverlay & { sendBack: (tokenId: string) => void }>(() => {
@@ -332,12 +334,20 @@ export function useTokenLayer(options: TokenLayerOptions & LayerWiring): { cance
     };
 
     /**
-     * Under the tokens: the area the token in focus can still reach (the one
+     * Under the tokens: the range of an attack asked for, from where its
+     * token is drawn; the area the token in focus can still reach (the one
      * dragged, the one waiting for confirmation, else the selected one), then
      * the route of a move on its way, and the routes reeling in after a move.
      */
     const drawMoving = (context: CanvasRenderingContext2D, view: MapView, themed: Element, tokens: readonly DrawnToken[], now: number) => {
       const current = latest.current;
+      const ranged = current.attackRange ? tokens.find((candidate) => candidate.id === current.attackRange!.tokenId) : undefined;
+      if (ranged && current.attackRange) {
+        drawAttackRange(context, {
+          token: { ...ranged.at, size: ranged.size }, normal: current.attackRange.normal, long: current.attackRange.long,
+          cellSize: current.grid.cellSize, map: current.map, view, themed,
+        });
+      }
       const dragging = drag.current?.started ? drag.current : null;
       const focusId = dragging?.token.id ?? current.pendingMove?.tokenId ?? current.selectedId;
       const token = tokens.find((candidate) => candidate.id === focusId);

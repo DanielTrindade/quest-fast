@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { IdentificationCard, UserCircleDashed } from '@phosphor-icons/react';
 import type { CastChoice, CharacterSheet, CharacterSummary, CombatantView, LinkedRollRequest, RollPayload } from '@quest-fast/shared';
+import { useRangeToggle } from '../hooks/useRangeToggle';
 import { classLine } from '../lib/character-lines';
 import { contentKeys } from '../lib/content-keys';
 import { ArmorShield } from './ArmorShield';
@@ -120,6 +121,8 @@ export function PlayerActions({
     onCast: (spellIndex: number, spellName: string, choice: CastChoice) => void;
   };
 }) {
+  // Out of a fight the character attacks from its own token, when it has one on the map.
+  const ranges = useRangeToggle(sheet && !fight ? { characterId: sheet.id, combatantId: null } : null);
   if (!character) {
     return (
       <EmptyState icon={UserCircleDashed} title="Nenhum personagem ativo"
@@ -142,8 +145,11 @@ export function PlayerActions({
               <ul className="m-0 grid list-none gap-2 p-0 *:min-w-0">
                 {contentKeys(sheet.attacks).map(({ item: attack, key }, index) => (
                   <li key={key}>
-                    <AttackCard {...attack} disabled={rolling}
-                      onRoll={() => onRoll({ kind: 'attack', attackIndex: index, mode: 'normal' })} />
+                    <AttackCard {...attack} disabled={rolling} rangeToggle={ranges.offer(`${index}:${attack.name}`, attack.range)}
+                      onRoll={() => {
+                        ranges.clear();
+                        onRoll({ kind: 'attack', attackIndex: index, mode: 'normal' });
+                      }} />
                   </li>
                 ))}
               </ul>

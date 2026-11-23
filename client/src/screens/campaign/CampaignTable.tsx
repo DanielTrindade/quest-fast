@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { activeSceneQuery } from '../../lib/scene-cache';
+import { AttackRangeProvider } from './AttackRangeProvider';
 import { CampaignPage } from './CampaignPage';
 import { useCampaignScreen } from './campaign-screen';
 import { CharactersSection } from './CharactersSection';
@@ -27,6 +28,8 @@ export function CampaignTable({ campaignId }: { campaignId: string }) {
 
   return (
     <CampaignPage campaign={campaign} title="Mesa">
+      {/* An attack's range, asked for in the Ações tab, is drawn on the map. */}
+      <AttackRangeProvider campaignId={campaignId}>
       <div className="grid grid-cols-[minmax(0,1fr)] gap-6 @min-[860px]:grid-cols-[minmax(0,1fr)_minmax(300px,340px)] @min-[860px]:items-start">
         <div className="min-w-0 @min-[860px]:col-start-1 @min-[860px]:row-start-1">
           <TableMap campaignId={campaignId} isMaster={isMaster} />
@@ -48,6 +51,7 @@ export function CampaignTable({ campaignId }: { campaignId: string }) {
           <CharactersSection campaignId={campaignId} currentUserId={currentUserId} isMaster={isMaster} />
         </div>
       </div>
+      </AttackRangeProvider>
     </CampaignPage>
   );
 }

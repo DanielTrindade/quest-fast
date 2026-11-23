@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useContext, useEffect, useState, type ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import type { CastChoice, CharacterResponse, CombatantView, EncounterView, LinkedRollRequest, RollPayload } from '@quest-fast/shared';
@@ -22,6 +22,7 @@ import { SessionFeed } from './SessionFeed';
 import { TableChat } from './TableChat';
 import { PanelRail } from '../../components/PanelRail';
 import { useChatSession } from '../../hooks/useChatSession';
+import { AttackRangeContext, leftActions } from '../../lib/attack-range-context';
 import { cn } from '../../lib/utils';
 import { useChatUnread } from './useChatUnread';
 
@@ -237,6 +238,12 @@ export function TableActionPanel({ campaignId, isMaster, currentUserId, withFeed
   // Only the panel in sight reads: the page's one sleeps under the full screen.
   const inSight = stage ? !stage.collapsed : !session.fullscreen;
   const chatUnread = useChatUnread(campaignId, currentUserId, inSight && tab === 'chat');
+  // An attack's range belongs to the Ações tab: leaving it, however, puts the range away.
+  const clearRange = useContext(AttackRangeContext)?.show;
+  const leaving = leftActions({ tab, staged: stage !== undefined, collapsed: stage?.collapsed ?? false, inSight });
+  useEffect(() => {
+    if (leaving) clearRange?.(null);
+  }, [leaving, clearRange]);
   const actionsSignal = panelSignal(isMaster, fight.encounter, ownCombatant);
   const { setFullscreen } = session;
   const staged = stage !== undefined;
@@ -270,7 +277,7 @@ export function TableActionPanel({ campaignId, isMaster, currentUserId, withFeed
           actionsSignal={actionsSignal} chatUnread={chatUnread}
           className="flex-row @min-[47.5rem]/stage:h-full @min-[47.5rem]/stage:flex-col"
           onOpen={(next) => {
-            if (next) stage.onTabChange(next);
+            if (next) setTab(next);
             stage.onCollapsedChange(false);
           }} />
       )}

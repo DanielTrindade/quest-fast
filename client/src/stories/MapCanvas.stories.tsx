@@ -481,6 +481,25 @@ export const VezESaude: Story = {
   },
 };
 
+/**
+ * Kaelen asked to see the range of his hand axe (6/18 m) on his turn: a firm
+ * outline over the normal range, a lighter one at the long range, both
+ * counted in squares like a move.
+ */
+export const AlcanceDoAtaque: Story = {
+  name: 'Alcance do ataque',
+  args: {
+    ...tokenArgs, tokens: fightTokens(), viewerId: MASTER_ID, fightMarks: fightMarksFor(fightTokens()),
+    attackRange: { tokenId: 'kaelen', normal: 6, long: 18 },
+  },
+  render: (args) => <TokenMap {...args} master />,
+  play: async ({ canvasElement }) => {
+    const { frame, map } = await readyMap(canvasElement);
+    await expect(map.getByText(/Alcance do ataque de Kaelen: 6 m e, com desvantagem, até 18 m\./)).toBeInTheDocument();
+    await waitFor(() => expect(painted(frame)).toBe(true));
+  },
+};
+
 /** Late in the fight, on the ogre's turn: the fallen and the defeated carry no arc. */
 export const VezDoOgroComCaidos: Story = {
   name: 'Vez do ogro, com caídos',

@@ -96,8 +96,8 @@ function Attacks({ combatant, targets, master, active, busy, actions }: Part & {
   return (
     <div className="grid min-w-0 gap-2">
       <h4 className="m-0 text-small font-semibold text-text-secondary">Atacar</h4>
-      <CombatantAttacks name={combatant.name} attacks={combatant.attacks} targets={targets} master={master}
-        turn={combatant.turn} active={active}
+      <CombatantAttacks name={combatant.name} owner={{ characterId: combatant.characterId, combatantId: combatant.id }}
+        attacks={combatant.attacks} targets={targets} master={master} turn={combatant.turn} active={active}
         defaultSecret={master && combatant.source !== 'character'} pending={busy}
         onAttack={(attackIndex, options) => onAttack(combatant.id, attackIndex, options)} />
     </div>
