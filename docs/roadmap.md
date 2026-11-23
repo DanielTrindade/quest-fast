@@ -182,6 +182,21 @@ mockups na [#88](https://github.com/DanielTrindade/quest-fast/issues/88).
    as requisições da fila de iniciativa. Sem mapa aberto, o feed ocupa o
    centro. Convite em destaque em Jogadores, com o código em peças para ditar
    e o cartão da prévia do link.
+4. **Chat da mesa — entregue.** A conversa escrita da mesa, fora do jogo
+   ([#138](https://github.com/DanielTrindade/quest-fast/issues/138), spec em
+   [`history/2026-11-20-table-chat.md`](history/2026-11-20-table-chat.md)):
+   quarta aba do painel, em linha corrida, com menção, resposta, reações
+   rápidas e remoção pelo autor ou pelo mestre. O servidor guarda as últimas
+   500 mensagens por campanha e limita a 5 mensagens a cada 5 s por pessoa.
+   Em tela cheia, o painel da Mesa vai junto, com a aba Mapa (a coluna que o
+   palco tinha), e recolhe num trilho de ícones; recolhido, as mensagens
+   novas aparecem sobre o mapa. Entregue em cinco PRs (#143 a #147).
+   Diferenças da spec: a view guarda o trecho de cada menção
+   (`{ userId, start, end }`), não só os ids; o limite de 300 caracteres conta
+   grafemas; as mensagens sobre o mapa ficam em fundo opaco, para o contraste
+   ser medido; a citação de uma resposta não leva o nome em negrito, para
+   caber numa linha cortada com reticências. Aviso de menção fora da Mesa fica
+   para uma issue própria.
 
 ### Fase 4 — campo de batalha (VTT)
 
@@ -303,7 +318,7 @@ entrega: entram no roadmap quando ganharem prioridade e escopo.
 
 ## Fora de escopo
 
-Chat, voz e vídeo (ficam no Discord); bot do Discord; login por e-mail e
+Voz e vídeo (ficam no Discord; o chat escrito da mesa entrou com a #138); bot do Discord; login por e-mail e
 senha; motor de regras automático (CA por armadura, espaços de magia pela
 tabela); compêndio SRD; multiclasse; iluminação dinâmica e linha de visão no
 VTT; app mobile.

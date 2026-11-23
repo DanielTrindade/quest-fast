@@ -172,7 +172,7 @@ src/
   router.tsx       rotas; o guard de autenticação consulta /api/auth/me
   screens/         telas que buscam dados (Login, Campaigns, MyCharacters, CampaignWorkspace e campaign/)
   components/      componentes presentacionais do design system
-  hooks/           useCampaignSocket, useStoredFlag, useSignOut
+  hooks/           useCampaignSocket, useChatSession, useStoredFlag, useSignOut
   lib/             cliente da API, caches do feed, do combate e das cenas, rótulos 5e, formatação
   styles/          tokens (index.css) e relevo dos primitivos (ui.css)
   stories/         Storybook: catálogo e fonte de verdade da interface
@@ -215,7 +215,15 @@ src/
   `lib/scene-cache.ts`, que descarta `version` menor que a já vista. Criar,
   editar, mudar o estado, ativar ou excluir uma ficha publica
   `characters.changed`, um aviso sem dados: quem está na sala refaz a consulta
-  do elenco, das fichas abertas e da galeria.
+  do elenco, das fichas abertas e da galeria. `chat.message` e `chat.removed`
+  entram via `lib/chat-cache.ts`, que guarda os ids removidos: nem uma resposta
+  atrasada, nem uma página antiga, nem o refetch da reconexão trazem de volta
+  o texto de uma mensagem removida.
+- **Chat:** rascunho, resposta em andamento e última linha lida ficam no
+  `ChatSessionProvider`, montado no layout da campanha (por campanha), e não
+  no painel. Na tela cheia, o `SceneStage` monta outra instância do painel da
+  Mesa dentro do palco (o resto da página fica `inert`), e as duas leem o
+  mesmo estado; só a que está à vista marca o chat como lido.
 - **Componentes:** `components/` não busca dados; recebe props e é coberto por
   story. `screens/` compõe componentes e liga com a API.
 - **Estilo:** Tailwind 4 com tokens CSS próprios. Cor crua e paleta padrão do
