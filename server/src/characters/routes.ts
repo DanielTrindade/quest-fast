@@ -26,11 +26,15 @@ import {
   castSpell,
   type CastChoice,
   type SpellCastSessionEvent,
+  BONUS_TOO_BIG,
+  bonusFits,
+  readRollBonus,
   rollAttackHit,
+  rollTest,
+  type ParsedBonus,
   rollDamage,
   hasDamage,
   noRoll,
-  rollDice,
   saveBonus,
   skillAbility,
   skillBonus,
@@ -883,15 +887,19 @@ export function myCharacterRoutes() {
 
 type LinkedRollResult = { error: string } | { payload: RollPayload };
 
-/** Every linked roll is a single d20 plus a bonus the server derives from the sheet. */
+/**
+ * Every linked roll is a single d20 plus a bonus the server derives from the
+ * sheet, and the situational modifier the player typed, if any.
+ */
 function d20(
   sheet: CharacterSheet,
   bonus: number,
   mode: RollMode,
+  extra: ParsedBonus | undefined,
   details: Pick<RollPayload, 'rollKind' | 'attackName' | 'ability' | 'skill'>,
 ): LinkedRollResult {
-  const result = rollDice(`1d20${bonus >= 0 ? '+' : ''}${bonus}`, mode);
-  if (!result) return { error: 'Rolagem inválida.' };
+  if (extra && !bonusFits({ dice: 1, modifier: bonus }, extra)) return { error: BONUS_TOO_BIG };
+  const result = rollTest(bonus, mode, extra);
   return { payload: { kind: 'roll', ...result, ...details, characterId: sheet.id, characterName: sheet.name } };
 }
 
@@ -903,6 +911,9 @@ function parseLinkedRoll(body: LinkedRollRequest, sheet: CharacterSheet): Linked
   const rawMode = body?.mode;
   if (rawMode !== undefined && !isRollMode(rawMode)) return { error: 'Modo de rolagem inválido.' };
   const mode: RollMode = rawMode ?? 'normal';
+  // Read before anything is rolled: a typo in the modifier rolls nothing.
+  const extra = readRollBonus(body?.bonus);
+  if ('error' in extra) return { error: extra.error };
 
   if (kind === 'attack') {
     const index = body?.attackIndex;
@@ -923,8 +934,8 @@ function parseLinkedRoll(body: LinkedRollRequest, sheet: CharacterSheet): Linked
       if (!hasDamage(attack)) {
         return { payload: { kind: 'roll', ...noRoll(), ...details, save, characterId: sheet.id, characterName: sheet.name } };
       }
-      const damage = rollDamage(attack.damage, false);
-      if (!damage) return { error: 'A expressão de dano deste ataque é inválida.' };
+      const damage = rollDamage(attack.damage, false, Math.random, extra.damage);
+      if (!damage) return { error: extra.damage ? BONUS_TOO_BIG : 'A expressão de dano deste ataque é inválida.' };
       return {
         payload: {
           kind: 'roll',
@@ -939,7 +950,8 @@ function parseLinkedRoll(body: LinkedRollRequest, sheet: CharacterSheet): Linked
       };
     }
     // Outside a fight there is no target: the damage is rolled afterwards, if it hit.
-    const hit = rollAttackHit(attack.bonus, mode);
+    if (extra.roll && !bonusFits({ dice: 1, modifier: attack.bonus }, extra.roll)) return { error: BONUS_TOO_BIG };
+    const hit = rollAttackHit(attack.bonus, mode, Math.random, extra.roll);
     const { critical, ...result } = hit;
     return {
       payload: {
@@ -958,17 +970,17 @@ function parseLinkedRoll(body: LinkedRollRequest, sheet: CharacterSheet): Linked
     const ability = body?.ability;
     if (!isAbility(ability)) return { error: 'Atributo inválido.' };
     const bonus = kind === 'save' ? saveBonus(sheet, ability) : (abilityModifier(sheet.abilityScores[ability]) ?? 0);
-    return d20(sheet, bonus, mode, { rollKind: kind, ability });
+    return d20(sheet, bonus, mode, extra.roll, { rollKind: kind, ability });
   }
 
   if (kind === 'skill') {
     const skill = body?.skill;
     if (!isSkill(skill)) return { error: 'Perícia inválida.' };
-    return d20(sheet, skillBonus(sheet, skill), mode, { rollKind: 'skill', ability: skillAbility(skill), skill });
+    return d20(sheet, skillBonus(sheet, skill), mode, extra.roll, { rollKind: 'skill', ability: skillAbility(skill), skill });
   }
 
   if (kind === 'initiative') {
-    return d20(sheet, initiative(sheet), mode, { rollKind: 'initiative', ability: 'dexterity' });
+    return d20(sheet, initiative(sheet), mode, extra.roll, { rollKind: 'initiative', ability: 'dexterity' });
   }
 
   if (kind === 'spellAttack') {
@@ -976,7 +988,7 @@ function parseLinkedRoll(body: LinkedRollRequest, sheet: CharacterSheet): Linked
     if (bonus === null || !sheet.spellcastingAbility) {
       return { error: 'O personagem não tem atributo de conjuração.' };
     }
-    return d20(sheet, bonus, mode, { rollKind: 'spellAttack', ability: sheet.spellcastingAbility });
+    return d20(sheet, bonus, mode, extra.roll, { rollKind: 'spellAttack', ability: sheet.spellcastingAbility });
   }
 
   return { error: 'Tipo de rolagem inválido.' };

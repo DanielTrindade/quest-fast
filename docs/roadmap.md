@@ -262,13 +262,18 @@ em quatro PRs:
    bestiário ganha "Alcance" em texto ("1,5 m", "6/18 m"), mostrado em
    Mesa/Ações e gravado no evento do feed como era na hora do ataque. Sem
    migração: os ataques já são JSON. A importação do PDF deixa o campo vazio.
-2. **Alcance no mapa — em andamento.** "Ver alcance" na aba Ações desenha,
+2. **Alcance no mapa — entregue.** "Ver alcance" na aba Ações desenha,
    em casas de 1,5 m, o alcance normal (contorno firme) e o longo (contorno
    leve) em volta do token de quem ataca, no tom de perigo. O texto vira
    metros por `parseRange` em `shared/` ("6/18 m", "30 ft"); o que não é
    distância fica só como texto. Só mostra: não recusa alvo.
-3. **Modificador no servidor.** Dado e número com sinal no d20 e no dano,
-   rolados à parte no servidor.
+3. **Modificador no servidor — em andamento.** As rolagens da ficha, o
+   ataque e a iniciativa no combate, a salvaguarda de concentração e o dano
+   rolado depois aceitam `bonus: { roll, damage }`: dado e número com sinal,
+   dado negativo inclusive (`+1d4`, `-1d4`, `+2`). O servidor lê antes de
+   gastar o turno, confere os limites da rolagem inteira, rola à parte e
+   soma; no crítico, os dados do modificador de dano dobram. O evento guarda
+   a parcela (`bonus`), que sai da cópia do jogador num ataque de monstro.
 4. **Modificador na tela.** A barra "Modificadores" na aba Ações e na ficha.
 
 ### Telas da campanha

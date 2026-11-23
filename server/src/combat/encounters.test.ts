@@ -9,6 +9,7 @@ import type {
   EncounterListResponse,
   EncounterView,
   FeedResponse,
+  RollSessionEvent,
   SocketMessage,
   StatblockResponse,
 } from '@quest-fast/shared';
@@ -338,6 +339,23 @@ test('revealing a copy the master renamed keeps the name the master gave', async
 });
 
 // --- Initiative --------------------------------------------------------------------
+
+test('an initiative roll takes the situational modifier; a typo rolls nothing', async () => {
+  const s = await setup();
+  const encounter = await createEncounter(s);
+  const path = `${s.base}/${encounter.id}`;
+  const view = await encounterOf(await send(s.master, `${path}/combatants`, 'POST', { source: 'character', characterId: s.kaelen.id }), 201);
+  await send(s.master, `${path}/start`, 'POST');
+  const kaelen = `${path}/combatants/${byName(view, 'Kaelen').id}/initiative`;
+
+  assert.equal((await send(s.player, kaelen, 'POST', { bonus: { roll: 'logo' } })).status, 422);
+  const rolled = byName(await encounterOf(await send(s.player, kaelen, 'POST', { bonus: { roll: '+10' } })), 'Kaelen').initiative!;
+  // d20 + Dexterity 16 (+3) + 10.
+  assert.ok(rolled >= 14 && rolled <= 33);
+  const feed = await body<FeedResponse>(await s.player(`${s.root}/feed`));
+  const roll = feed.events.find((event) => event.type === 'roll');
+  assert.equal((roll as RollSessionEvent | undefined)?.payload.bonus?.total, 10);
+});
 
 test('a player rolls their own initiative once; the master may still override it', async () => {
   const s = await setup();

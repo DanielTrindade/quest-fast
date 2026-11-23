@@ -660,3 +660,86 @@ test("a player sees an ally's attacks, never a monster's", async () => {
   assert.deepEqual(byName(player, 'Goblin 1').attacks, []);
   assert.equal(byName(player, 'Kaelen').attacks[0]?.name, 'Espada longa');
 });
+
+// --- Situational modifier (#133) ------------------------------------------------
+
+test('the situational modifier goes into the hit and the damage, its damage dice doubled on a critical', async (t) => {
+  natural20(t);
+  const { s, at, id, view } = await fight();
+  await attacked(await send(s.player, at('Kaelen', '/attack'), 'POST', { attackIndex: 0, targetId: id('Goblin 2'), bonus: { roll: '+1d4', damage: '+1d6' } }));
+
+  const [roll] = await rolls(s, s.master);
+  assert.equal(roll?.natural, 20);
+  assert.equal(roll?.bonus?.expression, '+1d4');
+  assert.equal(roll?.total, 20 + 5 + 4);
+  // 2d8+3 at their highest, and the modifier's 1d6 doubled to 2d6.
+  assert.equal(roll?.damage?.bonus?.expression, '+2d6');
+  assert.equal(roll?.damage?.total, 19 + 12);
+  const [reminder] = pending(byName(await view(s.master), 'Goblin 2').reminders);
+  assert.equal(reminder?.kind === 'pendingDamage' && reminder.amount, 31);
+});
+
+test('a modifier that is not one, or past the limits, refuses the attack and spends nothing', async () => {
+  const { s, at, view } = await fight();
+  for (const bonus of [{ roll: 'abc' }, { damage: 4 }, '+1d4', { damage: '+100d6' }]) {
+    const refused = await send(s.player, at('Kaelen', '/attack'), 'POST', { attackIndex: 0, bonus });
+    assert.equal(refused.status, 422, JSON.stringify(bonus));
+  }
+  const turn = byName(await view(s.player), 'Kaelen').turn;
+  assert.equal(turn?.actionUsed, false);
+  assert.equal(turn?.reactionUsed, false);
+  assert.equal((await rolls(s, s.master)).length, 0);
+  // The modifier gives no one another's attacks.
+  assert.equal((await send(s.otherPlayer, at('Kaelen', '/attack'), 'POST', { attackIndex: 0, bonus: { roll: '+1d4' } })).status, 403);
+});
+
+test("a player's copy of a monster attack leaves its modifier out with the rest of its numbers", async (t) => {
+  natural20(t);
+  const { s, at, id } = await fight();
+  await attacked(await send(s.master, at('Goblin 1', '/attack'), 'POST', { attackIndex: 0, targetId: id('Kaelen'), secret: false, bonus: { roll: '+2', damage: '+1d4' } }));
+  const [master] = await rolls(s, s.master);
+  assert.equal(master?.bonus?.total, 2);
+  assert.equal(master?.damage?.bonus?.expression, '+2d4');
+  const [player] = await rolls(s, s.player);
+  assert.equal(player && 'bonus' in player, false);
+  assert.equal(player?.damage && 'bonus' in player.damage, false);
+  // The damage total stays: the table hears it.
+  assert.equal(player?.damage?.total, master?.damage?.total);
+});
+
+test('the damage rolled later takes the modifier of that moment', async (t) => {
+  natural20(t);
+  const { s, at } = await fight();
+  await attacked(await send(s.player, at('Kaelen', '/attack'), 'POST', { attackIndex: 0 }));
+  const [attack] = await attackEvents(s, s.player);
+  assert.ok(attack);
+  const damageOf = `${s.root}/rolls/${attack.id}/damage`;
+  assert.equal((await send(s.player, damageOf, 'POST', { bonus: { damage: 'abc' } })).status, 422);
+  const rolled = await send(s.player, damageOf, 'POST', { bonus: { damage: '+1d6' } });
+  assert.equal(rolled.status, 201, await rolled.clone().text());
+  const { event } = await body<RollResponse>(rolled);
+  assert.equal(event.payload.damage?.bonus?.expression, '+2d6');
+  assert.equal(event.payload.damage?.total, 19 + 12);
+});
+
+test('a damage modifier that only a critical takes past the limit lets a normal hit through', async (t) => {
+  const { s, at, id, view } = await fight();
+  const huge = await send(s.player, `${s.root}/characters/${s.kaelen.id}`, 'PATCH', { ...sheet('Kaelen'), attacks: [{ ...SWORD, damage: '50d6' }] });
+  assert.equal(huge.status, 200, await huge.clone().text());
+  const swing = () => send(s.player, at('Kaelen', '/attack'), 'POST', { attackIndex: 0, targetId: id('Goblin 2'), bonus: { damage: '+1d6' } });
+
+  // A d20 of 11: a hit (11 + 5 against AC 15), not a critical. 51 dice fit.
+  const normal = t.mock.method(Math, 'random', () => 0.5);
+  const hit = await attacked(await swing());
+  assert.ok(hit);
+  const [roll] = await rolls(s, s.master);
+  assert.equal(roll?.damage?.bonus?.expression, '+1d6');
+  normal.mock.restore();
+
+  // A natural 20 doubles them to 102: refused, and the turn is as it was.
+  const spent = byName(await view(s.player), 'Kaelen').turn;
+  natural20(t);
+  assert.equal((await swing()).status, 422);
+  assert.deepEqual(byName(await view(s.player), 'Kaelen').turn, spent);
+  assert.equal((await rolls(s, s.master)).length, 1);
+});

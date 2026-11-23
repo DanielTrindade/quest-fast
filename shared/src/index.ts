@@ -330,6 +330,7 @@ export type {
   DeathSaveRequest,
   ConcentrationSaveRequest,
   AttackRequest,
+  DamageRollRequest,
   ApplyDamageRequest,
   UnknownSessionEvent,
   SpellCastPayload,
@@ -387,3 +388,17 @@ export {
   type PixelRect,
 } from './avatar-crop.ts';
 export { parseRange, type AttackRange } from './range.ts';
+export {
+  BONUS_TOO_BIG,
+  ROLL_BONUS_LENGTH,
+  bonusFits,
+  parseRollBonus,
+  readRollBonus,
+  rollBonus,
+  rollTest,
+  type BonusDie,
+  type BonusGroup,
+  type BonusRoll,
+  type ParsedBonus,
+  type RollBonusInput,
+} from './roll-bonus.ts';
