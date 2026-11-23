@@ -22,7 +22,7 @@ import { SessionFeed } from './SessionFeed';
 import { TableChat } from './TableChat';
 import { PanelRail } from '../../components/PanelRail';
 import { useChatSession } from '../../hooks/useChatSession';
-import { AttackRangeContext } from '../../lib/attack-range-context';
+import { AttackRangeContext, leftActions } from '../../lib/attack-range-context';
 import { cn } from '../../lib/utils';
 import { useChatUnread } from './useChatUnread';
 
@@ -231,18 +231,19 @@ export function TableActionPanel({ campaignId, isMaster, currentUserId, withFeed
   const session = useChatSession();
   const [pageTab, setPageTab] = useState<ActionPanelTab>('actions');
   const tab = stage ? stage.tab : pageTab;
-  const ranges = useContext(AttackRangeContext);
-  // An attack's range belongs to the Ações tab: going to another tab puts it away.
-  const setTab = (next: ActionPanelTab) => {
-    if (next !== 'actions') ranges?.show(null);
-    (stage ? stage.onTabChange : setPageTab)(next);
-  };
+  const setTab = stage ? stage.onTabChange : setPageTab;
   const fight = useFight(campaignId);
   const player = useOwnCharacter(campaignId, currentUserId, !isMaster);
   const ownCombatant = ownCombatantOf(fight.encounter, player.own);
   // Only the panel in sight reads: the page's one sleeps under the full screen.
   const inSight = stage ? !stage.collapsed : !session.fullscreen;
   const chatUnread = useChatUnread(campaignId, currentUserId, inSight && tab === 'chat');
+  // An attack's range belongs to the Ações tab: leaving it, however, puts the range away.
+  const clearRange = useContext(AttackRangeContext)?.show;
+  const leaving = leftActions({ tab, staged: stage !== undefined, collapsed: stage?.collapsed ?? false, inSight });
+  useEffect(() => {
+    if (leaving) clearRange?.(null);
+  }, [leaving, clearRange]);
   const actionsSignal = panelSignal(isMaster, fight.encounter, ownCombatant);
   const { setFullscreen } = session;
   const staged = stage !== undefined;

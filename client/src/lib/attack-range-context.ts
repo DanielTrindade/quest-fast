@@ -33,3 +33,17 @@ export function tokenOf(tokens: readonly TokenView[], owner: RangeOwner): TokenV
   return tokens.find((token) =>
     (owner.characterId !== null && token.characterId === owner.characterId) || (owner.combatantId !== null && token.combatantId === owner.combatantId));
 }
+
+/**
+ * Whether a panel of the Mesa no longer shows its Ações tab, so the range
+ * asked for there leaves the map. The tab changes in many ways (the panel's
+ * own tabs, the map's grid, tokens and fog buttons, the chat's toast), and
+ * the Ações tab stays mounted while hidden: the state is what decides, not
+ * the way it changed. The full screen's panel left it when it shows another
+ * tab or is folded; the page's panel only while it is the one in sight
+ * (under the full screen it sleeps, and decides nothing).
+ */
+export function leftActions(panel: { tab: string; staged: boolean; collapsed: boolean; inSight: boolean }): boolean {
+  if (panel.staged) return panel.collapsed || panel.tab !== 'actions';
+  return panel.inSight && panel.tab !== 'actions';
+}
