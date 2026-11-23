@@ -327,12 +327,13 @@ for (const [creature, names] of [['Goblin', ['Goblin 1', 'Goblin 2']], ['Lobo', 
 // road, a crate by the overturned cart, and the wolf among the trees, under the fog. The
 // image is the server's own copy of a map (a JPEG `normaliseMap` made), so
 // the seed copies it as an upload would land on disk; it needs no `sharp`.
-// With R2 configured the file would not be where the server reads it from.
+// With ASSET_STORAGE=r2 (the server's switch, whatever R2_* holds) the file
+// would not be where the server reads it from.
 const SEED_MAP = { file: join(import.meta.dirname, 'seed-assets', 'estrada-da-emboscada.jpg'), width: 1500, height: 1000 };
 const CELL = SEED_MAP.width / 30;
 let sceneName: string | null = null;
-if (process.env.R2_BUCKET?.trim()) {
-  console.warn('R2 configurado: o seed não cria a cena, porque grava o mapa no disco local.');
+if (process.env.ASSET_STORAGE?.trim() === 'r2') {
+  console.warn('ASSET_STORAGE=r2: o seed não cria a cena, porque grava o mapa no disco local.');
 } else {
   const path = `campaigns/${campaign.id}/${randomUUID()}.jpg`;
   const target = join(resolve(process.env.UPLOADS_DIR?.trim() || 'uploads'), path);
