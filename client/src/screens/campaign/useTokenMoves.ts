@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type RefObject } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { SceneResponse, SceneView } from '@quest-fast/shared';
 import type { MapCanvasHandle } from '../../components/MapCanvas';
-import { useCampaignChannel } from '../../hooks/useCampaignSocket';
+import { useCampaignChannel, useCampaignSocketStatus } from '../../hooks/useCampaignSocket';
 import { useNotify } from '../../hooks/use-notify';
 import { ApiError, api } from '../../lib/api';
 import { createMoveThrottle } from '../../lib/move-throttle';
@@ -93,6 +93,22 @@ export function useTokenMoves({ campaignId, scene, mapRef, confirms }: {
       drags.forget(active);
     }
   });
+
+  // A fallen connection took the lock with it: the server settled the token
+  // (a fighter's move, never confirmed, went back). The gesture in hand ends
+  // here, and the scene asked again on the way back says where the token is.
+  const status = useCampaignSocketStatus();
+  useEffect(() => {
+    if (status !== 'disconnected') return;
+    const tokenId = controller.current?.interrupt();
+    if (!tokenId) return;
+    mapRef.current?.cancelDrag(tokenId);
+    notify({
+      title: 'A conexão com a mesa caiu',
+      description: 'O movimento do token foi desfeito. Quando a conexão voltar, o mapa mostra onde ele ficou.',
+      variant: 'error',
+    });
+  }, [status, mapRef, notify]);
 
   // Leaving the map mid-drag puts the token back, which releases the lock.
   useEffect(() => () => {

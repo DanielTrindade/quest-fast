@@ -17,8 +17,7 @@ import { useNotify } from '../../hooks/use-notify';
 import { api } from '../../lib/api';
 import { activeSceneQuery, mergeScene, sceneListQuery, sceneQuery } from '../../lib/scene-cache';
 import { stopsAtLimit } from '../../lib/move-path';
-import { fightMarks } from '../../lib/token-combat';
-import { canMoveToken } from '../../lib/token-labels';
+import { fightMarks, mayFight, moveRefusal, type MoveRefusal } from '../../lib/token-combat';
 import { cn } from '../../lib/utils';
 import { errorMessage } from './campaign-screen';
 import { FightTurn } from './FightTurn';
@@ -124,6 +123,48 @@ function MasterPanel({ panel, panelIds, campaignId, scene, mapRef, fog, onPrevie
 function useFightMarks(tokens: readonly TokenView[], fight: Fight | null) {
   const encounter = fight?.encounter ?? null;
   return useMemo(() => fightMarks(tokens, encounter), [tokens, encounter]);
+}
+
+/**
+ * What the viewer is told when a press on a token they may move does not
+ * pick it up: without a word the gesture only pans the map (#109). A player
+ * off their turn already sees whose turn it is, and a token not theirs is
+ * not theirs to move: those say nothing.
+ */
+const REFUSAL_NOTICES: Partial<Record<MoveRefusal, { title: string; description: string }>> = {
+  settling: {
+    title: 'Este token ainda está sendo salvo',
+    description: 'Espere o último movimento dele chegar à mesa e arraste de novo.',
+  },
+  'fight-unknown': {
+    title: 'O combate ainda está carregando',
+    description: 'Arraste de novo em instantes: sem ele, o movimento poderia gastar um turno.',
+  },
+};
+
+/**
+ * Whether a press picks a token up. When it does not for a reason the viewer
+ * can wait out, they are told so; a fight still unknown is asked again, in
+ * case its last request failed.
+ */
+function useMoveGate({ campaignId, viewerId, isMaster, settling, fight }: {
+  campaignId: string; viewerId: string | null; isMaster: boolean;
+  settling: (tokenId: string) => boolean; fight: Fight | null | undefined;
+}) {
+  const queryClient = useQueryClient();
+  const notify = useNotify();
+  return (token: TokenView) => {
+    const refusal = moveRefusal(token, {
+      viewerId, master: isMaster, settling: settling(token.id), fight: fight === undefined ? undefined : fight?.encounter ?? null,
+    });
+    const notice = refusal ? REFUSAL_NOTICES[refusal] : undefined;
+    if (notice) notify({ ...notice, variant: 'info' });
+    if (refusal === 'fight-unknown') {
+      void queryClient.invalidateQueries({ queryKey: ['encounters', campaignId] });
+      void queryClient.invalidateQueries({ queryKey: ['encounter', campaignId] });
+    }
+    return refusal === null;
+  };
 }
 
 function stageClass(isMaster: boolean) {
@@ -242,7 +283,7 @@ export function SceneStage({ campaignId, scene, isMaster, mapClassName, allowFul
   // In a fight, a move of the combatant whose turn it is waits for confirmation: it spends the turn.
   const confirms = (tokenId: string) => fight !== null && fighterOfToken(tokenId)?.id === fight.encounter.activeCombatantId;
   // Whether a fight runs is not known yet: a token that may fight waits, or its move could spend a turn unasked.
-  const mayFight = (token: TokenView) => fightState === undefined && (token.characterId !== null || token.combatantId !== null);
+  const waitsForFight = (token: TokenView) => fightState === undefined && mayFight(token);
   const moves = useTokenMoves({ campaignId, scene, mapRef, confirms });
   const [panel, setPanel] = useState<Panel>(null);
   const [selected, setSelected] = useState<string | null>(null);
@@ -260,13 +301,7 @@ export function SceneStage({ campaignId, scene, isMaster, mapClassName, allowFul
     setPanel(panel === next ? null : next);
     showMap(panel !== next);
   };
-  // A token whose last drop is still unanswered waits for it before the next drag;
-  // in a fight a player moves their own only on its turn (the server says the same).
-  const canMove = (token: TokenView) => {
-    if (!canMoveToken(token, viewerId, isMaster) || moves.settling(token.id) || mayFight(token)) return false;
-    const fighter = fight?.fighterOf(token);
-    return isMaster || !fighter || fighter.id === fight?.encounter.activeCombatantId;
-  };
+  const canMove = useMoveGate({ campaignId, viewerId, isMaster, settling: moves.settling, fight: fightState });
   const focus = selectedId ? fighterOfToken(selectedId) : null;
   const marks = useFightMarks(scene.tokens, fight);
 
@@ -281,7 +316,7 @@ export function SceneStage({ campaignId, scene, isMaster, mapClassName, allowFul
       <TokenList tokens={scene.tokens} viewerId={viewerId} master={isMaster} fog={scene.fog} fightMarks={marks} selectedId={selectedId} onSelect={setSelected}
         onStep={(tokenId, direction) => {
           const token = scene.tokens.find((candidate) => candidate.id === tokenId);
-          if (token && !mayFight(token)) moves.onStep(tokenId, direction);
+          if (token && !waitsForFight(token)) moves.onStep(tokenId, direction);
         }}
         busyIds={moves.busyIds}
         onToggleHidden={isMaster ? moves.onToggleHidden : undefined} onRemove={isMaster ? moves.onRemove : undefined} />

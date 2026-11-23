@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { CombatantView, TokenView } from '@quest-fast/shared';
-import { fightMarks, healthOf, turnName, type MarkedFight } from '../src/lib/token-combat.ts';
+import { fightMarks, healthOf, moveRefusal, turnName, type MarkedFight } from '../src/lib/token-combat.ts';
 
-function token(id: string, link: Partial<Pick<TokenView, 'characterId' | 'combatantId'>>): TokenView {
-  return { id, name: id, characterId: null, combatantId: null, ...link } as TokenView;
+function token(id: string, link: Partial<Pick<TokenView, 'characterId' | 'combatantId' | 'kind' | 'ownerId'>>): TokenView {
+  return { id, name: id, kind: 'free', ownerId: null, characterId: null, combatantId: null, ...link } as TokenView;
 }
 
 function fighter(id: string, extra: Partial<CombatantView> = {}): CombatantView {
@@ -44,4 +44,23 @@ test('health follows the hit points when known, the band otherwise', () => {
 
 test('at 0 hit points there is no arc: the token already reads down or defeated', () => {
   assert.equal(healthOf({ healthBand: 'defeated', hpCurrent: 0, hpMax: 10 }), null);
+});
+
+test('a press on a token says why it is not picked up', () => {
+  const goblin = token('goblin', { kind: 'combatant', combatantId: 'c2' });
+  const kaelen = token('kaelen', { kind: 'character', characterId: 'ch1', ownerId: 'u1' });
+  const crate = token('crate', {});
+  const master = { viewerId: 'm', master: true, settling: false };
+  const player = { viewerId: 'u1', master: false, settling: false };
+  const running = fight('c2', [fighter('c1', { characterId: 'ch1' }), fighter('c2')]);
+
+  assert.equal(moveRefusal(goblin, { ...master, fight: null }), null);
+  assert.equal(moveRefusal(goblin, { ...player, fight: null }), 'not-yours');
+  assert.equal(moveRefusal(goblin, { ...master, settling: true, fight: null }), 'settling');
+  // #109: while the fight is not known the token that may fight waits, and the viewer is told why.
+  assert.equal(moveRefusal(goblin, { ...master, fight: undefined }), 'fight-unknown');
+  assert.equal(moveRefusal(crate, { ...master, fight: undefined }), null);
+  assert.equal(moveRefusal(goblin, { ...master, fight: running }), null);
+  assert.equal(moveRefusal(kaelen, { ...player, fight: running }), 'not-your-turn');
+  assert.equal(moveRefusal(kaelen, { ...player, fight: fight('c1', running.combatants) }), null);
 });

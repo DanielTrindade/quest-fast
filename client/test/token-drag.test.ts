@@ -271,3 +271,26 @@ test('a lock refused after the confirmation still ends the gesture, so the next 
   assert.equal(saves.length, 0);
   assert.equal(drag.settling('t1'), false);
 });
+
+test('a fallen connection ends the gesture in hand with nothing sent, dragged or held', async () => {
+  const { drag, grabs, saves, held } = harness();
+  assert.equal(drag.interrupt(), null);
+
+  drag.grab('t1', origin);
+  grabs[0].answer.resolve();
+  await settle();
+  drag.drag('t1', { x: 150, y: 100 });
+  assert.equal(drag.interrupt(), 't1');
+  assert.equal(drag.active(), null);
+  assert.equal(drag.settling('t1'), false);
+
+  drag.grab('t2', origin);
+  drag.drop('t2', { x: 200, y: 100 }, { hold: true });
+  assert.equal(drag.interrupt(), 't2');
+  // The grant arriving afterwards puts nothing back: the server already settled the token.
+  grabs[1].answer.resolve();
+  await settle();
+  assert.equal(saves.length, 0);
+  assert.equal(held.at(-1), null);
+  assert.equal(drag.settling('t2'), false);
+});

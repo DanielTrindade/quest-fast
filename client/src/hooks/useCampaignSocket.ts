@@ -66,7 +66,11 @@ export function useCampaignSocket(campaignId: string, enabled: boolean): { statu
   useEffect(() => {
     if (!enabled) return undefined;
     const opened = openCampaignSocket(campaignSocketUrl(campaignId), {
-      onStatus: setStatus,
+      onStatus: (next) => {
+        // Drags others were making stop where the scene says: no more moves arrive.
+        if (next === 'disconnected') motion.reset();
+        setStatus(next);
+      },
       onReconnected: () => {
         queryClient.invalidateQueries({ queryKey: ['feed', campaignId] });
         // Chat lines and removals missed while offline are not replayed either.

@@ -1,4 +1,5 @@
 import type { CombatantView, EncounterView, HealthBand, TokenView } from '@quest-fast/shared';
+import { canMoveToken } from './token-labels';
 
 /** How much of a living combatant's health its token shows, and in which band. */
 export type TokenHealth = { band: Exclude<HealthBand, 'defeated'>; fraction: number };
@@ -56,4 +57,30 @@ export function fightMarks(tokens: readonly TokenView[], fight: MarkedFight | nu
 export function turnName(tokens: readonly TokenView[], marks: FightMarks | undefined): string | null {
   if (!marks) return null;
   return tokens.find((token) => marks.get(token.id)?.turn)?.name ?? null;
+}
+
+/** A token of a character or of a combatant may be in a fight; a free one never is. */
+export function mayFight(token: Pick<TokenView, 'characterId' | 'combatantId'>): boolean {
+  return token.characterId !== null || token.combatantId !== null;
+}
+
+/**
+ * Why a token cannot be picked up now, or null when it can:
+ * - `not-yours`: a player moves only their own character's;
+ * - `settling`: its last drop is still unanswered, and a new drag would be saved over;
+ * - `fight-unknown`: whether a fight runs is not known yet, and its move could spend a turn unasked;
+ * - `not-your-turn`: in a fight a player moves their own only on its turn (the server says the same).
+ * `fight` is the running fight, null outside one, undefined while not known.
+ */
+export type MoveRefusal = 'not-yours' | 'settling' | 'fight-unknown' | 'not-your-turn';
+
+export function moveRefusal(token: TokenView, { viewerId, master, settling, fight }: {
+  viewerId: string | null; master: boolean; settling: boolean; fight: MarkedFight | null | undefined;
+}): MoveRefusal | null {
+  if (!canMoveToken(token, viewerId, master)) return 'not-yours';
+  if (settling) return 'settling';
+  if (fight === undefined) return mayFight(token) ? 'fight-unknown' : null;
+  if (master || !fight) return null;
+  const fighter = fighterOf(fight, token);
+  return !fighter || fighter.id === fight.activeCombatantId ? null : 'not-your-turn';
 }

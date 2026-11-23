@@ -73,3 +73,18 @@ test('a silent drag is over: the store forgets it and stops animating', () => {
   store.push({ tokenId: 't3', x: 1, y: 1, ts: 0 }, 0);
   assert.equal(woken, 2);
 });
+
+test('a fallen connection forgets every drag at once and wakes the canvas', () => {
+  const store = createMotionStore();
+  let woken = 0;
+  store.subscribe(() => (woken += 1));
+  store.reset();
+  assert.equal(woken, 0);
+  store.push({ tokenId: 't1', x: 10, y: 20, ts: 1000 }, 2000);
+  store.push({ tokenId: 't2', x: 30, y: 40, ts: 1000 }, 2000);
+  store.reset();
+  assert.equal(woken, 3);
+  assert.equal(store.positionOf('t1', 2010), null);
+  assert.equal(store.positionOf('t2', 2010), null);
+  assert.equal(store.animating(2010), false);
+});
