@@ -10,6 +10,7 @@ import { useCampaignSocketStatus } from '../../hooks/useCampaignSocket';
 import { useNotify } from '../../hooks/use-notify';
 import { ApiError, api } from '../../lib/api';
 import { mergeFeedEvent } from '../../lib/feed-cache';
+import { useRollBonus } from '../../lib/roll-bonus-context';
 import { sectionHeading, stack } from '../../components/layout-styles';
 
 function errorMessage(error: unknown, fallback = 'Não foi possível carregar eventos anteriores.') {
@@ -61,8 +62,10 @@ export function SessionFeed({ campaignId, currentUserId, framed = true }: { camp
   // A failure is a toast: the button may sit deep in a scrolled history, where
   // an alert above the list would never be seen.
   const notify = useNotify();
+  // The damage rolled now takes the damage modifier of now.
+  const bonus = useRollBonus();
   const rollDamage = useMutation({
-    mutationFn: (eventId: string) => api.rollDamage(campaignId, eventId),
+    mutationFn: (eventId: string) => api.rollDamage(campaignId, eventId, bonus?.damage ? { bonus: { damage: bonus.damage } } : {}),
     onSuccess: ({ event }) => mergeFeedEvent(queryClient, campaignId, event),
     onError: (error) => notify({ variant: 'error', title: errorMessage(error, 'Não foi possível rolar o dano.') }),
   });

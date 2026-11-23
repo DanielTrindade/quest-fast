@@ -10,6 +10,11 @@ export type AttackRange = { normal: number; long: number | null };
 
 const NUMBER = String.raw`(\d+(?:[.,]\d+)?)`;
 const RANGE = new RegExp(String.raw`^\s*${NUMBER}\s*(?:/\s*${NUMBER}\s*)?(m|metros?|ft|p[ée]s)?\s*$`, 'i');
+/**
+ * The same distance in metres and in squares, as the table writes it:
+ * "36m/24q", "18 m / 12 quadrados", "9 m (6 casas)". The metres decide.
+ */
+const WITH_SQUARES = new RegExp(String.raw`^\s*${NUMBER}\s*(?:m|metros?)\s*(?:/|\()\s*\d+\s*(?:q|quadrados?|casas?)\s*\)?\s*$`, 'i');
 
 /** Feet as the rules convert them: 5 feet is a square of 1,5 m. */
 const METERS_PER_FOOT = 0.3;
@@ -19,12 +24,18 @@ function decimal(text: string): number {
 }
 
 /**
- * The distances in a range written as one ("18 m", "1,5 metro", "30 ft") or
- * as normal and long ("6/18 m", "24 / 96 m"); a number alone reads as metres.
+ * The distances in a range written as one ("18 m", "1,5 metro", "30 ft"),
+ * as one in metres and squares ("36m/24q"), or as normal and long ("6/18 m",
+ * "24 / 96 m"); a number alone reads as metres.
  * Null for anything else, a zero distance, or a long range shorter than the
  * normal one.
  */
 export function parseRange(text: string): AttackRange | null {
+  const squared = WITH_SQUARES.exec(text);
+  if (squared) {
+    const meters = decimal(squared[1]!);
+    return meters > 0 ? { normal: meters, long: null } : null;
+  }
   const match = RANGE.exec(text);
   if (!match) return null;
   const [, first, second, unit] = match;

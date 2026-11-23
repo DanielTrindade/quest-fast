@@ -299,6 +299,42 @@ export const AtaqueAcerto: Story = {
   args: { event: hitForMaster },
   play: reads('Acertou (CA 15)'),
 };
+/** Bênção on the hit, Marca do Caçador on the damage: their dice apart from the roll's. */
+const blessed = attackEvent('a15', {
+  ...sword,
+  dice: [{ value: 12, sides: 20 }],
+  total: 20,
+  bonus: { expression: '+1d4', dice: [{ value: 3, sides: 4 }], modifier: 0, total: 3 },
+  target: { ...goblinTarget, hit: true },
+  damage: { ...slash, total: 13, bonus: { expression: '+1d6', dice: [{ value: 4, sides: 6 }], modifier: 0, total: 4 } },
+});
+/** Perdição takes a die away from the hit. */
+const baned = attackEvent('a16', {
+  ...sword,
+  dice: [{ value: 12, sides: 20 }],
+  total: 15,
+  bonus: { expression: '-1d4', dice: [{ value: 2, sides: 4, negative: true }], modifier: 0, total: -2 },
+  target: { ...goblinTarget, hit: true },
+  damage: slash,
+});
+export const AtaqueComModificador: Story = {
+  name: 'Ataque com modificador',
+  args: { event: blessed },
+  play: async ({ canvasElement }) => {
+    const [region] = within(canvasElement).getAllByRole('region', { name: /^Tema / });
+    await expect(within(region!).getByText('12 + 5 + 3 (+1d4) = 20')).toBeVisible();
+    await expect(within(region!).getByText('13 cortante (1d8+3 +1d6)')).toBeVisible();
+  },
+};
+export const AtaqueComDadoNegativo: Story = {
+  name: 'Ataque com dado negativo',
+  args: { event: baned },
+  play: async ({ canvasElement }) => {
+    const [region] = within(canvasElement).getAllByRole('region', { name: /^Tema / });
+    await expect(within(region!).getByLabelText('d4: 2, subtraído')).toBeVisible();
+    await expect(within(region!).getByText('12 + 5 − 2 (-1d4) = 15')).toBeVisible();
+  },
+};
 export const AtaqueComAlcance: Story = { name: 'Ataque com alcance', args: { event: thrown }, play: reads('Alcance 6/18 m') };
 export const AtaqueAcertoJogador: Story = { name: 'Ataque: acerto (jogador)', args: { event: hitForPlayer }, play: reads('Acertou') };
 export const AtaqueErro: Story = { name: 'Ataque: erro', args: { event: miss }, play: reads('Errou (CA 15)') };

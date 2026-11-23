@@ -23,11 +23,14 @@ import { TableChat } from './TableChat';
 import { PanelRail } from '../../components/PanelRail';
 import { useChatSession } from '../../hooks/useChatSession';
 import { AttackRangeContext, leftActions } from '../../lib/attack-range-context';
+import { useRollBonus } from '../../lib/roll-bonus-context';
 import { cn } from '../../lib/utils';
+import { TableRollBonusBar } from './RollBonusProvider';
 import { useChatUnread } from './useChatUnread';
 
 /** What the panel may do in the fight in progress, with the queue's own requests. */
 function useFight(campaignId: string) {
+  const bonus = useRollBonus();
   const encounters = useQuery(encountersQuery(campaignId));
   const activeId = encounters.data?.encounters.find((encounter) => encounter.status === 'active')?.id ?? null;
   const query = useQuery({ ...encounterQuery(campaignId, activeId ?? ''), enabled: activeId !== null });
@@ -35,8 +38,9 @@ function useFight(campaignId: string) {
   const encounter: EncounterView | null = activeId && query.data?.encounter.id === activeId ? query.data.encounter : null;
   const handlers: InitiativeActions = encounter
     ? {
-        ...fightActions(campaignId, encounter, actions),
-        onRoll: (id) => actions.run(id, () => api.combatantInitiative(campaignId, encounter.id, id, {})),
+        ...fightActions(campaignId, encounter, actions, bonus),
+        // Only the d20's modifier counts on an initiative.
+        onRoll: (id) => actions.run(id, () => api.combatantInitiative(campaignId, encounter.id, id, bonus?.roll ? { bonus: { roll: bonus.roll } } : {})),
         onToggleHidden: (id, hidden) => actions.run(id, () => api.updateCombatant(campaignId, encounter.id, id, { hidden })),
       }
     : {};
@@ -46,6 +50,7 @@ function useFight(campaignId: string) {
 /** The player's active character in this campaign, its sheet and its linked rolls. */
 function useOwnCharacter(campaignId: string, currentUserId: string, enabled: boolean) {
   const queryClient = useQueryClient();
+  const bonus = useRollBonus();
   const characters = useQuery({ queryKey: ['characters', campaignId], queryFn: () => api.characters(campaignId), enabled });
   const own = characters.data?.characters.find((character) => character.ownerId === currentUserId && character.active) ?? null;
   const sheet = useQuery({
@@ -55,7 +60,7 @@ function useOwnCharacter(campaignId: string, currentUserId: string, enabled: boo
   });
   const [lastRoll, setLastRoll] = useState<RollPayload | null>(null);
   const roll = useMutation({
-    mutationFn: (request: LinkedRollRequest) => api.characterRoll(campaignId, own!.id, request),
+    mutationFn: (request: LinkedRollRequest) => api.characterRoll(campaignId, own!.id, bonus ? { ...request, bonus } : request),
     onSuccess: ({ event }) => {
       setLastRoll(event.payload);
       // The roll belongs to the whole table's feed; the socket brings it to everyone else.
@@ -261,9 +266,14 @@ export function TableActionPanel({ campaignId, isMaster, currentUserId, withFeed
       compact={stage ? true : undefined}
       fill={staged}
       onCollapse={stage ? () => stage.onCollapsedChange(true) : undefined}
-      actions={isMaster
-        ? <MasterPanel campaignId={campaignId} fight={fight} />
-        : <PlayerPanel campaignId={campaignId} currentUserId={currentUserId} fight={fight} player={player} ownCombatant={ownCombatant} />}
+      actions={(
+        <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4">
+          <TableRollBonusBar />
+          {isMaster
+            ? <MasterPanel campaignId={campaignId} fight={fight} />
+            : <PlayerPanel campaignId={campaignId} currentUserId={currentUserId} fight={fight} player={player} ownCombatant={ownCombatant} />}
+        </div>
+      )}
       dice={<DiceRoller campaignId={campaignId} isMaster={isMaster} framed={false} />}
       feed={withFeed ? <SessionFeed campaignId={campaignId} currentUserId={currentUserId} framed={false} /> : undefined}
       chat={<TableChat campaignId={campaignId} viewerId={currentUserId} isMaster={isMaster} focusRequest={stage?.focusChat} />}

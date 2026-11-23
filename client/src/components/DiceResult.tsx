@@ -30,16 +30,18 @@ const LAYOUT = {
   },
 };
 
-type Die = { value: number; sides: number; discarded?: boolean };
+/** `negative`: a die the situational modifier takes away (Perdição). */
+type Die = { value: number; sides: number; discarded?: boolean; negative?: boolean };
 
 function DieChip({ die, valueClass, className }: { die: Die; valueClass: string; className: string }) {
-  return <li data-discarded={die.discarded || undefined} aria-label={`d${die.sides}: ${die.value}${die.discarded ? ', descartado' : ''}`}
-    className={cn('grid content-start justify-items-center gap-1 rounded-control border border-input bg-popover p-2 font-mono tabular-nums shadow-[inset_0_1px_0_var(--color-edge-light),0_2px_0_var(--color-edge-shadow)] data-discarded:border-border data-discarded:bg-surface-secret data-discarded:text-text-muted data-discarded:shadow-none', className)}>
+  return <li data-discarded={die.discarded || undefined} data-negative={die.negative || undefined}
+    aria-label={`d${die.sides}: ${die.value}${die.discarded ? ', descartado' : ''}${die.negative ? ', subtraído' : ''}`}
+    className={cn('grid content-start justify-items-center gap-1 rounded-control border border-input bg-popover p-2 font-mono tabular-nums shadow-[inset_0_1px_0_var(--color-edge-light),0_2px_0_var(--color-edge-shadow)] data-discarded:border-border data-discarded:bg-surface-secret data-discarded:text-text-muted data-discarded:shadow-none data-negative:border-danger data-negative:text-danger-text', className)}>
     <span className="flex items-center gap-1 font-mono text-micro text-text-secondary" aria-hidden="true">
       {die.sides === 20 ? <Hexagon size={16} weight="duotone" /> : <DiceFive size={16} weight="duotone" />}d{die.sides}
     </span>
     <span className={cn('font-semibold', valueClass)} aria-hidden="true">
-      {die.discarded ? <s className="decoration-2">{die.value}</s> : die.value}
+      {die.discarded ? <s className="decoration-2">{die.value}</s> : die.negative ? `−${die.value}` : die.value}
     </span>
     {die.discarded && <small className="font-sans text-micro" aria-hidden="true">Descartado</small>}
   </li>;

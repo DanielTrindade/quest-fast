@@ -6,6 +6,8 @@ import { Dialog } from '../../components/Dialog';
 import { Skeleton } from '../../components/Skeleton';
 import { ApiError, api } from '../../lib/api';
 import { mergeFeedEvent } from '../../lib/feed-cache';
+import { useRollBonus } from '../../lib/roll-bonus-context';
+import { TableRollBonusBar } from './RollBonusProvider';
 import { CharacterSheetView, type SheetContext } from './CharacterSheetView';
 import { dialogSheet, stack } from '../../components/layout-styles';
 
@@ -47,8 +49,10 @@ export function CharacterSheetDialog({
   const character = sheet.data?.character;
 
   const queryClient = useQueryClient();
+  // At the Mesa, the modifiers in the bar go with the sheet's rolls too.
+  const bonus = useRollBonus();
   const roll = useMutation({
-    mutationFn: (request: LinkedRollRequest) => api.characterRoll(campaignId, characterId, request),
+    mutationFn: (request: LinkedRollRequest) => api.characterRoll(campaignId, characterId, bonus ? { ...request, bonus } : request),
     onSuccess: (response) => {
       setLastRoll(response.event.payload);
       // The roll belongs to the session feed for the whole table; merging it
@@ -116,6 +120,7 @@ export function CharacterSheetDialog({
         </div>
       )}
 
+      {character && isOwner && context === 'table' && <TableRollBonusBar />}
       {character && (
         <CharacterSheetView
           character={character}

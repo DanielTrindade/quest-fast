@@ -391,3 +391,10 @@ A entrega 5 do VTT liga o token ao combate em andamento (stories em `Componentes
 - **Em casas, como o deslocamento.** A área conta casas de 1,5 m com a diagonal valendo uma, a mesma regra do alcance de movimento: o que o mapa mostra bate com o que a mesa conta.
 - **Só contorno, no tom de perigo.** O alcance normal é um contorno firme (3 px, com halo) sobre um véu de 10%; o longo, um contorno mais leve (2 px a 50%) em volta. Branco se confundia com as linhas do grid, e os ladrilhos em `accent` já são o movimento. O botão pressionado usa o mesmo tom (`danger-surface`, `danger-text`).
 - **Texto que não é distância** ("Toque", "Pessoal (cone de 4,5 m)") fica só como texto: áreas são da #113.
+
+## Modificadores das rolagens (23 de novembro de 2026)
+
+- **Uma barra, não um campo por botão.** "Modificadores" fica no topo da aba Ações da Mesa e na ficha aberta lá, com dois campos: **No d20** (acerto, testes, salvaguardas e iniciativa) e **No dano**. É como a mesa pensa ("estou abençoado"): a mesma Bênção vale para o ataque e para a salvaguarda.
+- **Fica até limpar.** O texto vale para toda rolagem da Mesa até ser apagado, guardado na aba do navegador (`sessionStorage`, por campanha). Com algo preenchido, a barra mostra o selo **Ativo** (`Badge` `accent`) e **Limpar**, para ninguém rolar com uma Bênção que já acabou.
+- **O texto vai, o servidor rola.** O campo aceita `+1d4`, `-1d4`, `+2`, `1d4-1`; o inválido avisa ali mesmo, e o servidor recusa a rolagem com a mesma mensagem.
+- **No resultado, à parte.** A decomposição soma o modificador com o que foi digitado entre parênteses ("12 + 5 + 3 (+1d4) = 20"), e os dados dele entram depois dos da rolagem. O dado subtraído (Perdição) aparece como "−2", com borda e número em `danger`, e o leitor de tela ouve "subtraído".

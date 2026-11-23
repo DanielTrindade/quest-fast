@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { hasPreviousTurn, type CombatantInput, type CombatantView, type EncounterResponse, type EncounterView, type HpOperation } from '@quest-fast/shared';
+import { hasPreviousTurn, type CombatantInput, type CombatantView, type EncounterResponse, type EncounterView, type HpOperation, type RollBonusInput } from '@quest-fast/shared';
 import type { InitiativeActions } from '../../components/InitiativeList';
 import type { TurnAction } from '../../components/TurnBar';
 import { ApiError, api } from '../../lib/api';
@@ -127,7 +127,7 @@ export type EncounterActions = ReturnType<typeof useEncounterActions>;
  * What happens to one combatant during the fight. Only while it runs: the
  * server refuses these before the first round and after the end.
  */
-export function fightActions(campaignId: string, encounter: EncounterView, actions: EncounterActions): InitiativeActions {
+export function fightActions(campaignId: string, encounter: EncounterView, actions: EncounterActions, bonus?: RollBonusInput): InitiativeActions {
   if (encounter.status !== 'active') return {};
   const act = (id: string, path: string, method: 'POST' | 'PUT' | 'DELETE', body?: Parameters<typeof api.combatantAction>[5]) =>
     actions.run(id, () => api.combatantAction(campaignId, encounter.id, id, path, method, body));
@@ -141,11 +141,12 @@ export function fightActions(campaignId: string, encounter: EncounterView, actio
     onConcentration: (id, concentrating) => act(id, 'concentration', 'PUT', { concentrating }),
     onDeathSave: (id, mode) => act(id, 'death-save', 'POST', mode === 'normal' ? {} : { mode }),
     onRecordFailure: (id, failures, reminderId) => act(id, 'death-save', 'POST', { failures, reminderId }),
-    onConcentrationSave: (id, reminderId) => act(id, 'concentration-save', 'POST', { reminderId }),
+    // The Mesa's situational modifiers go with every roll made there; the server rolls them.
+    onConcentrationSave: (id, reminderId) => act(id, 'concentration-save', 'POST', { reminderId, ...(bonus ? { bonus } : {}) }),
     onDismissReminder: (id, reminderId) => act(id, `reminders/${reminderId}`, 'DELETE'),
     // The roll reaches the feed over the socket; a hit leaves its damage pending on the target.
     // `secret` always travels: left out, a monster's attack would fall back to secret.
-    onAttack: (id, attackIndex, { targetIds, mode, secret }) => act(id, 'attack', 'POST', { attackIndex, targetIds, mode, secret }),
+    onAttack: (id, attackIndex, { targetIds, mode, secret }) => act(id, 'attack', 'POST', { attackIndex, targetIds, mode, secret, ...(bonus ? { bonus } : {}) }),
     // The target's card is the busy one: that is where the damage lands.
     onApplyDamage: (id, reminderId, amount) =>
       act(id, `reminders/${reminderId}/apply`, 'POST', amount === undefined ? {} : { amount }),
