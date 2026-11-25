@@ -597,6 +597,7 @@ export type CombatantView = {
   /** Master only: tie-breakers of the queue. */
   dexModifier: number | null;
   tieOrder: number | null;
+  /** Under the effects (Shield of Faith). */
   ac: number | null;
   /** Under the effects (Aid). */
   hpMax: number | null;
@@ -638,7 +639,7 @@ export type EffectRequest = CombatEffectInput;
  * still has.
  */
 export type TurnView = TurnBudget & {
-  /** After conditions (Grappled, Restrained, Exhaustion). */
+  /** After effects (Longstrider, Slow) and conditions (Grappled, Restrained, Exhaustion). */
   speed: number;
   movementLeft: number;
   attacksPerAction: number;

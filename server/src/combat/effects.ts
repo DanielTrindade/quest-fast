@@ -29,6 +29,20 @@ export function writeEffects(tx: Executor, combatant: LoadedCombatant, effects: 
   }
 }
 
+/**
+ * What the running fight's effects add to a character's hit point maximum
+ * (Aid): a sheet edited mid-fight keeps it, instead of cutting the bonus.
+ */
+export function hpMaxBonusOf(tx: Executor, characterId: string): number {
+  return tx
+    .select({ effects: combatants.effects })
+    .from(combatants)
+    .innerJoin(encounters, eq(encounters.id, combatants.encounterId))
+    .where(and(eq(combatants.characterId, characterId), eq(encounters.status, 'active')))
+    .all()
+    .reduce((sum, { effects }) => sum + effectiveHpMax(0, effects), 0);
+}
+
 /** Takes every effect off, as when the combatant leaves the fight or the fight ends. */
 export function clearEffects(tx: Executor, combatant: LoadedCombatant, touched: Set<string>) {
   if (combatant.effects.length > 0) writeEffects(tx, combatant, [], touched);

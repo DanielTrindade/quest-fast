@@ -1,3 +1,4 @@
+import type { DamageAdjustment } from './effects.ts';
 import type { Ability } from './modifiers.ts';
 import { applyDamage, applyHealing, applyTempHp, type DeathSaves, type HitPoints } from './sheet.ts';
 
@@ -221,7 +222,14 @@ export type CombatReminder = { id: string } & (
  */
 export type PendingDamage = {
   kind: 'pendingDamage';
+  /** What the master applies unadjusted: the roll, under the target's effects. */
   amount: number;
+  /**
+   * When an effect of the target changed the amount (immune, resistant,
+   * vulnerable): what was rolled before it. Absent when nothing changed it.
+   */
+  rolled?: number;
+  adjustment?: DamageAdjustment;
   /** e.g. "Cortante"; empty when the attack does not say. */
   damageType: string;
   /** Applied on a combatant at 0 hit points, it counts as two failures. */
