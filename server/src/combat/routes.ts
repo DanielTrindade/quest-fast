@@ -10,7 +10,6 @@ import {
   STATBLOCK_LIMITS as S,
   abilityModifier,
   applyHpChange,
-  copyNumber,
   damageReminders,
   deathSaveFailure,
   deathSaveOutcome,
@@ -25,7 +24,7 @@ import {
   keepsConcentration,
   nextTurn,
   pendingReminders,
-  placeCopies,
+  numberCopies,
   previousTurn,
   removeCondition,
   BONUS_TOO_BIG,
@@ -59,7 +58,6 @@ import {
   healthBand,
   type CombatPayload,
   type CombatReminder,
-  type CopyEntry,
   type DeathSaves,
   type EncounterListItem,
   type HpOperation,
@@ -206,26 +204,6 @@ function parseHidden(value: unknown): boolean {
   return value;
 }
 
-/** The encounter's names as `placeCopies` sees them: only bestiary copies are renumbered. */
-function copyEntries(loaded: readonly LoadedCombatant[]): CopyEntry[] {
-  return loaded.map(({ row, name }) => ({ id: row.id, name, hidden: row.hidden, renamable: row.source === 'statblock' }));
-}
-
-/**
- * The bestiary name a combatant is a numbered copy of. Only the creature's
- * name tells a copy number from a number in the name; with the creature
- * renamed or deleted, or the copy renamed by the master, there is none.
- */
-function copiedCreature(tx: Executor, row: LoadedCombatant['row']): string | null {
-  if (row.source !== 'statblock' || !row.statblockId) return null;
-  const creature = tx.select({ name: statblocks.name }).from(statblocks).where(eq(statblocks.id, row.statblockId)).get();
-  return creature && copyNumber(row.name, creature.name) !== null ? creature.name : null;
-}
-
-function renameCopies(tx: Executor, renamed: readonly { id: string; name: string }[]) {
-  for (const { id, name } of renamed) tx.update(combatants).set({ name }).where(eq(combatants.id, id)).run();
-}
-
 /**
  * Copies of a bestiary entry joining the encounter, numbered among those
  * already in it. Each copy keeps the entry's values: editing it later never
@@ -244,8 +222,8 @@ function insertCopies(mutation: Mutation, statblockId: string, count: number, hp
   if (hp !== 'average' && hp !== 'rolled') refuse(422, 'Escolha PV médio ou rolado.');
   if (hp === 'rolled' && !statblock.hpFormula) refuse(422, `${statblock.name} não tem fórmula de PV para rolar.`);
 
-  const { names, renamed } = placeCopies(statblock.name, count, hidden, copyEntries(loaded.combatants));
-  renameCopies(tx, renamed);
+  // Numbered after every name, hidden ones too: a combatant keeps its name for good (#156).
+  const names = numberCopies(statblock.name, count, loaded.combatants.map(({ name }) => name));
   return names.map((name) => {
     // A roll can land below 1 with a negative modifier; a creature starts standing.
     const hpMax = hp === 'rolled' ? Math.max(1, rollDice(statblock.hpFormula)!.total) : statblock.hpAverage;
@@ -410,15 +388,6 @@ function editCombatant(mutation: Mutation, combatant: LoadedCombatant, body: Rec
     const name = shortText(body.name, S.name);
     if (!name) refuse(422, `Informe o nome do combatente, com até ${S.name} caracteres.`);
     changes.name = name;
-  } else if (row.hidden && changes.hidden === false) {
-    // A revealed copy takes the next visible number, so the players never see a gap.
-    const creature = copiedCreature(mutation.tx, row);
-    if (creature) {
-      const others = mutation.loaded.combatants.filter((other) => other.row.id !== row.id);
-      const { names, renamed } = placeCopies(creature, 1, false, copyEntries(others));
-      renameCopies(mutation.tx, renamed);
-      changes.name = names[0];
-    }
   }
   if (body.ac !== undefined) {
     const ac = boundedInteger(body.ac, S.ac.min, S.ac.max);
@@ -448,6 +417,69 @@ function handOffTurn(tx: Executor, loaded: LoadedEncounter, combatantId: string)
   const activeId = next.activeId === combatantId ? null : next.activeId;
   tx.update(encounters).set({ activeCombatantId: activeId, round: next.round }).where(eq(encounters.id, encounter.id)).run();
   beginTurn(tx, activeId);
+}
+
+/**
+ * The scenes an encounter shows on, read before a change: removing a
+ * combatant takes its token with it, and a character's token is the sheet's,
+ * whose reach follows the turn too.
+ */
+function scenesOfEncounter(tx: Executor, loaded: LoadedEncounter): string[] {
+  return [
+    ...new Set([
+      ...scenesShowing(tx, { combatantIds: loaded.combatants.map((combatant) => combatant.row.id) }),
+      ...loaded.combatants.flatMap((combatant) =>
+        combatant.row.characterId ? scenesShowing(tx, { characterId: combatant.row.characterId }) : []),
+    ]),
+  ];
+}
+
+type Waiting = { id: string; characterId: string | null };
+
+/** The turn moved (round 1 opening included): whoever does not hold it now waits. */
+function turnWaiters(before: LoadedEncounter, after: LoadedEncounter): Waiting[] {
+  const moved = after.encounter.activeCombatantId !== before.encounter.activeCombatantId || after.encounter.round !== before.encounter.round;
+  if (!moved || after.encounter.status !== 'active') return [];
+  return after.combatants
+    .filter((combatant) => combatant.row.id !== after.encounter.activeCombatantId)
+    .map((combatant) => ({ id: combatant.row.id, characterId: combatant.row.characterId }));
+}
+
+/** A creature that left the fight with its token: what to tell the table. */
+export type TokenLeave = { loaded: LoadedEncounter; scenes: string[]; waiting: Waiting[] };
+
+/**
+ * The master deleted a combatant's token: the creature leaves the fight with
+ * it, as if removed from the encounter, with the same effects on the other
+ * maps (#156). Not from an ended encounter, which is history, nor while
+ * another scene still has a token for it. Runs before the token goes; the
+ * token's own scene is left to the caller, which saves and publishes it.
+ */
+export function leaveWithToken(tx: Executor, campaignId: string, token: { id: string; sceneId: string }, combatantId: string): TokenLeave | null {
+  const others = tx
+    .select({ id: tokens.id })
+    .from(tokens)
+    .where(and(eq(tokens.combatantId, combatantId), ne(tokens.id, token.id)))
+    .get();
+  if (others) return null;
+  const row = tx.select({ encounterId: combatants.encounterId }).from(combatants).where(eq(combatants.id, combatantId)).get();
+  const encounter = row && findEncounter(tx, campaignId, row.encounterId);
+  if (!encounter || encounter.status === 'ended') return null;
+  const before = loadEncounter(tx, encounter);
+  const scenes = scenesOfEncounter(tx, before).filter((id) => id !== token.sceneId);
+  handOffTurn(tx, before, combatantId);
+  tx.update(encounters).set({ version: sql`${encounters.version} + 1` }).where(eq(encounters.id, encounter.id)).run();
+  tx.delete(combatants).where(eq(combatants.id, combatantId)).run();
+  bumpScenes(tx, scenes);
+  const after = loadEncounter(tx, findEncounter(tx, campaignId, encounter.id)!);
+  return { loaded: after, scenes, waiting: turnWaiters(before, after) };
+}
+
+/** After the commit, in the order `mutate` uses: drags released, then the fight and the maps. */
+export function publishTokenLeave(deps: Deps, campaignId: string, leave: TokenLeave) {
+  for (const combatant of leave.waiting) releaseTurnDrags(deps, combatant);
+  deps.hub.publishCombat(campaignId, (viewer) => projectEncounter(leave.loaded, viewer));
+  publishScenes(deps, campaignId, leave.scenes);
 }
 
 function removeCombatant(mutation: Mutation, combatant: LoadedCombatant) {
@@ -1231,7 +1263,7 @@ async function mutate(
   const touched = new Set<string>();
   const joined = new Set<string>();
   let shown: string[] = [];
-  let waiting: { id: string; characterId: string | null }[] = [];
+  let waiting: Waiting[] = [];
 
   try {
     const loaded = db.transaction((tx) => {
@@ -1240,14 +1272,7 @@ async function mutate(
       if (!encounter || (viewer.role !== 'master' && encounter.status === 'preparing')) refuse(404, NOT_FOUND);
       const before = loadEncounter(tx, encounter);
       // Read before the change: removing a combatant takes its token with it.
-      // A character's token is the sheet's: its reach follows the turn too.
-      shown = [
-        ...new Set([
-          ...scenesShowing(tx, { combatantIds: before.combatants.map((combatant) => combatant.row.id) }),
-          ...before.combatants.flatMap((combatant) =>
-            combatant.row.characterId ? scenesShowing(tx, { characterId: combatant.row.characterId }) : []),
-        ]),
-      ];
+      shown = scenesOfEncounter(tx, before);
       run({ tx, loaded: before, viewer, events, characters: touched, scenes: joined, userName: c.var.user.name }, body);
       shown = [...new Set([...shown, ...joined])];
       tx.update(encounters)
@@ -1256,13 +1281,7 @@ async function mutate(
         .run();
       bumpScenes(tx, shown);
       const after = loadEncounter(tx, findEncounter(tx, c.var.campaignId, encounter.id)!);
-      // The turn moved (round 1 opening included): whoever does not hold it now waits.
-      const moved = after.encounter.activeCombatantId !== before.encounter.activeCombatantId || after.encounter.round !== before.encounter.round;
-      if (moved && after.encounter.status === 'active') {
-        waiting = after.combatants
-          .filter((combatant) => combatant.row.id !== after.encounter.activeCombatantId)
-          .map((combatant) => ({ id: combatant.row.id, characterId: combatant.row.characterId }));
-      }
+      waiting = turnWaiters(before, after);
       return after;
     });
 

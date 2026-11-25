@@ -21,7 +21,6 @@ import {
   nextTurn,
   numberCopies,
   pendingReminders,
-  placeCopies,
   previousTurn,
   removeCondition,
   setCondition,
@@ -368,12 +367,6 @@ test('copies of a creature are numbered, continuing what is already there', () =
   assert.equal(copyNumber(legacy[1]!, long), 2);
   assert.deepEqual(numberCopies(long, 1, legacy), [`${long.slice(0, 78)} 3`]);
   assert.equal(copyNumber(`${long.slice(0, 70)} 4`, long), null);
-  const revealed = placeCopies(long, 1, false, [
-    { id: 'a', name: legacy[0]!, hidden: false, renamable: true },
-    { id: 'b', name: legacy[1]!, hidden: true, renamable: true },
-  ]);
-  assert.deepEqual(revealed.names, [`${long.slice(0, 78)} 2`]);
-  assert.deepEqual(revealed.renamed, [{ id: 'b', name: `${long.slice(0, 78)} 3` }]);
 });
 
 test('a copy number is read against the creature name, never guessed from the name alone', () => {
@@ -387,30 +380,9 @@ test('a copy number is read against the creature name, never guessed from the na
   assert.equal(copyNumber('Construto', 'Construto 7'), null);
 });
 
-test('visible copies number after the visible ones only, so a hidden copy leaves no gap', () => {
-  const copy = (id: string, name: string, hidden = false, renamable = true) => ({ id, name, hidden, renamable });
-  const existing = [copy('a', 'Goblin 1'), copy('b', 'Goblin 2'), copy('c', 'Goblin 3', true)];
-
-  // The hidden Goblin 3 gives its name up and the master keeps unique names.
-  assert.deepEqual(placeCopies('Goblin', 1, false, existing), {
-    names: ['Goblin 3'],
-    renamed: [{ id: 'c', name: 'Goblin 4' }],
-  });
-  // A new hidden copy numbers after every name.
-  assert.deepEqual(placeCopies('Goblin', 2, true, existing), { names: ['Goblin 4', 'Goblin 5'], renamed: [] });
-  // Revealing the hidden copy places it right after the visible ones.
-  assert.deepEqual(placeCopies('Goblin', 1, false, existing.slice(0, 2)), { names: ['Goblin 3'], renamed: [] });
-  // Revealing one of two hidden copies takes the next visible number from the other.
-  const twoHidden = [copy('a', 'Goblin 1'), copy('b', 'Goblin 2', true), copy('c', 'Goblin 3', true)];
-  assert.deepEqual(placeCopies('Goblin', 1, false, twoHidden.filter((entry) => entry.id !== 'c')), {
-    names: ['Goblin 2'],
-    renamed: [{ id: 'b', name: 'Goblin 3' }],
-  });
-  // A name the master typed is never taken over.
-  assert.deepEqual(placeCopies('Goblin', 1, false, [copy('a', 'Goblin', true, false)]), {
-    names: ['Goblin'],
-    renamed: [],
-  });
+test('a new copy numbers after every copy, hidden ones too, so no one is ever renamed (#156)', () => {
+  // A hidden Goblin 3 keeps its name: the visible copy that joins is Goblin 4.
+  assert.deepEqual(numberCopies('Goblin', 1, ['Goblin 1', 'Goblin 2', 'Goblin 3']), ['Goblin 4']);
 });
 
 test('the turn queue follows initiative and marks only fallen monsters as defeated', () => {

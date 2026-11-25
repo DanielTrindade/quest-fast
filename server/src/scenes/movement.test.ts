@@ -193,3 +193,28 @@ test("opening round 1 lets go of a drag begun before it, unless it is that chara
   // Goblin 1 opens the round: Kaelen's drag is over.
   assert.equal(named(await view(), 'Kaelen').movingBy, null);
 });
+
+test("deleting the acting creature's token on one map refreshes the next fighter's reach on another (#156)", async () => {
+  const { s, scene, path, id, move, view } = await battle();
+  // Goblin 1's only token goes to a second map; Kaelen stays on the first.
+  const form = new FormData();
+  form.set('name', 'Caverna');
+  form.set('image', new Blob([await testImageBytes('png', 600, 400)], { type: 'image/png' }), 'mapa.png');
+  const cave = `${s.root}/scenes/${(await sceneOf(await s.master(`${s.root}/scenes`, { method: 'POST', body: form }), 201)).id}`;
+  await sceneOf(await send(s.master, `${cave}/tokens`, 'POST', { kind: 'combatant', combatantId: id('Goblin 1'), x: 210, y: 50 }), 201);
+  await sceneOf(await s.master(`${scene}/tokens/${named(await view(), 'Goblin 1').id}`, { method: 'DELETE' }));
+
+  // Kaelen walks 6 m of 9 on his turn; the round comes back to Goblin 1.
+  await encounterOf(await advance(s.master, path, id('Goblin 1')));
+  await sceneOf(await move('Kaelen', 50, 50 + 4 * CELL, s.player));
+  for (const name of ['Kaelen', 'Bandido', 'Goblin 2', 'Mira']) await encounterOf(await advance(s.master, path, id(name)));
+  const before = await view();
+  assert.deepEqual(named(before, 'Kaelen').reach, { speed: 9, left: 3 });
+
+  // The goblin's token goes, and the goblin with it: Kaelen's turn, on the other map too.
+  const goblin = (await sceneOf(await s.master(cave))).tokens[0]!;
+  await sceneOf(await s.master(`${cave}/tokens/${goblin.id}`, { method: 'DELETE' }));
+  const after = await view();
+  assert.ok(after.version > before.version);
+  assert.deepEqual(named(after, 'Kaelen').reach, { speed: 9, left: 9 });
+});
