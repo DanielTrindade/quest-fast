@@ -1,6 +1,7 @@
 import { and, eq, ne } from 'drizzle-orm';
 import { characters, combatants, encounters, type EncounterRow } from '@quest-fast/db';
-import { effectiveHpMax, hpAfterMaxChange, type CombatEffect } from '@quest-fast/shared';
+import { effectiveHpMax, hpAfterMaxChange, type CombatEffect, type CombatSessionEvent } from '@quest-fast/shared';
+import { recordCombatEvent } from '../events/feed.ts';
 import { loadEncounter, type Executor, type LoadedCombatant } from './state.ts';
 
 /**
@@ -48,36 +49,77 @@ export function clearEffects(tx: Executor, combatant: LoadedCombatant, touched: 
   if (combatant.effects.length > 0) writeEffects(tx, combatant, [], touched);
 }
 
+/** An effect that ended, and on whom: what the feed tells. */
+export type EndedEffect = { bearer: LoadedCombatant; effect: CombatEffect };
+
+/** Who set the change off: the feed's author. */
+export type Actor = { userId: string; userName: string };
+
+/**
+ * Writes an "expired" feed event for each effect that ended, by name only; a
+ * hidden combatant's stays the master's. Every path that ends effects goes
+ * through here, so none of them leaves an applied effect without its end.
+ */
+export function recordEndedEffects(tx: Executor, campaignId: string, actor: Actor, ended: readonly EndedEffect[]): CombatSessionEvent[] {
+  return ended.map(({ bearer, effect }) =>
+    recordCombatEvent(tx, {
+      campaignId,
+      userId: actor.userId,
+      userName: actor.userName,
+      secret: bearer.row.hidden,
+      payload: {
+        kind: 'combat.effect',
+        encounterId: bearer.row.encounterId,
+        combatantId: bearer.row.id,
+        name: bearer.name,
+        source: bearer.row.source,
+        action: 'expired',
+        effect: { id: effect.id, name: effect.name },
+      },
+    }),
+  );
+}
+
 /**
  * Drops for good the effects whose concentration is gone: the source stopped
  * concentrating (by the button, by falling, on the sheet) or left the fight.
  * Filtering on read is not enough: concentrating again would bring them back.
  */
-export function settleEffects(tx: Executor, encounter: EncounterRow, touched: Set<string>) {
+export function settleEffects(tx: Executor, encounter: EncounterRow, touched: Set<string>): EndedEffect[] {
+  const ended: EndedEffect[] = [];
   const loaded = loadEncounter(tx, encounter);
   const concentrating = new Set(loaded.combatants.filter((combatant) => combatant.concentrating).map((combatant) => combatant.row.id));
   for (const combatant of loaded.combatants) {
     const kept = combatant.effects.filter(
       (effect) => !effect.concentration || (effect.sourceCombatantId !== undefined && concentrating.has(effect.sourceCombatantId)),
     );
-    if (kept.length !== combatant.effects.length) writeEffects(tx, combatant, kept, touched);
+    if (kept.length === combatant.effects.length) continue;
+    writeEffects(tx, combatant, kept, touched);
+    for (const effect of combatant.effects) if (!kept.includes(effect)) ended.push({ bearer: combatant, effect });
   }
+  return ended;
 }
 
 /**
  * For a change to a sheet outside the fight routes: the open encounters the
- * character is in drop what its concentration held up. Returns the sheets
- * whose hit points that moved (an ally losing Aid), so the caller publishes
- * their encounters too.
+ * character is in drop what its concentration held up, and the feed tells
+ * it. Returns the events to publish and the sheets whose hit points moved (an
+ * ally losing Aid), whose encounters the caller publishes too.
  */
-export function settleCharacterEffects(tx: Executor, campaignId: string, characterId: string): Set<string> {
+export function settleCharacterEffects(
+  tx: Executor,
+  campaignId: string,
+  characterId: string,
+  actor: Actor,
+): { touched: Set<string>; events: CombatSessionEvent[] } {
   const touched = new Set<string>();
+  const ended: EndedEffect[] = [];
   const open = tx
     .select({ encounter: encounters })
     .from(encounters)
     .innerJoin(combatants, eq(combatants.encounterId, encounters.id))
     .where(and(eq(encounters.campaignId, campaignId), ne(encounters.status, 'ended'), eq(combatants.characterId, characterId)))
     .all();
-  for (const { encounter } of open) settleEffects(tx, encounter, touched);
-  return touched;
+  for (const { encounter } of open) ended.push(...settleEffects(tx, encounter, touched));
+  return { touched, events: recordEndedEffects(tx, campaignId, actor, ended) };
 }

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import type { CharacterResponse, CombatEffect, CombatReminder, EncounterView, FeedResponse, RollPayload, RollSessionEvent } from '@quest-fast/shared';
+import type { CharacterResponse, CombatEffect, CombatEffectPayload, CombatReminder, CombatSessionEvent, EncounterView, FeedResponse, RollPayload, RollSessionEvent } from '@quest-fast/shared';
 import { body } from '../testing.ts';
 import { advance, byName, createEncounter, encounterOf, runningEncounter, send, setup, sheet, type Request, type Setup } from './test-setup.ts';
 
@@ -294,6 +294,35 @@ test('the sheet edited mid-fight keeps what Aid adds to the maximum', async () =
   assert.equal((await sheetOf(s, s.kaelen.id)).hpCurrent, 25);
 });
 
+// --- The feed ---------------------------------------------------------------------------
+
+async function effectEvents(s: Setup, request: Request): Promise<CombatEffectPayload[]> {
+  const { events } = await body<FeedResponse>(await request(`${s.root}/feed`));
+  return (events.filter((event) => event.type === 'combat.effect') as CombatSessionEvent[])
+    .map((event) => event.payload as CombatEffectPayload);
+}
+
+test('the feed tells an effect put on, taken off and run out, by name only', async () => {
+  const { s, id, at, put, path } = await fight();
+  await encounterOf(await put(s.master, 'Goblin 1', { name: 'Pele de Pedra', modifiers: { resistances: ['slashing'] }, duration: 'rounds', roundsLeft: 1 }));
+  let view = await encounterOf(await put(s.master, 'Kaelen', SHIELD_OF_FAITH));
+  await encounterOf(await send(s.master, at('Kaelen', `/effects/${effectOf(view, 'Kaelen', 'Escudo da Fé')!.id}`), 'DELETE'));
+  await encounterOf(await send(s.master, at('Bandido', '/effects'), 'POST', AID));
+  view = await encounterOf(await advance(s.master, path, id('Goblin 1')));
+
+  const seen = (events: CombatEffectPayload[]) => events.map(({ name, action, effect }) => `${name} ${action} ${effect.name}`);
+  assert.deepEqual(seen(await effectEvents(s, s.otherPlayer)), [
+    'Goblin 1 applied Pele de Pedra',
+    'Kaelen applied Escudo da Fé',
+    'Kaelen removed Escudo da Fé',
+    'Goblin 1 expired Pele de Pedra',
+  ]);
+  // The master also reads the hidden bandit's.
+  assert.ok(seen(await effectEvents(s, s.master)).includes('Bandido applied Auxílio'));
+  const [first] = await effectEvents(s, s.otherPlayer);
+  assert.deepEqual(Object.keys(first!.effect).sort(), ['id', 'name']);
+});
+
 // --- Sheets changed outside the fight -------------------------------------------------
 
 const HELD_AID = (source: string) => ({ name: 'Auxílio', modifiers: { hpMax: 5 }, duration: 'encounter', sourceCombatantId: source, concentration: true });
@@ -325,4 +354,19 @@ test('an ally who loses Aid on the sheet path is republished in its other encoun
   assert.equal(byName(after, 'Mira').hpCurrent, 24);
   // A new version: the clients that hold the other encounter are told.
   assert.ok(after.version > before.version);
+});
+
+test('the feed tells an effect ended by the sheet, or by a turn handed on when someone leaves', async () => {
+  const { s, id, at, put } = await fight();
+  await encounterOf(await send(s.player, at('Kaelen', '/concentration'), 'PUT', { concentrating: true }));
+  await encounterOf(await put(s.player, 'Mira', BLESS_ON(id('Kaelen'))));
+  const state = await s.player(`${s.root}/characters/${s.kaelen.id}/state`, { method: 'PATCH', body: JSON.stringify({ concentrating: false }) });
+  assert.equal(state.status, 200, await state.clone().text());
+
+  // Goblin 1 holds the turn; removing it begins Kaelen's, which ends Shield.
+  await encounterOf(await put(s.master, 'Kaelen', { name: 'Escudo', modifiers: { ac: { mode: 'add', value: 5 } }, duration: 'untilTurnStart' }));
+  await encounterOf(await send(s.master, at('Goblin 1'), 'DELETE'));
+
+  const expired = (await effectEvents(s, s.otherPlayer)).filter(({ action }) => action === 'expired').map(({ name, effect }) => `${name} ${effect.name}`);
+  assert.deepEqual(expired, ['Mira Bênção', 'Kaelen Escudo']);
 });

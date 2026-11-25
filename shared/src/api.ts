@@ -846,6 +846,17 @@ export type CombatConditionPayload = CombatantRef & {
   condition: ActiveCondition;
 };
 
+/**
+ * A temporary effect put on, taken off or run out. Only its name travels: on
+ * a monster, the numbers are the master's.
+ * `expired`: its duration ran out, or the concentration holding it ended.
+ */
+export type CombatEffectPayload = CombatantRef & {
+  kind: 'combat.effect';
+  action: 'applied' | 'removed' | 'expired';
+  effect: CombatEffectSummary;
+};
+
 /** Only a character makes death saves; the numbers are the table's. */
 export type CombatDeathSavePayload = CombatantRef & {
   kind: 'combat.deathSave';
@@ -864,6 +875,7 @@ export type CombatPayload =
   | CombatEndedPayload
   | CombatHitPointsPayload
   | CombatConditionPayload
+  | CombatEffectPayload
   | CombatDeathSavePayload;
 
 /** What happens in a fight; turn changes stay out of the feed. */
@@ -873,6 +885,7 @@ export type CombatSessionEvent = Omit<RollSessionEvent, 'type' | 'payload'> &
     | { type: 'combat.ended'; payload: CombatEndedPayload }
     | { type: 'combat.damage' | 'combat.heal' | 'combat.defeated'; payload: CombatHitPointsPayload }
     | { type: 'combat.condition'; payload: CombatConditionPayload }
+    | { type: 'combat.effect'; payload: CombatEffectPayload }
     | { type: 'combat.deathSave'; payload: CombatDeathSavePayload }
   );
 
@@ -883,6 +896,7 @@ export const COMBAT_EVENT_TYPES = [
   'combat.heal',
   'combat.defeated',
   'combat.condition',
+  'combat.effect',
   'combat.deathSave',
 ] as const satisfies readonly CombatSessionEvent['type'][];
 

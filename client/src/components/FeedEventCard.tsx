@@ -1,4 +1,4 @@
-import { DiceFive, EyeSlash, FirstAidKit, FlagCheckered, Heartbeat, HeartBreak, Hourglass, Info, Lightning, MagicWand, Skull, Sword } from '@phosphor-icons/react';
+import { DiceFive, EyeSlash, FirstAidKit, FlagCheckered, Heartbeat, HeartBreak, Hourglass, Info, Lightning, MagicWand, Skull, Sparkle, Sword } from '@phosphor-icons/react';
 import { COMBAT_EVENT_TYPES, type CombatSessionEvent, type RollPayload, type RollSessionEvent, type SessionEvent, type SpellCastSessionEvent, type UnknownSessionEvent } from '@quest-fast/shared';
 import { ABILITY_LABELS, SKILL_LABELS } from '../lib/5e';
 import { attackHeadline, attackOutcome, canRollDamage, damageText, saveTargets, showsAttackRoll, targetOutcome } from '../lib/attack-feed';
@@ -116,8 +116,9 @@ function RollEventCard({ event, ...actions }: { event: RollSessionEvent } & Dama
 }
 
 function FightIcon({ payload }: { payload: FightPayload }) {
-  if (payload.kind === 'combat.condition') {
-    return payload.action === 'expired' ? <Hourglass size={16} aria-hidden="true" /> : <Lightning size={16} aria-hidden="true" />;
+  if (payload.kind === 'combat.condition' || payload.kind === 'combat.effect') {
+    if (payload.action === 'expired') return <Hourglass size={16} aria-hidden="true" />;
+    return payload.kind === 'combat.effect' ? <Sparkle size={16} aria-hidden="true" /> : <Lightning size={16} aria-hidden="true" />;
   }
   if (payload.kind === 'combat.deathSave') return <Heartbeat size={16} aria-hidden="true" />;
   if (payload.kind === 'combat.heal') return <FirstAidKit size={16} aria-hidden="true" />;
@@ -125,7 +126,7 @@ function FightIcon({ payload }: { payload: FightPayload }) {
   return <HeartBreak size={16} aria-hidden="true" />;
 }
 
-/** What happened to one combatant: hit points, a condition, a death save. */
+/** What happened to one combatant: hit points, a condition, an effect, a death save. */
 function FightEventCard({ event, payload }: { event: CombatSessionEvent; payload: FightPayload }) {
   return (
     <>

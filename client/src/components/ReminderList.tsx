@@ -2,6 +2,7 @@ import { useId, useState } from 'react';
 import { Brain, Check, DiceFive, ShieldWarning, Skull, Sword } from '@phosphor-icons/react';
 import { COMBAT_LIMITS, halfDamage, type CombatReminder, type PendingDamage, type PendingSave } from '@quest-fast/shared';
 import { ABILITY_LABELS } from '../lib/5e';
+import { damageAdjustmentText } from '../lib/effect-labels';
 import { Button } from './Button';
 import { Input } from './ui/input';
 
@@ -25,7 +26,9 @@ function damageText(reminder: PendingDamage): string {
     : reminder.save.success === undefined
     ? ` CD ${reminder.save.dc} de ${ABILITY_LABELS[reminder.save.ability]}: metade se passar.`
     : ` ${reminder.save.success ? 'Passou' : 'Falhou'} na salvaguarda de ${ABILITY_LABELS[reminder.save.ability]} CD ${reminder.save.dc}${reminder.save.success ? ': já é a metade' : ''}.`;
-  return `Dano pendente: ${reminder.amount}${type}${critical} de ${reminder.attackerName} com ${reminder.attackName}.${save}`;
+  // An effect of the target (a resistance) already changed the amount: the master sees why.
+  const adjusted = damageAdjustmentText(reminder);
+  return `Dano pendente: ${reminder.amount}${type}${critical} de ${reminder.attackerName} com ${reminder.attackName}.${save}${adjusted ? ` ${adjusted}.` : ''}`;
 }
 
 /**
@@ -62,6 +65,23 @@ function Icon({ kind }: { kind: CombatReminder['kind'] }) {
 }
 
 /**
+ * The other amounts the master may apply in one click: half, for a save the
+ * server did not roll; the roll, when an effect of the target changed it.
+ * Only those a typed amount could also be.
+ */
+function damageShortcuts(reminder: PendingDamage): { half?: number; rolled?: number } {
+  const { min, max } = COMBAT_LIMITS.hpAmount;
+  const fits = (amount: number | undefined): amount is number => amount !== undefined && amount >= min && amount <= max;
+  const half = halfDamage(reminder.amount);
+  // Once the server rolled the save, the amount already is what it left.
+  const unrolledSave = !!reminder.save && reminder.save.success === undefined;
+  return {
+    ...(unrolledSave && fits(half) ? { half } : {}),
+    ...(reminder.rolled !== reminder.amount && fits(reminder.rolled) ? { rolled: reminder.rolled } : {}),
+  };
+}
+
+/**
  * The master's controls on a pending damage: the amount, adjustable for a
  * resistance; "Metade" for a save the target passed; apply or drop it. An
  * untouched amount goes as the roll, whole.
@@ -78,8 +98,9 @@ function DamageControls({ name, reminder, pending, onApply, onDismiss }: {
   const { min, max } = COMBAT_LIMITS.hpAmount;
   const value = Number(amount);
   const untouched = value === reminder.amount;
-  const valid = untouched || (amount.trim() !== '' && Number.isInteger(value) && value >= min && value <= max);
-  const half = halfDamage(reminder.amount);
+  // An immunity leaves 0: the server applies nothing until an amount is typed.
+  const valid = (untouched && reminder.amount > 0) || (amount.trim() !== '' && Number.isInteger(value) && value >= min && value <= max);
+  const { half, rolled } = damageShortcuts(reminder);
   return (
     <>
       <label htmlFor={id} className="grid flex-[0_0_6rem] gap-1 text-small text-text-secondary">
@@ -90,10 +111,15 @@ function DamageControls({ name, reminder, pending, onApply, onDismiss }: {
       <Button variant="secondary" disabled={!valid || pending} onClick={() => onApply(untouched ? undefined : value)}>
         <Sword size={18} aria-hidden="true" /> Aplicar<span className="sr-only"> o dano em {name}</span>
       </Button>
-      {/* Once the server rolled the save, the amount already is what it left. */}
-      {reminder.save && reminder.save.success === undefined && half >= min && half <= max && (
+      {half !== undefined && (
         <Button variant="ghost" disabled={pending} onClick={() => onApply(half)}>
           Metade<span className="sr-only"> do dano em {name}</span>
+        </Button>
+      )}
+      {/* The suggestion is the server's reading of the effects; the master may disagree. */}
+      {rolled !== undefined && (
+        <Button variant="ghost" disabled={pending} onClick={() => onApply(rolled)}>
+          Aplicar {rolled}<span className="sr-only">, o valor rolado, em {name}</span>
         </Button>
       )}
       {onDismiss && (

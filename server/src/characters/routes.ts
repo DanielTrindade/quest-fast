@@ -25,6 +25,7 @@ import {
   keepsConcentration,
   castSpell,
   type CastChoice,
+  type CombatSessionEvent,
   type SpellCastSessionEvent,
   BONUS_TOO_BIG,
   bonusFits,
@@ -699,12 +700,13 @@ export function characterRoutes() {
           .where(and(eq(characters.id, characterId), eq(characters.campaignId, c.var.campaignId)))
           .run();
         settleCharacterReminders(tx, characterId);
-        const touched = settleCharacterEffects(tx, c.var.campaignId, characterId);
-        return { touched, hpChanged: changes.hpCurrent !== undefined && changes.hpCurrent !== current.character.hpCurrent };
+        const { touched, events } = settleCharacterEffects(tx, c.var.campaignId, characterId, { userId: c.var.user.id, userName: c.var.user.name });
+        return { touched, events, hpChanged: changes.hpCurrent !== undefined && changes.hpCurrent !== current.character.hpCurrent };
       }),
     );
     if (isInputError(result)) return c.json({ error: result.inputError }, 422);
     if (!result) return c.json({ error: 'Personagem não encontrado.' }, 404);
+    for (const event of result.events) c.var.deps.hub.publish(c.var.campaignId, event);
     // An ally who lost Aid with this concentration changed too.
     publishSheetEncounters(c.var.deps, c.var.campaignId, [characterId, ...result.touched]);
     c.var.deps.hub.publishCharactersChanged(c.var.campaignId);
@@ -744,7 +746,7 @@ export function characterRoutes() {
     if (row.character.ownerId !== c.var.user.id && c.var.role !== 'master') {
       return c.json({ error: 'Apenas o dono ou o mestre podem excluir o personagem.' }, 403);
     }
-    deleteCharacter(c.var.deps, c.var.campaignId, row.character.id);
+    deleteCharacter(c.var.deps, c.var.campaignId, row.character.id, { userId: c.var.user.id, userName: c.var.user.name });
     c.var.deps.hub.publishCharactersChanged(c.var.campaignId);
     return c.body(null, 204);
   });
@@ -765,7 +767,7 @@ export function characterRoutes() {
     }
     const body = raw as Record<string, unknown>;
     const result = await withInput(() =>
-      db.transaction((tx): { event: SpellCastSessionEvent; touched: Set<string> } | false => {
+      db.transaction((tx): { event: SpellCastSessionEvent; touched: Set<string>; ended: CombatSessionEvent[] } | false => {
         const current = characterSelect(tx, c.var.campaignId, characterId);
         if (!current) return false;
         const sheet = toSheet(current, c.var.deps.assets);
@@ -779,13 +781,14 @@ export function characterRoutes() {
         if (!cast.ok) fail(cast.error);
         const where = and(eq(characters.id, characterId), eq(characters.campaignId, c.var.campaignId));
         let touched = new Set<string>();
+        let ended: CombatSessionEvent[] = [];
         if (spell.concentration && sheet.concentrating) {
           // A new concentration ends the old one: the saves still owed to keep
           // it go with it, before the new one starts.
           tx.update(characters).set({ concentrating: false }).where(where).run();
           settleCharacterReminders(tx, characterId);
           // So do the effects the old spell kept up (Bless on the party).
-          touched = settleCharacterEffects(tx, c.var.campaignId, characterId);
+          ({ touched, events: ended } = settleCharacterEffects(tx, c.var.campaignId, characterId, { userId: c.var.user.id, userName: c.var.user.name }));
         }
         tx.update(characters)
           .set({ spellSlots: cast.slots, ...(spell.concentration ? { concentrating: true } : {}), updatedAt: new Date() })
@@ -794,6 +797,7 @@ export function characterRoutes() {
         settleCharacterReminders(tx, characterId);
         return {
           touched,
+          ended,
           event: recordSpellCastEvent(tx, {
             campaignId: c.var.campaignId,
             userId: c.var.user.id,
@@ -813,6 +817,8 @@ export function characterRoutes() {
     );
     if (isInputError(result)) return c.json({ error: result.inputError }, 422);
     if (!result) return c.json({ error: 'Personagem não encontrado.' }, 404);
+    // The old concentration's effects ended before the new spell was cast.
+    for (const event of result.ended) hub.publish(c.var.campaignId, event);
     hub.publish(c.var.campaignId, result.event);
     publishSheetEncounters(c.var.deps, c.var.campaignId, [characterId, ...result.touched]);
     hub.publishCharactersChanged(c.var.campaignId);

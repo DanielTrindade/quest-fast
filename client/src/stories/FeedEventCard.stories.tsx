@@ -106,6 +106,14 @@ const conditionExpired = fightEvent('f6', {
   type: 'combat.condition',
   payload: { ...goblin, kind: 'combat.condition', action: 'expired', condition: { condition: 'prone', roundsLeft: 1 } },
 });
+const effectApplied = fightEvent('f9', {
+  type: 'combat.effect',
+  payload: { ...hazin, kind: 'combat.effect', action: 'applied', effect: { id: 'ef1', name: 'Escudo da Fé' } },
+});
+const effectExpired = fightEvent('f10', {
+  type: 'combat.effect',
+  payload: { ...goblin, kind: 'combat.effect', action: 'expired', effect: { id: 'ef2', name: 'Lentidão' } },
+});
 const deathSave = fightEvent('f7', {
   type: 'combat.deathSave',
   payload: { ...hazin, kind: 'combat.deathSave', d20: 14, saves: { successes: 2, failures: 1 }, outcome: 'pending' },
@@ -289,6 +297,8 @@ export const Derrotado: Story = { args: { event: defeated }, play: reads('Goblin
 export const Cura: Story = { args: { event: heal }, play: reads('Hazin Dan recuperou 8 PV (46/55).') };
 export const CondicaoAplicada: Story = { name: 'Condição aplicada', args: { event: conditionApplied } };
 export const CondicaoExpirada: Story = { name: 'Condição expirada', args: { event: conditionExpired }, play: reads('A condição Caído de Goblin 2 acabou.') };
+export const EfeitoAplicado: Story = { name: 'Efeito aplicado', args: { event: effectApplied }, play: reads('Hazin Dan está sob Escudo da Fé.') };
+export const EfeitoExpirado: Story = { name: 'Efeito expirado', args: { event: effectExpired }, play: reads('Lentidão de Goblin 2 acabou.') };
 export const TesteContraAMorte: Story = { name: 'Teste contra a morte', args: { event: deathSave } };
 export const FalhasPorDano: Story = { name: 'Falhas por dano caído', args: { event: deathFailures } };
 /** A hidden combatant's events are the master's secret, even after it is revealed. */

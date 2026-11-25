@@ -83,6 +83,29 @@ export const DanoPendenteMestre: Story = {
   },
 };
 
+/** A resistance of the target already halved it: the master reads why, and may apply the roll instead. */
+export const DanoPendenteResistencia: Story = {
+  name: 'Dano pendente com resistência',
+  args: { name: 'Goblin 2', reminders: [{ ...pendingDamage, amount: 7, rolled: 14, adjustment: 'resistant' }], master: true, onApplyDamage: fn() },
+  play: async ({ canvasElement, args }) => {
+    const [region] = within(canvasElement).getAllByRole('region', { name: /^Tema / });
+    const list = within(region!);
+    await expect(list.getByText(/Resistência a cortante: rolou 14\./)).toBeVisible();
+    await userEvent.click(list.getByRole('button', { name: /^Aplicar 14/ }));
+    await expect(args.onApplyDamage).toHaveBeenLastCalledWith('d1', 14);
+  },
+};
+
+/** An immunity left 0: nothing goes until the master types an amount. */
+export const DanoPendenteImune: Story = {
+  name: 'Dano pendente com imunidade',
+  args: { name: 'Goblin 2', reminders: [{ ...pendingDamage, amount: 0, rolled: 14, adjustment: 'immune' }], master: true, onApplyDamage: fn() },
+  play: async ({ canvasElement }) => {
+    const [region] = within(canvasElement).getAllByRole('region', { name: /^Tema / });
+    await expect(within(region!).getByRole('button', { name: 'Aplicar o dano em Goblin 2' })).toBeDisabled();
+  },
+};
+
 /** Against a save, the master may apply half. */
 export const DanoPendenteSalvaguarda: Story = {
   name: 'Dano pendente com salvaguarda',

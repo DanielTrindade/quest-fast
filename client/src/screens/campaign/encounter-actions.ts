@@ -144,6 +144,9 @@ export function fightActions(campaignId: string, encounter: EncounterView, actio
     // The Mesa's situational modifiers go with every roll made there; the server rolls them.
     onConcentrationSave: (id, reminderId) => act(id, 'concentration-save', 'POST', { reminderId, ...(bonus ? { bonus } : {}) }),
     onDismissReminder: (id, reminderId) => act(id, `reminders/${reminderId}`, 'DELETE'),
+    // The bearer's card is the busy one: that is where the effect lands.
+    onApplyEffect: (id, effect) => act(id, 'effects', 'POST', effect),
+    onRemoveEffect: (id, effectId) => act(id, `effects/${effectId}`, 'DELETE'),
     // The roll reaches the feed over the socket; a hit leaves its damage pending on the target.
     // `secret` always travels: left out, a monster's attack would fall back to secret.
     onAttack: (id, attackIndex, { targetIds, mode, secret }) => act(id, 'attack', 'POST', { attackIndex, targetIds, mode, secret, ...(bonus ? { bonus } : {}) }),
