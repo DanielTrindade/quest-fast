@@ -290,6 +290,8 @@ export type {
   TurnView,
   CombatantSource,
   CombatantView,
+  CombatEffectView,
+  EffectRequest,
   CombatConditionPayload,
   CombatDeathSavePayload,
   CombatEndedPayload,

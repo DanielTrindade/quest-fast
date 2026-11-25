@@ -23,6 +23,7 @@ const base = {
   concentrating: false,
   deathSaves: null,
   deathSaveRolled: false,
+  effects: [],
   reminders: [],
   attacks: [],
   speed: 9,

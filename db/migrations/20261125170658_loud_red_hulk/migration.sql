@@ -1,0 +1,1 @@
+ALTER TABLE `combatants` ADD `effects` text DEFAULT '[]' NOT NULL;

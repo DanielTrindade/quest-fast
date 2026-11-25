@@ -9,6 +9,7 @@ import type { ChatMessageView } from './chat.ts';
 import type { AttackCost, TurnBudget, TurnSpend } from './turn.ts';
 import type { SaveBonuses, SaveEffect, SaveRoll } from './attack.ts';
 import type { ActiveCondition, COMBATANT_SOURCES, CombatReminder, ENCOUNTER_STATUSES, HealthBand, HpOperation } from './combat.ts';
+import type { CombatEffect, CombatEffectInput, CombatEffectSummary } from './effects.ts';
 
 /**
  * Contract between server and client. Dates travel as ISO 8601; formatting
@@ -597,6 +598,7 @@ export type CombatantView = {
   dexModifier: number | null;
   tieOrder: number | null;
   ac: number | null;
+  /** Under the effects (Aid). */
   hpMax: number | null;
   hpCurrent: number | null;
   hpTemp: number | null;
@@ -604,6 +606,8 @@ export type CombatantView = {
   /** A monster or manual combatant at 0 hit points: its turn is skipped. */
   defeated: boolean;
   conditions: ActiveCondition[];
+  /** Whole on an ally; on a monster, a player gets only each name. */
+  effects: CombatEffectView[];
   /** Always false for a player looking at a monster. */
   concentrating: boolean;
   /** Only for a character; a monster has none. */
@@ -621,6 +625,12 @@ export type CombatantView = {
   /** What is left of its turn: for the master, and for the owner of the character. */
   turn: TurnView | null;
 };
+
+/** An effect as a viewer sees it: whole, or only its name (`modifiers` tells which). */
+export type CombatEffectView = CombatEffect | CombatEffectSummary;
+
+/** Applies an effect to a combatant; one of the same name is replaced. */
+export type EffectRequest = CombatEffectInput;
 
 /**
  * A combatant's turn as the server counts it (the reaction: since its own
