@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { CharacterResponse, CombatEffect, CombatEffectPayload, CombatReminder, CombatSessionEvent, EncounterView, FeedResponse, RollPayload, RollSessionEvent } from '@quest-fast/shared';
 import { body } from '../testing.ts';
-import { advance, byName, encounterOf, runningEncounter, send, setup, sheet, type Request, type Setup } from './test-setup.ts';
+import { advance, byName, createEncounter, encounterOf, runningEncounter, send, setup, sheet, type Request, type Setup } from './test-setup.ts';
 
 /**
  * Temporary effects during a fight (#112). The running encounter: Goblin 1
@@ -321,4 +321,37 @@ test('the feed tells an effect put on, taken off and run out, by name only', asy
   assert.ok(seen(await effectEvents(s, s.master)).includes('Bandido applied Auxílio'));
   const [first] = await effectEvents(s, s.otherPlayer);
   assert.deepEqual(Object.keys(first!.effect).sort(), ['id', 'name']);
+});
+
+// --- Sheets changed outside the fight -------------------------------------------------
+
+const HELD_AID = (source: string) => ({ name: 'Auxílio', modifiers: { hpMax: 5 }, duration: 'encounter', sourceCombatantId: source, concentration: true });
+
+test('deleting the source sheet ends what its concentration held up, at once', async () => {
+  const { s, id, at, put, path } = await fight();
+  await encounterOf(await send(s.player, at('Kaelen', '/concentration'), 'PUT', { concentrating: true }));
+  await encounterOf(await put(s.player, 'Mira', HELD_AID(id('Kaelen'))));
+  const deleted = await s.player(`${s.root}/characters/${s.kaelen.id}`, { method: 'DELETE' });
+  assert.ok(deleted.status < 300, await deleted.clone().text());
+  const view = await encounterOf(await s.master(path));
+  assert.deepEqual(byName(view, 'Mira').effects, []);
+  assert.deepEqual([byName(view, 'Mira').hpMax, byName(view, 'Mira').hpCurrent], [24, 24]);
+});
+
+test('an ally who loses Aid on the sheet path is republished in its other encounters', async () => {
+  const { s, id, at, put } = await fight();
+  const other = await createEncounter(s, 'Patrulha');
+  const otherPath = `${s.base}/${other.id}`;
+  await encounterOf(await send(s.master, `${otherPath}/combatants`, 'POST', { source: 'character', characterId: s.mira.id }), 201);
+  await encounterOf(await send(s.player, at('Kaelen', '/concentration'), 'PUT', { concentrating: true }));
+  await encounterOf(await put(s.player, 'Mira', HELD_AID(id('Kaelen'))));
+  const before = await encounterOf(await s.master(otherPath));
+  assert.equal(byName(before, 'Mira').hpCurrent, 29);
+
+  const state = await s.player(`${s.root}/characters/${s.kaelen.id}/state`, { method: 'PATCH', body: JSON.stringify({ concentrating: false }) });
+  assert.equal(state.status, 200, await state.clone().text());
+  const after = await encounterOf(await s.master(otherPath));
+  assert.equal(byName(after, 'Mira').hpCurrent, 24);
+  // A new version: the clients that hold the other encounter are told.
+  assert.ok(after.version > before.version);
 });
