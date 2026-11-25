@@ -27,7 +27,8 @@ Spec da [#112](https://github.com/DanielTrindade/quest-fast/issues/112), aprovad
     metade, depois as condições (0 e exaustão) que já existem.
   - PV máximo: somar (só positivo).
   - Danos: resistência, imunidade, vulnerabilidade a uma lista fechada de 13
-    tipos. Resistência e vulnerabilidade ao mesmo tipo se anulam.
+    tipos. Com resistência e vulnerabilidade ao mesmo tipo, a resistência vem
+  primeiro e a vulnerabilidade depois (2024: 25 vira 12, depois 24).
 - **Acúmulo:** dois efeitos com o mesmo nome no mesmo combatente não se somam:
   aplicar de novo substitui (como as condições).
 - **Concentração:** marcar "concentração" exige origem; quando a concentração da

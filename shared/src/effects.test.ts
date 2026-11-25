@@ -80,8 +80,8 @@ test('damage under effects: immune 0, resistant half, vulnerable double', () => 
   assert.deepEqual(damageUnderEffects(11, 'Fogo', [resistFire]), { amount: 5, adjustment: 'resistant', damageType: 'fire' });
   assert.deepEqual(damageUnderEffects(11, 'Fogo', [effect({ vulnerabilities: ['fire'] })]), { amount: 22, adjustment: 'vulnerable', damageType: 'fire' });
   assert.deepEqual(damageUnderEffects(11, 'fire', [resistFire, effect({ immunities: ['fire'] })]), { amount: 0, adjustment: 'immune', damageType: 'fire' });
-  // Resistance and vulnerability cancel out.
-  assert.deepEqual(damageUnderEffects(11, 'fogo', [resistFire, effect({ vulnerabilities: ['fire'] })]), { amount: 11, adjustment: null, damageType: 'fire' });
+  // Both: resistance first, then vulnerability — an odd amount loses one.
+  assert.deepEqual(damageUnderEffects(25, 'fogo', [resistFire, effect({ vulnerabilities: ['fire'] })]), { amount: 24, adjustment: 'resistantVulnerable', damageType: 'fire' });
   // Another type, or one not recognised, keeps the amount.
   assert.deepEqual(damageUnderEffects(11, 'Cortante', [resistFire]), { amount: 11, adjustment: null, damageType: 'slashing' });
   assert.deepEqual(damageUnderEffects(11, 'fogo e frio', [resistFire]), { amount: 11, adjustment: null, damageType: null });

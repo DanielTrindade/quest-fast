@@ -319,14 +319,15 @@ export function hpAfterMaxChange(hpCurrent: number, maxBefore: number, maxAfter:
   return Math.min(hpCurrent, maxAfter);
 }
 
-export const DAMAGE_ADJUSTMENTS = ['immune', 'resistant', 'vulnerable'] as const;
+export const DAMAGE_ADJUSTMENTS = ['immune', 'resistant', 'vulnerable', 'resistantVulnerable'] as const;
 export type DamageAdjustment = (typeof DAMAGE_ADJUSTMENTS)[number];
 
 /**
  * The damage a combatant takes under its effects, as a suggestion for the
  * master: immunity takes it to 0, resistance halves it (rounded down) and
- * vulnerability doubles it; resistance and vulnerability to one type cancel
- * out. An unknown type (or none) leaves the amount as rolled.
+ * vulnerability doubles it. With both, resistance comes first and then
+ * vulnerability (2024: 25 becomes 12, then 24). An unknown type (or none)
+ * leaves the amount as rolled.
  */
 export function damageUnderEffects(
   amount: number,
@@ -339,7 +340,8 @@ export function damageUnderEffects(
   if (has('immunities')) return { amount: 0, adjustment: 'immune', damageType: type };
   const resistant = has('resistances');
   const vulnerable = has('vulnerabilities');
-  if (resistant && !vulnerable) return { amount: Math.floor(amount / 2), adjustment: 'resistant', damageType: type };
-  if (vulnerable && !resistant) return { amount: amount * 2, adjustment: 'vulnerable', damageType: type };
+  const halved = resistant ? Math.floor(amount / 2) : amount;
+  if (vulnerable) return { amount: halved * 2, adjustment: resistant ? 'resistantVulnerable' : 'vulnerable', damageType: type };
+  if (resistant) return { amount: halved, adjustment: 'resistant', damageType: type };
   return { amount, adjustment: null, damageType: type };
 }
