@@ -396,7 +396,11 @@ turno adiante, como remover o combatente, antes de o cascade apagá-lo.
 
 Efeito temporário (#112) é a exceção: vive no combatente, mesmo no de
 personagem, e nunca altera a ficha nem o statblock. O servidor soma a base e
-os efeitos; o PV máximo efetivo é o teto da cura. Um efeito que sobe o PV
+os efeitos: o ataque compara com a CA efetiva, o turno anda o deslocamento
+efetivo (antes das condições) e o PV máximo efetivo é o teto da cura, também
+quando a ficha é editada no meio da luta. O dano pendente já sai com a
+sugestão de imunidade, resistência ou vulnerabilidade ao tipo reconhecido no
+texto do ataque, junto do valor rolado; o mestre ainda ajusta. Um efeito que sobe o PV
 máximo (Auxílio) sobe os PV atuais junto, gravados na ficha, e ao sair só
 corta o que passa do novo teto. Todos os efeitos saem quando o encontro
 termina ou o combatente deixa a luta. Efeito de concentração cai de vez quando

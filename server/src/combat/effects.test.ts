@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import type { CharacterResponse, CombatEffect, EncounterView } from '@quest-fast/shared';
+import type { CharacterResponse, CombatEffect, CombatReminder, EncounterView, FeedResponse, RollPayload, RollSessionEvent } from '@quest-fast/shared';
 import { body } from '../testing.ts';
-import { advance, byName, encounterOf, runningEncounter, send, setup, type Request, type Setup } from './test-setup.ts';
+import { advance, byName, encounterOf, runningEncounter, send, setup, sheet, type Request, type Setup } from './test-setup.ts';
 
 /**
  * Temporary effects during a fight (#112). The running encounter: Goblin 1
@@ -205,4 +205,91 @@ test('falling, the sheet and leaving the fight end the concentration effects too
   await encounterOf(await put(s.master, 'Goblin 2', BLESS_ON(id('Goblin 1'))));
   view = await encounterOf(await send(s.master, at('Goblin 1'), 'DELETE'));
   assert.deepEqual(byName(view, 'Goblin 2').effects, []);
+});
+
+// --- The numbers the fight uses --------------------------------------------------------
+
+const SWORD = { name: 'Espada longa', bonus: 5, damage: '1d8+3', damageType: 'Cortante', range: '1,5 m' };
+
+async function armedFight() {
+  const table = await fight();
+  const armed = await send(table.s.player, `${table.s.root}/characters/${table.s.kaelen.id}`, 'PATCH', { ...sheet('Kaelen'), attacks: [SWORD] });
+  assert.equal(armed.status, 200, await armed.clone().text());
+  return table;
+}
+
+async function lastAttack(s: Setup): Promise<RollPayload | undefined> {
+  const { events } = await body<FeedResponse>(await s.master(`${s.root}/feed`));
+  return (events.filter((event) => event.type === 'roll') as RollSessionEvent[])
+    .map((event) => event.payload)
+    .filter((payload) => payload.rollKind === 'attack')
+    .at(-1);
+}
+
+function pendingOf(view: EncounterView, name: string) {
+  return byName(view, name).reminders.filter((reminder): reminder is Extract<CombatReminder, { kind: 'pendingDamage' }> => reminder.kind === 'pendingDamage');
+}
+
+test('an attack must reach the armor class under the effects', async (t) => {
+  // Every die lands on 11: the goblin's 11 + 4 reaches Kaelen's 15, not 17.
+  t.mock.method(Math, 'random', () => 10.5 / 20);
+  const { s, id, at, put } = await armedFight();
+  let view = await encounterOf(await put(s.master, 'Kaelen', SHIELD_OF_FAITH));
+  assert.equal(byName(view, 'Kaelen').ac, 17);
+  view = await encounterOf(await send(s.master, at('Goblin 1', '/attack'), 'POST', { attackIndex: 0, targetId: id('Kaelen') }));
+  const attack = await lastAttack(s);
+  assert.deepEqual([attack?.target?.hit, attack?.target?.ac], [false, 17]);
+  assert.deepEqual(pendingOf(view, 'Kaelen'), []);
+});
+
+test('the speed of the turn follows the effects; the base speed stays as it was', async () => {
+  const { s, put, path } = await fight();
+  let view = await encounterOf(await put(s.master, 'Kaelen', { name: 'Passos Longos', modifiers: { speed: { mode: 'add', value: 3 } }, duration: 'encounter' }));
+  assert.deepEqual([byName(view, 'Kaelen').turn?.speed, byName(view, 'Kaelen').speed], [12, 9]);
+  await encounterOf(await put(s.master, 'Kaelen', { name: 'Lentidão', modifiers: { speed: { mode: 'half' } }, duration: 'encounter' }));
+  view = await encounterOf(await s.player(path));
+  assert.deepEqual([byName(view, 'Kaelen').turn?.speed, byName(view, 'Kaelen').turn?.movementLeft], [6, 6]);
+});
+
+test('a resistance halves the pending damage, which the master still adjusts', async (t) => {
+  // Every die on its highest face: a critical 2d8 + 3 = 19.
+  t.mock.method(Math, 'random', () => 0.999);
+  const { s, id, at, put, path } = await armedFight();
+  await encounterOf(await put(s.master, 'Goblin 2', { name: 'Pele de Pedra', modifiers: { resistances: ['slashing'] }, duration: 'encounter' }));
+  await encounterOf(await advance(s.master, path, id('Goblin 1')));
+  await encounterOf(await send(s.player, at('Kaelen', '/attack'), 'POST', { attackIndex: 0, targetId: id('Goblin 2') }));
+  let view = await encounterOf(await s.master(path));
+  const [damage] = pendingOf(view, 'Goblin 2');
+  assert.deepEqual([damage?.amount, damage?.rolled, damage?.adjustment], [9, 19, 'resistant']);
+  // A player still reads nothing of a monster's pending damage.
+  assert.deepEqual(byName(await encounterOf(await s.player(path)), 'Goblin 2').reminders, []);
+  view = await encounterOf(await send(s.master, at('Goblin 2', `/reminders/${damage!.id}/apply`), 'POST', { amount: 6 }));
+  assert.equal(byName(view, 'Goblin 2').hpCurrent, 1);
+});
+
+test('an immunity leaves the pending damage at 0, which the master adjusts or dismisses', async (t) => {
+  t.mock.method(Math, 'random', () => 0.999);
+  const { s, id, at, put, path } = await armedFight();
+  await encounterOf(await put(s.master, 'Goblin 2', { name: 'Forma Etérea', modifiers: { immunities: ['slashing'] }, duration: 'encounter' }));
+  await encounterOf(await advance(s.master, path, id('Goblin 1')));
+  await encounterOf(await send(s.player, at('Kaelen', '/attack'), 'POST', { attackIndex: 0, targetId: id('Goblin 2') }));
+  const [damage] = pendingOf(await encounterOf(await s.master(path)), 'Goblin 2');
+  assert.deepEqual([damage?.amount, damage?.rolled, damage?.adjustment], [0, 19, 'immune']);
+  assert.equal((await send(s.master, at('Goblin 2', `/reminders/${damage!.id}/apply`), 'POST')).status, 409);
+  const view = await encounterOf(await send(s.master, at('Goblin 2', `/reminders/${damage!.id}/apply`), 'POST', { amount: 2 }));
+  assert.equal(byName(view, 'Goblin 2').hpCurrent, 5);
+});
+
+test('the sheet edited mid-fight keeps what Aid adds to the maximum', async () => {
+  const { s, put } = await fight();
+  await encounterOf(await put(s.master, 'Kaelen', AID));
+  const state = (hpCurrent: number) =>
+    s.player(`${s.root}/characters/${s.kaelen.id}/state`, { method: 'PATCH', body: JSON.stringify({ hpCurrent }) });
+  assert.equal((await state(28)).status, 200);
+  assert.equal((await state(30)).status, 422);
+  assert.equal((await state(29)).status, 200);
+  const edited = await send(s.player, `${s.root}/characters/${s.kaelen.id}`, 'PATCH', { ...sheet('Kaelen'), hp: 20 });
+  assert.equal(edited.status, 200, await edited.clone().text());
+  // A smaller sheet maximum still keeps Aid's 5 on top.
+  assert.equal((await sheetOf(s, s.kaelen.id)).hpCurrent, 25);
 });

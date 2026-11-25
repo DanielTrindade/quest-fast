@@ -10,6 +10,7 @@ import {
 } from '@quest-fast/db';
 import {
   classAttacksPerAction,
+  effectiveAc,
   effectiveHpMax,
   saveBonus,
   sortInitiative,
@@ -58,6 +59,9 @@ export type LoadedCombatant = {
   sheet: SheetColumns | null;
   name: string;
   ownerId: string | null;
+  /** Before the effects: the sheet's or the row's. */
+  acBase: number;
+  /** Under the effects (Shield of Faith): what an attack must reach. */
   ac: number;
   /** Before the effects: the sheet's or the row's. */
   hpMaxBase: number;
@@ -69,7 +73,7 @@ export type LoadedCombatant = {
   /** Always on the row: an effect belongs to this fight. */
   effects: CombatEffect[];
   concentrating: boolean;
-  /** Walking speed in metres, before conditions. */
+  /** Walking speed in metres, before effects and conditions. */
   speed: number;
   /** Attacks of one Attack action: the sheet's (or its class and level), or the row's. */
   attacksPerAction: number;
@@ -124,7 +128,8 @@ function resolve(row: CombatantRow, sheet: SheetColumns | null): LoadedCombatant
       sheet,
       name: sheet.name,
       ownerId: sheet.ownerId,
-      ac: sheet.ac,
+      acBase: sheet.ac,
+      ac: effectiveAc(sheet.ac, row.effects),
       hpMaxBase: sheet.hp,
       hpMax: effectiveHpMax(sheet.hp, row.effects),
       hpCurrent: sheet.hpCurrent,
@@ -141,7 +146,8 @@ function resolve(row: CombatantRow, sheet: SheetColumns | null): LoadedCombatant
     sheet: null,
     name: row.name,
     ownerId: null,
-    ac: row.ac ?? 0,
+    acBase: row.ac ?? 0,
+    ac: effectiveAc(row.ac ?? 0, row.effects),
     hpMaxBase: row.hpMax ?? 0,
     hpMax: effectiveHpMax(row.hpMax ?? 0, row.effects),
     hpCurrent: row.hpCurrent ?? 0,

@@ -12,6 +12,7 @@ import {
   abilityModifier,
   applyHpChange,
   damageReminders,
+  damageUnderEffects,
   deathSaveFailure,
   deathSaveOutcome,
   deathSaveStatus,
@@ -1148,7 +1149,7 @@ function attack(mutation: Mutation, combatant: LoadedCombatant, body: Record<str
   const pending: CombatReminder = {
     id: randomUUID(),
     kind: 'pendingDamage',
-    amount: payload.damage.total,
+    ...underEffects(target, payload.damage.total, chosen.damageType),
     damageType: chosen.damageType,
     critical: payload.critical === true,
     attackerName: combatant.name,
@@ -1157,6 +1158,15 @@ function attack(mutation: Mutation, combatant: LoadedCombatant, body: Record<str
     secret,
   };
   writeVitals(mutation, target, {}, [...target.row.reminders, pending]);
+}
+
+/**
+ * A pending damage's amount under the target's effects, as a suggestion the
+ * master still adjusts, with what was rolled when an effect changed it.
+ */
+function underEffects(target: LoadedCombatant, rolled: number, damageType: string) {
+  const { amount, adjustment } = damageUnderEffects(rolled, damageType, target.effects);
+  return adjustment ? { amount, rolled, adjustment } : { amount };
 }
 
 function recordAttack(mutation: Mutation, payload: RollPayload, secret: boolean) {
@@ -1237,7 +1247,8 @@ function saveAttack(
     const pending: CombatReminder = {
       id: randomUUID(),
       kind: 'pendingDamage',
-      amount,
+      // Halved by the save first, then by a resistance (2024 order).
+      ...underEffects(target, amount, chosen.damageType),
       damageType: chosen.damageType,
       critical: false,
       attackerName: combatant.name,
@@ -1264,6 +1275,8 @@ function applyPendingDamage(mutation: Mutation, combatant: LoadedCombatant, remi
   const amount =
     body.amount === undefined ? reminder.amount : boundedInteger(body.amount, C.hpAmount.min, C.hpAmount.max);
   if (amount === undefined) refuse(422, `A quantidade deve ser um número entre ${C.hpAmount.min} e ${C.hpAmount.max}.`);
+  // An immunity left nothing: the master types an amount or dismisses it.
+  if (amount === 0) refuse(409, `${combatant.name} é imune a esse dano. Ajuste o valor ou descarte o lembrete.`);
   applyHitPoints(mutation, combatant, 'damage', amount, withoutReminder(combatant, reminder));
 }
 

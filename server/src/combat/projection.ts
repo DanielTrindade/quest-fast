@@ -9,7 +9,8 @@ function defeated(combatant: LoadedCombatant): boolean {
 /** What is left of a combatant's turn, as the server counts it. */
 export function turnOf(combatant: LoadedCombatant): TurnView {
   const { row } = combatant;
-  const speed = effectiveSpeed(combatant.speed, combatant.conditions);
+  // Movement already walked stays spent when an effect slows it down.
+  const speed = effectiveSpeed(combatant.speed, combatant.conditions, combatant.effects);
   const budget = {
     actionUsed: row.actionUsed,
     bonusActionUsed: row.bonusActionUsed,

@@ -61,7 +61,7 @@ import type { AssetStore } from '../assets/store.ts';
 import type { Context } from '../context.ts';
 import { requireAuth, requireCampaignRole } from '../middleware.ts';
 import { recordRollEvent, recordSpellCastEvent } from '../events/feed.ts';
-import { settleCharacterEffects } from '../combat/effects.ts';
+import { hpMaxBonusOf, settleCharacterEffects } from '../combat/effects.ts';
 import { deleteCharacter, publishCharacterEncounters, publishCharacterScenes, settleCharacterReminders, spendSheetAttack } from '../combat/routes.ts';
 import { boundedInteger, fail, isInputError, parseAttack, shortText, withInput } from '../validation.ts';
 
@@ -517,11 +517,14 @@ function parseConditions(value: unknown, stored: readonly ActiveCondition[]): Ac
   });
 }
 
-/** The session state, bounded by the sheet it belongs to. */
-function parseStateInput(body: unknown, sheet: CharacterSheet) {
+/**
+ * The session state, bounded by the sheet it belongs to. `hpMax` is the
+ * sheet's under the running fight's effects (Aid).
+ */
+function parseStateInput(body: unknown, sheet: CharacterSheet, hpMax = sheet.hp) {
   const source = typeof body === 'object' && body !== null ? (body as Record<string, unknown>) : {};
   const state = {
-    hpCurrent: optionalInteger(source.hpCurrent, 0, sheet.hp, 'PV atual deve estar entre 0 e o PV máximo.'),
+    hpCurrent: optionalInteger(source.hpCurrent, 0, hpMax, 'PV atual deve estar entre 0 e o PV máximo.'),
     hpTemp: optionalInteger(source.hpTemp, L.hpTemp.min, L.hpTemp.max, `PV temporários devem estar entre ${L.hpTemp.min} e ${L.hpTemp.max}.`),
     hitDiceSpent: optionalInteger(source.hitDiceSpent, 0, sheet.level, 'Dados de vida gastos devem estar entre 0 e o nível.'),
     deathSaves: parseDeathSaves(source.deathSaves),
@@ -645,7 +648,9 @@ export function characterRoutes() {
       checkAvatar(db, c.var.campaignId, core.avatarAssetId);
       // Fields the request did not send keep their stored value.
       const official = checkExpertise({ ...officialFromSheet(current), ...sent }, core.skills, sent.expertise !== undefined);
-      const fitted = fitStateToSheet(current, { hp: core.hp, level: core.level, spellSlotTotals: official.spellSlotTotals });
+      // Aid in the running fight still counts on top of the new maximum.
+      const hp = core.hp + hpMaxBonusOf(db, current.id);
+      const fitted = fitStateToSheet(current, { hp, level: core.level, spellSlotTotals: official.spellSlotTotals });
       db.update(characters)
         .set({
           ...core,
@@ -687,7 +692,8 @@ export function characterRoutes() {
       db.transaction((tx) => {
         const current = characterSelect(tx, c.var.campaignId, characterId);
         if (!current) return false;
-        const changes = parseStateInput(body, toSheet(current, c.var.deps.assets));
+        const sheet = toSheet(current, c.var.deps.assets);
+        const changes = parseStateInput(body, sheet, sheet.hp + hpMaxBonusOf(tx, characterId));
         tx.update(characters)
           .set({ ...changes, updatedAt: new Date() })
           .where(and(eq(characters.id, characterId), eq(characters.campaignId, c.var.campaignId)))
