@@ -464,7 +464,13 @@ function turnWaiters(before: LoadedEncounter, after: LoadedEncounter): Waiting[]
 }
 
 /** A creature that left the fight with its token: what to tell the table. */
-export type TokenLeave = { loaded: LoadedEncounter; scenes: string[]; waiting: Waiting[] };
+export type TokenLeave = {
+  loaded: LoadedEncounter;
+  scenes: string[];
+  waiting: Waiting[];
+  /** Sheets whose hit points moved as effects ended (Aid): their other encounters are published too. */
+  characters: Set<string>;
+};
 
 /**
  * The master deleted a combatant's token: the creature leaves the fight with
@@ -485,22 +491,24 @@ export function leaveWithToken(tx: Executor, campaignId: string, token: { id: st
   if (!encounter || encounter.status === 'ended') return null;
   const before = loadEncounter(tx, encounter);
   const scenes = scenesOfEncounter(tx, before).filter((id) => id !== token.sceneId);
-  handOffTurn(tx, before, combatantId);
+  const touched = new Set<string>();
+  handOffTurn(tx, before, combatantId, touched);
   tx.update(encounters).set({ version: sql`${encounters.version} + 1` }).where(eq(encounters.id, encounter.id)).run();
   const leaving = loadEncounter(tx, encounter).combatants.find((combatant) => combatant.row.id === combatantId);
-  if (leaving) clearEffects(tx, leaving, new Set());
+  if (leaving) clearEffects(tx, leaving, touched);
   tx.delete(combatants).where(eq(combatants.id, combatantId)).run();
   // What its concentration held up on the others ends with it.
-  settleEffects(tx, encounter, new Set());
+  settleEffects(tx, encounter, touched);
   bumpScenes(tx, scenes);
   const after = loadEncounter(tx, findEncounter(tx, campaignId, encounter.id)!);
-  return { loaded: after, scenes, waiting: turnWaiters(before, after) };
+  return { loaded: after, scenes, waiting: turnWaiters(before, after), characters: touched };
 }
 
 /** After the commit, in the order `mutate` uses: drags released, then the fight and the maps. */
 export function publishTokenLeave(deps: Deps, campaignId: string, leave: TokenLeave) {
   for (const combatant of leave.waiting) releaseTurnDrags(deps, combatant);
   deps.hub.publishCombat(campaignId, (viewer) => projectEncounter(leave.loaded, viewer));
+  publishSheetEncounters(deps, campaignId, leave.characters, [leave.loaded.encounter.id]);
   publishScenes(deps, campaignId, leave.scenes);
 }
 
@@ -1375,9 +1383,7 @@ async function mutate(
     // A token reads its combatant: hidden, renamed or removed, the map changes too.
     publishScenes(c.var.deps, c.var.campaignId, shown);
     // A sheet is shared: the other encounters it is in changed too.
-    for (const characterId of touched) {
-      publishCharacterEncounters(c.var.deps, c.var.campaignId, characterId, loaded.encounter.id);
-    }
+    publishSheetEncounters(c.var.deps, c.var.campaignId, touched, [loaded.encounter.id]);
     return c.json({ encounter: projectEncounter(loaded, viewer) }, successStatus);
   } catch (error) {
     if (!(error instanceof Refusal)) throw error;
@@ -1435,9 +1441,19 @@ function openEncountersOf(tx: Executor, campaignId: string, characterId: string)
  * `except`, which the change already published.
  */
 export function publishCharacterEncounters(deps: Deps, campaignId: string, characterId: string, except?: string) {
+  publishSheetEncounters(deps, campaignId, [characterId], except === undefined ? [] : [except]);
+}
+
+/**
+ * For a change to several sheets: each open encounter any of them is in,
+ * once, but those in `except`, which the change already published.
+ */
+export function publishSheetEncounters(deps: Deps, campaignId: string, characterIds: Iterable<string>, except: Iterable<string> = []) {
   const { db, hub } = deps;
-  for (const id of openEncountersOf(db, campaignId, characterId)) {
-    if (id === except) continue;
+  const skipped = new Set(except);
+  const ids = new Set([...characterIds].flatMap((characterId) => openEncountersOf(db, campaignId, characterId)));
+  for (const id of ids) {
+    if (skipped.has(id)) continue;
     const loaded = db.transaction((tx) => {
       tx.update(encounters).set({ version: sql`${encounters.version} + 1` }).where(eq(encounters.id, id)).run();
       return loadEncounter(tx, findEncounter(tx, campaignId, id)!);
@@ -1454,21 +1470,27 @@ export function publishCharacterEncounters(deps: Deps, campaignId: string, chara
 export function deleteCharacter(deps: Deps, campaignId: string, characterId: string) {
   const { db, hub } = deps;
   let shown: string[] = [];
+  let ids: string[] = [];
+  const touched = new Set<string>();
   const changed = db.transaction((tx) => {
     // Its token goes with it.
     shown = scenesShowing(tx, { characterId });
     bumpScenes(tx, shown);
-    const ids = openEncountersOf(tx, campaignId, characterId);
+    ids = openEncountersOf(tx, campaignId, characterId);
     for (const id of ids) {
       const loaded = loadEncounter(tx, findEncounter(tx, campaignId, id)!);
       const combatant = loaded.combatants.find((candidate) => candidate.row.characterId === characterId)!;
-      handOffTurn(tx, loaded, combatant.row.id);
+      handOffTurn(tx, loaded, combatant.row.id, touched);
       tx.update(encounters).set({ version: sql`${encounters.version} + 1` }).where(eq(encounters.id, id)).run();
     }
     tx.delete(characters).where(and(eq(characters.id, characterId), eq(characters.campaignId, campaignId))).run();
+    // What its concentration held up on the others ends with it, as with any removal.
+    for (const id of ids) settleEffects(tx, findEncounter(tx, campaignId, id)!, touched);
+    touched.delete(characterId);
     return ids.map((id) => loadEncounter(tx, findEncounter(tx, campaignId, id)!));
   });
   for (const loaded of changed) hub.publishCombat(campaignId, (viewer) => projectEncounter(loaded, viewer));
+  publishSheetEncounters(deps, campaignId, touched, ids);
   publishScenes(deps, campaignId, shown);
 }
 

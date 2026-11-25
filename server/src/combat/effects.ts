@@ -52,10 +52,11 @@ export function settleEffects(tx: Executor, encounter: EncounterRow, touched: Se
 
 /**
  * For a change to a sheet outside the fight routes: the open encounters the
- * character is in drop what its concentration held up. Those encounters are
- * the ones the caller publishes for the character.
+ * character is in drop what its concentration held up. Returns the sheets
+ * whose hit points that moved (an ally losing Aid), so the caller publishes
+ * their encounters too.
  */
-export function settleCharacterEffects(tx: Executor, campaignId: string, characterId: string) {
+export function settleCharacterEffects(tx: Executor, campaignId: string, characterId: string): Set<string> {
   const touched = new Set<string>();
   const open = tx
     .select({ encounter: encounters })
@@ -64,4 +65,5 @@ export function settleCharacterEffects(tx: Executor, campaignId: string, charact
     .where(and(eq(encounters.campaignId, campaignId), ne(encounters.status, 'ended'), eq(combatants.characterId, characterId)))
     .all();
   for (const { encounter } of open) settleEffects(tx, encounter, touched);
+  return touched;
 }
