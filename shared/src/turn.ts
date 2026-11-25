@@ -4,6 +4,7 @@
  * applies them inside a transaction; the client only shows what they allow.
  */
 import type { ActiveCondition } from './combat.ts';
+import { speedUnderEffects, type CombatEffect } from './effects.ts';
 import { tokenCells, type GridSettings } from './battlefield.ts';
 import type { Size } from './sheet.ts';
 
@@ -108,14 +109,18 @@ export function speedFromText(text: string): number | null {
 const SPEED_ZERO: ReadonlySet<string> = new Set(['grappled', 'restrained', 'paralyzed', 'petrified', 'unconscious']);
 
 /**
- * The speed a combatant has under its conditions: Grappled, Restrained,
- * Paralyzed, Petrified and Unconscious hold it at 0; each level of Exhaustion
- * takes 1.5 m (2024).
+ * The speed a combatant has under its effects and then its conditions:
+ * Grappled, Restrained, Paralyzed, Petrified and Unconscious hold it at 0;
+ * each level of Exhaustion takes 1.5 m (2024).
  */
-export function effectiveSpeed(speed: number, conditions: readonly ActiveCondition[]): number {
+export function effectiveSpeed(
+  speed: number,
+  conditions: readonly ActiveCondition[],
+  effects: readonly CombatEffect[] = [],
+): number {
   if (conditions.some(({ condition }) => SPEED_ZERO.has(condition))) return 0;
   const exhaustion = conditions.find(({ condition }) => condition === 'exhaustion')?.level ?? 0;
-  return Math.max(0, speed - exhaustion * SQUARE_METERS);
+  return Math.max(0, speedUnderEffects(speed, effects) - exhaustion * SQUARE_METERS);
 }
 
 // --- Extra Attack --------------------------------------------------------------
