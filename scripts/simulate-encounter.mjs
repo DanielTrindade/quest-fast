@@ -1012,7 +1012,7 @@ async function moveToken(who, name, to, options = {}) {
     say(`    [AVISO] o arrasto de ${name} não pegou na tela de ${who.label}; nova tentativa.`);
     say(`      sob o ponteiro: ${probe.under}; selecionado depois do toque: ${probe.selected ?? 'nenhum'}; /grab enviado: ${probe.grabbed ? 'sim' : 'não'}`);
     say(`      zoom na tela ${probe.zoom}% (esperado ${probe.expectedZoom}%); canvas ${JSON.stringify(probe.box)}; reenquadrado antes do toque: ${probe.reframed ? 'sim' : 'não'}; o mapa mudou: ${moved}`);
-    say(`      pedidos de token na tela: ${probe.net.length ? probe.net.join('; ') : 'nenhum'}`);
+    say(`      pedidos de token na tela: ${probe.net?.length ? probe.net.join('; ') : 'nenhum'}`);
     retriedDrags.push(`${name} (${who.label})`);
     await sleep(1000);
     const again = {};
