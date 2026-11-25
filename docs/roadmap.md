@@ -3,7 +3,7 @@
 O que já existe, o que vem a seguir e o que está em aberto. Atualize este
 arquivo no PR que entrega ou muda o escopo de uma etapa.
 
-Atualizado em 2026-11-23.
+Atualizado em 2026-11-25.
 
 ## Entregue
 
@@ -125,7 +125,9 @@ com as decisões do spike. Cinco entregas, cada uma usável na mesa:
    valor da ficha) e o deslocamento em casas de 1,5 m, diagonais inclusive;
    ataque fora da vez gasta a reação. Ao lado do mapa, o painel do turno
    gasta e mostra o que resta, e o mestre devolve, concede ação e ajusta o
-   deslocamento das criaturas. Clicar num token mostra toda a área que ele
+   deslocamento e os ataques por ação da criatura só naquele encontro (o
+   valor padrão de Ataques Múltiplos fica no bestiário, editado no Preparo;
+   #108). Clicar num token mostra toda a área que ele
    ainda alcança; o arrasto mostra o caminho e o custo, e o movimento só é
    gasto quando quem move confirma a posição (pelo mapa ou pelas setas). O
    jogador só move o próprio token na vez dele. Entrou antes do fog e mudou o
