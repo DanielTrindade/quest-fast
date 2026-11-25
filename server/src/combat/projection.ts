@@ -47,6 +47,8 @@ function projectCombatant(combatant: LoadedCombatant, viewer: Viewer, round: num
     healthBand: healthBand(combatant.hpCurrent, combatant.hpMax),
     defeated: defeated(combatant),
     conditions: combatant.conditions,
+    // Of a monster's effects, the table learns what is on it, not the numbers.
+    effects: known ? combatant.effects : combatant.effects.map(({ id, name }) => ({ id, name })),
     concentrating: known && combatant.concentrating,
     deathSaves: combatant.sheet?.deathSaves ?? null,
     deathSaveRolled: !!combatant.sheet && row.deathSaveRound === round,

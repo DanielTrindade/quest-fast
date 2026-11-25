@@ -277,7 +277,7 @@ function combatant(id: string, name: string, extra: Partial<CombatantView> = {})
   return {
     id, source: 'statblock', characterId: null, ownerId: null, name, size: 'medium', hidden: false,
     initiative: 10, hasInitiative: true, dexModifier: 0, tieOrder: 0, ac: 15, hpMax: 30, hpCurrent: 30, hpTemp: 0,
-    healthBand: 'unhurt', defeated: false, conditions: [], concentrating: false, deathSaves: null, deathSaveRolled: false, reminders: [], attacks: [],
+    healthBand: 'unhurt', defeated: false, conditions: [], effects: [], concentrating: false, deathSaves: null, deathSaveRolled: false, reminders: [], attacks: [],
     speed: 9, attacksPerAction: 1, turn: null, ...extra,
   };
 }

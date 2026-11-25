@@ -10,6 +10,7 @@ import {
 } from '@quest-fast/db';
 import {
   classAttacksPerAction,
+  effectiveHpMax,
   saveBonus,
   sortInitiative,
   storedAttack,
@@ -17,6 +18,7 @@ import {
   type Ability,
   type ActiveCondition,
   type Attack,
+  type CombatEffect,
   type QueueEntry,
   type TurnEntry,
 } from '@quest-fast/shared';
@@ -57,10 +59,15 @@ export type LoadedCombatant = {
   name: string;
   ownerId: string | null;
   ac: number;
+  /** Before the effects: the sheet's or the row's. */
+  hpMaxBase: number;
+  /** Under the effects (Aid): what healing stops at. */
   hpMax: number;
   hpCurrent: number;
   hpTemp: number;
   conditions: ActiveCondition[];
+  /** Always on the row: an effect belongs to this fight. */
+  effects: CombatEffect[];
   concentrating: boolean;
   /** Walking speed in metres, before conditions. */
   speed: number;
@@ -118,10 +125,12 @@ function resolve(row: CombatantRow, sheet: SheetColumns | null): LoadedCombatant
       name: sheet.name,
       ownerId: sheet.ownerId,
       ac: sheet.ac,
-      hpMax: sheet.hp,
+      hpMaxBase: sheet.hp,
+      hpMax: effectiveHpMax(sheet.hp, row.effects),
       hpCurrent: sheet.hpCurrent,
       hpTemp: sheet.hpTemp,
       conditions: sheet.conditions,
+      effects: row.effects,
       concentrating: sheet.concentrating,
       speed: sheet.speed,
       attacksPerAction: sheet.attacksPerAction ?? classAttacksPerAction(sheet.class, sheet.subclass, sheet.level),
@@ -133,10 +142,12 @@ function resolve(row: CombatantRow, sheet: SheetColumns | null): LoadedCombatant
     name: row.name,
     ownerId: null,
     ac: row.ac ?? 0,
-    hpMax: row.hpMax ?? 0,
+    hpMaxBase: row.hpMax ?? 0,
+    hpMax: effectiveHpMax(row.hpMax ?? 0, row.effects),
     hpCurrent: row.hpCurrent ?? 0,
     hpTemp: row.hpTemp ?? 0,
     conditions: row.conditions ?? [],
+    effects: row.effects,
     concentrating: row.concentrating ?? false,
     speed: row.speed,
     attacksPerAction: row.attacksPerAction,

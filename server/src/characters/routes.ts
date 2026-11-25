@@ -61,6 +61,7 @@ import type { AssetStore } from '../assets/store.ts';
 import type { Context } from '../context.ts';
 import { requireAuth, requireCampaignRole } from '../middleware.ts';
 import { recordRollEvent, recordSpellCastEvent } from '../events/feed.ts';
+import { settleCharacterEffects } from '../combat/effects.ts';
 import { deleteCharacter, publishCharacterEncounters, publishCharacterScenes, settleCharacterReminders, spendSheetAttack } from '../combat/routes.ts';
 import { boundedInteger, fail, isInputError, parseAttack, shortText, withInput } from '../validation.ts';
 
@@ -692,6 +693,7 @@ export function characterRoutes() {
           .where(and(eq(characters.id, characterId), eq(characters.campaignId, c.var.campaignId)))
           .run();
         settleCharacterReminders(tx, characterId);
+        settleCharacterEffects(tx, c.var.campaignId, characterId);
         return { hpChanged: changes.hpCurrent !== undefined && changes.hpCurrent !== current.character.hpCurrent };
       }),
     );
@@ -774,6 +776,8 @@ export function characterRoutes() {
           // it go with it, before the new one starts.
           tx.update(characters).set({ concentrating: false }).where(where).run();
           settleCharacterReminders(tx, characterId);
+          // So do the effects the old spell kept up (Bless on the party).
+          settleCharacterEffects(tx, c.var.campaignId, characterId);
         }
         tx.update(characters)
           .set({ spellSlots: cast.slots, ...(spell.concentration ? { concentrating: true } : {}), updatedAt: new Date() })

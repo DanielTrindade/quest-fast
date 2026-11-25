@@ -4,6 +4,7 @@ import { Hono, type Context as HonoContext } from 'hono';
 import { characters, combatants, encounters, scenes, statblocks, tokens, type EncounterRow } from '@quest-fast/db';
 import {
   COMBAT_LIMITS as C,
+  EFFECT_LIMITS,
   ENCOUNTER_LIMITS as E,
   EXHAUSTION_MAX,
   HP_OPERATIONS,
@@ -14,6 +15,7 @@ import {
   deathSaveFailure,
   deathSaveOutcome,
   deathSaveStatus,
+  effectiveHpMax,
   hasPreviousTurn,
   initiative as sheetInitiative,
   isCondition,
@@ -25,6 +27,7 @@ import {
   nextTurn,
   pendingReminders,
   numberCopies,
+  parseEffectInput,
   previousTurn,
   removeCondition,
   BONUS_TOO_BIG,
@@ -38,6 +41,9 @@ import {
   noRoll,
   rollDice,
   setCondition,
+  setEffect,
+  startTurnEffects,
+  tickEffects,
   TURN_LIMITS,
   grantAction,
   isAttacksPerAction,
@@ -55,6 +61,7 @@ import {
   storedAttack,
   type AttackCost,
   type ActiveCondition,
+  type CombatEffect,
   healthBand,
   type CombatPayload,
   type CombatReminder,
@@ -74,6 +81,7 @@ import { requireAuth, requireCampaignRole } from '../middleware.ts';
 import { boundedInteger, shortText } from '../validation.ts';
 import { releaseTurnDrags } from '../scenes/fight.ts';
 import { bumpScenes, publishScenes, scenesShowing } from '../scenes/store.ts';
+import { clearEffects, settleEffects, writeEffects } from './effects.ts';
 import { projectEncounter } from './projection.ts';
 import { attacksOf, findEncounter, loadEncounter, queueOrder, saveModifierOf, turnOrder, type Executor, type LoadedCombatant, type LoadedEncounter } from './state.ts';
 import { beginTurn, budgetOf, writeBudget } from './turn.ts';
@@ -399,8 +407,10 @@ function editCombatant(mutation: Mutation, combatant: LoadedCombatant, body: Rec
     if (hpMax === undefined) refuse(422, `PV deve ser um número entre ${S.hp.min} e ${S.hp.max}.`);
     changes.hpMax = hpMax;
     // In preparation the creature starts full; mid-fight its damage stays.
+    // Its effects (Aid) still count on top of the new maximum.
+    const effective = effectiveHpMax(hpMax, row.effects);
     changes.hpCurrent =
-      mutation.loaded.encounter.status === 'preparing' ? hpMax : Math.min(row.hpCurrent ?? hpMax, hpMax);
+      mutation.loaded.encounter.status === 'preparing' ? effective : Math.min(row.hpCurrent ?? effective, effective);
   }
   if (Object.keys(changes).length === 0) refuse(422, 'Nada para alterar.');
   mutation.tx.update(combatants).set(changes).where(eq(combatants.id, row.id)).run();
@@ -410,13 +420,21 @@ function editCombatant(mutation: Mutation, combatant: LoadedCombatant, body: Rec
  * Passes the turn on when the active combatant is about to leave. Runs before
  * the combatant goes, so its position in the queue is still known.
  */
-function handOffTurn(tx: Executor, loaded: LoadedEncounter, combatantId: string) {
+function handOffTurn(tx: Executor, loaded: LoadedEncounter, combatantId: string, touched = new Set<string>()) {
   const { encounter } = loaded;
   if (encounter.activeCombatantId !== combatantId) return;
   const next = nextTurn(turnOrder(loaded), encounter.activeCombatantId, encounter.round);
   const activeId = next.activeId === combatantId ? null : next.activeId;
   tx.update(encounters).set({ activeCombatantId: activeId, round: next.round }).where(eq(encounters.id, encounter.id)).run();
   beginTurn(tx, activeId);
+  const taking = loaded.combatants.find((combatant) => combatant.row.id === activeId);
+  if (taking) startEffectsOf(tx, taking, touched);
+}
+
+/** The bearer's turn begins: what lasted until then (Shield) ends. */
+function startEffectsOf(tx: Executor, combatant: LoadedCombatant, touched: Set<string>) {
+  const { remaining, expired } = startTurnEffects(combatant.effects);
+  if (expired.length > 0) writeEffects(tx, combatant, remaining, touched);
 }
 
 /**
@@ -469,7 +487,11 @@ export function leaveWithToken(tx: Executor, campaignId: string, token: { id: st
   const scenes = scenesOfEncounter(tx, before).filter((id) => id !== token.sceneId);
   handOffTurn(tx, before, combatantId);
   tx.update(encounters).set({ version: sql`${encounters.version} + 1` }).where(eq(encounters.id, encounter.id)).run();
+  const leaving = loadEncounter(tx, encounter).combatants.find((combatant) => combatant.row.id === combatantId);
+  if (leaving) clearEffects(tx, leaving, new Set());
   tx.delete(combatants).where(eq(combatants.id, combatantId)).run();
+  // What its concentration held up on the others ends with it.
+  settleEffects(tx, encounter, new Set());
   bumpScenes(tx, scenes);
   const after = loadEncounter(tx, findEncounter(tx, campaignId, encounter.id)!);
   return { loaded: after, scenes, waiting: turnWaiters(before, after) };
@@ -483,7 +505,9 @@ export function publishTokenLeave(deps: Deps, campaignId: string, leave: TokenLe
 }
 
 function removeCombatant(mutation: Mutation, combatant: LoadedCombatant) {
-  handOffTurn(mutation.tx, mutation.loaded, combatant.row.id);
+  // Aid ends with the fight: a character leaves with the sheet's maximum.
+  clearEffects(mutation.tx, combatant, mutation.characters);
+  handOffTurn(mutation.tx, mutation.loaded, combatant.row.id, mutation.characters);
   mutation.tx.delete(combatants).where(eq(combatants.id, combatant.row.id)).run();
 }
 
@@ -568,9 +592,16 @@ function changeTurn(mutation: Mutation, body: Record<string, unknown>) {
     } else {
       mutation.tx.update(combatants).set({ conditions: remaining }).where(eq(combatants.id, active.row.id)).run();
     }
+    // Durations in rounds count down even when none runs out.
+    if (active.effects.some((effect) => effect.duration === 'rounds')) {
+      writeEffects(mutation.tx, active, tickEffects(active.effects).remaining, mutation.characters);
+    }
   }
   const next = nextTurn(turnOrder(loaded), encounter.activeCombatantId, encounter.round);
   setEncounter(mutation, { activeCombatantId: next.activeId, round: next.round });
+  // Read again: the one taking the turn may be the one whose turn just ended.
+  const taking = loadEncounter(mutation.tx, encounter).combatants.find((combatant) => combatant.row.id === next.activeId);
+  if (taking) startEffectsOf(mutation.tx, taking, mutation.characters);
 }
 
 function startEncounter(mutation: Mutation) {
@@ -601,6 +632,8 @@ function endEncounter(mutation: Mutation) {
   requireMaster(mutation.viewer);
   if (encounter.status !== 'active') refuse(409, 'Este combate não está em andamento.');
   setEncounter(mutation, { status: 'ended', activeCombatantId: null, endedAt: new Date() });
+  // Effects live in the fight: they all end with it, and Aid's hit points go.
+  for (const combatant of loaded.combatants) clearEffects(tx, combatant, mutation.characters);
   // A condition stays on the sheet after the fight, but its duration in
   // rounds means nothing outside of it.
   for (const combatant of loaded.combatants) {
@@ -1241,6 +1274,53 @@ function dismissReminder(mutation: Mutation, combatant: LoadedCombatant, reminde
   writeVitals(mutation, combatant, {}, withoutReminder(combatant, reminder));
 }
 
+// --- Temporary effects ------------------------------------------------------------------
+
+/**
+ * Who may take an effect off: the master, the bearer's owner, and whoever's
+ * character the effect comes from.
+ */
+function canRemoveEffect(mutation: Mutation, bearer: LoadedCombatant, effect: CombatEffect): boolean {
+  const { viewer, loaded } = mutation;
+  if (viewer.role === 'master' || bearer.ownerId === viewer.userId) return true;
+  const source = loaded.combatants.find((combatant) => combatant.row.id === effect.sourceCombatantId);
+  return source?.ownerId === viewer.userId;
+}
+
+/**
+ * Puts an effect on a combatant, replacing one of the same name. The master
+ * puts any; a player, one on their own character, or one their character is
+ * the source of on an ally (the cleric's Shield of Faith on the fighter).
+ */
+function applyEffect(mutation: Mutation, bearer: LoadedCombatant, body: Record<string, unknown>) {
+  const parsed = parseEffectInput(body);
+  if (!parsed.ok) refuse(422, parsed.error);
+  const input = parsed.effect;
+  const { viewer } = mutation;
+  const source = input.sourceCombatantId === undefined ? null : findCombatant(mutation, input.sourceCombatantId);
+  if (viewer.role !== 'master') {
+    if (source && source.ownerId !== viewer.userId) refuse(403, 'A origem de um efeito seu é o seu personagem.');
+    const ownBearer = bearer.ownerId === viewer.userId;
+    if (!ownBearer && !(source && bearer.row.source === 'character')) {
+      refuse(403, 'Você põe efeitos no seu personagem, ou num aliado quando a origem é o seu personagem.');
+    }
+  }
+  if (input.concentration && !source?.concentrating) refuse(409, `${source?.name ?? 'A origem'} não está concentrando.`);
+  const { effects, replaced } = setEffect(bearer.effects, { id: randomUUID(), ...input });
+  if (replaced && !canRemoveEffect(mutation, bearer, replaced)) refuse(403, `Você não pode substituir ${replaced.name}.`);
+  if (!replaced && bearer.effects.length >= EFFECT_LIMITS.perCombatant) {
+    refuse(409, `${bearer.name} já tem ${EFFECT_LIMITS.perCombatant} efeitos.`);
+  }
+  writeEffects(mutation.tx, bearer, effects, mutation.characters);
+}
+
+function removeEffect(mutation: Mutation, bearer: LoadedCombatant, effectId: string | undefined) {
+  const effect = bearer.effects.find((candidate) => candidate.id === effectId);
+  if (!effect) refuse(404, 'Efeito não encontrado.');
+  if (!canRemoveEffect(mutation, bearer, effect)) refuse(403, 'Você só tira efeitos do seu personagem ou os que vêm dele.');
+  writeEffects(mutation.tx, bearer, bearer.effects.filter((candidate) => candidate !== effect), mutation.characters);
+}
+
 function viewerOf(c: HonoContext<Context>): Viewer {
   return { role: c.var.role, userId: c.var.user.id };
 }
@@ -1274,6 +1354,8 @@ async function mutate(
       // Read before the change: removing a combatant takes its token with it.
       shown = scenesOfEncounter(tx, before);
       run({ tx, loaded: before, viewer, events, characters: touched, scenes: joined, userName: c.var.user.name }, body);
+      // Whatever ended a concentration (a fall, the button, a removal) ends its effects too.
+      settleEffects(tx, findEncounter(tx, c.var.campaignId, encounter.id)!, touched);
       shown = [...new Set([...shown, ...joined])];
       tx.update(encounters)
         .set({ version: sql`${encounters.version} + 1` })
@@ -1592,6 +1674,21 @@ export function encounterRoutes() {
   );
   routes.post(`${combatant}/attack`, (c) => duringFight(c, attack));
   routes.post(`${combatant}/economy`, (c) => duringFight(c, changeEconomy));
+
+  /** Effects: who may act depends on the bearer and the source, so each handler checks. */
+  const onEffects = (
+    c: HonoContext<Context>,
+    act: (mutation: Mutation, bearer: LoadedCombatant, body: Record<string, unknown>) => void,
+  ) =>
+    mutate(c, (mutation, body) => {
+      const bearer = findCombatant(mutation, c.req.param('combatantId') ?? '');
+      requireActive(mutation.loaded.encounter);
+      act(mutation, bearer, body);
+    });
+  routes.post(`${combatant}/effects`, (c) => onEffects(c, applyEffect));
+  routes.delete(`${combatant}/effects/:effectId`, (c) =>
+    onEffects(c, (mutation, bearer) => removeEffect(mutation, bearer, c.req.param('effectId'))),
+  );
 
   return routes;
 }

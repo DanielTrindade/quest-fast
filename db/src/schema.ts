@@ -9,6 +9,7 @@ import {
   TOKEN_KINDS,
   type Ability,
   type ActiveCondition,
+  type CombatEffect,
   type AbilityScores,
   type ArmorTraining,
   type Attack,
@@ -374,6 +375,11 @@ export const combatants = sqliteTable(
      * back to `constitution_modifier`, the rest to 0.
      */
     saveModifiers: text('save_modifiers', { mode: 'json' }).$type<Partial<Record<Ability, number>>>().notNull().default({}),
+    /**
+     * Temporary effects (Shield of Faith, Aid, Slow). They belong to this
+     * fight, so they stay here even for a character: the sheet never changes.
+     */
+    effects: text('effects', { mode: 'json' }).$type<CombatEffect[]>().notNull().default([]),
     /** What is left for the table to resolve. Belongs to this fight, so it stays here even for a character. */
     reminders: text('reminders', { mode: 'json' }).$type<CombatReminder[]>().notNull().default([]),
     /** The round of the last death save rolled: a player rolls once per turn. */

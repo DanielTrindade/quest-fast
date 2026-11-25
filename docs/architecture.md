@@ -73,6 +73,10 @@ parameter properties. Os imports levam a extensão `.ts`.
   ordem de iniciativa, avanço e recuo de turno, faixa de saúde, CD de
   concentração, teste contra a morte, numeração de cópias e limites do
   statblock.
+- `effects.ts`: efeitos temporários do combate (Escudo da Fé, Auxílio,
+  Lentidão): tipos de dano reconhecidos no texto do ataque, durações, queda
+  pela concentração e os valores efetivos de CA, deslocamento, PV máximo e
+  dano sob resistência.
 - `sheet-import.ts`: leitura dos campos do PDF da ficha oficial de 2024, com
   avisos do que não deu para ler com segurança. `statblock-import.ts` converte
   essa leitura numa criatura do bestiário (NPC escrito na ficha oficial).
@@ -390,6 +394,17 @@ está de pé. PV e condições de personagem continuam na ficha; mudar a ficha d
 quem está num encontro também publica `combat.updated`, e excluí-la passa o
 turno adiante, como remover o combatente, antes de o cascade apagá-lo.
 
+Efeito temporário (#112) é a exceção: vive no combatente, mesmo no de
+personagem, e nunca altera a ficha nem o statblock. O servidor soma a base e
+os efeitos; o PV máximo efetivo é o teto da cura. Um efeito que sobe o PV
+máximo (Auxílio) sobe os PV atuais junto, gravados na ficha, e ao sair só
+corta o que passa do novo teto. Todos os efeitos saem quando o encontro
+termina ou o combatente deixa a luta. Efeito de concentração cai de vez quando
+a concentração da origem acaba, pelo botão, por cair a 0, pela ficha ou porque
+a origem saiu do encontro. O mestre gerencia todos; o jogador põe efeito no
+próprio personagem, ou num aliado quando a origem é o personagem dele, e tira
+esses. De um monstro, o jogador recebe só o nome de cada efeito.
+
 ### Campo de batalha (VTT) — decidido, em implementação
 
 As escolhas da fase 4 foram fechadas por medição no
@@ -645,6 +660,7 @@ O raciocínio completo, com alternativas descartadas, está em
 | `SessionEvent` como união discriminada, com fallback | Combate e VTT adicionam tipos sem quebrar o cliente | [session-qol](history/2026-09-10-session-qol-foundations.md) |
 | Ficha oficial 2024, sem motor de regras | Valores derivados com ajuste manual; sem calcular CA por armadura | [ficha oficial](history/2026-09-13-official-character-sheet.md) |
 | PV, condições e concentração do personagem só na ficha | O combatente que vem de um personagem lê e grava a ficha; nunca há dois PV divergentes | [combate](history/2026-10-22-combat-and-bestiary.md) |
+| Efeito temporário no combatente, não na ficha | A ficha nunca precisa ser desfeita depois da luta; o efeito sai com o encontro | [efeitos](history/2026-11-25-temporary-effects.md) |
 | Combate projetado por papel no servidor | O jogador nunca recebe PV de monstro, combatente escondido nem encontro em preparação, nem no REST nem no socket | [combate](history/2026-10-22-combat-and-bestiary.md) |
 | Combatente com id estável, turno por identidade | O token do VTT vai se ancorar no combatente; adicionar ou remover alguém não move o turno | [combate](history/2026-10-22-combat-and-bestiary.md) |
 | Tokens próprios + Storybook como fonte da interface | Consistência e auditoria automática de a11y/overflow | [design system](history/2026-09-04-design-system-foundation.md) |
