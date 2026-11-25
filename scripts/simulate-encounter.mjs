@@ -24,7 +24,7 @@
 // Surto de Ação do mestre e faz os dois ataques do Ataque Extra; ataca fora
 // da vez com a reação, que o mestre devolve. Ysolde cura com a ação bônus,
 // Zephyr se concentra com a ação e ataca sem alvo (o dano sai pelo feed). O
-// bugbear ganha Ataques Múltiplos, que o bestiário guarda; Agarrado zera o
+// bugbear ganha Ataques Múltiplos só neste encontro; Agarrado zera o
 // deslocamento e Exaustão o reduz. Além disso: criatura escondida e revelada,
 // ataque secreto, rolagem secreta, vantagem, salvaguarda com metade do dano,
 // dano ajustado e descartado, PV temporários, condição com duração,
@@ -1658,7 +1658,10 @@ async function savingThrow(player, ability, dc) {
   return passed;
 }
 
-/** The master's numbers for the bugbear: Multiattack, kept by the bestiary for next time. */
+/**
+ * The master's numbers for the bugbear: Multiattack for this encounter only.
+ * The bestiary keeps its own value, edited in Preparo (#108).
+ */
 async function multiattack(active) {
   say('  O mestre lembra dos Ataques Múltiplos do bugbear: 2 ataques por ação.');
   const section = await turnPanel(master, active.name);
@@ -1667,6 +1670,9 @@ async function multiattack(active) {
   await clickAndWait(master.page, section.getByRole('button', { name: `Salvar deslocamento e ataques de ${active.name}` }), `/combatants/${active.id}`);
   const turn = await turnOf(active.name);
   check('o mestre ajusta os ataques por ação da criatura no combate', turn.attacksPerAction === 2, `${turn.attacksPerAction} por ação`);
+  const creature = creatures.find((c) => c.name === 'Bugbear');
+  const { statblock } = await call(master.session, 'GET', `/api/campaigns/${campaignId}/statblocks/${creature.id}`);
+  check('o ajuste vale só no encontro: o bestiário não muda', statblock.attacksPerAction === (creature.attacksPerAction ?? 1), `bestiário com ${statblock.attacksPerAction} por ação`);
   story.multiattack = true;
 }
 
