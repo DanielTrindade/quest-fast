@@ -62,7 +62,7 @@ import type { Context } from '../context.ts';
 import { requireAuth, requireCampaignRole } from '../middleware.ts';
 import { recordRollEvent, recordSpellCastEvent } from '../events/feed.ts';
 import { hpMaxBonusOf, settleCharacterEffects } from '../combat/effects.ts';
-import { deleteCharacter, publishCharacterEncounters, publishCharacterScenes, settleCharacterReminders, spendSheetAttack } from '../combat/routes.ts';
+import { deleteCharacter, publishCharacterEncounters, publishCharacterScenes, publishSheetEncounters, settleCharacterReminders, spendSheetAttack } from '../combat/routes.ts';
 import { boundedInteger, fail, isInputError, parseAttack, shortText, withInput } from '../validation.ts';
 
 function uniqueStrings<T>(values: T[]): T[] {
@@ -699,13 +699,14 @@ export function characterRoutes() {
           .where(and(eq(characters.id, characterId), eq(characters.campaignId, c.var.campaignId)))
           .run();
         settleCharacterReminders(tx, characterId);
-        settleCharacterEffects(tx, c.var.campaignId, characterId);
-        return { hpChanged: changes.hpCurrent !== undefined && changes.hpCurrent !== current.character.hpCurrent };
+        const touched = settleCharacterEffects(tx, c.var.campaignId, characterId);
+        return { touched, hpChanged: changes.hpCurrent !== undefined && changes.hpCurrent !== current.character.hpCurrent };
       }),
     );
     if (isInputError(result)) return c.json({ error: result.inputError }, 422);
     if (!result) return c.json({ error: 'Personagem não encontrado.' }, 404);
-    publishCharacterEncounters(c.var.deps, c.var.campaignId, characterId);
+    // An ally who lost Aid with this concentration changed too.
+    publishSheetEncounters(c.var.deps, c.var.campaignId, [characterId, ...result.touched]);
     c.var.deps.hub.publishCharactersChanged(c.var.campaignId);
     // Falling to 0 or getting back up changes how its token looks on the map.
     if (result.hpChanged) publishCharacterScenes(c.var.deps, c.var.campaignId, characterId);
@@ -764,7 +765,7 @@ export function characterRoutes() {
     }
     const body = raw as Record<string, unknown>;
     const result = await withInput(() =>
-      db.transaction((tx): { event: SpellCastSessionEvent } | false => {
+      db.transaction((tx): { event: SpellCastSessionEvent; touched: Set<string> } | false => {
         const current = characterSelect(tx, c.var.campaignId, characterId);
         if (!current) return false;
         const sheet = toSheet(current, c.var.deps.assets);
@@ -777,13 +778,14 @@ export function characterRoutes() {
         const cast = castSpell(spell, sheet.spellSlots, choice);
         if (!cast.ok) fail(cast.error);
         const where = and(eq(characters.id, characterId), eq(characters.campaignId, c.var.campaignId));
+        let touched = new Set<string>();
         if (spell.concentration && sheet.concentrating) {
           // A new concentration ends the old one: the saves still owed to keep
           // it go with it, before the new one starts.
           tx.update(characters).set({ concentrating: false }).where(where).run();
           settleCharacterReminders(tx, characterId);
           // So do the effects the old spell kept up (Bless on the party).
-          settleCharacterEffects(tx, c.var.campaignId, characterId);
+          touched = settleCharacterEffects(tx, c.var.campaignId, characterId);
         }
         tx.update(characters)
           .set({ spellSlots: cast.slots, ...(spell.concentration ? { concentrating: true } : {}), updatedAt: new Date() })
@@ -791,6 +793,7 @@ export function characterRoutes() {
           .run();
         settleCharacterReminders(tx, characterId);
         return {
+          touched,
           event: recordSpellCastEvent(tx, {
             campaignId: c.var.campaignId,
             userId: c.var.user.id,
@@ -811,7 +814,7 @@ export function characterRoutes() {
     if (isInputError(result)) return c.json({ error: result.inputError }, 422);
     if (!result) return c.json({ error: 'Personagem não encontrado.' }, 404);
     hub.publish(c.var.campaignId, result.event);
-    publishCharacterEncounters(c.var.deps, c.var.campaignId, characterId);
+    publishSheetEncounters(c.var.deps, c.var.campaignId, [characterId, ...result.touched]);
     hub.publishCharactersChanged(c.var.campaignId);
     const updated = characterSelect(db, c.var.campaignId, characterId)!;
     return c.json({ character: toSheet(updated, c.var.deps.assets), event: result.event }, 201);
