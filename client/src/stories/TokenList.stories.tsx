@@ -65,7 +65,7 @@ export const Mestre: Story = {
     // A creature's token says it leaves the encounter too.
     await userEvent.click(list.getByRole('button', { name: 'Remover Goblin 1 do mapa' }));
     await expect(list.getByRole('group', { name: 'Remover Goblin 1 do mapa?' }))
-      .toHaveAccessibleDescription('Também sai do encontro, se ele não terminou.');
+      .toHaveAccessibleDescription('Também sai do encontro, se ele não terminou e ela não tem token em outra cena.');
   },
 };
 

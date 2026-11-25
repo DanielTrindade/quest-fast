@@ -482,6 +482,18 @@ que o `TokenView` do mestre traz `combatantHidden`.
   mudança os remove (o combatente removido ou o encontro excluído leva o token
   junto, por cascata). Editar a ficha ou excluir o personagem faz o mesmo com o
   token dele.
+- **O mapa também muda o combate, num caso só.** O mestre excluir o token de
+  um combatente tira a criatura do encontro, com os mesmos efeitos da remoção
+  pela iniciativa: se era a vez dela, o turno passa, os arrastos de quem não
+  tem a vez são liberados e as outras cenas do encontro são republicadas. Há
+  duas exceções. Encontro encerrado é histórico e não muda. E, se a criatura
+  ainda tem token em outra cena, ela continua no combate.
+- **Nome de combatente é estável.** Uma cópia do bestiário recebe o próximo
+  número depois de todos os nomes do encontro, inclusive os ocultos, e nem a
+  entrada de outra cópia nem revelar a criatura a renomeiam. A numeração que
+  o jogador vê pode ter buracos (Goblin 1, 2, 4), como já acontecia quando um
+  combatente era removido. A troca de nomes confundia o mestre, que removia a
+  criatura errada (#156).
 
 ```mermaid
 sequenceDiagram

@@ -420,25 +420,66 @@ function handOffTurn(tx: Executor, loaded: LoadedEncounter, combatantId: string)
 }
 
 /**
- * The master deleted a combatant's token: the creature leaves the fight with
- * it, as if removed from the encounter. Not from an ended encounter, which is
- * history, nor while another scene still has a token for it. Runs before the
- * token goes; returns the encounter to publish, if it changed.
+ * The scenes an encounter shows on, read before a change: removing a
+ * combatant takes its token with it, and a character's token is the sheet's,
+ * whose reach follows the turn too.
  */
-export function leaveWithToken(tx: Executor, campaignId: string, tokenId: string, combatantId: string): string | null {
+function scenesOfEncounter(tx: Executor, loaded: LoadedEncounter): string[] {
+  return [
+    ...new Set([
+      ...scenesShowing(tx, { combatantIds: loaded.combatants.map((combatant) => combatant.row.id) }),
+      ...loaded.combatants.flatMap((combatant) =>
+        combatant.row.characterId ? scenesShowing(tx, { characterId: combatant.row.characterId }) : []),
+    ]),
+  ];
+}
+
+type Waiting = { id: string; characterId: string | null };
+
+/** The turn moved (round 1 opening included): whoever does not hold it now waits. */
+function turnWaiters(before: LoadedEncounter, after: LoadedEncounter): Waiting[] {
+  const moved = after.encounter.activeCombatantId !== before.encounter.activeCombatantId || after.encounter.round !== before.encounter.round;
+  if (!moved || after.encounter.status !== 'active') return [];
+  return after.combatants
+    .filter((combatant) => combatant.row.id !== after.encounter.activeCombatantId)
+    .map((combatant) => ({ id: combatant.row.id, characterId: combatant.row.characterId }));
+}
+
+/** A creature that left the fight with its token: what to tell the table. */
+export type TokenLeave = { loaded: LoadedEncounter; scenes: string[]; waiting: Waiting[] };
+
+/**
+ * The master deleted a combatant's token: the creature leaves the fight with
+ * it, as if removed from the encounter, with the same effects on the other
+ * maps (#156). Not from an ended encounter, which is history, nor while
+ * another scene still has a token for it. Runs before the token goes; the
+ * token's own scene is left to the caller, which saves and publishes it.
+ */
+export function leaveWithToken(tx: Executor, campaignId: string, token: { id: string; sceneId: string }, combatantId: string): TokenLeave | null {
   const others = tx
     .select({ id: tokens.id })
     .from(tokens)
-    .where(and(eq(tokens.combatantId, combatantId), ne(tokens.id, tokenId)))
+    .where(and(eq(tokens.combatantId, combatantId), ne(tokens.id, token.id)))
     .get();
   if (others) return null;
   const row = tx.select({ encounterId: combatants.encounterId }).from(combatants).where(eq(combatants.id, combatantId)).get();
   const encounter = row && findEncounter(tx, campaignId, row.encounterId);
   if (!encounter || encounter.status === 'ended') return null;
-  handOffTurn(tx, loadEncounter(tx, encounter), combatantId);
+  const before = loadEncounter(tx, encounter);
+  const scenes = scenesOfEncounter(tx, before).filter((id) => id !== token.sceneId);
+  handOffTurn(tx, before, combatantId);
   tx.update(encounters).set({ version: sql`${encounters.version} + 1` }).where(eq(encounters.id, encounter.id)).run();
   tx.delete(combatants).where(eq(combatants.id, combatantId)).run();
-  return encounter.id;
+  bumpScenes(tx, scenes);
+  const after = loadEncounter(tx, findEncounter(tx, campaignId, encounter.id)!);
+  return { loaded: after, scenes, waiting: turnWaiters(before, after) };
+}
+
+/** After the commit, in the order `mutate` uses: drags released, then the fight and the maps. */
+export function publishTokenLeave(deps: Deps, campaignId: string, leave: TokenLeave) {
+  for (const combatant of leave.waiting) releaseTurnDrags(deps, combatant);
+  deps.hub.publishCombat(campaignId, (viewer) => projectEncounter(leave.loaded, viewer));
+  publishScenes(deps, campaignId, leave.scenes);
 }
 
 function removeCombatant(mutation: Mutation, combatant: LoadedCombatant) {
@@ -1222,7 +1263,7 @@ async function mutate(
   const touched = new Set<string>();
   const joined = new Set<string>();
   let shown: string[] = [];
-  let waiting: { id: string; characterId: string | null }[] = [];
+  let waiting: Waiting[] = [];
 
   try {
     const loaded = db.transaction((tx) => {
@@ -1231,14 +1272,7 @@ async function mutate(
       if (!encounter || (viewer.role !== 'master' && encounter.status === 'preparing')) refuse(404, NOT_FOUND);
       const before = loadEncounter(tx, encounter);
       // Read before the change: removing a combatant takes its token with it.
-      // A character's token is the sheet's: its reach follows the turn too.
-      shown = [
-        ...new Set([
-          ...scenesShowing(tx, { combatantIds: before.combatants.map((combatant) => combatant.row.id) }),
-          ...before.combatants.flatMap((combatant) =>
-            combatant.row.characterId ? scenesShowing(tx, { characterId: combatant.row.characterId }) : []),
-        ]),
-      ];
+      shown = scenesOfEncounter(tx, before);
       run({ tx, loaded: before, viewer, events, characters: touched, scenes: joined, userName: c.var.user.name }, body);
       shown = [...new Set([...shown, ...joined])];
       tx.update(encounters)
@@ -1247,13 +1281,7 @@ async function mutate(
         .run();
       bumpScenes(tx, shown);
       const after = loadEncounter(tx, findEncounter(tx, c.var.campaignId, encounter.id)!);
-      // The turn moved (round 1 opening included): whoever does not hold it now waits.
-      const moved = after.encounter.activeCombatantId !== before.encounter.activeCombatantId || after.encounter.round !== before.encounter.round;
-      if (moved && after.encounter.status === 'active') {
-        waiting = after.combatants
-          .filter((combatant) => combatant.row.id !== after.encounter.activeCombatantId)
-          .map((combatant) => ({ id: combatant.row.id, characterId: combatant.row.characterId }));
-      }
+      waiting = turnWaiters(before, after);
       return after;
     });
 

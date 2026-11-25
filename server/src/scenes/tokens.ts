@@ -12,7 +12,7 @@ import {
   type Size,
 } from '@quest-fast/shared';
 import type { Context, Deps } from '../context.ts';
-import { leaveWithToken } from '../combat/routes.ts';
+import { leaveWithToken, publishTokenLeave, type TokenLeave } from '../combat/routes.ts';
 import type { Executor } from '../combat/state.ts';
 import type { Viewer } from '../events/hub.ts';
 import { shortText } from '../validation.ts';
@@ -412,21 +412,21 @@ export function tokenRoutes() {
 
   routes.delete('/:tokenId', (c) => {
     let removed: string | undefined;
-    let leftFight = null as string | null;
+    let leftFight = null as TokenLeave | null;
     return change(
       c,
       (tx, loaded) => {
         const token = findToken(c, loaded);
         requireMaster(c);
         // A creature's token takes it out of the fight too (#156).
-        if (token.row.combatantId) leftFight = leaveWithToken(tx, c.var.campaignId, token.row.id, token.row.combatantId);
+        if (token.row.combatantId) leftFight = leaveWithToken(tx, c.var.campaignId, token.row, token.row.combatantId);
         tx.delete(tokens).where(eq(tokens.id, token.row.id)).run();
         removed = token.row.id;
       },
       {
         after: () => {
           if (removed) c.var.deps.locks.clear(removed);
-          if (leftFight) publishEncounter(c.var.deps, c.var.campaignId, leftFight);
+          if (leftFight) publishTokenLeave(c.var.deps, c.var.campaignId, leftFight);
         },
       },
     );
