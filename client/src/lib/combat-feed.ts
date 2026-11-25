@@ -1,6 +1,7 @@
 import type {
   CombatConditionPayload,
   CombatDeathSavePayload,
+  CombatEffectPayload,
   CombatHitPointsPayload,
   DeathSaves,
   HealthBand,
@@ -8,7 +9,7 @@ import type {
 import { CONDITION_LABELS, conditionLabel } from './combat-labels';
 
 /** What happens to a combatant, as one sentence of the feed. */
-export type FightPayload = CombatHitPointsPayload | CombatConditionPayload | CombatDeathSavePayload;
+export type FightPayload = CombatHitPointsPayload | CombatConditionPayload | CombatEffectPayload | CombatDeathSavePayload;
 
 const BAND_PHRASE: Record<HealthBand, string> = {
   unhurt: 'está ileso',
@@ -44,6 +45,12 @@ function conditionText({ name, action, condition }: CombatConditionPayload): str
   return `A condição ${CONDITION_LABELS[condition.condition]} de ${name} acabou.`;
 }
 
+function effectText({ name, action, effect }: CombatEffectPayload): string {
+  if (action === 'applied') return `${name} está sob ${effect.name}.`;
+  if (action === 'removed') return `${name} não está mais sob ${effect.name}.`;
+  return `${effect.name} de ${name} acabou.`;
+}
+
 /** " (com vantagem: 3 e 13)": both faces, so the table sees which one was kept. */
 function modeText({ mode, rolls }: CombatDeathSavePayload): string {
   if (!mode || !rolls) return '';
@@ -63,6 +70,7 @@ function deathSaveText(payload: CombatDeathSavePayload): string {
 
 export function combatEventText(payload: FightPayload): string {
   if (payload.kind === 'combat.condition') return conditionText(payload);
+  if (payload.kind === 'combat.effect') return effectText(payload);
   if (payload.kind === 'combat.deathSave') return deathSaveText(payload);
   return hitPointsText(payload);
 }

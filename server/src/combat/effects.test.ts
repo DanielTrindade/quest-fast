@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import type { CharacterResponse, CombatEffect, CombatReminder, EncounterView, FeedResponse, RollPayload, RollSessionEvent } from '@quest-fast/shared';
+import type { CharacterResponse, CombatEffect, CombatEffectPayload, CombatReminder, CombatSessionEvent, EncounterView, FeedResponse, RollPayload, RollSessionEvent } from '@quest-fast/shared';
 import { body } from '../testing.ts';
 import { advance, byName, encounterOf, runningEncounter, send, setup, sheet, type Request, type Setup } from './test-setup.ts';
 
@@ -292,4 +292,33 @@ test('the sheet edited mid-fight keeps what Aid adds to the maximum', async () =
   assert.equal(edited.status, 200, await edited.clone().text());
   // A smaller sheet maximum still keeps Aid's 5 on top.
   assert.equal((await sheetOf(s, s.kaelen.id)).hpCurrent, 25);
+});
+
+// --- The feed ---------------------------------------------------------------------------
+
+async function effectEvents(s: Setup, request: Request): Promise<CombatEffectPayload[]> {
+  const { events } = await body<FeedResponse>(await request(`${s.root}/feed`));
+  return (events.filter((event) => event.type === 'combat.effect') as CombatSessionEvent[])
+    .map((event) => event.payload as CombatEffectPayload);
+}
+
+test('the feed tells an effect put on, taken off and run out, by name only', async () => {
+  const { s, id, at, put, path } = await fight();
+  await encounterOf(await put(s.master, 'Goblin 1', { name: 'Pele de Pedra', modifiers: { resistances: ['slashing'] }, duration: 'rounds', roundsLeft: 1 }));
+  let view = await encounterOf(await put(s.master, 'Kaelen', SHIELD_OF_FAITH));
+  await encounterOf(await send(s.master, at('Kaelen', `/effects/${effectOf(view, 'Kaelen', 'Escudo da Fé')!.id}`), 'DELETE'));
+  await encounterOf(await send(s.master, at('Bandido', '/effects'), 'POST', AID));
+  view = await encounterOf(await advance(s.master, path, id('Goblin 1')));
+
+  const seen = (events: CombatEffectPayload[]) => events.map(({ name, action, effect }) => `${name} ${action} ${effect.name}`);
+  assert.deepEqual(seen(await effectEvents(s, s.otherPlayer)), [
+    'Goblin 1 applied Pele de Pedra',
+    'Kaelen applied Escudo da Fé',
+    'Kaelen removed Escudo da Fé',
+    'Goblin 1 expired Pele de Pedra',
+  ]);
+  // The master also reads the hidden bandit's.
+  assert.ok(seen(await effectEvents(s, s.master)).includes('Bandido applied Auxílio'));
+  const [first] = await effectEvents(s, s.otherPlayer);
+  assert.deepEqual(Object.keys(first!.effect).sort(), ['id', 'name']);
 });

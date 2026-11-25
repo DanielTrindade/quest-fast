@@ -285,6 +285,25 @@ em quatro PRs:
    ("36m/24q"). Diferença da spec: os botões de rolagem não dizem, um a um,
    que somam; a barra diz onde vale e mostra o selo.
 
+### Efeitos temporários
+
+Escudo da Fé, Auxílio, Lentidão e Proteção contra Energia no combate
+([#112](https://github.com/DanielTrindade/quest-fast/issues/112)). Spec em
+[`history/2026-11-25-temporary-effects.md`](history/2026-11-25-temporary-effects.md),
+em quatro PRs empilhados:
+
+1. **Regras em `shared/` — entregue.** Tipos de dano lidos do texto do
+   ataque, durações, queda pela concentração e os valores efetivos.
+2. **Efeito no combatente — em revisão.** Coluna nova, rotas com RBAC
+   (quem conjurou também põe e tira), expiração no turno, fim do encontro e
+   projeção: de um monstro, o jogador vê só o nome.
+3. **Números do combate — em revisão.** CA e deslocamento efetivos, dano
+   pendente com a sugestão de resistência e ficha que respeita o Auxílio.
+4. **Na tela — em revisão.** Chips de efeito nos cartões, formulário "Efeito
+   de…" em "PV e condições" e no painel da Mesa, motivo da sugestão no dano
+   pendente e eventos no feed. Fora desta entrega: modelos prontos das magias
+   mais comuns.
+
 ### Telas da campanha
 
 A campanha deixa de ser uma página única com âncoras. Na conta, **Meus

@@ -19,6 +19,7 @@ import type {
   AttackRequest,
   ApplyDamageRequest,
   ConditionRequest,
+  EffectRequest,
   DeathSaveRequest,
   CreatedCampaign,
   InvitePreview,
@@ -387,7 +388,7 @@ export const api = {
     combatantId: string,
     action: string,
     method: 'POST' | 'PUT' | 'DELETE',
-    body?: HpRequest | ConditionRequest | ConcentrationRequest | DeathSaveRequest | ConcentrationSaveRequest | AttackRequest | ApplyDamageRequest,
+    body?: HpRequest | ConditionRequest | ConcentrationRequest | DeathSaveRequest | ConcentrationSaveRequest | AttackRequest | ApplyDamageRequest | EffectRequest,
   ) =>
     request<EncounterResponse>(`/api/campaigns/${campaignId}/encounters/${encounterId}/combatants/${combatantId}/${action}`, {
       method,

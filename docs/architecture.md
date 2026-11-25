@@ -407,7 +407,9 @@ termina ou o combatente deixa a luta. Efeito de concentração cai de vez quando
 a concentração da origem acaba, pelo botão, por cair a 0, pela ficha ou porque
 a origem saiu do encontro. O mestre gerencia todos; o jogador põe efeito no
 próprio personagem, ou num aliado quando a origem é o personagem dele, e tira
-esses. De um monstro, o jogador recebe só o nome de cada efeito.
+esses. De um monstro, o jogador recebe só o nome de cada efeito. O feed conta
+efeito aplicado, removido e expirado (pela duração ou pela concentração) só
+pelo nome, também num aliado; num combatente oculto, o evento é secreto.
 
 ### Campo de batalha (VTT) — decidido, em implementação
 

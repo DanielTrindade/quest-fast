@@ -82,7 +82,7 @@ import { requireAuth, requireCampaignRole } from '../middleware.ts';
 import { boundedInteger, shortText } from '../validation.ts';
 import { releaseTurnDrags } from '../scenes/fight.ts';
 import { bumpScenes, publishScenes, scenesShowing } from '../scenes/store.ts';
-import { clearEffects, settleEffects, writeEffects } from './effects.ts';
+import { clearEffects, settleEffects, writeEffects, type EndedEffect } from './effects.ts';
 import { projectEncounter } from './projection.ts';
 import { attacksOf, findEncounter, loadEncounter, queueOrder, saveModifierOf, turnOrder, type Executor, type LoadedCombatant, type LoadedEncounter } from './state.ts';
 import { beginTurn, budgetOf, writeBudget } from './turn.ts';
@@ -432,10 +432,11 @@ function handOffTurn(tx: Executor, loaded: LoadedEncounter, combatantId: string,
   if (taking) startEffectsOf(tx, taking, touched);
 }
 
-/** The bearer's turn begins: what lasted until then (Shield) ends. */
-function startEffectsOf(tx: Executor, combatant: LoadedCombatant, touched: Set<string>) {
+/** The bearer's turn begins: what lasted until then (Shield) ends, and is returned. */
+function startEffectsOf(tx: Executor, combatant: LoadedCombatant, touched: Set<string>): EndedEffect[] {
   const { remaining, expired } = startTurnEffects(combatant.effects);
   if (expired.length > 0) writeEffects(tx, combatant, remaining, touched);
+  return expired.map((effect) => ({ bearer: combatant, effect }));
 }
 
 /**
@@ -595,14 +596,16 @@ function changeTurn(mutation: Mutation, body: Record<string, unknown>) {
     }
     // Durations in rounds count down even when none runs out.
     if (active.effects.some((effect) => effect.duration === 'rounds')) {
-      writeEffects(mutation.tx, active, tickEffects(active.effects).remaining, mutation.characters);
+      const ticked = tickEffects(active.effects);
+      writeEffects(mutation.tx, active, ticked.remaining, mutation.characters);
+      tellEnded(mutation, ticked.expired.map((effect) => ({ bearer: active, effect })));
     }
   }
   const next = nextTurn(turnOrder(loaded), encounter.activeCombatantId, encounter.round);
   setEncounter(mutation, { activeCombatantId: next.activeId, round: next.round });
   // Read again: the one taking the turn may be the one whose turn just ended.
   const taking = loadEncounter(mutation.tx, encounter).combatants.find((combatant) => combatant.row.id === next.activeId);
-  if (taking) startEffectsOf(mutation.tx, taking, mutation.characters);
+  if (taking) tellEnded(mutation, startEffectsOf(mutation.tx, taking, mutation.characters));
 }
 
 function startEncounter(mutation: Mutation) {
@@ -802,6 +805,15 @@ function tell(mutation: Mutation, combatant: LoadedCombatant, payload: CombatPay
       payload,
     }),
   );
+}
+
+/** Only the name of an effect reaches the feed: on a monster, the numbers are the master's. */
+function tellEffect(mutation: Mutation, bearer: LoadedCombatant, action: 'applied' | 'removed' | 'expired', effect: CombatEffect) {
+  tell(mutation, bearer, { kind: 'combat.effect', ...about(mutation, bearer), action, effect: { id: effect.id, name: effect.name } });
+}
+
+function tellEnded(mutation: Mutation, ended: EndedEffect[]) {
+  for (const { bearer, effect } of ended) tellEffect(mutation, bearer, 'expired', effect);
 }
 
 function parseCondition(param: string | undefined, body: Record<string, unknown>): ActiveCondition {
@@ -1319,12 +1331,14 @@ function applyEffect(mutation: Mutation, bearer: LoadedCombatant, body: Record<s
     }
   }
   if (input.concentration && !source?.concentrating) refuse(409, `${source?.name ?? 'A origem'} não está concentrando.`);
-  const { effects, replaced } = setEffect(bearer.effects, { id: randomUUID(), ...input });
+  const effect: CombatEffect = { id: randomUUID(), ...input };
+  const { effects, replaced } = setEffect(bearer.effects, effect);
   if (replaced && !canRemoveEffect(mutation, bearer, replaced)) refuse(403, `Você não pode substituir ${replaced.name}.`);
   if (!replaced && bearer.effects.length >= EFFECT_LIMITS.perCombatant) {
     refuse(409, `${bearer.name} já tem ${EFFECT_LIMITS.perCombatant} efeitos.`);
   }
   writeEffects(mutation.tx, bearer, effects, mutation.characters);
+  tellEffect(mutation, bearer, 'applied', effect);
 }
 
 function removeEffect(mutation: Mutation, bearer: LoadedCombatant, effectId: string | undefined) {
@@ -1332,6 +1346,7 @@ function removeEffect(mutation: Mutation, bearer: LoadedCombatant, effectId: str
   if (!effect) refuse(404, 'Efeito não encontrado.');
   if (!canRemoveEffect(mutation, bearer, effect)) refuse(403, 'Você só tira efeitos do seu personagem ou os que vêm dele.');
   writeEffects(mutation.tx, bearer, bearer.effects.filter((candidate) => candidate !== effect), mutation.characters);
+  tellEffect(mutation, bearer, 'removed', effect);
 }
 
 function viewerOf(c: HonoContext<Context>): Viewer {
@@ -1366,9 +1381,10 @@ async function mutate(
       const before = loadEncounter(tx, encounter);
       // Read before the change: removing a combatant takes its token with it.
       shown = scenesOfEncounter(tx, before);
-      run({ tx, loaded: before, viewer, events, characters: touched, scenes: joined, userName: c.var.user.name }, body);
+      const mutation: Mutation = { tx, loaded: before, viewer, events, characters: touched, scenes: joined, userName: c.var.user.name };
+      run(mutation, body);
       // Whatever ended a concentration (a fall, the button, a removal) ends its effects too.
-      settleEffects(tx, findEncounter(tx, c.var.campaignId, encounter.id)!, touched);
+      tellEnded(mutation, settleEffects(tx, findEncounter(tx, c.var.campaignId, encounter.id)!, touched));
       shown = [...new Set([...shown, ...joined])];
       tx.update(encounters)
         .set({ version: sql`${encounters.version} + 1` })

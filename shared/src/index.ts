@@ -293,6 +293,7 @@ export type {
   CombatEffectView,
   EffectRequest,
   CombatConditionPayload,
+  CombatEffectPayload,
   CombatDeathSavePayload,
   CombatEndedPayload,
   CombatHitPointsPayload,

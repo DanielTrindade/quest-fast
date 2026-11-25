@@ -1,12 +1,14 @@
 import { useId } from 'react';
 import { Brain, DiceFive, Eye, EyeSlash } from '@phosphor-icons/react';
 import type { CombatantView } from '@quest-fast/shared';
-import { canRollDeathSave, canToggleConcentration, isDown } from '../lib/combatant-state';
+import { canRollDeathSave, canToggleConcentration, effectBearers, isDown } from '../lib/combatant-state';
 import { ArmorShield } from './ArmorShield';
 import { Button } from './Button';
 import { CombatantAttacks } from './CombatantAttacks';
 import { ConditionChips, ConditionPicker } from './ConditionPicker';
 import { DeathSaveTracker } from './DeathSaveTracker';
+import { EffectChips } from './EffectChips';
+import { EffectForm } from './EffectForm';
 import { HealthBand } from './HealthBand';
 import { HpAdjuster } from './HpAdjuster';
 import { HpMeter } from './HpMeter';
@@ -133,6 +135,18 @@ function HitPointsAndConditions({ combatant, busy, actions }: Part) {
   );
 }
 
+/** The effects this combatant's spells and features put on itself or an ally. */
+function Effects({ combatant, targets, master, busy, actions }: Part & { targets: CombatantView[] }) {
+  const { onApplyEffect } = actions;
+  if (!onApplyEffect) return null;
+  return (
+    <div className="grid min-w-0 gap-3 border-t border-border pt-4">
+      <h4 className="m-0 text-small font-semibold text-text-secondary">Efeitos</h4>
+      <EffectForm caster={combatant} bearers={effectBearers(combatant, targets, master)} pending={busy} onApply={onApplyEffect} />
+    </div>
+  );
+}
+
 function HideToggle({ combatant, master, busy, actions }: Part) {
   const { onToggleHidden } = actions;
   if (!master || !onToggleHidden) return null;
@@ -172,10 +186,13 @@ export function CombatantControls({ combatant, targets, master, active, busy = f
     <section aria-labelledby={nameId} className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4">
       <Head combatant={combatant} active={active} nameId={nameId} />
       <ConditionChips name={combatant.name} conditions={combatant.conditions} pending={busy} onRemove={bind(combatant.id, actions.onRemoveCondition)} />
+      {/* Opened for the master or the owner: every effect on it is theirs to take off. */}
+      <EffectChips name={combatant.name} effects={combatant.effects} pending={busy} onRemove={bind(combatant.id, actions.onRemoveEffect)} />
       <Pending {...part} damageReminders={damageReminders} />
       <OwnInitiative {...part} />
       <Attacks {...part} targets={targets} />
       <HitPointsAndConditions {...part} />
+      <Effects {...part} targets={targets} />
       <HideToggle {...part} />
     </section>
   );

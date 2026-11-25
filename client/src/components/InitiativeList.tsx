@@ -5,19 +5,23 @@ import {
   type ActiveCondition,
   type CombatantView,
   type Condition,
+  type CombatEffectView,
+  type EffectRequest,
   type HpOperation,
   type RollMode,
 } from '@quest-fast/shared';
 import { Button } from './Button';
 import { CombatantAttacks, type AttackOptions } from './CombatantAttacks';
 import { ConditionChips, ConditionPicker } from './ConditionPicker';
+import { EffectChips } from './EffectChips';
+import { EffectForm } from './EffectForm';
 import { DeathSaveTracker } from './DeathSaveTracker';
 import { HealthBand } from './HealthBand';
 import { HpAdjuster } from './HpAdjuster';
 import { Input } from './Input';
 import { ReminderList } from './ReminderList';
 import { tiedWith } from '../lib/combat-labels';
-import { canRollDeathSave, canToggleConcentration, isDown } from '../lib/combatant-state';
+import { canRemoveEffect, canRollDeathSave, canToggleConcentration, effectBearers, isDown } from '../lib/combatant-state';
 
 export type InitiativeActions = {
   /** Rolls on the server; the list only asks. */
@@ -39,6 +43,12 @@ export type InitiativeActions = {
   onAttack?: (combatantId: string, attackIndex: number, options: AttackOptions) => void;
   /** The master only. Without an amount, the pending damage goes in whole. */
   onApplyDamage?: (combatantId: string, reminderId: string, amount?: number) => void;
+  /**
+   * The master on anyone; a player on their own character, or on an ally
+   * with their character as the source. The server checks who may.
+   */
+  onApplyEffect?: (bearerId: string, effect: EffectRequest) => void;
+  onRemoveEffect?: (bearerId: string, effectId: string) => void;
 };
 
 type RowProps = InitiativeActions & {
@@ -51,6 +61,8 @@ type RowProps = InitiativeActions & {
   editable: boolean;
   busy: boolean;
   tie: { up: boolean; down: boolean };
+  /** Whether this viewer may take an effect off this combatant; the server checks again. */
+  canRemoveEffect: (effect: CombatEffectView) => boolean;
 };
 
 const score = 'inline-grid size-11 flex-none place-items-center rounded-full border border-border-strong bg-background font-mono text-h2 leading-none font-semibold text-foreground tabular-nums edge-inset group-aria-[current=step]/row:border-accent-text group-aria-[current=step]/row:text-accent-text';
@@ -237,13 +249,15 @@ function MasterActions({ combatant, busy, tie, fight, onMoveTie, ...actions }: I
  * Hit points, concentration and conditions, folded like "Ajustar". A
  * player's own character opens unfolded: it is the card they act on.
  */
-function FightPanel({ combatant, busy, startOpen, onHitPoints, onConcentration, onApplyCondition }: InitiativeActions & {
+function FightPanel({ combatant, targets, master, busy, startOpen, onHitPoints, onConcentration, onApplyCondition, onApplyEffect }: InitiativeActions & {
   combatant: CombatantView;
+  targets: CombatantView[];
+  master: boolean;
   busy: boolean;
   startOpen: boolean;
 }) {
   const { id, name } = combatant;
-  if (!onHitPoints && !onConcentration && !onApplyCondition) return null;
+  if (!onHitPoints && !onConcentration && !onApplyCondition && !onApplyEffect) return null;
   return (
     <details open={startOpen} className="group/fight min-w-0 open:basis-full">
       <summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-1 rounded-control px-3 font-semibold text-accent-text transition-[background-color] duration-(--duration-quick) hover:bg-muted [&::-webkit-details-marker]:hidden">
@@ -269,6 +283,12 @@ function FightPanel({ combatant, busy, startOpen, onHitPoints, onConcentration, 
         {onApplyCondition && (
           <ConditionPicker name={name} conditions={combatant.conditions} listed={false} pending={busy}
             onApply={(condition) => onApplyCondition(id, condition)} />
+        )}
+        {onApplyEffect && (
+          <div className="grid min-w-0 gap-2 border-t border-border pt-3">
+            <h4 className="m-0 text-small font-semibold text-text-secondary">Efeito de {name}</h4>
+            <EffectForm caster={combatant} bearers={effectBearers(combatant, targets, master)} pending={busy} onApply={onApplyEffect} />
+          </div>
         )}
       </div>
     </details>
@@ -335,7 +355,7 @@ function Pending({ combatant, acts, master, canRoll, busy, onDeathSave, onConcen
   );
 }
 
-function InitiativeRow({ combatant, targets, active, own, master, editable, busy, tie, ...actions }: RowProps) {
+function InitiativeRow({ combatant, targets, active, own, master, editable, busy, tie, canRemoveEffect: removes, ...actions }: RowProps) {
   const acts = editable && (master || own);
 
   return (
@@ -353,6 +373,8 @@ function InitiativeRow({ combatant, targets, active, own, master, editable, busy
       {/* Always on the card, so the table reads them at a glance; removable for whoever acts. */}
       <ConditionChips name={combatant.name} conditions={combatant.conditions} pending={busy}
         onRemove={acts && actions.onRemoveCondition ? (condition) => actions.onRemoveCondition!(combatant.id, condition) : undefined} />
+      <EffectChips name={combatant.name} effects={combatant.effects} pending={busy} canRemove={removes}
+        onRemove={editable && actions.onRemoveEffect ? (effectId) => actions.onRemoveEffect!(combatant.id, effectId) : undefined} />
       <Pending combatant={combatant} acts={acts} master={master} canRoll={canRollDeathSave(combatant, { acts, master, active })} busy={busy} {...actions} />
 
       <RowActions combatant={combatant} targets={targets} own={own} master={master} editable={editable} busy={busy} tie={tie} {...actions} />
@@ -361,12 +383,12 @@ function InitiativeRow({ combatant, targets, active, own, master, editable, busy
 }
 
 /** What this viewer may do on the combatant: the master's line, or a player's own controls. */
-function RowActions({ combatant, targets, own, master, editable, busy, tie, ...actions }: Omit<RowProps, 'active'>) {
+function RowActions({ combatant, targets, own, master, editable, busy, tie, ...actions }: Omit<RowProps, 'active' | 'canRemoveEffect'>) {
   // The master acts on anyone; a player only on their own character.
   const acts = editable && (master || own);
   const fight = acts ? (
     <>
-      <FightPanel combatant={combatant} busy={busy} startOpen={own && !master} {...actions} />
+      <FightPanel combatant={combatant} targets={targets} master={master} busy={busy} startOpen={own && !master} {...actions} />
       <AttackPanel combatant={combatant} targets={targets} master={master} busy={busy} {...actions} />
     </>
   ) : null;
@@ -420,6 +442,7 @@ export function InitiativeList({ combatants, activeCombatantId, viewerId, master
           editable={editable}
           busy={busy.has(combatant.id)}
           tie={master ? tiedWith(combatants, index) : { up: false, down: false }}
+          canRemoveEffect={(effect) => canRemoveEffect(effect, combatant, { master, userId: viewerId, combatants })}
           {...actions}
         />
       ))}

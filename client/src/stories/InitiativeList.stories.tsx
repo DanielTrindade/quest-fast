@@ -182,6 +182,8 @@ const fightActions = {
   onDismissReminder: fn(),
   onAttack: fn(),
   onApplyDamage: fn(),
+  onApplyEffect: fn(),
+  onRemoveEffect: fn(),
 };
 
 /** Unfolds a combatant's "PV e condições" panel. */
@@ -321,5 +323,41 @@ export const JogadorAtacando: Story = {
     await expect(list.queryByRole('checkbox', { name: /segredo/ })).toBeNull();
     await userEvent.click(list.getByRole('button', { name: 'Atacar com Machado Grande' }));
     await expect(args.onAttack).toHaveBeenCalledWith('c-hazin', 0, { targetIds: [], mode: 'normal', secret: false });
+  },
+};
+
+/**
+ * Hazin's player: Shield of Faith on Lyra came from Hazin, so it is his to
+ * take off; Aid was the master's. Of the goblin's effect, only the name.
+ */
+export const JogadorComEfeitos: Story = {
+  name: 'Jogador: efeitos',
+  args: {
+    combatants: playerCombatants.map((combatant) => {
+      if (combatant.id === 'c-lyra') {
+        return {
+          ...combatant,
+          effects: [
+            { id: 'ef-faith', name: 'Escudo da Fé', modifiers: { ac: { mode: 'add', value: 2 } }, duration: 'rounds', roundsLeft: 9, sourceCombatantId: 'c-hazin', concentration: false },
+            { id: 'ef-aid', name: 'Auxílio', modifiers: { hpMax: 5 }, duration: 'none', concentration: false },
+          ],
+        } satisfies typeof combatant;
+      }
+      if (combatant.id === 'g2') return { ...combatant, effects: [{ id: 'ef-stone', name: 'Pele de Pedra' }] };
+      return combatant;
+    }),
+    master: false,
+    viewerId: PLAYER_ID,
+    activeCombatantId: 'c-hazin',
+    ...fightActions,
+  },
+  play: async ({ canvasElement, args }) => {
+    const [region] = within(canvasElement).getAllByRole('region', { name: /^Tema / });
+    const list = within(region);
+    await expect(list.queryByRole('button', { name: 'Remover Auxílio de Lyra Ventoclaro' })).toBeNull();
+    await expect(list.queryByRole('button', { name: 'Remover Pele de Pedra de Goblin 2' })).toBeNull();
+    await userEvent.click(list.getByRole('button', { name: 'Remover Escudo da Fé de Lyra Ventoclaro' }));
+    await expect(args.onRemoveEffect).toHaveBeenCalledWith('c-lyra', 'ef-faith');
+    await expect(within(list.getByRole('form', { name: 'Aplicar efeito de Hazin Dan' })).getByLabelText('Em quem')).toBeInTheDocument();
   },
 };

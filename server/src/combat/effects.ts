@@ -48,20 +48,27 @@ export function clearEffects(tx: Executor, combatant: LoadedCombatant, touched: 
   if (combatant.effects.length > 0) writeEffects(tx, combatant, [], touched);
 }
 
+/** An effect that ended, and on whom: what the feed tells. */
+export type EndedEffect = { bearer: LoadedCombatant; effect: CombatEffect };
+
 /**
  * Drops for good the effects whose concentration is gone: the source stopped
  * concentrating (by the button, by falling, on the sheet) or left the fight.
  * Filtering on read is not enough: concentrating again would bring them back.
  */
-export function settleEffects(tx: Executor, encounter: EncounterRow, touched: Set<string>) {
+export function settleEffects(tx: Executor, encounter: EncounterRow, touched: Set<string>): EndedEffect[] {
+  const ended: EndedEffect[] = [];
   const loaded = loadEncounter(tx, encounter);
   const concentrating = new Set(loaded.combatants.filter((combatant) => combatant.concentrating).map((combatant) => combatant.row.id));
   for (const combatant of loaded.combatants) {
     const kept = combatant.effects.filter(
       (effect) => !effect.concentration || (effect.sourceCombatantId !== undefined && concentrating.has(effect.sourceCombatantId)),
     );
-    if (kept.length !== combatant.effects.length) writeEffects(tx, combatant, kept, touched);
+    if (kept.length === combatant.effects.length) continue;
+    writeEffects(tx, combatant, kept, touched);
+    for (const effect of combatant.effects) if (!kept.includes(effect)) ended.push({ bearer: combatant, effect });
   }
+  return ended;
 }
 
 /**
