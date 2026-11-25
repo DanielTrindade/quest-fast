@@ -82,7 +82,7 @@ import { requireAuth, requireCampaignRole } from '../middleware.ts';
 import { boundedInteger, shortText } from '../validation.ts';
 import { releaseTurnDrags } from '../scenes/fight.ts';
 import { bumpScenes, publishScenes, scenesShowing } from '../scenes/store.ts';
-import { clearEffects, settleEffects, writeEffects, type EndedEffect } from './effects.ts';
+import { clearEffects, recordEndedEffects, settleEffects, writeEffects, type Actor, type EndedEffect } from './effects.ts';
 import { projectEncounter } from './projection.ts';
 import { attacksOf, findEncounter, loadEncounter, queueOrder, saveModifierOf, turnOrder, type Executor, type LoadedCombatant, type LoadedEncounter } from './state.ts';
 import { beginTurn, budgetOf, writeBudget } from './turn.ts';
@@ -421,15 +421,16 @@ function editCombatant(mutation: Mutation, combatant: LoadedCombatant, body: Rec
  * Passes the turn on when the active combatant is about to leave. Runs before
  * the combatant goes, so its position in the queue is still known.
  */
-function handOffTurn(tx: Executor, loaded: LoadedEncounter, combatantId: string, touched = new Set<string>()) {
+/** Returns the effects that ended as the next turn began (Shield), for the feed. */
+function handOffTurn(tx: Executor, loaded: LoadedEncounter, combatantId: string, touched = new Set<string>()): EndedEffect[] {
   const { encounter } = loaded;
-  if (encounter.activeCombatantId !== combatantId) return;
+  if (encounter.activeCombatantId !== combatantId) return [];
   const next = nextTurn(turnOrder(loaded), encounter.activeCombatantId, encounter.round);
   const activeId = next.activeId === combatantId ? null : next.activeId;
   tx.update(encounters).set({ activeCombatantId: activeId, round: next.round }).where(eq(encounters.id, encounter.id)).run();
   beginTurn(tx, activeId);
   const taking = loaded.combatants.find((combatant) => combatant.row.id === activeId);
-  if (taking) startEffectsOf(tx, taking, touched);
+  return taking ? startEffectsOf(tx, taking, touched) : [];
 }
 
 /** The bearer's turn begins: what lasted until then (Shield) ends, and is returned. */
@@ -472,6 +473,8 @@ export type TokenLeave = {
   waiting: Waiting[];
   /** Sheets whose hit points moved as effects ended (Aid): their other encounters are published too. */
   characters: Set<string>;
+  /** The effects that ended with it, as the feed tells them. */
+  events: SessionEvent[];
 };
 
 /**
@@ -481,7 +484,13 @@ export type TokenLeave = {
  * another scene still has a token for it. Runs before the token goes; the
  * token's own scene is left to the caller, which saves and publishes it.
  */
-export function leaveWithToken(tx: Executor, campaignId: string, token: { id: string; sceneId: string }, combatantId: string): TokenLeave | null {
+export function leaveWithToken(
+  tx: Executor,
+  campaignId: string,
+  token: { id: string; sceneId: string },
+  combatantId: string,
+  actor: Actor,
+): TokenLeave | null {
   const others = tx
     .select({ id: tokens.id })
     .from(tokens)
@@ -494,21 +503,23 @@ export function leaveWithToken(tx: Executor, campaignId: string, token: { id: st
   const before = loadEncounter(tx, encounter);
   const scenes = scenesOfEncounter(tx, before).filter((id) => id !== token.sceneId);
   const touched = new Set<string>();
-  handOffTurn(tx, before, combatantId, touched);
+  const ended = handOffTurn(tx, before, combatantId, touched);
   tx.update(encounters).set({ version: sql`${encounters.version} + 1` }).where(eq(encounters.id, encounter.id)).run();
   const leaving = loadEncounter(tx, encounter).combatants.find((combatant) => combatant.row.id === combatantId);
   if (leaving) clearEffects(tx, leaving, touched);
   tx.delete(combatants).where(eq(combatants.id, combatantId)).run();
   // What its concentration held up on the others ends with it.
-  settleEffects(tx, encounter, touched);
+  ended.push(...settleEffects(tx, encounter, touched));
   bumpScenes(tx, scenes);
   const after = loadEncounter(tx, findEncounter(tx, campaignId, encounter.id)!);
-  return { loaded: after, scenes, waiting: turnWaiters(before, after), characters: touched };
+  const events = recordEndedEffects(tx, campaignId, actor, ended);
+  return { loaded: after, scenes, waiting: turnWaiters(before, after), characters: touched, events };
 }
 
 /** After the commit, in the order `mutate` uses: drags released, then the fight and the maps. */
 export function publishTokenLeave(deps: Deps, campaignId: string, leave: TokenLeave) {
   for (const combatant of leave.waiting) releaseTurnDrags(deps, combatant);
+  for (const event of leave.events) deps.hub.publish(campaignId, event);
   deps.hub.publishCombat(campaignId, (viewer) => projectEncounter(leave.loaded, viewer));
   publishSheetEncounters(deps, campaignId, leave.characters, [leave.loaded.encounter.id]);
   publishScenes(deps, campaignId, leave.scenes);
@@ -517,7 +528,7 @@ export function publishTokenLeave(deps: Deps, campaignId: string, leave: TokenLe
 function removeCombatant(mutation: Mutation, combatant: LoadedCombatant) {
   // Aid ends with the fight: a character leaves with the sheet's maximum.
   clearEffects(mutation.tx, combatant, mutation.characters);
-  handOffTurn(mutation.tx, mutation.loaded, combatant.row.id, mutation.characters);
+  tellEnded(mutation, handOffTurn(mutation.tx, mutation.loaded, combatant.row.id, mutation.characters));
   mutation.tx.delete(combatants).where(eq(combatants.id, combatant.row.id)).run();
 }
 
@@ -821,7 +832,8 @@ function tellEffect(mutation: Mutation, bearer: LoadedCombatant, action: 'applie
 }
 
 function tellEnded(mutation: Mutation, ended: EndedEffect[]) {
-  for (const { bearer, effect } of ended) tellEffect(mutation, bearer, 'expired', effect);
+  const actor = { userId: mutation.viewer.userId, userName: mutation.userName };
+  mutation.events.push(...recordEndedEffects(mutation.tx, mutation.loaded.encounter.campaignId, actor, ended));
 }
 
 function parseCondition(param: string | undefined, body: Record<string, unknown>): ActiveCondition {
@@ -1500,12 +1512,14 @@ export function publishSheetEncounters(deps: Deps, campaignId: string, character
  * away, so first the turn passes on in every open encounter it was in, as if
  * the master had removed it, and those encounters reach every connection.
  */
-export function deleteCharacter(deps: Deps, campaignId: string, characterId: string) {
+export function deleteCharacter(deps: Deps, campaignId: string, characterId: string, actor: Actor) {
   const { db, hub } = deps;
   let shown: string[] = [];
   let ids: string[] = [];
   const touched = new Set<string>();
+  let events: SessionEvent[] = [];
   const changed = db.transaction((tx) => {
+    const ended: EndedEffect[] = [];
     // Its token goes with it.
     shown = scenesShowing(tx, { characterId });
     bumpScenes(tx, shown);
@@ -1513,15 +1527,17 @@ export function deleteCharacter(deps: Deps, campaignId: string, characterId: str
     for (const id of ids) {
       const loaded = loadEncounter(tx, findEncounter(tx, campaignId, id)!);
       const combatant = loaded.combatants.find((candidate) => candidate.row.characterId === characterId)!;
-      handOffTurn(tx, loaded, combatant.row.id, touched);
+      ended.push(...handOffTurn(tx, loaded, combatant.row.id, touched));
       tx.update(encounters).set({ version: sql`${encounters.version} + 1` }).where(eq(encounters.id, id)).run();
     }
     tx.delete(characters).where(and(eq(characters.id, characterId), eq(characters.campaignId, campaignId))).run();
     // What its concentration held up on the others ends with it, as with any removal.
-    for (const id of ids) settleEffects(tx, findEncounter(tx, campaignId, id)!, touched);
+    for (const id of ids) ended.push(...settleEffects(tx, findEncounter(tx, campaignId, id)!, touched));
     touched.delete(characterId);
+    events = recordEndedEffects(tx, campaignId, actor, ended);
     return ids.map((id) => loadEncounter(tx, findEncounter(tx, campaignId, id)!));
   });
+  for (const event of events) hub.publish(campaignId, event);
   for (const loaded of changed) hub.publishCombat(campaignId, (viewer) => projectEncounter(loaded, viewer));
   publishSheetEncounters(deps, campaignId, touched, ids);
   publishScenes(deps, campaignId, shown);

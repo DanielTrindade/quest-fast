@@ -355,3 +355,18 @@ test('an ally who loses Aid on the sheet path is republished in its other encoun
   // A new version: the clients that hold the other encounter are told.
   assert.ok(after.version > before.version);
 });
+
+test('the feed tells an effect ended by the sheet, or by a turn handed on when someone leaves', async () => {
+  const { s, id, at, put } = await fight();
+  await encounterOf(await send(s.player, at('Kaelen', '/concentration'), 'PUT', { concentrating: true }));
+  await encounterOf(await put(s.player, 'Mira', BLESS_ON(id('Kaelen'))));
+  const state = await s.player(`${s.root}/characters/${s.kaelen.id}/state`, { method: 'PATCH', body: JSON.stringify({ concentrating: false }) });
+  assert.equal(state.status, 200, await state.clone().text());
+
+  // Goblin 1 holds the turn; removing it begins Kaelen's, which ends Shield.
+  await encounterOf(await put(s.master, 'Kaelen', { name: 'Escudo', modifiers: { ac: { mode: 'add', value: 5 } }, duration: 'untilTurnStart' }));
+  await encounterOf(await send(s.master, at('Goblin 1'), 'DELETE'));
+
+  const expired = (await effectEvents(s, s.otherPlayer)).filter(({ action }) => action === 'expired').map(({ name, effect }) => `${name} ${effect.name}`);
+  assert.deepEqual(expired, ['Mira Bênção', 'Kaelen Escudo']);
+});

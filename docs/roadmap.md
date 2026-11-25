@@ -294,10 +294,10 @@ em quatro PRs empilhados:
 
 1. **Regras em `shared/` — entregue.** Tipos de dano lidos do texto do
    ataque, durações, queda pela concentração e os valores efetivos.
-2. **Efeito no combatente — em revisão.** Coluna nova, rotas com RBAC
+2. **Efeito no combatente — entregue.** Coluna nova, rotas com RBAC
    (quem conjurou também põe e tira), expiração no turno, fim do encontro e
    projeção: de um monstro, o jogador vê só o nome.
-3. **Números do combate — em revisão.** CA e deslocamento efetivos, dano
+3. **Números do combate — entregue.** CA e deslocamento efetivos, dano
    pendente com a sugestão de resistência e ficha que respeita o Auxílio.
 4. **Na tela — em revisão.** Chips de efeito nos cartões, formulário "Efeito
    de…" em "PV e condições" e no painel da Mesa, motivo da sugestão no dano

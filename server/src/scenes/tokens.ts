@@ -419,7 +419,7 @@ export function tokenRoutes() {
         const token = findToken(c, loaded);
         requireMaster(c);
         // A creature's token takes it out of the fight too (#156).
-        if (token.row.combatantId) leftFight = leaveWithToken(tx, c.var.campaignId, token.row, token.row.combatantId);
+        if (token.row.combatantId) leftFight = leaveWithToken(tx, c.var.campaignId, token.row, token.row.combatantId, { userId: c.var.user.id, userName: c.var.user.name });
         tx.delete(tokens).where(eq(tokens.id, token.row.id)).run();
         removed = token.row.id;
       },
