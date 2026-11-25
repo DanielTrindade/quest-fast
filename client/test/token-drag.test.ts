@@ -294,3 +294,30 @@ test('a fallen connection ends the gesture in hand with nothing sent, dragged or
   assert.equal(held.at(-1), null);
   assert.equal(drag.settling('t2'), false);
 });
+
+test('a drop is taken only by the gesture of its token; any other drop says so, for the map to put the token back (#109)', async () => {
+  const { drag, grabs, saves } = harness();
+  // No gesture at all: nothing to save.
+  assert.equal(drag.drop('t1', { x: 150, y: 100 }), false);
+
+  // A gesture the connection ended: the late drop is not taken.
+  drag.grab('t1', origin);
+  grabs[0].answer.resolve();
+  await settle();
+  drag.interrupt();
+  assert.equal(drag.drop('t1', { x: 150, y: 100 }), false);
+
+  // The drop of another token than the one in hand is not taken either.
+  drag.grab('t2', origin);
+  assert.equal(drag.drop('t3', { x: 150, y: 100 }), false);
+
+  // The token in hand takes its drop: saved once the lock is there.
+  assert.equal(drag.drop('t2', { x: 150, y: 100 }), true);
+  grabs[1].answer.resolve();
+  await settle();
+  assert.deepEqual(saves.map(({ tokenId, point }) => [tokenId, point]), [['t2', { x: 150, y: 100 }]]);
+
+  // A held drop (a move in a fight) is taken too.
+  drag.grab('t4', origin);
+  assert.equal(drag.drop('t4', { x: 150, y: 100 }, { hold: true }), true);
+});

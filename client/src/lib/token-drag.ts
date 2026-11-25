@@ -46,8 +46,13 @@ export type TokenDragController = {
   active: () => string | null;
   grab: (tokenId: string, origin: Point) => void;
   drag: (tokenId: string, point: Point) => void;
-  /** `hold`: the move waits for `confirm` (a fight counts it); the lock stays meanwhile. */
-  drop: (tokenId: string, point: Point, options?: { hold?: boolean }) => void;
+  /**
+   * `hold`: the move waits for `confirm` (a fight counts it); the lock stays meanwhile.
+   * False when no gesture of this token is in hand (the connection fell, the
+   * token went): nothing will be saved, so the map must put the token back
+   * rather than show it where it was dropped.
+   */
+  drop: (tokenId: string, point: Point, options?: { hold?: boolean }) => boolean;
   /** Saves the held move. */
   confirm: (tokenId: string, options?: { free?: boolean }) => void;
   /** Puts the token back, held or mid-drag, and releases the lock. */
@@ -171,18 +176,19 @@ export function createTokenDrag({ grab, save, throttle, refused, onHeld, onSettl
 
     drop(tokenId, point, options) {
       const gesture = current;
-      if (gesture?.tokenId !== tokenId) return;
+      if (gesture?.tokenId !== tokenId) return false;
       if (options?.hold) {
         // The table keeps seeing it there, and the lock stays alive, until confirmed.
         gesture.held = point;
         gesture.latest = point;
         if (gesture.granted) throttle.move(tokenId, point);
         onHeld?.({ tokenId, ...point });
-        return;
+        return true;
       }
       end(gesture);
       gesture.dropped = point;
       if (gesture.granted) settle(gesture);
+      return true;
     },
 
     confirm(tokenId, options) {

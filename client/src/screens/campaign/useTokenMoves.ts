@@ -121,7 +121,12 @@ export function useTokenMoves({ campaignId, scene, mapRef, confirms }: {
     if (token) drag().grab(tokenId, { x: token.x, y: token.y });
   };
   const onDrag = (tokenId: string, x: number, y: number) => drag().drag(tokenId, { x, y });
-  const onDrop = (tokenId: string, x: number, y: number) => drag().drop(tokenId, { x, y }, { hold: confirms(tokenId) });
+  const onDrop = (tokenId: string, x: number, y: number) => {
+    // A drop no gesture takes is never saved: drawn where it fell, the token
+    // would sit for seconds where the server never put it, and the next press
+    // aimed at it would miss it or catch its neighbour (#109).
+    if (!drag().drop(tokenId, { x, y }, { hold: confirms(tokenId) })) mapRef.current?.cancelDrag(tokenId);
+  };
   const onCancelDrag = (tokenId: string) => drag().cancel(tokenId);
 
   /** A request about one token, with its row busy meanwhile. */
