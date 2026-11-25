@@ -38,6 +38,7 @@
 //
 // SIM_ROUNDS (padrão 6), SIM_PACE (multiplica as pausas, padrão 1) e
 // SIM_SCREEN (padrão 1920x1080) ajustam o ritmo e o tamanho das janelas.
+// SIM_STOP_AFTER=ambush para depois da emboscada e fecha as janelas sozinho.
 
 import { chromium } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
@@ -1011,9 +1012,17 @@ async function moveToken(who, name, to, options = {}) {
     say(`    [AVISO] o arrasto de ${name} não pegou na tela de ${who.label}; nova tentativa.`);
     say(`      sob o ponteiro: ${probe.under}; selecionado depois do toque: ${probe.selected ?? 'nenhum'}; /grab enviado: ${probe.grabbed ? 'sim' : 'não'}`);
     say(`      zoom na tela ${probe.zoom}% (esperado ${probe.expectedZoom}%); canvas ${JSON.stringify(probe.box)}; reenquadrado antes do toque: ${probe.reframed ? 'sim' : 'não'}; o mapa mudou: ${moved}`);
+    say(`      pedidos de token na tela: ${probe.net.length ? probe.net.join('; ') : 'nenhum'}`);
     retriedDrags.push(`${name} (${who.label})`);
     await sleep(1000);
-    return dragToken(who, name, to, options);
+    const again = {};
+    try {
+      return await dragToken(who, name, to, { ...options, probe: again });
+    } catch (error) {
+      say(`      a nova tentativa também falhou. Sob o ponteiro: ${again.under}; selecionado: ${again.selected ?? 'nenhum'}; /grab: ${again.grabbed ? 'sim' : 'não'}`);
+      say(`      pedidos de token na nova tentativa: ${again.net?.length ? again.net.join('; ') : 'nenhum'}`);
+      throw error;
+    }
   }
 }
 
@@ -1038,8 +1047,31 @@ async function dragToken(who, name, to, { hold = false, confirm = null, patience
   if (probe) {
     Object.assign(probe, await probePress(page, start), { expectedZoom: screen.zoom });
     const onGrab = (request) => { if (request.url().endsWith(`/tokens/${token.id}/grab`)) probe.grabbed = true; };
+    // Every token request of this page while the drag runs, by token name, with its answer.
+    probe.net = [];
+    const nameOf = (url) => {
+      const id = url.match(/\/tokens\/([^/?]+)/)?.[1];
+      const rest = url.split(`/tokens/${id}`)[1] ?? '';
+      return `${scene.tokens.find((t) => t.id === id)?.name ?? id}${rest}`;
+    };
+    const onResponse = (response) => {
+      const url = response.url();
+      if (url.includes('/tokens/')) probe.net.push(`${response.request().method()} ${nameOf(url)} → ${response.status()}`);
+    };
+    const onFailed = (request) => {
+      if (request.url().includes('/tokens/')) probe.net.push(`${request.method()} ${nameOf(request.url())} → falhou (${request.failure()?.errorText})`);
+    };
+    const onConsole = (message) => { if (message.type() === 'error' || message.type() === 'warning') probe.net.push(`console.${message.type()}: ${message.text()}`); };
     page.on('request', onGrab);
-    setTimeout(() => page.off('request', onGrab), 15000);
+    page.on('response', onResponse);
+    page.on('requestfailed', onFailed);
+    page.on('console', onConsole);
+    setTimeout(() => {
+      page.off('request', onGrab);
+      page.off('response', onResponse);
+      page.off('requestfailed', onFailed);
+      page.off('console', onConsole);
+    }, 25000);
   }
   await page.mouse.move(start.x, start.y);
   await page.mouse.down();
@@ -1329,6 +1361,8 @@ async function battlefield() {
   await alignGrid();
   await placeTokens();
   await layAmbush();
+  // SIM_STOP_AFTER=ambush: only the map's opening, to repeat the drags quickly.
+  if (process.env.SIM_STOP_AFTER === 'ambush') throw new Error('parada pedida depois da emboscada (SIM_STOP_AFTER)');
   await partyTakesPositions();
   await playerCannotMoveFoe();
   await lockedToken();
@@ -1513,8 +1547,13 @@ async function bramOpens(encounter) {
   await resolveHit(second, secondTarget);
   const thirdTarget = await nextTarget();
   if (!thirdTarget) return;
-  const third = await attack(bram.page, name, bram.attack.name, thirdTarget);
-  check('o servidor recusa um ataque sem ação nem ataque sobrando', third.refused === 422, third.refused ? `HTTP ${third.refused}` : 'atacou de novo');
+  // The screen already knows the turn: the button is off, with the reason under it.
+  const panel = await actingPanel(bram.page, name);
+  await chooseTargets(panel, name, [thirdTarget]);
+  const button = panel.getByRole('button', { name: new RegExp(`^Atacar com ${escapeRegExp(bram.attack.name)}$`) });
+  const blocked = await button.isDisabled();
+  say(`  Bram tenta um terceiro ataque: ${blocked ? 'a tela não oferece (sem ação nem ataque sobrando)' : 'o botão continua ativo'}.`);
+  check('a tela não oferece um ataque sem ação nem ataque sobrando', blocked);
   await sleep(1500);
   story.bramSurge = true;
 }
@@ -2025,7 +2064,7 @@ const expected = [
   'o mestre concede uma ação extra (Surto de Ação)',
   'o primeiro ataque gasta a ação e deixa o segundo do Ataque Extra',
   'o segundo ataque do Ataque Extra não gasta outra ação',
-  'o servidor recusa um ataque sem ação nem ataque sobrando',
+  'a tela não oferece um ataque sem ação nem ataque sobrando',
   'atacar fora da vez gasta a reação, não a ação nem os ataques',
   'a segunda reação na mesma rodada é recusada',
   'o mestre devolve a reação gasta',
@@ -2079,6 +2118,6 @@ if (reaimedDrags.length > 0) say(`\nArrastos remirados porque o canvas se moveu 
 if (retriedDrags.length > 0) say(`\nArrastos que precisaram de nova tentativa: ${retriedDrags.join(', ')}.`);
 
 say('\nSimulação concluída. Feche qualquer janela ou pressione Ctrl+C para sair.');
-await Promise.race(browsers.map((browser) => new Promise((resolve) => browser.on('disconnected', resolve))));
+if (!process.env.SIM_STOP_AFTER) await Promise.race(browsers.map((browser) => new Promise((resolve) => browser.on('disconnected', resolve))));
 await Promise.all(browsers.map((browser) => browser.close().catch(() => {})));
 db.close();
