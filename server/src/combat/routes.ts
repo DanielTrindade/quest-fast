@@ -1295,8 +1295,12 @@ function applyPendingDamage(mutation: Mutation, combatant: LoadedCombatant, remi
   const amount =
     body.amount === undefined ? reminder.amount : boundedInteger(body.amount, C.hpAmount.min, C.hpAmount.max);
   if (amount === undefined) refuse(422, `A quantidade deve ser um número entre ${C.hpAmount.min} e ${C.hpAmount.max}.`);
-  // An immunity left nothing: the master types an amount or dismisses it.
-  if (amount === 0) refuse(409, `${combatant.name} é imune a esse dano. Ajuste o valor ou descarte o lembrete.`);
+  // The target's effects left nothing (an immunity, or a resistance halving 1):
+  // the master types an amount or dismisses it.
+  if (amount === 0) {
+    const why = reminder.adjustment === 'immune' ? `${combatant.name} é imune a esse dano` : `O dano em ${combatant.name} ficou em 0`;
+    refuse(409, `${why}. Ajuste o valor ou descarte o lembrete.`);
+  }
   applyHitPoints(mutation, combatant, 'damage', amount, withoutReminder(combatant, reminder));
 }
 
