@@ -264,28 +264,28 @@ test('revealing a hidden combatant shows it to the players', async () => {
   assert.equal(byName(view, 'Bandido').hidden, false);
 });
 
-test('a hidden copy leaves no gap in the numbering a player sees', async () => {
+test('a combatant keeps its name: a reinforcement numbers after a hidden copy (#156)', async () => {
   const s = await setup();
   const { path } = await runningEncounter(s); // Goblin 1 and 2, visible
   const addGoblin = (hidden: boolean) =>
     send(s.master, `${path}/combatants`, 'POST', { source: 'statblock', statblockId: s.goblin.id, hp: 'average', hidden });
 
-  await encounterOf(await addGoblin(true), 201);
+  const hidden = byName(await encounterOf(await addGoblin(true), 201), 'Goblin 3');
   const master = await encounterOf(await addGoblin(false), 201);
-  // The reinforcement takes the next visible number; the hidden copy gives it up.
-  assert.equal(byName(master, 'Goblin 3').hidden, false);
-  assert.equal(byName(master, 'Goblin 4').hidden, true);
+  // The hidden Goblin 3 is still Goblin 3; the reinforcement is Goblin 4.
+  assert.equal(byName(master, 'Goblin 3').id, hidden.id);
+  assert.equal(byName(master, 'Goblin 4').hidden, false);
   const goblins = (view: EncounterView) =>
     view.combatants.map((combatant) => combatant.name).filter((name) => name.startsWith('Goblin')).sort();
 
-  assert.deepEqual(goblins(await encounterOf(await s.player(path))), ['Goblin 1', 'Goblin 2', 'Goblin 3']);
+  assert.deepEqual(goblins(await encounterOf(await s.player(path))), ['Goblin 1', 'Goblin 2', 'Goblin 4']);
 
-  // Revealed, it comes right after the visible ones.
-  await encounterOf(await send(s.master, `${path}/combatants/${byName(master, 'Goblin 4').id}`, 'PATCH', { hidden: false }));
+  // Revealed, it keeps its name.
+  await encounterOf(await send(s.master, `${path}/combatants/${hidden.id}`, 'PATCH', { hidden: false }));
   assert.deepEqual(goblins(await encounterOf(await s.player(path))), ['Goblin 1', 'Goblin 2', 'Goblin 3', 'Goblin 4']);
 });
 
-test('revealing one of two hidden copies takes the next visible number', async () => {
+test('copies number after every name, and revealing one renames no one', async () => {
   const s = await setup();
   const encounter = await createEncounter(s);
   const path = `${s.base}/${encounter.id}`;
@@ -294,16 +294,12 @@ test('revealing one of two hidden copies takes the next visible number', async (
     await send(s.master, `${path}/combatants`, 'POST', { source: 'statblock', statblockId: s.goblin.id, hp: 'average' }),
     201,
   );
-  // A lone visible copy keeps the plain name; the hidden ones keep theirs.
-  assert.deepEqual(view.combatants.map((combatant) => combatant.name).sort(), ['Goblin', 'Goblin 1', 'Goblin 2']);
+  assert.deepEqual(view.combatants.map((combatant) => combatant.name).sort(), ['Goblin 1', 'Goblin 2', 'Goblin 3']);
 
-  // Goblin 1 becomes Goblin 2, after the plain Goblin; the hidden Goblin 2 moves on.
-  const revealed = byName(view, 'Goblin 1').id;
-  view = await encounterOf(await send(s.master, `${path}/combatants/${revealed}`, 'PATCH', { hidden: false }));
-  assert.equal(byName(view, 'Goblin 2').id, revealed);
-  assert.equal(byName(view, 'Goblin 2').hidden, false);
-  assert.equal(byName(view, 'Goblin 3').hidden, true);
-  assert.equal(new Set(view.combatants.map((combatant) => combatant.name)).size, view.combatants.length);
+  const before = view.combatants.map((combatant) => [combatant.id, combatant.name]);
+  view = await encounterOf(await send(s.master, `${path}/combatants/${byName(view, 'Goblin 1').id}`, 'PATCH', { hidden: false }));
+  assert.equal(byName(view, 'Goblin 1').hidden, false);
+  assert.deepEqual(view.combatants.map((combatant) => [combatant.id, combatant.name]), before);
 });
 
 test('revealing a copy keeps a number that belongs to the creature name', async () => {
@@ -824,7 +820,7 @@ test('deleting an encounter reaches only the sockets that could see it', async (
   assert.deepEqual(playerDeleted, [ended.id]);
 });
 
-test('a reinforcement after a hidden copy reaches the player socket without a gap', async (t) => {
+test('a reinforcement after a hidden copy reaches the player socket without the hidden name', async (t) => {
   const server = await createTestServer(PROFILES);
   const s = await setup({ app: server.app, db: server.db });
   const { path } = await runningEncounter(s);
@@ -843,6 +839,6 @@ test('a reinforcement after a hidden copy reaches the player socket without a ga
 
   const latest = playerUpdates.at(-1)!;
   const goblins = latest.combatants.map((combatant) => combatant.name).filter((name) => name.startsWith('Goblin')).sort();
-  assert.deepEqual(goblins, ['Goblin 1', 'Goblin 2', 'Goblin 3']);
-  assert.equal(JSON.stringify(playerUpdates).includes('Goblin 4'), false);
+  assert.deepEqual(goblins, ['Goblin 1', 'Goblin 2', 'Goblin 4']);
+  assert.equal(JSON.stringify(playerUpdates).includes('Goblin 3'), false);
 });

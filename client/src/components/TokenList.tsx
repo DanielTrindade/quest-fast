@@ -43,6 +43,7 @@ function underFog(token: TokenView, fog: SceneFog | null | undefined): boolean {
 
 function RemoveToken({ token, busy, onRemove }: { token: TokenView; busy: boolean; onRemove: (tokenId: string) => void }) {
   const [confirming, setConfirming] = useState(false);
+  const noteId = useId();
   if (!confirming) {
     return (
       <Button variant="ghost" disabled={busy} onClick={() => setConfirming(true)}>
@@ -50,9 +51,14 @@ function RemoveToken({ token, busy, onRemove }: { token: TokenView; busy: boolea
       </Button>
     );
   }
+  // A creature's token takes it out of the encounter too (the server decides; #156).
+  const leavesFight = token.kind === 'combatant';
   return (
-    <span role="group" aria-label={`Remover ${token.name} do mapa?`}
+    <span role="group" aria-label={`Remover ${token.name} do mapa?`} aria-describedby={leavesFight ? noteId : undefined}
       className="flex max-w-full min-w-0 flex-wrap items-center gap-2 [&>[data-slot=button]]:max-w-full [&>[data-slot=button]]:whitespace-normal">
+      {leavesFight && (
+        <span id={noteId} className="basis-full text-small text-text-secondary">Também sai do encontro, se ele não terminou.</span>
+      )}
       <Button variant="danger" disabled={busy} onClick={() => onRemove(token.id)}>Remover {token.name}</Button>
       <Button variant="ghost" onClick={() => setConfirming(false)}>Manter</Button>
     </span>

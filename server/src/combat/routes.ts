@@ -10,7 +10,6 @@ import {
   STATBLOCK_LIMITS as S,
   abilityModifier,
   applyHpChange,
-  copyNumber,
   damageReminders,
   deathSaveFailure,
   deathSaveOutcome,
@@ -25,7 +24,7 @@ import {
   keepsConcentration,
   nextTurn,
   pendingReminders,
-  placeCopies,
+  numberCopies,
   previousTurn,
   removeCondition,
   BONUS_TOO_BIG,
@@ -59,7 +58,6 @@ import {
   healthBand,
   type CombatPayload,
   type CombatReminder,
-  type CopyEntry,
   type DeathSaves,
   type EncounterListItem,
   type HpOperation,
@@ -206,26 +204,6 @@ function parseHidden(value: unknown): boolean {
   return value;
 }
 
-/** The encounter's names as `placeCopies` sees them: only bestiary copies are renumbered. */
-function copyEntries(loaded: readonly LoadedCombatant[]): CopyEntry[] {
-  return loaded.map(({ row, name }) => ({ id: row.id, name, hidden: row.hidden, renamable: row.source === 'statblock' }));
-}
-
-/**
- * The bestiary name a combatant is a numbered copy of. Only the creature's
- * name tells a copy number from a number in the name; with the creature
- * renamed or deleted, or the copy renamed by the master, there is none.
- */
-function copiedCreature(tx: Executor, row: LoadedCombatant['row']): string | null {
-  if (row.source !== 'statblock' || !row.statblockId) return null;
-  const creature = tx.select({ name: statblocks.name }).from(statblocks).where(eq(statblocks.id, row.statblockId)).get();
-  return creature && copyNumber(row.name, creature.name) !== null ? creature.name : null;
-}
-
-function renameCopies(tx: Executor, renamed: readonly { id: string; name: string }[]) {
-  for (const { id, name } of renamed) tx.update(combatants).set({ name }).where(eq(combatants.id, id)).run();
-}
-
 /**
  * Copies of a bestiary entry joining the encounter, numbered among those
  * already in it. Each copy keeps the entry's values: editing it later never
@@ -244,8 +222,8 @@ function insertCopies(mutation: Mutation, statblockId: string, count: number, hp
   if (hp !== 'average' && hp !== 'rolled') refuse(422, 'Escolha PV médio ou rolado.');
   if (hp === 'rolled' && !statblock.hpFormula) refuse(422, `${statblock.name} não tem fórmula de PV para rolar.`);
 
-  const { names, renamed } = placeCopies(statblock.name, count, hidden, copyEntries(loaded.combatants));
-  renameCopies(tx, renamed);
+  // Numbered after every name, hidden ones too: a combatant keeps its name for good (#156).
+  const names = numberCopies(statblock.name, count, loaded.combatants.map(({ name }) => name));
   return names.map((name) => {
     // A roll can land below 1 with a negative modifier; a creature starts standing.
     const hpMax = hp === 'rolled' ? Math.max(1, rollDice(statblock.hpFormula)!.total) : statblock.hpAverage;
@@ -410,15 +388,6 @@ function editCombatant(mutation: Mutation, combatant: LoadedCombatant, body: Rec
     const name = shortText(body.name, S.name);
     if (!name) refuse(422, `Informe o nome do combatente, com até ${S.name} caracteres.`);
     changes.name = name;
-  } else if (row.hidden && changes.hidden === false) {
-    // A revealed copy takes the next visible number, so the players never see a gap.
-    const creature = copiedCreature(mutation.tx, row);
-    if (creature) {
-      const others = mutation.loaded.combatants.filter((other) => other.row.id !== row.id);
-      const { names, renamed } = placeCopies(creature, 1, false, copyEntries(others));
-      renameCopies(mutation.tx, renamed);
-      changes.name = names[0];
-    }
   }
   if (body.ac !== undefined) {
     const ac = boundedInteger(body.ac, S.ac.min, S.ac.max);
@@ -448,6 +417,28 @@ function handOffTurn(tx: Executor, loaded: LoadedEncounter, combatantId: string)
   const activeId = next.activeId === combatantId ? null : next.activeId;
   tx.update(encounters).set({ activeCombatantId: activeId, round: next.round }).where(eq(encounters.id, encounter.id)).run();
   beginTurn(tx, activeId);
+}
+
+/**
+ * The master deleted a combatant's token: the creature leaves the fight with
+ * it, as if removed from the encounter. Not from an ended encounter, which is
+ * history, nor while another scene still has a token for it. Runs before the
+ * token goes; returns the encounter to publish, if it changed.
+ */
+export function leaveWithToken(tx: Executor, campaignId: string, tokenId: string, combatantId: string): string | null {
+  const others = tx
+    .select({ id: tokens.id })
+    .from(tokens)
+    .where(and(eq(tokens.combatantId, combatantId), ne(tokens.id, tokenId)))
+    .get();
+  if (others) return null;
+  const row = tx.select({ encounterId: combatants.encounterId }).from(combatants).where(eq(combatants.id, combatantId)).get();
+  const encounter = row && findEncounter(tx, campaignId, row.encounterId);
+  if (!encounter || encounter.status === 'ended') return null;
+  handOffTurn(tx, loadEncounter(tx, encounter), combatantId);
+  tx.update(encounters).set({ version: sql`${encounters.version} + 1` }).where(eq(encounters.id, encounter.id)).run();
+  tx.delete(combatants).where(eq(combatants.id, combatantId)).run();
+  return encounter.id;
 }
 
 function removeCombatant(mutation: Mutation, combatant: LoadedCombatant) {

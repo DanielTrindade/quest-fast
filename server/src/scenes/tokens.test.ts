@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { eq } from 'drizzle-orm';
 import type WebSocket from 'ws';
 import { tokens } from '@quest-fast/db';
-import type { SceneResponse, SceneView, SocketMessage, TokenLockedResponse, TokenView } from '@quest-fast/shared';
+import type { EncounterView, SceneResponse, SceneView, SocketMessage, TokenLockedResponse, TokenView } from '@quest-fast/shared';
 import { body, createTestServer, signIn, testImageBytes } from '../testing.ts';
 import { createTokenLocks } from './locks.ts';
 import { PROFILES, byName, connect, encounterOf, runningEncounter, send, setup, until, type Request, type Setup } from '../combat/test-setup.ts';
@@ -583,6 +583,58 @@ test('a hidden free token joins as a hidden combatant', async () => {
   assert.ok(copy);
   const playerView = await encounterOf(await s.player(`${s.root}/encounters/${encounter.id}`));
   assert.equal(playerView.combatants.some((combatant) => combatant.id === copy.id), false);
+});
+
+test('deleting a creature token takes only that creature out of the fight (#156)', async () => {
+  const { s, running, path, token, join } = await freeGoblin();
+  for (const name of ['Goblin 1', 'Goblin 2', 'Kaelen', 'Mira']) {
+    await sceneOf(await add(s, path, { kind: 'combatant', combatantId: running.id(name) }), 201);
+  }
+  const joined = byName(await encounterOf(await join(s.master), 201), 'Goblin 3');
+  await send(s.master, `${running.path}/combatants/${running.id('Goblin 1')}/hp`, 'POST', { operation: 'damage', amount: 3 });
+  const before = await encounterOf(await s.master(running.path));
+
+  await sceneOf(await s.master(`${path}/tokens/${token.id}`, { method: 'DELETE' }));
+  const after = await encounterOf(await s.master(running.path));
+  const summary = (combatants: EncounterView['combatants']) =>
+    combatants.map((combatant) => [combatant.id, combatant.name, combatant.hpCurrent]).sort();
+  assert.deepEqual(summary(after.combatants), summary(before.combatants.filter((combatant) => combatant.id !== joined.id)));
+  assert.ok(after.version > before.version);
+  assert.deepEqual(names(await sceneOf(await s.master(path))).sort(), ['Goblin 1', 'Goblin 2', 'Kaelen', 'Mira']);
+});
+
+test('a creature token deleted while its turn runs passes the turn on', async () => {
+  const s = await setup();
+  const running = await runningEncounter(s); // Goblin 1 acts first
+  const { path } = await openScene(s);
+  const goblin = named(await sceneOf(await add(s, path, { kind: 'combatant', combatantId: running.id('Goblin 1') }), 201), 'Goblin 1');
+  assert.equal(running.encounter.activeCombatantId, running.id('Goblin 1'));
+
+  await sceneOf(await s.master(`${path}/tokens/${goblin.id}`, { method: 'DELETE' }));
+  const after = await encounterOf(await s.master(running.path));
+  assert.equal(after.combatants.some((combatant) => combatant.id === running.id('Goblin 1')), false);
+  assert.equal(after.activeCombatantId, running.id('Kaelen'));
+});
+
+test('a creature token deleted from an ended fight, or with another token left, keeps the combatant', async () => {
+  const s = await setup();
+  const running = await runningEncounter(s);
+  const first = await openScene(s);
+  const form = new FormData();
+  form.set('name', 'Caverna');
+  form.set('image', new Blob([await testImageBytes('png', 600, 400)], { type: 'image/png' }), 'mapa.png');
+  const second = await sceneOf(await s.master(`${s.root}/scenes`, { method: 'POST', body: form }), 201);
+  const secondPath = `${s.root}/scenes/${second.id}`;
+  const here = named(await sceneOf(await add(s, first.path, { kind: 'combatant', combatantId: running.id('Goblin 2') }), 201), 'Goblin 2');
+  await sceneOf(await add(s, secondPath, { kind: 'combatant', combatantId: running.id('Goblin 2') }), 201);
+
+  await sceneOf(await s.master(`${first.path}/tokens/${here.id}`, { method: 'DELETE' }));
+  assert.ok(byName(await encounterOf(await s.master(running.path)), 'Goblin 2'));
+
+  await encounterOf(await send(s.master, `${running.path}/end`, 'POST'));
+  const there = named(await sceneOf(await s.master(secondPath)), 'Goblin 2');
+  await sceneOf(await s.master(`${secondPath}/tokens/${there.id}`, { method: 'DELETE' }));
+  assert.ok(byName(await encounterOf(await s.master(running.path)), 'Goblin 2'));
 });
 
 test('only the master puts a token in the fight, and only a free one from the bestiary', async () => {

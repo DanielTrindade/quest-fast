@@ -416,45 +416,6 @@ export function copyNumber(name: string, creature: string): number | null {
   return copyName(creature, n) === name ? n : null;
 }
 
-export type CopyEntry = {
-  id: string;
-  name: string;
-  hidden: boolean;
-  /** Only numbered creatures give way; a name the master typed stays. */
-  renamable: boolean;
-};
-
-/**
- * Names for `count` copies joining an encounter, so that what a player sees
- * never hints at a hidden combatant. Visible copies number after the visible
- * ones only — a hidden copy leaves no gap. A hidden copy holding one of those
- * names gives it up and takes a number after every name, so the master never
- * sees two combatants with the same name. Hidden copies number after every
- * name. Revealing a copy is placing it again as one visible copy.
- */
-export function placeCopies(
-  name: string,
-  count: number,
-  hidden: boolean,
-  existing: readonly CopyEntry[],
-): { names: string[]; renamed: { id: string; name: string }[] } {
-  const allNames = existing.map((entry) => entry.name);
-  if (hidden) return { names: numberCopies(name, count, allNames), renamed: [] };
-
-  const names = numberCopies(name, count, existing.filter((entry) => !entry.hidden).map((entry) => entry.name));
-  // By number, not text: a copy stored whole and one cut to the limit can be the same copy.
-  const numbered = (copy: string) => (copy === name ? null : copyNumber(copy, name));
-  const taken = new Set(names);
-  const takenNumbers = new Set(names.map(numbered).filter((n) => n !== null));
-  const displaced = existing.filter((entry) => {
-    if (!entry.hidden || !entry.renamable) return false;
-    const n = numbered(entry.name);
-    return taken.has(entry.name) || (n !== null && takenNumbers.has(n));
-  });
-  const fresh = numberCopies(name, displaced.length, [...allNames, ...names]);
-  return { names, renamed: displaced.map((entry, index) => ({ id: entry.id, name: fresh[index]! })) };
-}
-
 /** Bounds of a bestiary entry, shared by the server parser and the editor. */
 export const STATBLOCK_LIMITS = {
   name: 80,
