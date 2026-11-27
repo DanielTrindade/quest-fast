@@ -8,7 +8,7 @@ CREATE TABLE `scene_areas` (
 	`y` real NOT NULL,
 	`angle` real DEFAULT 0 NOT NULL,
 	`name` text NOT NULL,
-	`color` text NOT NULL,
+	`tint` text NOT NULL,
 	`created_by` text NOT NULL,
 	`hidden` integer DEFAULT false NOT NULL,
 	`anchor_token_id` text,

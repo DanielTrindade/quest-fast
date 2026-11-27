@@ -511,7 +511,7 @@ export const sceneAreas = sqliteTable(
     y: real('y').notNull(),
     angle: real('angle').notNull().default(0),
     name: text('name').notNull(),
-    color: text('color', { enum: AREA_COLORS }).notNull(),
+    tint: text('tint', { enum: AREA_COLORS }).notNull(),
     createdBy: text('created_by')
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),

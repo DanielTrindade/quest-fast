@@ -21,7 +21,7 @@ async function sceneOf(response: Response, status = 200): Promise<SceneView> {
   return (await body<SceneResponse>(response)).scene;
 }
 
-const WEB = { shape: 'cube', size: 6, x: 101, y: 99, angle: 0, name: 'Teia', color: 'slate' };
+const WEB = { shape: 'cube', size: 6, x: 101, y: 99, angle: 0, name: 'Teia', tint: 'slate' };
 
 function addArea(request: Request, path: string, input: Record<string, unknown> = {}) {
   return send(request, `${path}/areas`, 'POST', { ...WEB, ...input });
@@ -54,7 +54,7 @@ test('an area rests on a grid intersection and reaches the table with its creato
 test('a player adds their own area and only they or the master change it', async () => {
   const s = await setup();
   const { path } = await openScene(s);
-  const scene = await sceneOf(await addArea(s.player, path, { shape: 'sphere', size: 6, name: 'Bola de Fogo', color: 'crimson' }), 201);
+  const scene = await sceneOf(await addArea(s.player, path, { shape: 'sphere', size: 6, name: 'Bola de Fogo', tint: 'crimson' }), 201);
   const fireball = named(scene, 'Bola de Fogo');
   assert.equal(fireball.createdBy.name, 'Rafael Costa');
 
@@ -102,7 +102,7 @@ test('a non-member gets 404, and a player sees no area of a scene not open for t
 test('an area that does not fit the rules is refused', async () => {
   const s = await setup();
   const { path } = await openScene(s);
-  for (const bad of [{ size: 2 }, { shape: 'star' }, { color: '#ff0000' }, { name: '' }, { x: 'a' }]) {
+  for (const bad of [{ size: 2 }, { shape: 'star' }, { tint: '#ff0000' }, { name: '' }, { x: 'a' }]) {
     assert.equal((await addArea(s.player, path, bad)).status, 422, JSON.stringify(bad));
   }
   const web = named(await sceneOf(await addArea(s.player, path), 201), 'Teia');
@@ -126,7 +126,7 @@ test('a scene holds at most the limit of areas', async () => {
         x: 100,
         y: 100,
         name: `Área ${index}`,
-        color: 'azure' as const,
+        tint: 'azure' as const,
         createdBy: first.createdBy.userId,
       })),
     )
@@ -142,7 +142,7 @@ test('an area follows its token, shows only with it, and goes with it', async ()
   await add({ kind: 'character', characterId: s.mira.id, x: 300, y: 100 });
   const scene = await add({ kind: 'free', label: 'Sacerdote', size: 'medium', x: 500, y: 300 });
   const token = (name: string) => scene.tokens.find((candidate) => candidate.name === name)!;
-  const guardians = { shape: 'sphere', size: 4.5, name: 'Espírito Guardião', color: 'amber' };
+  const guardians = { shape: 'sphere', size: 4.5, name: 'Espírito Guardião', tint: 'amber' };
 
   // A player anchors only on their own character.
   assert.equal((await addArea(s.player, path, { ...guardians, anchorTokenId: token('Mira').id })).status, 403);
