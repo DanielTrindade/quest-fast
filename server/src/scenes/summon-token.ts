@@ -21,8 +21,8 @@ const AROUND = [
  * A new summon appears on the open scene (#114), on a free cell beside its
  * summoner's token, so the player can act with it at once; the master may
  * move it afterwards. Nothing happens when the scene is not open, the
- * summoner has no token there, or the scene is full. Returns the scene to
- * publish, if any.
+ * summoner has no token there, the scene is full or every spot around is
+ * taken: then the master places it. Returns the scene to publish, if any.
  */
 export function placeBesideSummoner(
   tx: Executor,
@@ -54,18 +54,28 @@ export function placeBesideSummoner(
   const grid = gridOf(scene);
   const summonerSize = beside.characterSize ?? beside.combatantSize ?? 'medium';
   const step = (tokenDiameter(summonerSize, scene.gridCellSize) + tokenDiameter(summon.size, scene.gridCellSize)) / 2;
-  const taken = tx.select({ x: tokens.x, y: tokens.y }).from(tokens).where(eq(tokens.sceneId, scene.id)).all();
+  // Every token's square footprint, its size read from the origin.
+  const taken = tx
+    .select({ x: tokens.x, y: tokens.y, size: tokens.size, characterSize: characters.size, combatantSize: combatants.size })
+    .from(tokens)
+    .leftJoin(characters, eq(characters.id, tokens.characterId))
+    .leftJoin(combatants, eq(combatants.id, tokens.combatantId))
+    .where(eq(tokens.sceneId, scene.id))
+    .all()
+    .map((token) => ({ x: token.x, y: token.y, diameter: tokenDiameter(token.characterSize ?? token.combatantSize ?? token.size ?? 'medium', scene.gridCellSize) }));
+  const diameter = tokenDiameter(summon.size, scene.gridCellSize);
   const rest = (x: number, y: number) => {
     const snapped = snapToCell(x, y, grid, summon.size);
     return clampToMap(snapped.x, snapped.y, scene.mapWidth, scene.mapHeight);
   };
-  const candidates = AROUND.map(([dx, dy]) => rest(beside.x + dx * step, beside.y + dy * step));
-  // Free: no token's centre within half a cell of it.
-  const free = candidates.find((point) =>
-    taken.every((token) => Math.hypot(token.x - point.x, token.y - point.y) >= scene.gridCellSize / 2),
-  );
-  tx.insert(tokens)
-    .values({ id: randomUUID(), sceneId: scene.id, kind: 'combatant', combatantId: summon.combatantId, ...(free ?? candidates[0]) })
-    .run();
+  // Free: its square overlaps no other token's (touching edges is fine).
+  const overlaps = (point: { x: number; y: number }) =>
+    taken.some((token) => {
+      const reach = (token.diameter + diameter) / 2 - 0.5;
+      return Math.abs(token.x - point.x) < reach && Math.abs(token.y - point.y) < reach;
+    });
+  const free = AROUND.map(([dx, dy]) => rest(beside.x + dx * step, beside.y + dy * step)).find((point) => !overlaps(point));
+  if (!free) return null;
+  tx.insert(tokens).values({ id: randomUUID(), sceneId: scene.id, kind: 'combatant', combatantId: summon.combatantId, ...free }).run();
   return scene.id;
 }

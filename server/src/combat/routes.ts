@@ -246,7 +246,7 @@ function parseHidden(value: unknown): boolean {
 /** The columns that say who acts with a creature and how it is tied to its summoner. */
 type Control = Pick<
   CombatantRow,
-  'controllerId' | 'createdBy' | 'summonerId' | 'summonConcentration' | 'initiativeMode' | 'roundsLeft'
+  'controllerId' | 'createdBy' | 'summonerId' | 'summonConcentration' | 'initiativeMode' | 'roundsLeft' | 'summoned'
 >;
 
 /** A creature of the master's, summoned by nobody: what every copy gets when nothing is said. */
@@ -254,9 +254,10 @@ function masterControl(mutation: Mutation): Control {
   return { ...controlColumns(null, NO_SUMMON_LINK), createdBy: mutation.viewer.userId };
 }
 
-function controlColumns(controllerId: string | null, link: SummonLinkInput): Omit<Control, 'createdBy'> {
+function controlColumns(controllerId: string | null, link: SummonLinkInput, summoned = link.summonerId !== null): Omit<Control, 'createdBy'> {
   return {
     controllerId,
+    summoned,
     summonerId: link.summonerId,
     summonConcentration: link.concentration,
     initiativeMode: link.initiativeMode,
@@ -398,12 +399,14 @@ function addSummon(mutation: Mutation, body: Record<string, unknown>) {
       attacks,
       speed: sheet.speed,
       attacksPerAction: sheet.attacksPerAction ?? 1,
-      ...controlColumns(controllerId, link),
+      // Made from the simple sheet: a summon, whoever made it.
+      ...controlColumns(controllerId, link, true),
       createdBy: viewer.userId,
     })
     .run();
   const summoner = loaded.combatants.find((combatant) => combatant.row.id === link.summonerId);
-  if (summoner) {
+  // In preparation the fight is the master's alone: nothing of it reaches the map.
+  if (summoner && loaded.encounter.status === 'active') {
     const placed = placeBesideSummoner(
       tx,
       loaded.encounter.campaignId,
@@ -638,6 +641,8 @@ function editCombatant(mutation: Mutation, combatant: LoadedCombatant, body: Rec
     const link = parseLink(mutation, body.summon, 1, row.id);
     Object.assign(changes, {
       summonerId: link.summonerId,
+      // Tied to a summoner, it is a summon from then on.
+      ...(link.summonerId !== null ? { summoned: true } : {}),
       summonConcentration: link.concentration,
       initiativeMode: link.initiativeMode,
       roundsLeft: link.rounds,
@@ -697,15 +702,17 @@ function scenesOfEncounter(tx: Executor, loaded: LoadedEncounter): string[] {
 type Waiting = { id: string; characterId: string | null };
 
 /**
- * The control of a creature changed hands or went back to the master (#114):
- * whoever was dragging its token lets go, as when the turn moves on.
+ * The control of a creature changed hands or went back to the master
+ * (#114), or the fight stopped running, which makes its token the master's:
+ * whoever was dragging it lets go, as when the turn moves on.
  */
 function controlLost(before: LoadedEncounter, after: LoadedEncounter): Waiting[] {
+  const stopped = before.encounter.status === 'active' && after.encounter.status !== 'active';
   return before.combatants
     .filter((combatant) => {
       if (combatant.row.controllerId === null) return false;
       const now = after.combatants.find((candidate) => candidate.row.id === combatant.row.id);
-      return now !== undefined && now.row.controllerId !== combatant.row.controllerId;
+      return stopped || (now !== undefined && now.row.controllerId !== combatant.row.controllerId);
     })
     .map((combatant) => ({ id: combatant.row.id, characterId: null }));
 }
@@ -897,16 +904,17 @@ function changeTurn(mutation: Mutation, body: Record<string, unknown>) {
     }
   }
   const next = nextTurn(turnOrder(loaded), encounter.activeCombatantId, encounter.round);
-  // A summon's duration counts its own turns (#114): at 0 it leaves once the turn has passed on.
+  // A summon's duration counts its own turns (#114): at 0 it leaves once the
+  // turn has passed on, even when nobody else is left to take it.
   const duration = active ? tickSummonRounds(active.row.roundsLeft) : null;
-  const expires = active && duration?.expired && next.activeId !== active.row.id ? active : null;
+  const expires = active && duration?.expired ? active : null;
   if (active && duration && !expires && duration.roundsLeft !== active.row.roundsLeft) {
     mutation.tx.update(combatants).set({ roundsLeft: duration.roundsLeft }).where(eq(combatants.id, active.row.id)).run();
   }
   setEncounter(mutation, { activeCombatantId: next.activeId, round: next.round });
   // Read again: the one taking the turn may be the one whose turn just ended.
   const current = loadEncounter(mutation.tx, encounter);
-  const taking = current.combatants.find((combatant) => combatant.row.id === next.activeId);
+  const taking = current.combatants.find((combatant) => combatant.row.id === next.activeId && combatant.row.id !== expires?.row.id);
   if (taking) tellEnded(mutation, startEffectsOf(mutation.tx, taking, mutation.characters));
   const expiring = expires && current.combatants.find((combatant) => combatant.row.id === expires.row.id);
   if (expiring) {

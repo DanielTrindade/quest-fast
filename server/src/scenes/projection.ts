@@ -94,7 +94,14 @@ export function areaVisibleTo(area: LoadedArea, tokens: LoadedToken[], viewer: V
       hidden: row.hidden,
       byMaster: area.byMaster,
       anchor: anchor
-        ? { kind: anchor.row.kind, hidden: anchor.row.hidden, combatantHidden: anchor.combatantHidden, x: anchor.row.x, y: anchor.row.y }
+        ? {
+            kind: anchor.row.kind,
+            hidden: anchor.row.hidden,
+            combatantHidden: anchor.combatantHidden,
+            x: anchor.row.x,
+            y: anchor.row.y,
+            ownerId: anchor.ownerId,
+          }
         : null,
       x: row.x,
       y: row.y,

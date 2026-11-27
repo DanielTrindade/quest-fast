@@ -70,15 +70,19 @@ export function endCombatant(tx: Executor, loaded: LoadedEncounter, combatant: L
 }
 
 /**
- * A summon (#114): tied to a summoner, or made by the player who controls it.
- * A creature the master only handed to a player is not one: it stays when
- * the fight ends.
+ * A summon (#114): came in tied to a summoner, or from the simple sheet. A
+ * creature the master only handed to a player is not one: it stays when the
+ * fight ends.
  */
-export function isSummon(row: Pick<CombatantRow, 'summonerId' | 'controllerId' | 'createdBy'>): boolean {
-  return row.summonerId !== null || (row.controllerId !== null && row.createdBy === row.controllerId);
+export function isSummon(row: Pick<CombatantRow, 'summoned'>): boolean {
+  return row.summoned;
 }
 
-/** The feed's line for a summon coming in or going; a hidden one's stays the master's. */
+/**
+ * The feed's line for a summon coming in or going. A hidden one's stays the
+ * master's, and so does one in an encounter still in preparation, which the
+ * table does not know about.
+ */
 export function recordSummon(
   tx: Executor,
   campaignId: string,
@@ -86,11 +90,12 @@ export function recordSummon(
   summon: LoadedCombatant,
   change: { action: 'joined'; summonerName?: string } | { action: 'left'; reason: SummonEnd },
 ): CombatSessionEvent {
+  const status = tx.select({ status: encounters.status }).from(encounters).where(eq(encounters.id, summon.row.encounterId)).get()?.status;
   return recordCombatEvent(tx, {
     campaignId,
     userId: actor.userId,
     userName: actor.userName,
-    secret: summon.row.hidden,
+    secret: summon.row.hidden || status === 'preparing',
     payload: {
       kind: 'combat.summon',
       encounterId: summon.row.encounterId,
