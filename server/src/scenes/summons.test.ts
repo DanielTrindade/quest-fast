@@ -2,7 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { CombatSummonPayload, EncounterView, FeedResponse, SceneResponse, SceneView, SummonSheetInput, TokenView } from '@quest-fast/shared';
 import { body, testImageBytes } from '../testing.ts';
-import { advance, byName, encounterOf, runningEncounter, send, setup, type Request, type Setup } from '../combat/test-setup.ts';
+import { eq } from 'drizzle-orm';
+import { combatants } from '@quest-fast/db';
+import { advance, byName, createEncounter, encounterOf, runningEncounter, send, setup, type Request, type Setup } from '../combat/test-setup.ts';
 
 /**
  * Summons on the map and how they leave the fight (#114). A 600 × 400 map
@@ -126,7 +128,52 @@ test('under the fog the table still sees a creature a player controls, and its c
   const token = named(await b.view(), SPIRIT.name)!.id;
   const area = { shape: 'sphere', size: 3, name: 'Aura', tint: 'amber', x: 60, y: 60, anchorTokenId: token };
   assert.equal((await send(b.s.otherPlayer, `${b.scene}/areas`, 'POST', area)).status, 403);
-  assert.equal((await send(b.s.player, `${b.scene}/areas`, 'POST', area)).status, 201);
+  const created = await sceneOf(await send(b.s.player, `${b.scene}/areas`, 'POST', area), 201);
+  // The aura follows an ally the player sees, so it shows too.
+  assert.ok(created.areas.some((candidate) => candidate.name === 'Aura'));
+  assert.ok((await b.view(b.s.otherPlayer)).areas.some((candidate) => candidate.name === 'Aura'));
+});
+
+test('a summon in an encounter still in preparation reaches neither the feed of the table nor the map', async () => {
+  const b = await battle();
+  const before = await b.view();
+  const preparing = await createEncounter(b.s, 'Covil');
+  const path = `${b.s.base}/${preparing.id}`;
+  const kaelen = byName(await encounterOf(await send(b.s.master, `${path}/combatants`, 'POST', { source: 'character', characterId: b.s.kaelen.id }), 201), 'Kaelen').id;
+  const view = await encounterOf(
+    await send(b.s.master, `${path}/combatants`, 'POST', {
+      source: 'summon',
+      sheet: SPIRIT,
+      summon: { summonerId: kaelen, initiativeMode: 'withSummoner', concentration: false, rounds: null },
+      controllerId: b.s.kaelen.ownerId,
+    }),
+    201,
+  );
+  await encounterOf(await send(b.s.master, `${path}/combatants/${byName(view, SPIRIT.name).id}`, 'DELETE'));
+  assert.deepEqual(await summonEvents(b.s, b.s.player), []);
+  assert.equal((await summonEvents(b.s, b.s.master)).length, 2);
+  const after = await b.view(b.s.player);
+  assert.equal(named(after, SPIRIT.name), undefined);
+  assert.equal(after.tokens.length, before.tokens.length);
+});
+
+test('a summon with no room beside its summoner waits for the master to place it', async () => {
+  const b = await battle();
+  for (const [dx, dy] of [[1, 0], [0, 1], [-1, 0], [0, -1], [1, 1], [-1, 1], [-1, -1], [1, -1]]) {
+    await sceneOf(await send(b.s.master, `${b.scene}/tokens`, 'POST', { kind: 'free', label: `Barril ${dx} ${dy}`, size: 'medium', x: 50 + dx * CELL, y: 50 + dy * CELL }), 201);
+  }
+  await b.summon();
+  assert.equal(named(await b.view(), SPIRIT.name), undefined);
+  assert.ok((await b.fight()).combatants.some((combatant) => combatant.name === SPIRIT.name), 'it is in the fight all the same');
+});
+
+test('a large summon is placed clear of its summoner', async () => {
+  const b = await battle();
+  await b.summon({}, { size: 'large' });
+  const spirit = named(await b.view(), SPIRIT.name)!;
+  const kaelen = named(await b.view(), 'Kaelen')!;
+  // A large token is two cells wide: its square must not reach into Kaelen's.
+  assert.ok(Math.abs(spirit.x - kaelen.x) >= 1.5 * CELL || Math.abs(spirit.y - kaelen.y) >= 1.5 * CELL, `${spirit.x},${spirit.y}`);
 });
 
 test('a summon held by concentration leaves when the summoner stops concentrating; one without stays', async () => {
@@ -202,6 +249,62 @@ test('the end of the fight takes the summons and their tokens; a creature only h
   assert.equal(named(await b.view(), SPIRIT.name), undefined);
   const [left] = (await summonEvents(b.s, b.s.master)).filter((event) => event.action === 'left');
   assert.equal(left.reason, 'ended');
+});
+
+test('a summon stays one after its summoner leaves and its control changes, and the end of the fight takes it', async () => {
+  const b = await battle();
+  const spirit = await b.summon();
+  await encounterOf(await send(b.s.master, b.at(b.id('Kaelen')), 'DELETE'));
+  await encounterOf(await send(b.s.master, b.at(spirit), 'PATCH', { controllerId: b.s.mira.ownerId }));
+  await encounterOf(await send(b.s.master, b.at(spirit), 'PATCH', { controllerId: null }));
+  const ended = await encounterOf(await send(b.s.master, `${b.path}/end`, 'POST'));
+  assert.equal(ended.combatants.some((combatant) => combatant.id === spirit), false);
+});
+
+test('the end of the fight lets go of the drag of a creature that was a player’s', async () => {
+  const b = await battle();
+  await encounterOf(await send(b.s.master, b.at(b.id('Goblin 2')), 'PATCH', { controllerId: b.s.kaelen.ownerId }));
+  const placed = await sceneOf(await send(b.s.master, `${b.scene}/tokens`, 'POST', { kind: 'combatant', combatantId: b.id('Goblin 2'), x: 210, y: 150 }), 201);
+  const token = named(placed, 'Goblin 2')!.id;
+  for (const name of ['Goblin 1', 'Kaelen', 'Bandido']) await encounterOf(await advance(b.s.master, b.path, b.id(name)));
+  await sceneOf(await send(b.s.player, `${b.scene}/tokens/${token}/grab`, 'POST'));
+  assert.notEqual(named(await b.view(), 'Goblin 2')?.movingBy, null);
+
+  await encounterOf(await send(b.s.master, `${b.path}/end`, 'POST'));
+  assert.equal(named(await b.view(), 'Goblin 2')?.movingBy, null);
+  assert.equal((await send(b.s.master, `${b.scene}/tokens/${token}/grab`, 'POST')).status, 200);
+});
+
+test('a summon with one round left leaves even when nobody else is left to take the turn', async () => {
+  const s = await setup();
+  const encounter = await createEncounter(s);
+  const path = `${s.base}/${encounter.id}`;
+  const goblin = byName(
+    await encounterOf(await send(s.master, `${path}/combatants`, 'POST', { source: 'statblock', statblockId: s.goblin.id, count: 1, hp: 'average' }), 201),
+    'Goblin',
+  ).id;
+  const spirit = byName(
+    await encounterOf(
+      await send(s.master, `${path}/combatants`, 'POST', {
+        source: 'summon',
+        sheet: SPIRIT,
+        summon: { summonerId: goblin, initiativeMode: 'own', concentration: false, rounds: 1 },
+      }),
+      201,
+    ),
+    SPIRIT.name,
+  ).id;
+  await encounterOf(await send(s.master, `${path}/combatants/${goblin}/initiative`, 'POST', { value: 10 }));
+  await encounterOf(await send(s.master, `${path}/combatants/${spirit}/initiative`, 'POST', { value: 15 }));
+  await encounterOf(await send(s.master, `${path}/start`, 'POST'));
+  await encounterOf(await advance(s.master, path, null, 0));
+  // The goblin falls: the summon is the only one left standing.
+  s.app.db.update(combatants).set({ hpCurrent: 0 }).where(eq(combatants.id, goblin)).run();
+  const view = await encounterOf(await advance(s.master, path, spirit));
+  assert.equal(view.combatants.some((combatant) => combatant.id === spirit), false);
+  assert.equal(view.activeCombatantId, null);
+  const [left] = (await summonEvents(s, s.master)).filter((event) => event.action === 'left');
+  assert.equal(left.reason, 'duration');
 });
 
 test('dismissing a summon is told to the table', async () => {
