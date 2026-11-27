@@ -3,7 +3,7 @@ import type { DieResult, RollMode } from './dice.ts';
 import type { BonusRoll, RollBonusInput } from './roll-bonus.ts';
 import type { Ability, Skill } from './modifiers.ts';
 import type { ArmorTraining, Coins, DeathSaves, HitDie, Size, Spell, SpellSlot } from './sheet.ts';
-import type { AreaColor, AreaShape } from './areas.ts';
+import type { AreaColor, AreaGeometry, AreaShape } from './areas.ts';
 import type { GridSettings, TokenKind } from './battlefield.ts';
 import type { SceneFog } from './fog.ts';
 import type { ChatMessageView } from './chat.ts';
@@ -507,17 +507,35 @@ export type SocketMessage =
    * token; `ts` is the server's clock, for the receiver's interpolation.
    */
   | { type: 'token.moving'; tokenId: string; x: number; y: number; ts: number }
+  /**
+   * A reference area someone is drawing on the open scene (#113), never
+   * saved. `area: null` clears it at once; `done` means it was let go and
+   * stays `AREA_LIMITS.previewLingerMs`. Without news for
+   * `AREA_LIMITS.previewStaleMs` while not done, the receiver drops it: a
+   * master's area that goes under the fog simply stops reaching a player.
+   */
+  | {
+      type: 'area.previewing';
+      sceneId: string;
+      by: { userId: string; name: string };
+      area: AreaGeometry | null;
+      done: boolean;
+      ts: number;
+    }
   /** A new message of the table chat, to every member. */
   | { type: 'chat.message'; message: ChatMessageView }
   /** A chat message was removed: its text is never sent again. */
   | { type: 'chat.removed'; messageId: string };
 
 /**
- * What the client may send over the socket: only the position of the token it
- * is dragging, and only while it holds the lock (`POST …/grab`). Anything else
- * goes through REST.
+ * What the client may send over the socket: the position of the token it is
+ * dragging, only while it holds the lock (`POST …/grab`), and the reference
+ * area it is drawing on the scene open for the table (`area: null` clears it,
+ * `done` lets it go). Anything else goes through REST.
  */
-export type ClientSocketMessage = { type: 'token.move'; tokenId: string; x: number; y: number };
+export type ClientSocketMessage =
+  | { type: 'token.move'; tokenId: string; x: number; y: number }
+  | { type: 'area.preview'; sceneId: string; area: AreaGeometry | null; done: boolean };
 
 // --- Phase 2: combat and bestiary --------------------------------------------
 
