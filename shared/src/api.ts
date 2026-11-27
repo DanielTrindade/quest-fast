@@ -588,6 +588,23 @@ export type StatblockSummary = Pick<
   'id' | 'name' | 'size' | 'creatureType' | 'challengeRating' | 'ac' | 'hpAverage' | 'hpFormula'
 >;
 export type StatblockResponse = { statblock: Statblock };
+
+/**
+ * The simple sheet of a summon a player makes in the running fight (#114),
+ * without the bestiary. Its saves roll +0, as a manual combatant's.
+ */
+export type SummonSheetInput = {
+  name: string;
+  size: Size;
+  ac: number;
+  hp: number;
+  /** Metres. */
+  speed: number;
+  initiativeBonus: number;
+  /** Multiattack: attacks of one Attack action. 1 when absent. */
+  attacksPerAction?: number;
+  attacks: AttackInput[];
+};
 export type StatblockListResponse = { statblocks: StatblockSummary[] };
 
 export type EncounterStatus = (typeof ENCOUNTER_STATUSES)[number];

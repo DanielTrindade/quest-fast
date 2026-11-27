@@ -3,7 +3,7 @@
 O que já existe, o que vem a seguir e o que está em aberto. Atualize este
 arquivo no PR que entrega ou muda o escopo de uma etapa.
 
-Atualizado em 2026-11-25.
+Atualizado em 2026-11-27.
 
 ## Entregue
 
@@ -321,11 +321,29 @@ em quatro PRs empilhados:
 3. **Prévia ao vivo — entregue.** A área de referência vai pelo socket
    enquanto é desenhada, com a mesma regra de fog, e fica 5 s depois de
    soltar.
-4. **Na tela — em revisão.** "Marcar área" ao lado do mapa, para todos: a
+4. **Na tela — entregue.** "Marcar área" ao lado do mapa, para todos: a
    barra com a forma, a medida e o tipo, a lista acessível das áreas da cena
    e o desenho no `MapCanvas`, sob os tokens. A área ancorada acompanha o
    arrasto ao vivo. Fora desta entrega: pré-selecionar os alvos do ataque
    com vários alvos pela área.
+
+### Invocações
+
+Invocar Construto, Invocar Besta, Encontrar Familiar e Animar Mortos: a
+criatura que o jogador controla no combate
+([#114](https://github.com/DanielTrindade/quest-fast/issues/114)). Spec em
+[`history/2026-11-27-summons.md`](history/2026-11-27-summons.md), em quatro
+PRs empilhados:
+
+1. **Regras em `shared/` — em revisão.** A invocação que age junto vem logo
+   depois de quem a invocou, com a mesma contagem; a ficha simples do
+   jogador, o vínculo com quem invocou (concentração e duração em rounds) e a
+   regra de quem é aliado aberto à mesa.
+2. **Combate no servidor.** Controlador no combatente, criação pelo mestre e
+   pelo jogador, RBAC pelo controlador e projeção como aliado.
+3. **Mapa e ciclo de vida.** Token do controlador e saída pela concentração,
+   pela duração e no fim do combate.
+4. **Na tela.** "Invocar" na Mesa, os campos do mestre e "Agir com".
 
 ### Telas da campanha
 

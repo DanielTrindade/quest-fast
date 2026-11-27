@@ -8,10 +8,10 @@
 import { ABILITIES, isAbility } from './modifiers.ts';
 import { parseDiceExpression } from './dice.ts';
 import { hasDamage, isSaveEffect } from './attack.ts';
-import { CHARACTER_LIMITS as L, COINS, SPELL_SLOT_CAPS, isSpeed } from './sheet.ts';
+import { CHARACTER_LIMITS as L, COINS, SPELL_SLOT_CAPS, isSize, isSpeed } from './sheet.ts';
 import { TURN_LIMITS, isAttacksPerAction } from './turn.ts';
 import { STATBLOCK_LIMITS as S, isChallengeRating } from './combat.ts';
-import type { AttackInput, CharacterInput, StatblockInput } from './api.ts';
+import type { AttackInput, CharacterInput, StatblockInput, SummonSheetInput } from './api.ts';
 import type { ImportedAttack } from './sheet-import.ts';
 
 export type CharacterFieldErrors = Partial<
@@ -268,5 +268,34 @@ export function validateStatblockInput(input: ValidatedStatblock): StatblockFiel
     if (tooLong(input[key], S.text)) errors[key] = `Use até ${S.text} caracteres.`;
   }
 
+  return errors;
+}
+
+export type SummonFieldErrors = Partial<
+  Record<'name' | 'size' | 'ac' | 'hp' | 'speed' | 'initiativeBonus' | 'attacksPerAction' | 'attacks', string>
+>;
+
+/**
+ * Same contract as `validateStatblockInput`, for the simple sheet of a summon
+ * a player makes (#114): the bestiary's bounds, the sheet's speed in metres.
+ */
+export function validateSummonSheet(input: SummonSheetInput): SummonFieldErrors {
+  const errors: SummonFieldErrors = {};
+  if (typeof input.name !== 'string' || input.name.trim().length === 0) errors.name = 'Informe o nome da invocação.';
+  else if (input.name.length > S.name) errors.name = `O nome deve ter até ${S.name} caracteres.`;
+  if (!isSize(input.size)) errors.size = 'Tamanho inválido.';
+  if (!inRange(input.ac, S.ac.min, S.ac.max)) errors.ac = `CA deve ser um número entre ${S.ac.min} e ${S.ac.max}.`;
+  if (!inRange(input.hp, S.hp.min, S.hp.max)) errors.hp = `PV deve ser um número entre ${S.hp.min} e ${S.hp.max}.`;
+  if (!isSpeed(input.speed)) {
+    errors.speed = `Deslocamento deve estar entre ${L.speed.min} e ${L.speed.max} metros, com até uma casa decimal.`;
+  }
+  if (!inRange(input.initiativeBonus, S.initiativeBonus.min, S.initiativeBonus.max)) {
+    errors.initiativeBonus = `O bônus deve ser um número entre ${S.initiativeBonus.min} e ${S.initiativeBonus.max}.`;
+  }
+  if (input.attacksPerAction !== undefined && !isAttacksPerAction(input.attacksPerAction)) {
+    errors.attacksPerAction = `Ataques por ação deve ser um número entre ${TURN_LIMITS.attacksPerAction.min} e ${TURN_LIMITS.attacksPerAction.max}.`;
+  }
+  const attacksError = Array.isArray(input.attacks) ? attackListError(input.attacks, S.attacks) : 'Ataques inválidos.';
+  if (attacksError) errors.attacks = attacksError;
   return errors;
 }

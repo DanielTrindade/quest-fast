@@ -88,16 +88,69 @@ export type InitiativeEntry = {
   initiative: number | null;
   dexModifier: number;
   tieOrder: number;
+  id?: string;
+  /**
+   * A summon that acts with its summoner (#114): it shares the summoner's
+   * count and takes its turn right after it, so its own `initiative` is
+   * ignored. Absent or null for everyone else.
+   */
+  followsId?: string | null;
 };
+
+function byIdOf<T extends InitiativeEntry>(combatants: readonly T[]): Map<string, T> {
+  return new Map(combatants.flatMap((entry) => (entry.id === undefined ? [] : [[entry.id, entry] as const])));
+}
+
+/**
+ * Whom an entry acts right after: the first one up its chain of summoners
+ * that follows nobody. `undefined` when it follows nobody, or when the chain
+ * breaks (the summoner left) or loops: then it keeps its own initiative.
+ */
+function leaderOf<T extends InitiativeEntry>(entry: T, byId: ReadonlyMap<string, T>): T | undefined {
+  const seen = new Set<T>([entry]);
+  let current = entry;
+  while (current.followsId) {
+    const next = byId.get(current.followsId);
+    if (!next || seen.has(next)) return undefined;
+    seen.add(next);
+    current = next;
+  }
+  return current === entry ? undefined : current;
+}
+
+/**
+ * The initiative a combatant acts on: its summoner's when it acts with it,
+ * its own otherwise. `null` while that one is still to be rolled.
+ */
+export function initiativeOf<T extends InitiativeEntry>(entry: T, combatants: readonly T[]): number | null {
+  return (leaderOf(entry, byIdOf(combatants)) ?? entry).initiative;
+}
 
 /**
  * The initiative queue: highest first, ties broken by Dexterity and then by
- * the order the master set. Combatants without initiative are left out.
+ * the order the master set. A summon acting with its summoner comes right
+ * after it, with the head of the chain's count; each summon's own summons
+ * come right after it, before its next sibling (siblings in the order
+ * given). Combatants without initiative are left out.
  */
 export function sortInitiative<T extends InitiativeEntry>(combatants: readonly T[]): (T & { initiative: number })[] {
-  return combatants
+  const byId = byIdOf(combatants);
+  // Direct summons of each summoner, only along chains that reach a head.
+  const summons = new Map<T, T[]>();
+  const leaders: T[] = [];
+  for (const entry of combatants) {
+    if (!leaderOf(entry, byId)) leaders.push(entry);
+    else {
+      const summoner = byId.get(entry.followsId!)!;
+      summons.set(summoner, [...(summons.get(summoner) ?? []), entry]);
+    }
+  }
+  const after = (summoner: T, initiative: number): (T & { initiative: number })[] =>
+    (summons.get(summoner) ?? []).flatMap((entry) => [{ ...entry, initiative }, ...after(entry, initiative)]);
+  return leaders
     .filter((combatant): combatant is T & { initiative: number } => combatant.initiative !== null)
-    .sort((a, b) => b.initiative - a.initiative || b.dexModifier - a.dexModifier || a.tieOrder - b.tieOrder);
+    .sort((a, b) => b.initiative - a.initiative || b.dexModifier - a.dexModifier || a.tieOrder - b.tieOrder)
+    .flatMap((leader) => [leader, ...after(leader, leader.initiative)]);
 }
 
 export type TurnEntry = { id: string; defeated: boolean };
