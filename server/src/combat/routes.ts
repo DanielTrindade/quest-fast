@@ -23,6 +23,7 @@ import {
   isDefeated,
   isHit,
   isOpenToTable,
+  tickSummonRounds,
   NO_SUMMON_LINK,
   SUMMON_LIMITS,
   summonLinkError,
@@ -51,7 +52,6 @@ import {
   rollDice,
   setCondition,
   setEffect,
-  startTurnEffects,
   tickEffects,
   TURN_LIMITS,
   grantAction,
@@ -90,6 +90,7 @@ import { requireAuth, requireCampaignRole } from '../middleware.ts';
 import { boundedInteger, parseAttack, shortText } from '../validation.ts';
 import { releaseTurnDrags } from '../scenes/fight.ts';
 import { bumpScenes, publishScenes, scenesShowing } from '../scenes/store.ts';
+import { placeBesideSummoner } from '../scenes/summon-token.ts';
 import { clearEffects, recordEndedEffects, settleEffects, writeEffects, type Actor, type EndedEffect } from './effects.ts';
 import { projectEncounter } from './projection.ts';
 import {
@@ -107,6 +108,7 @@ import {
   type LoadedEncounter,
 } from './state.ts';
 import { beginTurn, budgetOf, writeBudget } from './turn.ts';
+import { endCombatant, handOffTurn, isSummon, recordSummon, releaseSummons, settleSummons, startEffectsOf } from './leave.ts';
 
 type Status = 403 | 404 | 409 | 422;
 
@@ -360,9 +362,10 @@ function addSummon(mutation: Mutation, body: Record<string, unknown>) {
   }
   const controllerId = master ? parseController(mutation, body.controllerId) : viewer.userId;
   if (loaded.combatants.length + 1 > E.combatants) refuse(422, `Limite de ${E.combatants} combatentes por encontro.`);
+  const id = randomUUID();
   tx.insert(combatants)
     .values({
-      id: randomUUID(),
+      id,
       encounterId: loaded.encounter.id,
       source: 'manual',
       name: sheet.name.trim(),
@@ -381,24 +384,27 @@ function addSummon(mutation: Mutation, body: Record<string, unknown>) {
       createdBy: viewer.userId,
     })
     .run();
+  const summoner = loaded.combatants.find((combatant) => combatant.row.id === link.summonerId);
+  if (summoner) {
+    const placed = placeBesideSummoner(
+      tx,
+      loaded.encounter.campaignId,
+      { combatantId: summoner.row.id, characterId: summoner.row.characterId },
+      { combatantId: id, size: sheet.size },
+    );
+    if (placed) mutation.scenes.add(placed);
+  }
+  tellJoined(mutation, [id]);
 }
 
-/**
- * A summon acting with a combatant about to leave keeps the count it had and
- * acts on its own from then on; every tie to the one leaving goes. Whatever
- * its concentration held up ends with the settling that follows the change.
- */
-function releaseSummons(tx: Executor, loaded: LoadedEncounter, leavingId: string) {
-  for (const combatant of loaded.combatants) {
-    if (combatant.row.summonerId !== leavingId) continue;
-    const following = followsIdOf(combatant.row) === leavingId;
-    tx.update(combatants)
-      .set({
-        summonerId: null,
-        ...(following ? { initiativeMode: 'own' as const, initiative: effectiveInitiative(loaded, combatant) } : {}),
-      })
-      .where(eq(combatants.id, combatant.row.id))
-      .run();
+/** The feed tells each summon that came in, and who summoned it. */
+function tellJoined(mutation: Mutation, ids: readonly string[]) {
+  const current = loadEncounter(mutation.tx, mutation.loaded.encounter);
+  for (const id of ids) {
+    const summon = current.combatants.find((combatant) => combatant.row.id === id);
+    if (!summon || !isSummon(summon.row)) continue;
+    const summoner = current.combatants.find((combatant) => combatant.row.id === summon.row.summonerId);
+    tellSummon(mutation, summon, { action: 'joined', ...(summoner ? { summonerName: summoner.name } : {}) });
   }
 }
 
@@ -518,7 +524,7 @@ function addCombatants(mutation: Mutation, body: Record<string, unknown>) {
     const statblockId = typeof body.statblockId === 'string' ? body.statblockId : '';
     const count = boundedInteger(body.count ?? 1, 1, E.copies);
     if (count === undefined) refuse(422, `A quantidade deve ser um número entre 1 e ${E.copies}.`);
-    insertCopies(mutation, statblockId, count, body.hp, hidden, parseMasterControl(mutation, body, count, hidden));
+    tellJoined(mutation, insertCopies(mutation, statblockId, count, body.hp, hidden, parseMasterControl(mutation, body, count, hidden)));
     return;
   }
 
@@ -548,9 +554,10 @@ function addCombatants(mutation: Mutation, body: Record<string, unknown>) {
     const initiative = body.initiative === undefined || body.initiative === null ? null : parseInitiativeValue(body.initiative);
     const control = parseMasterControl(mutation, body, 1, hidden);
     if (existing + 1 > E.combatants) refuse(422, `Limite de ${E.combatants} combatentes por encontro.`);
+    const id = randomUUID();
     tx.insert(combatants)
       .values({
-        id: randomUUID(),
+        id,
         encounterId,
         source: 'manual',
         name,
@@ -567,6 +574,7 @@ function addCombatants(mutation: Mutation, body: Record<string, unknown>) {
         ...control,
       })
       .run();
+    tellJoined(mutation, [id]);
     return;
   }
 
@@ -653,29 +661,6 @@ function editCombatant(mutation: Mutation, combatant: LoadedCombatant, body: Rec
 }
 
 /**
- * Passes the turn on when the active combatant is about to leave. Runs before
- * the combatant goes, so its position in the queue is still known.
- */
-/** Returns the effects that ended as the next turn began (Shield), for the feed. */
-function handOffTurn(tx: Executor, loaded: LoadedEncounter, combatantId: string, touched = new Set<string>()): EndedEffect[] {
-  const { encounter } = loaded;
-  if (encounter.activeCombatantId !== combatantId) return [];
-  const next = nextTurn(turnOrder(loaded), encounter.activeCombatantId, encounter.round);
-  const activeId = next.activeId === combatantId ? null : next.activeId;
-  tx.update(encounters).set({ activeCombatantId: activeId, round: next.round }).where(eq(encounters.id, encounter.id)).run();
-  beginTurn(tx, activeId);
-  const taking = loaded.combatants.find((combatant) => combatant.row.id === activeId);
-  return taking ? startEffectsOf(tx, taking, touched) : [];
-}
-
-/** The bearer's turn begins: what lasted until then (Shield) ends, and is returned. */
-function startEffectsOf(tx: Executor, combatant: LoadedCombatant, touched: Set<string>): EndedEffect[] {
-  const { remaining, expired } = startTurnEffects(combatant.effects);
-  if (expired.length > 0) writeEffects(tx, combatant, remaining, touched);
-  return expired.map((effect) => ({ bearer: combatant, effect }));
-}
-
-/**
  * The scenes an encounter shows on, read before a change: removing a
  * combatant takes its token with it, and a character's token is the sheet's,
  * whose reach follows the turn too.
@@ -691,6 +676,20 @@ function scenesOfEncounter(tx: Executor, loaded: LoadedEncounter): string[] {
 }
 
 type Waiting = { id: string; characterId: string | null };
+
+/**
+ * The control of a creature changed hands or went back to the master (#114):
+ * whoever was dragging its token lets go, as when the turn moves on.
+ */
+function controlLost(before: LoadedEncounter, after: LoadedEncounter): Waiting[] {
+  return before.combatants
+    .filter((combatant) => {
+      if (combatant.row.controllerId === null) return false;
+      const now = after.combatants.find((candidate) => candidate.row.id === combatant.row.id);
+      return now !== undefined && now.row.controllerId !== combatant.row.controllerId;
+    })
+    .map((combatant) => ({ id: combatant.row.id, characterId: null }));
+}
 
 /** The turn moved (round 1 opening included): whoever does not hold it now waits. */
 function turnWaiters(before: LoadedEncounter, after: LoadedEncounter): Waiting[] {
@@ -738,19 +737,21 @@ export function leaveWithToken(
   const before = loadEncounter(tx, encounter);
   const scenes = scenesOfEncounter(tx, before).filter((id) => id !== token.sceneId);
   const touched = new Set<string>();
-  const ended = handOffTurn(tx, before, combatantId, touched);
   tx.update(encounters).set({ version: sql`${encounters.version} + 1` }).where(eq(encounters.id, encounter.id)).run();
-  const current = loadEncounter(tx, encounter);
-  const leaving = current.combatants.find((combatant) => combatant.row.id === combatantId);
-  if (leaving) clearEffects(tx, leaving, touched);
-  releaseSummons(tx, current, combatantId);
-  tx.delete(combatants).where(eq(combatants.id, combatantId)).run();
-  // What its concentration held up on the others ends with it.
-  ended.push(...settleEffects(tx, encounter, touched));
-  bumpScenes(tx, scenes);
+  const leaving = before.combatants.find((combatant) => combatant.row.id === combatantId)!;
+  const ended = endCombatant(tx, before, leaving, touched);
+  const events: SessionEvent[] = isSummon(leaving.row)
+    ? [recordSummon(tx, campaignId, actor, leaving, { action: 'left', reason: 'dismissed' })]
+    : [];
+  // The summons its concentration held up leave with it, and so do the effects.
+  const settled = settleSummons(tx, campaignId, encounter.id, actor, touched);
+  events.push(...settled.events);
+  ended.push(...settled.ended, ...settleEffects(tx, encounter, touched));
+  const shown = [...new Set([...scenes, ...settled.scenes])].filter((id) => id !== token.sceneId);
+  bumpScenes(tx, shown);
   const after = loadEncounter(tx, findEncounter(tx, campaignId, encounter.id)!);
-  const events = recordEndedEffects(tx, campaignId, actor, ended);
-  return { loaded: after, scenes, waiting: turnWaiters(before, after), characters: touched, events };
+  events.push(...recordEndedEffects(tx, campaignId, actor, ended));
+  return { loaded: after, scenes: shown, waiting: turnWaiters(before, after), characters: touched, events };
 }
 
 /** After the commit, in the order `mutate` uses: drags released, then the fight and the maps. */
@@ -764,10 +765,16 @@ export function publishTokenLeave(deps: Deps, campaignId: string, leave: TokenLe
 
 function removeCombatant(mutation: Mutation, combatant: LoadedCombatant) {
   // Aid ends with the fight: a character leaves with the sheet's maximum.
-  clearEffects(mutation.tx, combatant, mutation.characters);
-  tellEnded(mutation, handOffTurn(mutation.tx, mutation.loaded, combatant.row.id, mutation.characters));
-  releaseSummons(mutation.tx, mutation.loaded, combatant.row.id);
-  mutation.tx.delete(combatants).where(eq(combatants.id, combatant.row.id)).run();
+  tellEnded(mutation, endCombatant(mutation.tx, mutation.loaded, combatant, mutation.characters));
+  if (isSummon(combatant.row)) tellSummon(mutation, combatant, { action: 'left', reason: 'dismissed' });
+}
+
+function actorOf(mutation: Mutation) {
+  return { userId: mutation.viewer.userId, userName: mutation.userName };
+}
+
+function tellSummon(mutation: Mutation, summon: LoadedCombatant, change: Parameters<typeof recordSummon>[4]) {
+  mutation.events.push(recordSummon(mutation.tx, mutation.loaded.encounter.campaignId, actorOf(mutation), summon, change));
 }
 
 /** The master removes anyone; a controller dismisses a creature they control (#114). */
@@ -871,10 +878,22 @@ function changeTurn(mutation: Mutation, body: Record<string, unknown>) {
     }
   }
   const next = nextTurn(turnOrder(loaded), encounter.activeCombatantId, encounter.round);
+  // A summon's duration counts its own turns (#114): at 0 it leaves once the turn has passed on.
+  const duration = active ? tickSummonRounds(active.row.roundsLeft) : null;
+  const expires = active && duration?.expired && next.activeId !== active.row.id ? active : null;
+  if (active && duration && !expires && duration.roundsLeft !== active.row.roundsLeft) {
+    mutation.tx.update(combatants).set({ roundsLeft: duration.roundsLeft }).where(eq(combatants.id, active.row.id)).run();
+  }
   setEncounter(mutation, { activeCombatantId: next.activeId, round: next.round });
   // Read again: the one taking the turn may be the one whose turn just ended.
-  const taking = loadEncounter(mutation.tx, encounter).combatants.find((combatant) => combatant.row.id === next.activeId);
+  const current = loadEncounter(mutation.tx, encounter);
+  const taking = current.combatants.find((combatant) => combatant.row.id === next.activeId);
   if (taking) tellEnded(mutation, startEffectsOf(mutation.tx, taking, mutation.characters));
+  const expiring = expires && current.combatants.find((combatant) => combatant.row.id === expires.row.id);
+  if (expiring) {
+    tellEnded(mutation, endCombatant(mutation.tx, loadEncounter(mutation.tx, encounter), expiring, mutation.characters));
+    tellSummon(mutation, expiring, { action: 'left', reason: 'duration' });
+  }
 }
 
 function startEncounter(mutation: Mutation) {
@@ -907,6 +926,12 @@ function endEncounter(mutation: Mutation) {
   setEncounter(mutation, { status: 'ended', activeCombatantId: null, endedAt: new Date() });
   // Effects live in the fight: they all end with it, and Aid's hit points go.
   for (const combatant of loaded.combatants) clearEffects(tx, combatant, mutation.characters);
+  // So do the summons (#114), with their tokens; a creature the master only
+  // handed to a player stays, with the history.
+  for (const summon of loaded.combatants.filter((combatant) => isSummon(combatant.row))) {
+    tx.delete(combatants).where(eq(combatants.id, summon.row.id)).run();
+    tellSummon(mutation, summon, { action: 'left', reason: 'ended' });
+  }
   // A condition stays on the sheet after the fight, but its duration in
   // rounds means nothing outside of it.
   for (const combatant of loaded.combatants) {
@@ -1666,7 +1691,12 @@ async function mutate(
       shown = scenesOfEncounter(tx, before);
       const mutation: Mutation = { tx, loaded: before, viewer, events, characters: touched, scenes: joined, userName: c.var.user.name };
       run(mutation, body);
-      // Whatever ended a concentration (a fall, the button, a removal) ends its effects too.
+      // Whatever ended a concentration (a fall, the button, a removal) ends
+      // the summons it held up (#114), then the effects. Their tokens were on
+      // the scenes read before the change.
+      const settled = settleSummons(tx, c.var.campaignId, encounter.id, actorOf(mutation), touched);
+      events.push(...settled.events);
+      tellEnded(mutation, settled.ended);
       tellEnded(mutation, settleEffects(tx, findEncounter(tx, c.var.campaignId, encounter.id)!, touched));
       shown = [...new Set([...shown, ...joined])];
       tx.update(encounters)
@@ -1675,7 +1705,7 @@ async function mutate(
         .run();
       bumpScenes(tx, shown);
       const after = loadEncounter(tx, findEncounter(tx, c.var.campaignId, encounter.id)!);
-      waiting = turnWaiters(before, after);
+      waiting = [...turnWaiters(before, after), ...controlLost(before, after)];
       return after;
     });
 
@@ -1781,19 +1811,28 @@ export function deleteCharacter(deps: Deps, campaignId: string, characterId: str
     const ended: EndedEffect[] = [];
     // Its token goes with it.
     shown = scenesShowing(tx, { characterId });
-    bumpScenes(tx, shown);
     ids = openEncountersOf(tx, campaignId, characterId);
+    const summoned: SessionEvent[] = [];
     for (const id of ids) {
       const loaded = loadEncounter(tx, findEncounter(tx, campaignId, id)!);
       const combatant = loaded.combatants.find((candidate) => candidate.row.characterId === characterId)!;
       ended.push(...handOffTurn(tx, loaded, combatant.row.id, touched));
+      releaseSummons(tx, loaded, combatant.row.id);
       tx.update(encounters).set({ version: sql`${encounters.version} + 1` }).where(eq(encounters.id, id)).run();
     }
     tx.delete(characters).where(and(eq(characters.id, characterId), eq(characters.campaignId, campaignId))).run();
-    // What its concentration held up on the others ends with it, as with any removal.
-    for (const id of ids) ended.push(...settleEffects(tx, findEncounter(tx, campaignId, id)!, touched));
+    // What its concentration held up on the others ends with it, as with any
+    // removal: its summons first (#114), then the effects.
+    for (const id of ids) {
+      const settled = settleSummons(tx, campaignId, id, actor, touched);
+      summoned.push(...settled.events);
+      ended.push(...settled.ended);
+      shown = [...new Set([...shown, ...settled.scenes])];
+      ended.push(...settleEffects(tx, findEncounter(tx, campaignId, id)!, touched));
+    }
+    bumpScenes(tx, shown);
     touched.delete(characterId);
-    events = recordEndedEffects(tx, campaignId, actor, ended);
+    events = [...summoned, ...recordEndedEffects(tx, campaignId, actor, ended)];
     return ids.map((id) => loadEncounter(tx, findEncounter(tx, campaignId, id)!));
   });
   for (const event of events) hub.publish(campaignId, event);
@@ -1823,7 +1862,16 @@ export function publishCharacterScenes(deps: Deps, campaignId: string, character
  * encounter is history and keeps them as they were.
  */
 export function releaseControl(deps: Deps, campaignId: string, userId: string) {
+  let released: string[] = [];
+  let shown: string[] = [];
   const changed = deps.db.transaction((tx) => {
+    released = tx
+      .select({ id: combatants.id })
+      .from(combatants)
+      .innerJoin(encounters, eq(encounters.id, combatants.encounterId))
+      .where(and(eq(encounters.campaignId, campaignId), ne(encounters.status, 'ended'), eq(combatants.controllerId, userId)))
+      .all()
+      .map(({ id }) => id);
     const ids = [
       ...new Set(
         tx
@@ -1844,9 +1892,14 @@ export function releaseControl(deps: Deps, campaignId: string, userId: string) {
       .set({ version: sql`${encounters.version} + 1` })
       .where(inArray(encounters.id, ids))
       .run();
+    // Their tokens are the master's now: the map changes too.
+    shown = scenesShowing(tx, { combatantIds: released });
+    bumpScenes(tx, shown);
     return ids.map((id) => loadEncounter(tx, findEncounter(tx, campaignId, id)!));
   });
+  for (const id of released) releaseTurnDrags(deps, { id, characterId: null });
   for (const loaded of changed) deps.hub.publishCombat(campaignId, (viewer) => projectEncounter(loaded, viewer));
+  publishScenes(deps, campaignId, shown);
 }
 
 export function encounterRoutes() {

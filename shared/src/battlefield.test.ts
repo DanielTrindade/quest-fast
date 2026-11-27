@@ -156,6 +156,17 @@ test('a player never receives the token of a combatant hidden in the encounter',
   assert.equal(isTokenVisible({ kind: 'character', hidden: false, combatantHidden: true, x: 0, y: 0 }, 'player'), true);
 });
 
+test('under the fog a player still receives an ally: a character, or a creature a player controls', () => {
+  const fog = { enabled: true, revealed: [] };
+  const at = { hidden: false, combatantHidden: false, x: 50, y: 50 };
+  assert.equal(isTokenVisible({ kind: 'character', ...at }, 'player', fog), true);
+  assert.equal(isTokenVisible({ kind: 'combatant', ...at, ownerId: 'player-1' }, 'player', fog), true);
+  assert.equal(isTokenVisible({ kind: 'combatant', ...at, ownerId: null }, 'player', fog), false);
+  assert.equal(isTokenVisible({ kind: 'free', ...at, ownerId: 'player-1' }, 'player', fog), false);
+  // Hidden in the encounter or on the map still wins.
+  assert.equal(isTokenVisible({ kind: 'combatant', ...at, combatantHidden: true, ownerId: 'player-1' }, 'player', fog), false);
+});
+
 test('token kinds and limits', () => {
   assert.equal(isTokenKind('free'), true);
   assert.equal(isTokenKind('statblock'), false);

@@ -71,7 +71,7 @@ export function moveRule(fighter: Fighter | null, viewer: Viewer, free: boolean)
   if (!fighter) return { ok: true, spends: null };
   if (viewer.role !== 'master') {
     if (free) return { ok: false, status: 403, error: 'Só o mestre move sem gastar o deslocamento.' };
-    if (!fighter.active) return { ok: false, status: 403, error: 'Em combate, você move o seu personagem só na vez dele.' };
+    if (!fighter.active) return { ok: false, status: 403, error: 'Em combate, você move cada token seu só na vez dele.' };
     return { ok: true, spends: fighter };
   }
   return { ok: true, spends: fighter.active && !free ? fighter : null };

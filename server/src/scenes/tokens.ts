@@ -18,7 +18,7 @@ import type { Viewer } from '../events/hub.ts';
 import { shortText } from '../validation.ts';
 import type { HeldLock } from './locks.ts';
 import { moveRule, publishEncounter, spendMove } from './fight.ts';
-import { fogOf, tokenVisibleTo, type LoadedScene, type LoadedToken } from './projection.ts';
+import { fogOf, ownsToken, tokenVisibleTo, type LoadedScene, type LoadedToken } from './projection.ts';
 import {
   answer,
   bodyOf,
@@ -142,10 +142,10 @@ function findToken(c: HonoContext<Context>, loaded: LoadedScene): LoadedToken {
   return token;
 }
 
-/** The master moves any token; a player only their own character's. */
+/** The master moves any token; a player only their own character's and the creatures they control. */
 function requireMover(c: HonoContext<Context>, token: LoadedToken) {
   if (c.var.role === 'master') return;
-  if (token.row.kind !== 'character' || token.ownerId !== c.var.user.id) refuse(403, 'Você só move o token do seu personagem.');
+  if (!ownsToken(token, c.var.user.id)) refuse(403, 'Você só move o token do seu personagem e das criaturas que controla.');
 }
 
 /** 409 when someone else is dragging the token. */
@@ -202,17 +202,26 @@ export function movingAudience(
       fogEnabled: scenes.fogEnabled,
       fogRevealed: scenes.fogRevealed,
       combatantHidden: combatants.hidden,
+      controllerId: combatants.controllerId,
+      combatStatus: encounters.status,
       activeSceneId: campaigns.activeSceneId,
     })
     .from(tokens)
     .innerJoin(scenes, eq(scenes.id, tokens.sceneId))
     .innerJoin(campaigns, eq(campaigns.id, scenes.campaignId))
     .leftJoin(combatants, eq(combatants.id, tokens.combatantId))
+    .leftJoin(encounters, eq(encounters.id, combatants.encounterId))
     .where(and(eq(tokens.id, tokenId), eq(scenes.campaignId, campaignId)))
     .get();
   if (!row) return null;
   const open = row.activeSceneId === row.sceneId;
-  const visibility = { kind: row.kind, hidden: row.hidden, combatantHidden: row.combatantHidden ?? false, ...at };
+  const visibility = {
+    kind: row.kind,
+    hidden: row.hidden,
+    combatantHidden: row.combatantHidden ?? false,
+    ownerId: row.combatStatus === 'active' ? row.controllerId : null,
+    ...at,
+  };
   const fog = fogOf(row);
   return (viewer) => viewer.role === 'master' || (open && isTokenVisible(visibility, viewer.role, fog));
 }
@@ -229,7 +238,7 @@ export function settleAbandonedLock(deps: Deps, lock: HeldLock) {
     if (!current || !token) return undefined;
     // A holder who lost sight of the token (hidden meanwhile) leaves it where it was.
     const holder = { role: lock.role, userId: lock.userId };
-    const mayMove = lock.role === 'master' || (token.row.kind === 'character' && token.ownerId === lock.userId);
+    const mayMove = lock.role === 'master' || ownsToken(token, lock.userId);
     // A fighter's move counts only once confirmed: an abandoned one goes back.
     if (lock.last && mayMove && !token.fighter && tokenVisibleTo(token, holder, fogOf(current.scene))) {
       const position = restingPoint(current.scene, token.size, lock.last.x, lock.last.y);

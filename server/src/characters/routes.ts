@@ -62,7 +62,9 @@ import type { AssetStore } from '../assets/store.ts';
 import type { Context } from '../context.ts';
 import { requireAuth, requireCampaignRole } from '../middleware.ts';
 import { recordRollEvent, recordSpellCastEvent } from '../events/feed.ts';
-import { hpMaxBonusOf, settleCharacterEffects } from '../combat/effects.ts';
+import { hpMaxBonusOf } from '../combat/effects.ts';
+import { settleCharacterConcentration } from '../combat/leave.ts';
+import { bumpScenes, publishScenes } from '../scenes/store.ts';
 import { deleteCharacter, publishCharacterEncounters, publishCharacterScenes, publishSheetEncounters, settleCharacterReminders, spendSheetAttack } from '../combat/routes.ts';
 import { boundedInteger, fail, isInputError, parseAttack, shortText, withInput } from '../validation.ts';
 
@@ -700,8 +702,9 @@ export function characterRoutes() {
           .where(and(eq(characters.id, characterId), eq(characters.campaignId, c.var.campaignId)))
           .run();
         settleCharacterReminders(tx, characterId);
-        const { touched, events } = settleCharacterEffects(tx, c.var.campaignId, characterId, { userId: c.var.user.id, userName: c.var.user.name });
-        return { touched, events, hpChanged: changes.hpCurrent !== undefined && changes.hpCurrent !== current.character.hpCurrent };
+        const { touched, events, scenes } = settleCharacterConcentration(tx, c.var.campaignId, characterId, { userId: c.var.user.id, userName: c.var.user.name });
+        bumpScenes(tx, scenes);
+        return { touched, events, scenes, hpChanged: changes.hpCurrent !== undefined && changes.hpCurrent !== current.character.hpCurrent };
       }),
     );
     if (isInputError(result)) return c.json({ error: result.inputError }, 422);
@@ -712,6 +715,8 @@ export function characterRoutes() {
     c.var.deps.hub.publishCharactersChanged(c.var.campaignId);
     // Falling to 0 or getting back up changes how its token looks on the map.
     if (result.hpChanged) publishCharacterScenes(c.var.deps, c.var.campaignId, characterId);
+    // A summon that left with the concentration took its token (#114).
+    publishScenes(c.var.deps, c.var.campaignId, result.scenes);
 
     const updated = characterSelect(db, c.var.campaignId, characterId)!;
     return c.json({ character: toSheet(updated, c.var.deps.assets) });
@@ -767,7 +772,7 @@ export function characterRoutes() {
     }
     const body = raw as Record<string, unknown>;
     const result = await withInput(() =>
-      db.transaction((tx): { event: SpellCastSessionEvent; touched: Set<string>; ended: CombatSessionEvent[] } | false => {
+      db.transaction((tx): { event: SpellCastSessionEvent; touched: Set<string>; ended: CombatSessionEvent[]; scenes: string[] } | false => {
         const current = characterSelect(tx, c.var.campaignId, characterId);
         if (!current) return false;
         const sheet = toSheet(current, c.var.deps.assets);
@@ -782,13 +787,16 @@ export function characterRoutes() {
         const where = and(eq(characters.id, characterId), eq(characters.campaignId, c.var.campaignId));
         let touched = new Set<string>();
         let ended: CombatSessionEvent[] = [];
+        let scenes: string[] = [];
         if (spell.concentration && sheet.concentrating) {
           // A new concentration ends the old one: the saves still owed to keep
           // it go with it, before the new one starts.
           tx.update(characters).set({ concentrating: false }).where(where).run();
           settleCharacterReminders(tx, characterId);
           // So do the effects the old spell kept up (Bless on the party).
-          ({ touched, events: ended } = settleCharacterEffects(tx, c.var.campaignId, characterId, { userId: c.var.user.id, userName: c.var.user.name }));
+          // And the summons it held up (#114).
+          ({ touched, events: ended, scenes } = settleCharacterConcentration(tx, c.var.campaignId, characterId, { userId: c.var.user.id, userName: c.var.user.name }));
+          bumpScenes(tx, scenes);
         }
         tx.update(characters)
           .set({ spellSlots: cast.slots, ...(spell.concentration ? { concentrating: true } : {}), updatedAt: new Date() })
@@ -798,6 +806,7 @@ export function characterRoutes() {
         return {
           touched,
           ended,
+          scenes,
           event: recordSpellCastEvent(tx, {
             campaignId: c.var.campaignId,
             userId: c.var.user.id,
@@ -821,6 +830,7 @@ export function characterRoutes() {
     for (const event of result.ended) hub.publish(c.var.campaignId, event);
     hub.publish(c.var.campaignId, result.event);
     publishSheetEncounters(c.var.deps, c.var.campaignId, [characterId, ...result.touched]);
+    publishScenes(c.var.deps, c.var.campaignId, result.scenes);
     hub.publishCharactersChanged(c.var.campaignId);
     const updated = characterSelect(db, c.var.campaignId, characterId)!;
     return c.json({ character: toSheet(updated, c.var.deps.assets), event: result.event }, 201);
