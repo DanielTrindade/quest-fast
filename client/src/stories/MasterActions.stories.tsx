@@ -33,6 +33,19 @@ function firstTheme(canvasElement: HTMLElement) {
   return within(region!);
 }
 
+/** The master hands Goblin 1 to a player (#114); a hidden creature stays the master's. */
+export const ControladoPor: Story = {
+  name: 'Controlado por',
+  args: { fight: { ...fightOf(), players: [{ id: 'daniel', name: 'Daniel' }, { id: 'carla', name: 'Carla' }], actions: { ...fightOf().actions, onSetController: fn() } } },
+  play: async ({ canvasElement, args }) => {
+    const panel = firstTheme(canvasElement);
+    await userEvent.selectOptions(panel.getByLabelText('Controlado por'), 'daniel');
+    await expect(args.fight!.actions.onSetController).toHaveBeenCalledWith('g1', 'daniel');
+    await userEvent.selectOptions(panel.getByLabelText('Combatente'), 'bandit');
+    await expect(panel.getByLabelText('Controlado por')).toBeDisabled();
+  },
+};
+
 /**
  * Two hits wait on the master, from the whole fight; below, the goblin whose
  * turn it is, attacking in secret by default.

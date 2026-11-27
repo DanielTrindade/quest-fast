@@ -1,6 +1,6 @@
-import type { ReactNode } from 'react';
-import { IdentificationCard, UserCircleDashed } from '@phosphor-icons/react';
-import type { CastChoice, CharacterSheet, CharacterSummary, CombatantView, LinkedRollRequest, RollPayload } from '@quest-fast/shared';
+import { useId, useState, type ReactNode } from 'react';
+import { Ghost, IdentificationCard, UserCircleDashed, X } from '@phosphor-icons/react';
+import type { CastChoice, CharacterSheet, CharacterSummary, CombatantView, LinkedRollRequest, RollPayload, SummonInput } from '@quest-fast/shared';
 import { useRangeToggle } from '../hooks/useRangeToggle';
 import { classLine } from '../lib/character-lines';
 import { contentKeys } from '../lib/content-keys';
@@ -16,6 +16,8 @@ import type { InitiativeActions } from './InitiativeList';
 import { QuickTests } from './QuickTests';
 import { Skeleton } from './Skeleton';
 import { SpellCaster } from './SpellCaster';
+import { SummonForm } from './SummonForm';
+import { segmentedGroup, segmentedRadio } from './ui/segmented';
 
 export type PlayerCharacter = Pick<CharacterSummary, 'name' | 'class' | 'level' | 'ac' | 'hp' | 'hpCurrent' | 'hpTemp' | 'avatarUrl'>;
 
@@ -27,6 +29,88 @@ export type PlayerFight = {
   busy: boolean;
   actions: InitiativeActions;
 };
+
+/** The creatures a player controls in the fight (#114), and the "Invocar" form. */
+export type PlayerSummons = {
+  /** Each creature this player controls, as `fight` gives the character. */
+  controlled: PlayerFight[];
+  /** Takes a creature out of the fight. */
+  onDismiss: (combatantId: string) => void;
+  /** While the character fights: a summon from a simple sheet. */
+  summon?: {
+    pending: boolean;
+    error: string | null;
+    /** Resolves when the server accepted. */
+    onSummon: (input: SummonInput) => Promise<unknown> | void;
+  };
+};
+
+/**
+ * "Agir com": the character or one of the creatures its player controls. It
+ * follows whose turn it is until the player picks one; the server checks.
+ */
+function ActWith({ fights, selectedId, onSelect }: { fights: PlayerFight[]; selectedId: string; onSelect: (id: string) => void }) {
+  const name = useId();
+  return (
+    <fieldset className="m-0 grid min-w-0 gap-2 border-0 p-0">
+      <legend className="mb-2 p-0 text-small font-semibold text-text-secondary">Agir com</legend>
+      <div className={segmentedGroup}>
+        {fights.map(({ combatant, active }) => (
+          <label key={combatant.id} className={segmentedRadio}>
+            <input type="radio" name={name} value={combatant.id} checked={combatant.id === selectedId} onChange={() => onSelect(combatant.id)} />
+            <span className="[overflow-wrap:anywhere]">{combatant.name}{active && <span className="sr-only"> (vez atual)</span>}</span>
+          </label>
+        ))}
+      </div>
+    </fieldset>
+  );
+}
+
+/** The fight half of the tab: who acts, its controls, and the summons. */
+function FightControls({ fight, summons }: { fight: PlayerFight; summons?: PlayerSummons }) {
+  const fights = [fight, ...(summons?.controlled ?? [])];
+  // Null follows the turn: whoever of these acts now, else the character.
+  const [pickedId, setPickedId] = useState<string | null>(null);
+  const [summoning, setSummoning] = useState(false);
+  const selected = fights.find(({ combatant }) => combatant.id === pickedId) ?? fights.find(({ active }) => active) ?? fight;
+  const creature = selected !== fight ? selected : null;
+  return (
+    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4">
+      {fights.length > 1 && <ActWith fights={fights} selectedId={selected.combatant.id} onSelect={setPickedId} />}
+      <CombatantControls key={selected.combatant.id} combatant={selected.combatant} targets={selected.targets} master={false}
+        active={selected.active} busy={selected.busy} actions={selected.actions} />
+      {creature && summons && (
+        <div className="[&>[data-slot=button]]:max-w-full [&>[data-slot=button]]:whitespace-normal">
+          <Button variant="secondary" disabled={creature.busy} onClick={() => {
+            setPickedId(null);
+            summons.onDismiss(creature.combatant.id);
+          }}>
+            <X size={18} aria-hidden="true" /> Dispensar {creature.combatant.name}
+          </Button>
+        </div>
+      )}
+      {!creature && summons?.summon && (
+        summoning ? (
+          <section aria-label="Invocar" className="grid min-w-0 gap-3 rounded-panel border border-border bg-background p-3">
+            <h4 className="m-0 font-display text-h2 font-semibold">Invocar</h4>
+            <SummonForm summoner={fight.combatant} pending={summons.summon.pending} error={summons.summon.error}
+              onCancel={() => setSummoning(false)}
+              onSummon={async (input) => {
+                await summons.summon!.onSummon(input);
+                setSummoning(false);
+              }} />
+          </section>
+        ) : (
+          <div>
+            <Button variant="secondary" onClick={() => setSummoning(true)}>
+              <Ghost size={18} aria-hidden="true" /> Invocar
+            </Button>
+          </div>
+        )
+      )}
+    </div>
+  );
+}
 
 function CharacterHead({ character, note }: { character: PlayerCharacter; note: string | null }) {
   return (
@@ -94,6 +178,7 @@ export function PlayerActions({
   onOpenSheet,
   galleryAction,
   spellcasting,
+  summons,
 }: {
   /** Null when the player has no active character in this campaign. */
   character: PlayerCharacter | null;
@@ -120,6 +205,8 @@ export function PlayerActions({
     onChangeSlots: (spent: number[]) => void;
     onCast: (spellIndex: number, spellName: string, choice: CastChoice) => void;
   };
+  /** In a fight: the creatures this player controls and "Invocar" (#114). */
+  summons?: PlayerSummons;
 }) {
   // Out of a fight the character attacks from its own token, when it has one on the map.
   const ranges = useRangeToggle(sheet && !fight ? { characterId: sheet.id, combatantId: null } : null);
@@ -134,8 +221,7 @@ export function PlayerActions({
   return (
     <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-5">
       {fight ? (
-        <CombatantControls combatant={fight.combatant} targets={fight.targets} master={false} active={fight.active}
-          busy={fight.busy} actions={fight.actions} />
+        <FightControls fight={fight} summons={summons} />
       ) : (
         <>
           <CharacterHead character={character} note={inOtherFight ? 'Fora do combate em andamento.' : null} />

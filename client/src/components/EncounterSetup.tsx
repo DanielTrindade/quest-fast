@@ -4,10 +4,14 @@ import {
   ENCOUNTER_LIMITS,
   SIZES,
   STATBLOCK_LIMITS as S,
+  SUMMON_LIMITS,
+  summonLinkError,
+  type CombatantControlInput,
   type CombatantInput,
   type HitPointMode,
   type Size,
   type StatblockSummary,
+  type SummonInitiativeMode,
 } from '@quest-fast/shared';
 import { Button } from './Button';
 import { Field } from './Field';
@@ -27,6 +31,34 @@ const SOURCE_LABELS: Record<Source, string> = {
 };
 
 export type SetupCharacter = { id: string; name: string; ownerName: string };
+
+/** Who may control a creature and who may have summoned it (#114). */
+export type SetupControl = {
+  /** The campaign's players. */
+  players: { id: string; name: string }[];
+  /** The encounter's combatants, any of whom may be the summoner. */
+  combatants: { id: string; name: string; concentrating: boolean }[];
+};
+
+type ControlDraft = { controllerId: string; summonerId: string; initiativeMode: SummonInitiativeMode; concentration: boolean; rounds: string };
+const EMPTY_CONTROL: ControlDraft = { controllerId: '', summonerId: '', initiativeMode: 'withSummoner', concentration: false, rounds: '' };
+
+/** The control part of the request, or what is wrong with it. */
+function buildControl(draft: ControlDraft, control: SetupControl): { input: CombatantControlInput } | { errors: Errors } {
+  const summoner = control.combatants.find((combatant) => combatant.id === draft.summonerId);
+  const input: CombatantControlInput = draft.controllerId ? { controllerId: draft.controllerId } : {};
+  if (!summoner) return { input };
+  const rounds = draft.rounds.trim() === '' ? null : Number(draft.rounds);
+  const summon = {
+    summonerId: summoner.id,
+    initiativeMode: draft.initiativeMode,
+    concentration: draft.concentration && summoner.concentrating,
+    rounds,
+  };
+  const error = summonLinkError(summon);
+  if (error) return { errors: { rounds: error } };
+  return { input: { ...input, summon } };
+}
 
 type ManualDraft = { name: string; ac: string; hp: string; size: Size; initiativeBonus: string; initiative: string };
 const EMPTY_MANUAL: ManualDraft = { name: '', ac: '', hp: '', size: 'medium', initiativeBonus: '0', initiative: '' };
@@ -163,13 +195,96 @@ function ManualFields({ draft, onChange, errors }: { draft: ManualDraft; onChang
   );
 }
 
+/** Copies of a bestiary creature, the count checked. */
+function buildCopies({ statblock, count, hpMode, hidden }: { statblock: StatblockSummary; count: string; hpMode: HitPointMode; hidden: boolean }): Built {
+  const amount = integerIn(count, 1, ENCOUNTER_LIMITS.copies);
+  if (amount === undefined) return { errors: { count: `De 1 a ${ENCOUNTER_LIMITS.copies}.` } };
+  const hp = statblock.hpFormula ? hpMode : 'average';
+  return { input: { source: 'statblock', statblockId: statblock.id, count: amount, hp, hidden } };
+}
+
+/** A creature's request with who controls it and who summoned it, when the form offers them. */
+function withControl(creature: Built, draft: ControlDraft, control: SetupControl | undefined): Built {
+  if (!control || 'errors' in creature) return creature;
+  const extra = buildControl(draft, control);
+  if ('errors' in extra) return extra;
+  return { input: { ...creature.input, ...extra.input } as CombatantInput };
+}
+
+/** Hidden or not (a controlled creature never is), and the button. */
+function SetupFooter({ hidden, controlled, onHidden, pending, unavailable, reinforcement }: {
+  hidden: boolean;
+  controlled: boolean;
+  onHidden: (hidden: boolean) => void;
+  pending: boolean;
+  unavailable: boolean;
+  reinforcement: boolean;
+}) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+      <label className={checkLabel}>
+        <input type="checkbox" checked={hidden && !controlled} disabled={controlled} onChange={(event) => onHidden(event.target.checked)} />
+        {controlled ? 'Controlada por um jogador: fica à vista' : 'Entra escondido dos jogadores'}
+      </label>
+      <Button type="submit" loading={pending} disabled={unavailable} className="max-w-full whitespace-normal">
+        <Plus size={18} aria-hidden="true" /> {reinforcement ? 'Adicionar reforço' : 'Adicionar ao encontro'}
+      </Button>
+    </div>
+  );
+}
+
+function ControlFields({ control, draft, onChange, error, groupName }: {
+  control: SetupControl;
+  draft: ControlDraft;
+  onChange: (draft: ControlDraft) => void;
+  error?: string;
+  groupName: string;
+}) {
+  const set = <K extends keyof ControlDraft>(key: K, value: ControlDraft[K]) => onChange({ ...draft, [key]: value });
+  const summoner = control.combatants.find((combatant) => combatant.id === draft.summonerId);
+  return (
+    <fieldset className="m-0 grid min-w-0 gap-3 border-0 p-0">
+      <legend className="mb-2 p-0 text-small font-semibold text-text-secondary">Controle e invocação</legend>
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,12rem),1fr))] gap-3">
+        <SelectField label="Controlado por" value={draft.controllerId} onChange={(value) => set('controllerId', value)}>
+          <option value="">Mestre</option>
+          {control.players.map((player) => <option key={player.id} value={player.id}>{player.name}</option>)}
+        </SelectField>
+        <SelectField label="Invocado por" value={draft.summonerId} onChange={(value) => set('summonerId', value)}>
+          <option value="">Ninguém</option>
+          {control.combatants.map((combatant) => <option key={combatant.id} value={combatant.id}>{combatant.name}</option>)}
+        </SelectField>
+      </div>
+      {summoner && (
+        <>
+          <Segmented label="Na iniciativa" name={groupName} value={draft.initiativeMode} onChange={(mode) => set('initiativeMode', mode)}
+            options={[
+              { value: 'withSummoner', label: `Logo depois de ${summoner.name}` },
+              { value: 'own', label: 'Na própria vez' },
+            ]} />
+          <label className={checkLabel}>
+            <input type="checkbox" checked={draft.concentration && summoner.concentrating} disabled={!summoner.concentrating}
+              onChange={(event) => set('concentration', event.target.checked)} />
+            {summoner.concentrating ? `Some quando ${summoner.name} perder a concentração` : `${summoner.name} não está concentrando`}
+          </label>
+          <div data-field="rounds" className="max-w-56">
+            <Field label="Duração em rodadas (opcional)" type="number" inputMode="numeric" min={SUMMON_LIMITS.rounds.min}
+              max={SUMMON_LIMITS.rounds.max} value={draft.rounds} error={error} onChange={(event) => set('rounds', event.target.value)} />
+          </div>
+        </>
+      )}
+    </fieldset>
+  );
+}
+
 /**
  * Adds combatants to an encounter: a character of the campaign, copies of a
  * bestiary creature (average or rolled hit points) or a manual one. Also used
- * for reinforcements mid-fight. It only builds the request; the server
- * numbers the copies and rolls the hit points.
+ * for reinforcements mid-fight. With `control`, a creature may go to a
+ * player and be tied to its summoner (#114). It only builds the request;
+ * the server numbers the copies and rolls the hit points.
  */
-export function EncounterSetup({ characters, statblocks, onAdd, pending = false, reinforcement = false }: {
+export function EncounterSetup({ characters, statblocks, onAdd, pending = false, reinforcement = false, control }: {
   /** Characters not yet in the encounter. */
   characters: SetupCharacter[];
   statblocks: StatblockSummary[];
@@ -177,6 +292,8 @@ export function EncounterSetup({ characters, statblocks, onAdd, pending = false,
   onAdd: (input: CombatantInput) => Promise<unknown> | void;
   pending?: boolean;
   reinforcement?: boolean;
+  /** Without it, every creature is the master's and summoned by nobody. */
+  control?: SetupControl;
 }) {
   // Radio groups are named per instance, or two forms on a page would share one.
   const uid = useId();
@@ -188,18 +305,20 @@ export function EncounterSetup({ characters, statblocks, onAdd, pending = false,
   const [hpMode, setHpMode] = useState<HitPointMode>('average');
   const [manual, setManual] = useState<ManualDraft>(EMPTY_MANUAL);
   const [errors, setErrors] = useState<Errors>({});
+  const [controlDraft, setControlDraft] = useState<ControlDraft>(EMPTY_CONTROL);
+  // A creature a player controls is never hidden from the table.
+  const controlled = source !== 'character' && controlDraft.controllerId !== '';
 
   const chosenCharacter = characters.find((character) => character.id === characterId) ?? characters[0];
   const chosenStatblock = statblocks.find((statblock) => statblock.id === statblockId) ?? statblocks[0];
   const unavailable = (source === 'character' && !chosenCharacter) || (source === 'statblock' && !chosenStatblock);
 
   const build = (): Built => {
-    if (source === 'manual') return buildManual(manual, hidden);
     if (source === 'character') return { input: { source, characterId: chosenCharacter!.id, hidden } };
-    const amount = integerIn(count, 1, ENCOUNTER_LIMITS.copies);
-    if (amount === undefined) return { errors: { count: `De 1 a ${ENCOUNTER_LIMITS.copies}.` } };
-    const hp = chosenStatblock!.hpFormula ? hpMode : 'average';
-    return { input: { source, statblockId: chosenStatblock!.id, count: amount, hp, hidden } };
+    const creature = source === 'manual'
+      ? buildManual(manual, hidden && !controlled)
+      : buildCopies({ statblock: chosenStatblock!, count, hpMode, hidden: hidden && !controlled });
+    return withControl(creature, controlDraft, control);
   };
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
@@ -221,6 +340,7 @@ export function EncounterSetup({ characters, statblocks, onAdd, pending = false,
     }
     setCount('1');
     setHidden(false);
+    setControlDraft(EMPTY_CONTROL);
     setManual((current) => ({ ...EMPTY_MANUAL, size: current.size }));
   };
 
@@ -235,16 +355,12 @@ export function EncounterSetup({ characters, statblocks, onAdd, pending = false,
           hpMode={hpMode} onHpMode={setHpMode} error={errors.count} groupName={`${uid}-hp`} />
       )}
       {source === 'manual' && <ManualFields draft={manual} onChange={setManual} errors={errors} />}
+      {source !== 'character' && control && (
+        <ControlFields control={control} draft={controlDraft} onChange={setControlDraft} error={errors.rounds} groupName={`${uid}-initiative`} />
+      )}
 
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-        <label className={checkLabel}>
-          <input type="checkbox" checked={hidden} onChange={(event) => setHidden(event.target.checked)} />
-          Entra escondido dos jogadores
-        </label>
-        <Button type="submit" loading={pending} disabled={unavailable} className="max-w-full whitespace-normal">
-          <Plus size={18} aria-hidden="true" /> {reinforcement ? 'Adicionar reforço' : 'Adicionar ao encontro'}
-        </Button>
-      </div>
+      <SetupFooter hidden={hidden} controlled={controlled} onHidden={setHidden} pending={pending} unavailable={unavailable}
+        reinforcement={reinforcement} />
     </form>
   );
 }

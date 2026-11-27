@@ -350,7 +350,13 @@ PRs empilhados:
    invocação sai pela concentração (no combate e pela ficha), pela duração e
    no fim do combate, passando a vez se for dela, e o feed conta a entrada e a
    saída.
-4. **Na tela.** "Invocar" na Mesa, os campos do mestre e "Agir com".
+4. **Na tela — em revisão.** Na Mesa, o jogador escolhe em "Agir com" entre
+   o personagem e as criaturas que controla, age com cada uma, dispensa a
+   invocação e invoca pela ficha simples ("Invocar"); o painel avisa a vez de
+   uma delas. O mestre entrega e retoma o controle em "Controlado por" e, no
+   Preparo, adiciona uma criatura já controlada e ligada a quem a invocou
+   (iniciativa, concentração e duração). O cartão do feed conta a entrada e
+   a saída.
 
 ### Telas da campanha
 

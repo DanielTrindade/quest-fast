@@ -1,13 +1,13 @@
 import { useContext, useEffect, useState, type ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import type { CastChoice, CharacterResponse, CombatantView, EncounterView, LinkedRollRequest, RollPayload } from '@quest-fast/shared';
+import type { CastChoice, CharacterResponse, CombatantView, EncounterView, LinkedRollRequest, RollPayload, SummonInput } from '@quest-fast/shared';
 import { ActionPanel, type ActionPanelSignal, type ActionPanelTab } from '../../components/ActionPanel';
 import type { InitiativeActions } from '../../components/InitiativeList';
 import { Button as ActionButton } from '../../components/Button';
 import { MasterActions } from '../../components/MasterActions';
 import { pendingDamageCount } from '../../lib/combatant-state';
-import { PlayerActions } from '../../components/PlayerActions';
+import { PlayerActions, type PlayerFight, type PlayerSummons } from '../../components/PlayerActions';
 import { Skeleton } from '../../components/Skeleton';
 import { Button } from '../../components/ui/button';
 import { api } from '../../lib/api';
@@ -42,9 +42,48 @@ function useFight(campaignId: string) {
         // Only the d20's modifier counts on an initiative.
         onRoll: (id) => actions.run(id, () => api.combatantInitiative(campaignId, encounter.id, id, bonus?.roll ? { bonus: { roll: bonus.roll } } : {})),
         onToggleHidden: (id, hidden) => actions.run(id, () => api.updateCombatant(campaignId, encounter.id, id, { hidden })),
+        onSetController: (id, controllerId) => actions.run(id, () => api.updateCombatant(campaignId, encounter.id, id, { controllerId })),
+        onRemove: (id) => actions.run(id, () => api.removeCombatant(campaignId, encounter.id, id)),
       }
     : {};
   return { encounter, actions, handlers };
+}
+
+/** The campaign's players, who may control a creature (#114). */
+function usePlayers(campaignId: string, enabled: boolean) {
+  const members = useQuery({ queryKey: ['members', campaignId], queryFn: () => api.members(campaignId), enabled });
+  return (members.data?.members ?? []).filter((member) => member.role === 'player').map(({ userId, name }) => ({ id: userId, name }));
+}
+
+/**
+ * The creatures this player controls in the fight (#114), and "Invocar"
+ * while it runs. Only once their character is in it.
+ */
+function summonsOf(fight: Fight, ownCombatant: CombatantView | null, viewerId: string): PlayerSummons | undefined {
+  const { encounter, actions, handlers } = fight;
+  if (!encounter || !ownCombatant) return undefined;
+  const { add } = actions;
+  return {
+    controlled: encounter.combatants
+      .filter((combatant) => combatant.source !== 'character' && combatant.ownerId === viewerId)
+      .map((combatant) => playerFightOf(fight, combatant)),
+    onDismiss: (id) => handlers.onRemove?.(id),
+    summon: encounter.status === 'active'
+      ? { pending: add.isPending, error: add.isError ? errorMessage(add.error) : null, onSummon: (input: SummonInput) => add.mutateAsync(input) }
+      : undefined,
+  };
+}
+
+/** One combatant of the fight as the player's tab acts with it. */
+function playerFightOf(fight: Fight, combatant: CombatantView): PlayerFight {
+  const { encounter, actions, handlers } = fight;
+  return {
+    combatant,
+    targets: encounter!.combatants.filter((other) => other.id !== combatant.id),
+    active: encounter!.activeCombatantId === combatant.id,
+    busy: actions.busyIds.includes(combatant.id),
+    actions: handlers,
+  };
 }
 
 /** The player's active character in this campaign, its sheet and its linked rolls. */
@@ -106,15 +145,16 @@ function ownCombatantOf(encounter: EncounterView | null, own: OwnCharacter['own'
   return encounter.combatants.find((combatant) => combatant.characterId === own.id) ?? null;
 }
 
-/** The master's dot: hits waiting to be applied. The player's: their own turn. */
-function panelSignal(isMaster: boolean, encounter: EncounterView | null, ownCombatant: CombatantView | null): ActionPanelSignal | null {
+/** The master's dot: hits waiting to be applied. The player's: their own turn, or a creature's they control. */
+function panelSignal(isMaster: boolean, encounter: EncounterView | null, ownCombatant: CombatantView | null, viewerId: string): ActionPanelSignal | null {
   if (!encounter) return null;
   if (isMaster) {
     const pending = pendingDamageCount(encounter.combatants);
     if (pending === 0) return null;
     return { tone: 'alert', count: pending, label: pending === 1 ? '1 dano pendente' : `${pending} danos pendentes` };
   }
-  const ownTurn = ownCombatant !== null && encounter.round > 0 && encounter.activeCombatantId === ownCombatant.id;
+  const active = encounter.combatants.find((combatant) => combatant.id === encounter.activeCombatantId);
+  const ownTurn = encounter.round > 0 && active !== undefined && (active.id === ownCombatant?.id || (active.source !== 'character' && active.ownerId === viewerId));
   return ownTurn ? { tone: 'turn', label: 'sua vez' } : null;
 }
 
@@ -132,6 +172,7 @@ function TurnHeader({ fight, isMaster, currentUserId }: { fight: Fight; isMaster
 
 function MasterPanel({ campaignId, fight }: { campaignId: string; fight: Fight }) {
   const { encounter, actions, handlers } = fight;
+  const players = usePlayers(campaignId, true);
   return (
     <MasterActions
       emptyAction={(
@@ -139,7 +180,7 @@ function MasterPanel({ campaignId, fight }: { campaignId: string; fight: Fight }
           <Link to="/campaigns/$campaignId/prep" params={{ campaignId }}>Ir para o Preparo</Link>
         </Button>
       )}
-      fight={encounter && { name: encounter.name, combatants: encounter.combatants, activeCombatantId: encounter.activeCombatantId, busyIds: actions.busyIds, actions: handlers }} />
+      fight={encounter && { name: encounter.name, combatants: encounter.combatants, activeCombatantId: encounter.activeCombatantId, busyIds: actions.busyIds, actions: handlers, players }} />
   );
 }
 
@@ -151,9 +192,10 @@ function PlayerPanel({ campaignId, currentUserId, fight, player, ownCombatant }:
   ownCombatant: CombatantView | null;
 }) {
   const [sheetOpen, setSheetOpen] = useState(false);
-  const { encounter, actions, handlers } = fight;
+  const { encounter } = fight;
   const { characters, own, sheet, roll, slots, cast } = player;
   const spellError = cast.isError ? errorMessage(cast.error) : slots.isError ? errorMessage(slots.error) : null;
+
   if (characters.isPending) return <Skeleton shape="panel" label="Carregando seu personagem…" />;
   if (characters.isError) {
     return <LoadFailure message="Não foi possível carregar seu personagem." retrying={characters.isFetching} onRetry={() => { void characters.refetch(); }} />;
@@ -166,13 +208,8 @@ function PlayerPanel({ campaignId, currentUserId, fight, player, ownCombatant }:
         sheetError={sheet.isError ? errorMessage(sheet.error) : null}
         retryingSheet={sheet.isFetching}
         onRetrySheet={() => { void sheet.refetch(); }}
-        fight={ownCombatant && encounter ? {
-          combatant: ownCombatant,
-          targets: encounter.combatants.filter((combatant) => combatant.id !== ownCombatant.id),
-          active: encounter.activeCombatantId === ownCombatant.id,
-          busy: actions.busyIds.includes(ownCombatant.id),
-          actions: handlers,
-        } : null}
+        fight={ownCombatant && encounter ? playerFightOf(fight, ownCombatant) : null}
+        summons={summonsOf(fight, ownCombatant, currentUserId)}
         inOtherFight={encounter !== null && ownCombatant === null}
         rolling={roll.isPending}
         rollError={roll.isError ? errorMessage(roll.error) : null}
@@ -249,7 +286,7 @@ export function TableActionPanel({ campaignId, isMaster, currentUserId, withFeed
   useEffect(() => {
     if (leaving) clearRange?.(null);
   }, [leaving, clearRange]);
-  const actionsSignal = panelSignal(isMaster, fight.encounter, ownCombatant);
+  const actionsSignal = panelSignal(isMaster, fight.encounter, ownCombatant, currentUserId);
   const { setFullscreen } = session;
   const staged = stage !== undefined;
   useEffect(() => {

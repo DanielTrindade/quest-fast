@@ -15,7 +15,32 @@ export type MasterFight = {
   activeCombatantId: string | null;
   busyIds: readonly string[];
   actions: InitiativeActions;
+  /** The campaign's players, who may control a creature (#114). */
+  players?: ControllerOption[];
 };
+
+export type ControllerOption = { id: string; name: string };
+
+/**
+ * Who acts with a creature: the master, or a player of the campaign, who
+ * then moves it, attacks and ends its turn (#114). A hidden creature stays
+ * the master's: revealed first, then handed over.
+ */
+function ControllerField({ combatant, players, busy, onChange }: {
+  combatant: CombatantView;
+  players: ControllerOption[];
+  busy: boolean;
+  onChange: (controllerId: string | null) => void;
+}) {
+  return (
+    <SelectField label="Controlado por" value={combatant.ownerId ?? ''} disabled={busy || combatant.hidden}
+      hint={combatant.hidden ? 'Revele a criatura antes de entregá-la a um jogador.' : undefined}
+      onChange={(value) => onChange(value === '' ? null : value)}>
+      <option value="">Mestre</option>
+      {players.map((player) => <option key={player.id} value={player.id}>{player.name}</option>)}
+    </SelectField>
+  );
+}
 
 function PendingDamage({ combatants, busyIds, actions }: Pick<MasterFight, 'combatants' | 'busyIds' | 'actions'>) {
   const targets = combatants
@@ -73,7 +98,7 @@ export function MasterActions({ fight, emptyAction }: {
     );
   }
 
-  const { combatants, activeCombatantId, busyIds, actions } = fight;
+  const { combatants, activeCombatantId, busyIds, actions, players = [] } = fight;
   const picked = combatants.find((combatant) => combatant.id === pickedId);
   const selected = picked ?? combatants.find((combatant) => combatant.id === activeCombatantId) ?? combatants[0]!;
   const following = !picked;
@@ -103,6 +128,10 @@ export function MasterActions({ fight, emptyAction }: {
             targets={combatants.filter((combatant) => combatant.id !== selected.id)}
             busy={busyIds.includes(selected.id)} damageReminders={false} actions={actions} />
         </div>
+        {selected.source !== 'character' && actions.onSetController && players.length > 0 && (
+          <ControllerField combatant={selected} players={players} busy={busyIds.includes(selected.id)}
+            onChange={(controllerId) => actions.onSetController!(selected.id, controllerId)} />
+        )}
       </section>
     </div>
   );
