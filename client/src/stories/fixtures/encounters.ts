@@ -29,6 +29,7 @@ const base = {
   speed: 9,
   attacksPerAction: 1,
   turn: null,
+  summon: null,
 } satisfies Partial<CombatantView>;
 
 const SCIMITAR: Attack = { kind: 'attack', cost: 'attack', name: 'Cimitarra', bonus: 4, damage: '1d6+2', damageType: 'Cortante', notes: '', range: '1,5 m' };

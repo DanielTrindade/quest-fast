@@ -11,6 +11,7 @@ import type { AttackCost, TurnBudget, TurnSpend } from './turn.ts';
 import type { SaveBonuses, SaveEffect, SaveRoll } from './attack.ts';
 import type { ActiveCondition, COMBATANT_SOURCES, CombatReminder, ENCOUNTER_STATUSES, HealthBand, HpOperation } from './combat.ts';
 import type { CombatEffect, CombatEffectInput, CombatEffectSummary } from './effects.ts';
+import type { SummonInitiativeMode, SummonLinkInput } from './summons.ts';
 
 /**
  * Contract between server and client. Dates travel as ISO 8601; formatting
@@ -621,7 +622,10 @@ export type CombatantView = {
   source: CombatantSource;
   /** Only for `source: 'character'`; the sheet holds its hit points. */
   characterId: string | null;
-  /** The sheet's owner, so a player can find their own combatant. */
+  /**
+   * Who acts with it besides the master: the sheet's owner, or the player
+   * controlling a summon (#114). A player finds their own combatants by it.
+   */
   ownerId: string | null;
   name: string;
   size: Size;
@@ -659,8 +663,23 @@ export type CombatantView = {
   speed: number | null;
   /** Attacks of one Attack action. Null for a player looking at a monster. */
   attacksPerAction: number | null;
-  /** What is left of its turn: for the master, and for the owner of the character. */
+  /** What is left of its turn: for the master, and for the owner of the character or the controller. */
   turn: TurnView | null;
+  /** How it is tied to a summoner; null when it is not, or for a player looking at a monster. */
+  summon: SummonView | null;
+};
+
+/** A summon's tie to whoever summoned it (#114). */
+export type SummonView = {
+  /** A combatant of the same encounter; null when it was summoned by nobody there. */
+  summonerId: string | null;
+  initiativeMode: SummonInitiativeMode;
+  /** Ends when the summoner's concentration ends. */
+  concentration: boolean;
+  /** Its own turns left; null for no limit. */
+  roundsLeft: number | null;
+  /** Its controller made it, so may edit its sheet. */
+  editableByController: boolean;
 };
 
 /** An effect as a viewer sees it: whole, or only its name (`modifiers` tells which). */
@@ -731,11 +750,21 @@ export type EncounterConflictResponse = ErrorResponse & { encounter: EncounterVi
 
 export type HitPointMode = 'average' | 'rolled';
 
+/**
+ * Who acts with a creature the master adds, and how it is tied to its
+ * summoner (#114). A controlled creature is never hidden.
+ */
+export type CombatantControlInput = {
+  /** A player of the campaign; absent or null keeps it the master's. */
+  controllerId?: string | null;
+  summon?: SummonLinkInput;
+};
+
 /** What the master sends to add combatants, during preparation or as reinforcement. */
 export type CombatantInput =
   | { source: 'character'; characterId: string; hidden?: boolean }
-  | { source: 'statblock'; statblockId: string; count: number; hp: HitPointMode; hidden?: boolean }
-  | {
+  | ({ source: 'statblock'; statblockId: string; count: number; hp: HitPointMode; hidden?: boolean } & CombatantControlInput)
+  | ({
       source: 'manual';
       name: string;
       size?: Size;
@@ -745,7 +774,20 @@ export type CombatantInput =
       initiativeBonus?: number;
       initiative?: number | null;
       hidden?: boolean;
-    };
+    } & CombatantControlInput)
+  | SummonInput;
+
+/**
+ * A summon from a simple sheet, in the running fight. A player sends it for
+ * their own character, and controls it; the master may name the controller.
+ */
+export type SummonInput = {
+  source: 'summon';
+  sheet: SummonSheetInput;
+  summon: SummonLinkInput;
+  /** Master only; a player always controls their own summon. */
+  controllerId?: string | null;
+};
 
 /**
  * A free token copied from the bestiary joins the encounter, sent to the same
@@ -764,6 +806,12 @@ export type CombatantPatch = {
   speed?: number;
   /** Not for a character: the sheet holds it. */
   attacksPerAction?: number;
+  /** Not for a character: the sheet holds them. */
+  attacks?: AttackInput[];
+  /** Master only, not for a character: a player of the campaign, or null to take the control back. */
+  controllerId?: string | null;
+  /** Master only, not for a character. */
+  summon?: SummonLinkInput;
 };
 
 /** No `value` rolls on the server; a `value` is typed by the master. */

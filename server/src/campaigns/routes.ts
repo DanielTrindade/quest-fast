@@ -5,6 +5,7 @@ import { campaignBans, campaignMembers, campaigns, users, type Db } from '@quest
 import { normalizeInviteCode } from '@quest-fast/shared';
 import type { Context } from '../context.ts';
 import { banRoutes, isBanned } from './bans.ts';
+import { releaseControl } from '../combat/routes.ts';
 import { withUniqueCode } from './unique-code.ts';
 import { originKey, tooManyAttempts, type AttemptLimiter } from '../invites/attempt-limiter.ts';
 import { requireAuth, requireCampaignRole } from '../middleware.ts';
@@ -180,6 +181,7 @@ export function campaignRoutes(attempts: AttemptLimiter) {
       .where(and(eq(campaignMembers.campaignId, c.var.campaignId), eq(campaignMembers.userId, c.var.user.id)))
       .run();
     c.var.deps.hub.kick(c.var.campaignId, c.var.user.id);
+    releaseControl(c.var.deps, c.var.campaignId, c.var.user.id);
     return c.body(null, 204);
   });
 
@@ -204,6 +206,7 @@ export function campaignRoutes(attempts: AttemptLimiter) {
     });
     // The membership is gone; an open socket must not keep the room.
     c.var.deps.hub.kick(c.var.campaignId, target.userId);
+    releaseControl(c.var.deps, c.var.campaignId, target.userId);
     return c.body(null, 204);
   });
 
