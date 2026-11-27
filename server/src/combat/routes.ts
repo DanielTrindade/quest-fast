@@ -360,10 +360,12 @@ function addSummon(mutation: Mutation, body: Record<string, unknown>) {
   const { tx, loaded, viewer } = mutation;
   const master = viewer.role === 'master';
   if (!master) requireActive(loaded.encounter);
-  const sheet = source(body.sheet) as unknown as SummonSheetInput;
+  const raw = source(body.sheet);
+  // Each row is parsed first: the sheet's rules read the attacks' fields.
+  const attacks = parseAttackList(raw.attacks);
+  const sheet = { ...raw, attacks } as unknown as SummonSheetInput;
   const first = Object.values(validateSummonSheet(sheet))[0];
   if (first) refuse(422, first);
-  const attacks = parseAttackList(sheet.attacks);
   const link = parseLink(mutation, body.summon, 1);
   if (!master) {
     const summoner = loaded.combatants.find((combatant) => combatant.row.id === link.summonerId);
@@ -1804,6 +1806,8 @@ export function deleteCharacter(deps: Deps, campaignId: string, characterId: str
       const loaded = loadEncounter(tx, findEncounter(tx, campaignId, id)!);
       const combatant = loaded.combatants.find((candidate) => candidate.row.characterId === characterId)!;
       ended.push(...handOffTurn(tx, loaded, combatant.row.id, touched));
+      // Its summons keep the count they acted on (#114), or they would drop out of the queue.
+      releaseSummons(tx, loaded, combatant.row.id);
       tx.update(encounters).set({ version: sql`${encounters.version} + 1` }).where(eq(encounters.id, id)).run();
     }
     tx.delete(characters).where(and(eq(characters.id, characterId), eq(characters.campaignId, campaignId))).run();

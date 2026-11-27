@@ -124,8 +124,21 @@ test('the simple sheet and the link are checked, in Portuguese', async () => {
 
 test('a malformed attack row is refused, not a server error', async () => {
   const f = await fight();
-  const response = await f.summon(f.s.player, { sheet: { ...SPIRIT, attacks: [null] } });
-  assert.equal(response.status, 422);
+  for (const attacks of [[null], [{}], [{ name: 7 }], 'x']) {
+    const response = await f.summon(f.s.player, { sheet: { ...SPIRIT, attacks } });
+    assert.equal(response.status, 422, JSON.stringify(attacks));
+  }
+});
+
+test('deleting the sheet of the summoner leaves its summon in the queue, on the count it had', async () => {
+  const f = await fight();
+  await spiritOf(f);
+  const deleted = await send(f.s.player, `${f.s.root}/characters/${f.s.kaelen.id}`, 'DELETE');
+  assert.equal(deleted.status, 204, await deleted.clone().text());
+  const spirit = byName(await encounterOf(await f.s.master(f.path)), SPIRIT.name);
+  assert.deepEqual([spirit.initiative, spirit.summon?.summonerId, spirit.summon?.initiativeMode], [15, null, 'own']);
+  const view = await encounterOf(await f.s.master(f.path));
+  assert.ok(view.combatants.findIndex((combatant) => combatant.name === SPIRIT.name) < view.combatants.findIndex((combatant) => combatant.name === 'Bandido'));
 });
 
 test('a link that would loop back is refused, directly or through others', async () => {
