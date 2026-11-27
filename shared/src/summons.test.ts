@@ -35,14 +35,24 @@ test('the own initiative of a summon is ignored while it acts with its summoner'
   assert.deepEqual(sorted.map((c) => c.id), ['goblin', 'kaelen', 'beast']);
 });
 
-test('several summons keep the order they were given, chains included', () => {
+test('several summons keep the order they were given', () => {
+  const sorted = sortInitiative([entry('zombie-1', null, 'mira'), entry('mira', 14), entry('zombie-2', null, 'mira')]);
+  assert.deepEqual(sorted.map((c) => c.id), ['mira', 'zombie-1', 'zombie-2']);
+});
+
+test('in a chain each summon acts right after its own summoner, before the next sibling', () => {
   const sorted = sortInitiative([
     entry('zombie-1', null, 'mira'),
     entry('mira', 14),
     entry('zombie-2', null, 'mira'),
     entry('servant', null, 'zombie-1'),
   ]);
-  assert.deepEqual(sorted.map((c) => c.id), ['mira', 'zombie-1', 'zombie-2', 'servant']);
+  assert.deepEqual(sorted.map((c) => [c.id, c.initiative]), [['mira', 14], ['zombie-1', 14], ['servant', 14], ['zombie-2', 14]]);
+});
+
+test('a summon listed before its own summoner still acts after it', () => {
+  const sorted = sortInitiative([entry('servant', null, 'zombie'), entry('zombie', null, 'mira'), entry('mira', 14)]);
+  assert.deepEqual(sorted.map((c) => c.id), ['mira', 'zombie', 'servant']);
 });
 
 test('a summon waits with a summoner still without initiative', () => {
