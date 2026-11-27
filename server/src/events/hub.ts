@@ -49,6 +49,16 @@ export type EventHub = {
     canSee: (viewer: Viewer) => boolean,
     except?: WebSocket,
   ): void;
+  /**
+   * Relays a reference area someone draws to each connection whose viewer
+   * `canSee` it, but the one that sent it. Never saved.
+   */
+  publishAreaPreview(
+    campaignId: string,
+    preview: Omit<Extract<SocketMessage, { type: 'area.previewing' }>, 'type'>,
+    canSee: (viewer: Viewer) => boolean,
+    except?: WebSocket,
+  ): void;
   /** Sends `chat.message` to the whole room: every member reads the same chat. */
   publishChat(campaignId: string, message: ChatMessageView): void;
   /** Sends `chat.removed` to the whole room; the removed text is never sent again. */
@@ -145,6 +155,10 @@ export function createEventHub(): EventHub {
 
     publishTokenMoving(campaignId, moving, canSee, except) {
       send(campaignId, (connection) => (canSee(connection) ? { type: 'token.moving', ...moving } : null), except);
+    },
+
+    publishAreaPreview(campaignId, preview, canSee, except) {
+      send(campaignId, (connection) => (canSee(connection) ? { type: 'area.previewing', ...preview } : null), except);
     },
 
     publishChat(campaignId, message) {

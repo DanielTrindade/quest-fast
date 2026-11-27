@@ -35,3 +35,26 @@ test('a socket sends at most 40 messages a second; the rest is dropped', () => {
   time += 1;
   assert.equal(allowed(), true);
 });
+
+test('an area.preview is read with its geometry normalised, or a null area to clear it', () => {
+  assert.deepEqual(
+    parseClientMessage('{"type":"area.preview","sceneId":"s1","area":{"shape":"cube","size":3,"x":1,"y":2,"angle":95},"done":true}'),
+    { type: 'area.preview', sceneId: 's1', area: { shape: 'cube', size: 3, width: 1.5, x: 1, y: 2, angle: 90 }, done: true },
+  );
+  assert.deepEqual(parseClientMessage('{"type":"area.preview","sceneId":"s1","area":null}'), {
+    type: 'area.preview',
+    sceneId: 's1',
+    area: null,
+    done: false,
+  });
+  for (const raw of [
+    '{"type":"area.preview","area":null}',
+    '{"type":"area.preview","sceneId":"","area":null}',
+    '{"type":"area.preview","sceneId":"s1","area":null,"done":1}',
+    '{"type":"area.preview","sceneId":"s1","area":{"shape":"star","size":3,"x":1,"y":2}}',
+    '{"type":"area.preview","sceneId":"s1","area":{"shape":"sphere","size":2,"x":1,"y":2}}',
+    '{"type":"area.preview","sceneId":"s1"}',
+  ]) {
+    assert.equal(parseClientMessage(raw), null, raw);
+  }
+});

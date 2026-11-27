@@ -26,6 +26,11 @@ export const AREA_LIMITS = {
   maxMeters: 36,
   /** How long a reference area stays for the table after it is let go. */
   previewLingerMs: 5000,
+  /**
+   * A reference area still being drawn with no news for this long is dropped
+   * by whoever watches it: its author closed the tab, or it went under the fog.
+   */
+  previewStaleMs: 1500,
 } as const;
 
 /** What the shape of an area is, wherever it is drawn. */
