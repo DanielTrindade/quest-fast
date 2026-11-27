@@ -3,6 +3,7 @@ import type { DieResult, RollMode } from './dice.ts';
 import type { BonusRoll, RollBonusInput } from './roll-bonus.ts';
 import type { Ability, Skill } from './modifiers.ts';
 import type { ArmorTraining, Coins, DeathSaves, HitDie, Size, Spell, SpellSlot } from './sheet.ts';
+import type { AreaColor, AreaShape } from './areas.ts';
 import type { GridSettings, TokenKind } from './battlefield.ts';
 import type { SceneFog } from './fog.ts';
 import type { ChatMessageView } from './chat.ts';
@@ -1017,6 +1018,32 @@ export type TokenPatch = {
 
 /** 409 when someone else holds the lock on the token. */
 export type TokenLockedResponse = ErrorResponse & { movingBy: { userId: string; name: string } };
+
+/**
+ * A persistent area template on a scene (#113), as its receiver may see it.
+ * Measures in metres, origin in map pixels: an area following a token is
+ * drawn at the token's live position instead of (x, y).
+ */
+export type AreaView = {
+  id: string;
+  shape: AreaShape;
+  /** Radius, length or edge, in metres. */
+  size: number;
+  /** Metres across a line; 1,5 m for any other shape. */
+  width: number;
+  x: number;
+  y: number;
+  /** Degrees clockwise from east. */
+  angle: number;
+  name: string;
+  color: AreaColor;
+  /** Who made it: they may move and remove it, besides the master. */
+  createdBy: { userId: string; name: string };
+  /** Hidden by the master. Always false for a player, who never receives one. */
+  hidden: boolean;
+  /** The token it follows; a player only receives it while they receive that token. */
+  anchorTokenId: string | null;
+};
 
 /** A row of the master's scene list. */
 export type SceneSummary = Pick<SceneView, 'id' | 'name' | 'mapUrl' | 'mapWidth' | 'mapHeight' | 'active' | 'createdAt'>;
