@@ -71,7 +71,8 @@ export function isAreaColor(value: unknown): value is AreaColor {
 export function isAreaMeasure(value: unknown): value is number {
   if (typeof value !== 'number' || !Number.isFinite(value)) return false;
   const squares = value / SQUARE_METERS;
-  return value > 0 && value <= AREA_LIMITS.maxMeters && Math.abs(squares - Math.round(squares)) < 1e-6;
+  // Near a whole number of squares, and at least one: 1e-9 is "zero squares", not a measure.
+  return Math.round(squares) >= 1 && value <= AREA_LIMITS.maxMeters && Math.abs(squares - Math.round(squares)) < 1e-6;
 }
 
 /** The angle kept for a shape: in [0, 360), a quarter turn for a cube, 0 for a circle. */
@@ -220,7 +221,8 @@ export function areaCells(
 export type AreaInput = Omit<AreaGeometry, 'width'> & {
   width?: number;
   name: string;
-  color: AreaColor;
+  /** The area's colour from the palette (`tint`, not `color`: a style prop is a raw colour to the client's lint). */
+  tint: AreaColor;
   /** Master only: never reaches a player. */
   hidden?: boolean;
   /** The token the area follows; its origin is then the token's centre. */
@@ -233,7 +235,7 @@ export type AreaPatch = {
   y?: number;
   angle?: number;
   name?: string;
-  color?: AreaColor;
+  tint?: AreaColor;
   hidden?: boolean;
 };
 
@@ -273,7 +275,7 @@ export function validateAreaInput(value: unknown): { input: AreaInput & { width:
   if ('error' in geometry) return geometry;
   const name = validateName(value.name);
   if ('error' in name) return name;
-  if (!isAreaColor(value.color)) return { error: 'Escolha uma cor da lista.' };
+  if (!isAreaColor(value.tint)) return { error: 'Escolha uma cor da lista.' };
   if (value.hidden !== undefined && typeof value.hidden !== 'boolean') return { error: INVALID };
   const anchor = value.anchorTokenId ?? null;
   if (anchor !== null && (typeof anchor !== 'string' || anchor.length === 0 || anchor.length > ANCHOR_ID_MAX)) {
@@ -283,7 +285,7 @@ export function validateAreaInput(value: unknown): { input: AreaInput & { width:
     input: {
       ...geometry.geometry,
       name: name.name,
-      color: value.color,
+      tint: value.tint,
       hidden: value.hidden ?? false,
       anchorTokenId: anchor,
     },
@@ -310,9 +312,9 @@ export function validateAreaPatch(value: unknown, shape: AreaShape): { patch: Ar
     if ('error' in name) return name;
     patch.name = name.name;
   }
-  if (value.color !== undefined) {
-    if (!isAreaColor(value.color)) return { error: 'Escolha uma cor da lista.' };
-    patch.color = value.color;
+  if (value.tint !== undefined) {
+    if (!isAreaColor(value.tint)) return { error: 'Escolha uma cor da lista.' };
+    patch.tint = value.tint;
   }
   if (value.hidden !== undefined) {
     if (typeof value.hidden !== 'boolean') return { error: INVALID };

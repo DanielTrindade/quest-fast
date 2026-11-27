@@ -41,6 +41,8 @@ test('a measure is whole squares of 1,5 m up to the limit', () => {
   assert.equal(isAreaMeasure(6), true);
   assert.equal(isAreaMeasure(AREA_LIMITS.maxMeters), true);
   assert.equal(isAreaMeasure(0), false);
+  assert.equal(isAreaMeasure(1e-9), false, 'zero squares, however close');
+  assert.equal(isAreaMeasure(0.75), false);
   assert.equal(isAreaMeasure(2), false);
   assert.equal(isAreaMeasure(AREA_LIMITS.maxMeters + 1.5), false);
   assert.equal(isAreaMeasure(Number.NaN), false);
@@ -152,6 +154,8 @@ test('the geometry of a client is read and normalised', () => {
     { shape: 'sphere', size: 2, x: 0, y: 0 },
     { shape: 'sphere', size: 3, x: '0', y: 0 },
     { shape: 'line', size: 3, width: 1, x: 0, y: 0 },
+    { shape: 'sphere', size: 1e-9, x: 0, y: 0 },
+    { shape: 'line', size: 3, width: 1e-9, x: 0, y: 0 },
     { shape: 'cone', size: 3, x: 0, y: 0, angle: Infinity },
   ]) {
     assert.ok('error' in validateAreaGeometry(bad), JSON.stringify(bad));
@@ -159,7 +163,7 @@ test('the geometry of a client is read and normalised', () => {
 });
 
 test('a new area needs a name and a colour of the palette', () => {
-  const base = { shape: 'sphere', size: 6, x: 10, y: 10, color: 'crimson' };
+  const base = { shape: 'sphere', size: 6, x: 10, y: 10, tint: 'crimson' };
   const ok = validateAreaInput({ ...base, name: '  Névoa  ' });
   assert.ok('input' in ok);
   assert.equal(ok.input.name, 'Névoa');
@@ -167,7 +171,7 @@ test('a new area needs a name and a colour of the palette', () => {
   assert.equal(ok.input.anchorTokenId, null);
   assert.ok('error' in validateAreaInput({ ...base, name: '' }));
   assert.ok('error' in validateAreaInput({ ...base, name: 'x'.repeat(AREA_LIMITS.name + 1) }));
-  assert.ok('error' in validateAreaInput({ ...base, name: 'Teia', color: '#ff0000' }));
+  assert.ok('error' in validateAreaInput({ ...base, name: 'Teia', tint: '#ff0000' }));
   assert.ok('error' in validateAreaInput({ ...base, name: 'Teia', hidden: 'yes' }));
   assert.ok('error' in validateAreaInput({ ...base, name: 'Teia', anchorTokenId: '' }));
   const anchored = validateAreaInput({ ...base, name: 'Espírito Guardião', anchorTokenId: 't1' });
@@ -177,12 +181,12 @@ test('a new area needs a name and a colour of the palette', () => {
 test('a change to an area is read field by field', () => {
   assert.deepEqual(validateAreaPatch({ x: 1, y: 2 }, 'sphere'), { patch: { x: 1, y: 2 } });
   assert.deepEqual(validateAreaPatch({ angle: 400 }, 'cone'), { patch: { angle: 40 } });
-  assert.deepEqual(validateAreaPatch({ name: ' Teia ', color: 'emerald', hidden: true }, 'cube'), {
-    patch: { name: 'Teia', color: 'emerald', hidden: true },
+  assert.deepEqual(validateAreaPatch({ name: ' Teia ', tint: 'emerald', hidden: true }, 'cube'), {
+    patch: { name: 'Teia', tint: 'emerald', hidden: true },
   });
   assert.ok('error' in validateAreaPatch({}, 'sphere'));
   assert.ok('error' in validateAreaPatch({ x: 1 }, 'sphere'), 'both coordinates');
-  assert.ok('error' in validateAreaPatch({ color: 'pink' }, 'sphere'));
+  assert.ok('error' in validateAreaPatch({ tint: 'pink' }, 'sphere'));
   assert.ok('error' in validateAreaPatch({ name: '' }, 'sphere'));
 });
 
