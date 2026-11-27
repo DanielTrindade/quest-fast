@@ -271,6 +271,13 @@ export function validateStatblockInput(input: ValidatedStatblock): StatblockFiel
   return errors;
 }
 
+/** Enough of an attack for the list rules to read it; anything else is refused whole. */
+function isAttackShape(value: unknown): boolean {
+  if (typeof value !== 'object' || value === null) return false;
+  const attack = value as Record<string, unknown>;
+  return typeof attack.name === 'string' && typeof attack.damage === 'string';
+}
+
 export type SummonFieldErrors = Partial<
   Record<'name' | 'size' | 'ac' | 'hp' | 'speed' | 'initiativeBonus' | 'attacksPerAction' | 'attacks', string>
 >;
@@ -295,7 +302,10 @@ export function validateSummonSheet(input: SummonSheetInput): SummonFieldErrors 
   if (input.attacksPerAction !== undefined && !isAttacksPerAction(input.attacksPerAction)) {
     errors.attacksPerAction = `Ataques por ação deve ser um número entre ${TURN_LIMITS.attacksPerAction.min} e ${TURN_LIMITS.attacksPerAction.max}.`;
   }
-  const attacksError = Array.isArray(input.attacks) ? attackListError(input.attacks, S.attacks) : 'Ataques inválidos.';
+  const attacksError =
+    Array.isArray(input.attacks) && input.attacks.every(isAttackShape)
+      ? attackListError(input.attacks, S.attacks)
+      : 'Ataques inválidos.';
   if (attacksError) errors.attacks = attacksError;
   return errors;
 }

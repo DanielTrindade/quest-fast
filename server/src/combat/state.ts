@@ -12,6 +12,7 @@ import {
   classAttacksPerAction,
   effectiveAc,
   effectiveHpMax,
+  initiativeOf,
   saveBonus,
   sortInitiative,
   storedAttack,
@@ -58,6 +59,7 @@ export type LoadedCombatant = {
   row: CombatantRow;
   sheet: SheetColumns | null;
   name: string;
+  /** Who acts with it besides the master: the sheet's owner, or the controller of a summon (#114). */
   ownerId: string | null;
   /** Before the effects: the sheet's or the row's. */
   acBase: number;
@@ -145,7 +147,7 @@ function resolve(row: CombatantRow, sheet: SheetColumns | null): LoadedCombatant
     row,
     sheet: null,
     name: row.name,
-    ownerId: null,
+    ownerId: row.controllerId,
     acBase: row.ac ?? 0,
     ac: effectiveAc(row.ac ?? 0, row.effects),
     hpMaxBase: row.hpMax ?? 0,
@@ -194,15 +196,40 @@ function queueEntry(combatant: LoadedCombatant): QueueEntry & { combatant: Loade
     initiative: row.initiative,
     dexModifier: row.dexModifier,
     tieOrder: row.tieOrder,
+    followsId: followsIdOf(row),
     combatant,
   };
+}
+
+/** The summoner a summon acts right after, or null when it rolls its own initiative. */
+export function followsIdOf(row: Pick<CombatantRow, 'initiativeMode' | 'summonerId'>): string | null {
+  return row.initiativeMode === 'withSummoner' ? row.summonerId : null;
+}
+
+/** The initiative a combatant acts on: its summoner's when it acts with it. */
+export function effectiveInitiative(loaded: LoadedEncounter, combatant: LoadedCombatant): number | null {
+  const entries = loaded.combatants.map(queueEntry);
+  return initiativeOf(entries.find((entry) => entry.id === combatant.row.id)!, entries);
 }
 
 /** Initiative order first, then whoever is still without initiative, as added. */
 export function queueOrder(loaded: LoadedEncounter): LoadedCombatant[] {
   const ranked = sortInitiative(loaded.combatants.map(queueEntry)).map((entry) => entry.combatant);
-  const waiting = loaded.combatants.filter((combatant) => combatant.row.initiative === null);
+  const placed = new Set(ranked);
+  const waiting = loaded.combatants.filter((combatant) => !placed.has(combatant));
   return [...ranked, ...waiting];
+}
+
+/**
+ * Who must still roll before round 1: a summon acting with its summoner
+ * waits on the summoner's roll, so it is not listed itself.
+ */
+export function missingInitiative(loaded: LoadedEncounter): LoadedCombatant[] {
+  const ids = new Set(loaded.combatants.map((combatant) => combatant.row.id));
+  return loaded.combatants.filter((combatant) => {
+    const follows = followsIdOf(combatant.row);
+    return combatant.row.initiative === null && !(follows && ids.has(follows));
+  });
 }
 
 export function turnOrder(loaded: LoadedEncounter): TurnEntry[] {

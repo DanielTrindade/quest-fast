@@ -411,6 +411,21 @@ esses. De um monstro, o jogador recebe só o nome de cada efeito. O feed conta
 efeito aplicado, removido e expirado (pela duração ou pela concentração) só
 pelo nome, também num aliado; num combatente oculto, o evento é secreto.
 
+Aliado aberto à mesa não é mais só personagem (#114): um combatente que não é
+personagem pode ter um **controlador**, um jogador da campanha
+(`combatants.controller_id`). Ele passa a valer como o dono para toda checagem
+que já existia (iniciativa, turno, economia, ataque, PV, condições, efeitos),
+e a projeção e a redação do feed o tratam como um personagem: CA, ataques e
+iniciativa abertos a todos os jogadores, ataque não secreto, só o controlador
+e o mestre agem com ele. Uma criatura controlada nunca fica oculta. O mestre
+dá e tira o controle; o jogador cria a própria invocação, a partir do próprio
+personagem no combate em andamento, com uma ficha simples e sem ver o
+bestiário, e edita e dispensa só a que ele fez. A invocação "junto" usa a
+contagem de quem a invocou e age logo depois dele, com turno próprio; se quem
+invocou sai do encontro, ela fica com a contagem que tinha e passa a agir na
+própria vez. Quem sai ou é removido da campanha devolve as criaturas que
+controlava ao mestre.
+
 ### Campo de batalha (VTT) — decidido, em implementação
 
 As escolhas da fase 4 foram fechadas por medição no

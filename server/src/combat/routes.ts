@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
-import { and, desc, eq, ne, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, ne, sql } from 'drizzle-orm';
 import { Hono, type Context as HonoContext } from 'hono';
-import { characters, combatants, encounters, scenes, statblocks, tokens, type EncounterRow } from '@quest-fast/db';
+import { campaignMembers, characters, combatants, encounters, scenes, statblocks, tokens, type CombatantRow, type EncounterRow } from '@quest-fast/db';
 import {
   COMBAT_LIMITS as C,
   EFFECT_LIMITS,
@@ -22,6 +22,14 @@ import {
   isCondition,
   isDefeated,
   isHit,
+  isOpenToTable,
+  NO_SUMMON_LINK,
+  SUMMON_LIMITS,
+  summonLinkError,
+  validateSummonSheet,
+  type SummonInitiativeMode,
+  type SummonLinkInput,
+  type SummonSheetInput,
   isRollMode,
   isSize,
   keepsConcentration,
@@ -79,12 +87,25 @@ import type { Context } from '../context.ts';
 import { recordCombatEvent, recordRollEvent } from '../events/feed.ts';
 import type { Viewer } from '../events/hub.ts';
 import { requireAuth, requireCampaignRole } from '../middleware.ts';
-import { boundedInteger, shortText } from '../validation.ts';
+import { boundedInteger, parseAttack, shortText } from '../validation.ts';
 import { releaseTurnDrags } from '../scenes/fight.ts';
 import { bumpScenes, publishScenes, scenesShowing } from '../scenes/store.ts';
 import { clearEffects, recordEndedEffects, settleEffects, writeEffects, type Actor, type EndedEffect } from './effects.ts';
 import { projectEncounter } from './projection.ts';
-import { attacksOf, findEncounter, loadEncounter, queueOrder, saveModifierOf, turnOrder, type Executor, type LoadedCombatant, type LoadedEncounter } from './state.ts';
+import {
+  attacksOf,
+  effectiveInitiative,
+  findEncounter,
+  followsIdOf,
+  loadEncounter,
+  missingInitiative,
+  queueOrder,
+  saveModifierOf,
+  turnOrder,
+  type Executor,
+  type LoadedCombatant,
+  type LoadedEncounter,
+} from './state.ts';
 import { beginTurn, budgetOf, writeBudget } from './turn.ts';
 
 type Status = 403 | 404 | 409 | 422;
@@ -218,7 +239,195 @@ function parseHidden(value: unknown): boolean {
  * already in it. Each copy keeps the entry's values: editing it later never
  * changes the fight. Returns the new combatants' ids.
  */
-function insertCopies(mutation: Mutation, statblockId: string, count: number, hpMode: unknown, hidden: boolean): string[] {
+// --- Control and summons (#114) ---------------------------------------------------
+
+/** The columns that say who acts with a creature and how it is tied to its summoner. */
+type Control = Pick<
+  CombatantRow,
+  'controllerId' | 'createdBy' | 'summonerId' | 'summonConcentration' | 'initiativeMode' | 'roundsLeft'
+>;
+
+/** A creature of the master's, summoned by nobody: what every copy gets when nothing is said. */
+function masterControl(mutation: Mutation): Control {
+  return { ...controlColumns(null, NO_SUMMON_LINK), createdBy: mutation.viewer.userId };
+}
+
+function controlColumns(controllerId: string | null, link: SummonLinkInput): Omit<Control, 'createdBy'> {
+  return {
+    controllerId,
+    summonerId: link.summonerId,
+    summonConcentration: link.concentration,
+    initiativeMode: link.initiativeMode,
+    roundsLeft: link.rounds,
+  };
+}
+
+/** A player of the campaign, or null; the master never controls a creature this way. */
+function parseController(mutation: Mutation, value: unknown): string | null {
+  if (value === undefined || value === null) return null;
+  if (typeof value !== 'string') refuse(422, 'Controlador inválido.');
+  const member = mutation.tx
+    .select({ role: campaignMembers.role })
+    .from(campaignMembers)
+    .where(and(eq(campaignMembers.campaignId, mutation.loaded.encounter.campaignId), eq(campaignMembers.userId, value)))
+    .get();
+  if (member?.role !== 'player') refuse(422, 'O controlador precisa ser um jogador da campanha.');
+  return value;
+}
+
+/**
+ * How a creature is tied to its summoner. `adding` summons join the
+ * summoner's, which may not pass the limit; `self` is the combatant being
+ * edited, never its own summoner.
+ */
+function parseLink(mutation: Mutation, value: unknown, adding: number, self?: string): SummonLinkInput {
+  if (value === undefined || value === null) return NO_SUMMON_LINK;
+  if (typeof value !== 'object') refuse(422, LINK_INVALID);
+  const raw = value as Record<string, unknown>;
+  const summonerId = raw.summonerId ?? null;
+  const concentration = raw.concentration ?? false;
+  const rounds = raw.rounds ?? null;
+  if (summonerId !== null && typeof summonerId !== 'string') refuse(422, LINK_INVALID);
+  if (typeof concentration !== 'boolean') refuse(422, LINK_INVALID);
+  if (rounds !== null && typeof rounds !== 'number') refuse(422, LINK_INVALID);
+  const link: SummonLinkInput = {
+    summonerId,
+    initiativeMode: (raw.initiativeMode ?? 'own') as SummonInitiativeMode,
+    concentration,
+    rounds,
+  };
+  const error = summonLinkError(link);
+  if (error) refuse(422, error);
+  if (link.summonerId !== null) {
+    if (link.summonerId === self) refuse(422, 'Um combatente não invoca a si mesmo.');
+    const summoner = mutation.loaded.combatants.find((combatant) => combatant.row.id === link.summonerId);
+    if (!summoner || (summoner.row.hidden && mutation.viewer.role !== 'master')) {
+      refuse(422, 'Quem fez a invocação não está neste encontro.');
+    }
+    // Up the summoner's own chain the one being edited must not appear: a
+    // loop would leave both out of the turn order for good.
+    if (self && summonedBy(mutation.loaded, summoner.row.id).has(self)) {
+      refuse(422, 'Esse vínculo faria uma invocação ter sido invocada por ela mesma.');
+    }
+    // A summon held by a concentration already gone would leave at once.
+    if (link.concentration && !summoner.concentrating) refuse(409, `${summoner.name} não está concentrando.`);
+    const kept = mutation.loaded.combatants.filter(
+      (combatant) => combatant.row.summonerId === link.summonerId && combatant.row.id !== self,
+    ).length;
+    if (kept + adding > SUMMON_LIMITS.perSummoner) {
+      refuse(422, `Limite de ${SUMMON_LIMITS.perSummoner} invocações por conjurador.`);
+    }
+  }
+  return link;
+}
+
+const LINK_INVALID = 'Vínculo da invocação inválido.';
+
+/** A combatant and everyone up its chain of summoners, loops cut short. */
+function summonedBy(loaded: LoadedEncounter, combatantId: string): Set<string> {
+  const chain = new Set<string>();
+  let current: string | null = combatantId;
+  while (current !== null && !chain.has(current)) {
+    chain.add(current);
+    current = loaded.combatants.find((combatant) => combatant.row.id === current)?.row.summonerId ?? null;
+  }
+  return chain;
+}
+const HIDDEN_CONTROLLED = 'Uma criatura controlada por um jogador fica à vista da mesa: tire o controle antes de ocultá-la.';
+
+/** A creature the master adds: optionally a player's to act with, and tied to a summoner. */
+function parseMasterControl(mutation: Mutation, body: Record<string, unknown>, adding: number, hidden: boolean): Control {
+  const controllerId = parseController(mutation, body.controllerId);
+  if (controllerId && hidden) refuse(422, HIDDEN_CONTROLLED);
+  return { ...controlColumns(controllerId, parseLink(mutation, body.summon, adding)), createdBy: mutation.viewer.userId };
+}
+
+function parseAttackList(value: unknown): Attack[] {
+  if (!Array.isArray(value) || value.length > S.attacks) refuse(422, `Informe até ${S.attacks} ataques.`);
+  return value.map((raw) => {
+    const attack = parseAttack(raw);
+    if (!attack) refuse(422, 'Cada ataque precisa de nome e de dano como expressão (ex.: 1d8+3).');
+    return storedAttack(attack);
+  });
+}
+
+/**
+ * A summon from a simple sheet (#114). A player summons from their own
+ * character in the running fight and controls the summon; the master may
+ * summon for anyone, in preparation too, and name the controller.
+ */
+function addSummon(mutation: Mutation, body: Record<string, unknown>) {
+  const { tx, loaded, viewer } = mutation;
+  const master = viewer.role === 'master';
+  if (!master) requireActive(loaded.encounter);
+  const raw = source(body.sheet);
+  // Each row is parsed first: the sheet's rules read the attacks' fields.
+  const attacks = parseAttackList(raw.attacks);
+  const sheet = { ...raw, attacks } as unknown as SummonSheetInput;
+  const first = Object.values(validateSummonSheet(sheet))[0];
+  if (first) refuse(422, first);
+  const link = parseLink(mutation, body.summon, 1);
+  if (!master) {
+    const summoner = loaded.combatants.find((combatant) => combatant.row.id === link.summonerId);
+    if (!summoner || summoner.row.source !== 'character' || summoner.ownerId !== viewer.userId) {
+      refuse(403, 'Você invoca a partir do seu personagem neste encontro.');
+    }
+    if (body.controllerId !== undefined && body.controllerId !== viewer.userId) {
+      refuse(403, 'Você controla as invocações que faz.');
+    }
+  }
+  const controllerId = master ? parseController(mutation, body.controllerId) : viewer.userId;
+  if (loaded.combatants.length + 1 > E.combatants) refuse(422, `Limite de ${E.combatants} combatentes por encontro.`);
+  tx.insert(combatants)
+    .values({
+      id: randomUUID(),
+      encounterId: loaded.encounter.id,
+      source: 'manual',
+      name: sheet.name.trim(),
+      size: sheet.size,
+      ac: sheet.ac,
+      hpMax: sheet.hp,
+      hpCurrent: sheet.hp,
+      hpTemp: 0,
+      conditions: [],
+      concentrating: false,
+      initiativeBonus: sheet.initiativeBonus,
+      attacks,
+      speed: sheet.speed,
+      attacksPerAction: sheet.attacksPerAction ?? 1,
+      ...controlColumns(controllerId, link),
+      createdBy: viewer.userId,
+    })
+    .run();
+}
+
+/**
+ * A summon acting with a combatant about to leave keeps the count it had and
+ * acts on its own from then on; every tie to the one leaving goes. Whatever
+ * its concentration held up ends with the settling that follows the change.
+ */
+function releaseSummons(tx: Executor, loaded: LoadedEncounter, leavingId: string) {
+  for (const combatant of loaded.combatants) {
+    if (combatant.row.summonerId !== leavingId) continue;
+    const following = followsIdOf(combatant.row) === leavingId;
+    tx.update(combatants)
+      .set({
+        summonerId: null,
+        ...(following ? { initiativeMode: 'own' as const, initiative: effectiveInitiative(loaded, combatant) } : {}),
+      })
+      .where(eq(combatants.id, combatant.row.id))
+      .run();
+  }
+}
+
+function insertCopies(
+  mutation: Mutation,
+  statblockId: string,
+  count: number,
+  hpMode: unknown,
+  hidden: boolean,
+  control: Control = masterControl(mutation),
+): string[] {
   const { tx, loaded } = mutation;
   const statblock = tx
     .select()
@@ -259,6 +468,7 @@ function insertCopies(mutation: Mutation, statblockId: string, count: number, hp
         speed: speedFromText(statblock.speed) ?? TURN_LIMITS.defaultSpeed,
         attacksPerAction: statblock.attacksPerAction,
         hidden,
+        ...control,
       })
       .run();
     return id;
@@ -326,12 +536,17 @@ function addCombatants(mutation: Mutation, body: Record<string, unknown>) {
     const statblockId = typeof body.statblockId === 'string' ? body.statblockId : '';
     const count = boundedInteger(body.count ?? 1, 1, E.copies);
     if (count === undefined) refuse(422, `A quantidade deve ser um número entre 1 e ${E.copies}.`);
-    insertCopies(mutation, statblockId, count, body.hp, hidden);
+    insertCopies(mutation, statblockId, count, body.hp, hidden, parseMasterControl(mutation, body, count, hidden));
     return;
   }
 
   if (body.source === 'token') {
     joinToken(mutation, body);
+    return;
+  }
+
+  if (body.source === 'summon') {
+    addSummon(mutation, body);
     return;
   }
 
@@ -349,6 +564,7 @@ function addCombatants(mutation: Mutation, body: Record<string, unknown>) {
       refuse(422, `O bônus de iniciativa deve ser um número entre ${S.initiativeBonus.min} e ${S.initiativeBonus.max}.`);
     }
     const initiative = body.initiative === undefined || body.initiative === null ? null : parseInitiativeValue(body.initiative);
+    const control = parseMasterControl(mutation, body, 1, hidden);
     if (existing + 1 > E.combatants) refuse(422, `Limite de ${E.combatants} combatentes por encontro.`);
     tx.insert(combatants)
       .values({
@@ -366,12 +582,31 @@ function addCombatants(mutation: Mutation, body: Record<string, unknown>) {
         initiativeBonus,
         initiative,
         hidden,
+        ...control,
       })
       .run();
     return;
   }
 
-  refuse(422, 'Origem do combatente inválida: personagem, criatura do bestiário ou manual.');
+  refuse(422, 'Origem do combatente inválida: personagem, criatura do bestiário, manual ou invocação.');
+}
+
+/** What the controller of a summon they made may change on it; the rest is the master's. */
+const CONTROLLER_FIELDS = ['name', 'ac', 'hpMax', 'speed', 'attacksPerAction', 'attacks'];
+
+/**
+ * The master edits any combatant; the controller of a summon they made
+ * edits its sheet (#114), nothing else.
+ */
+function requireEditor(mutation: Mutation, combatant: LoadedCombatant, body: Record<string, unknown>) {
+  const { viewer } = mutation;
+  if (viewer.role === 'master') return;
+  const { row } = combatant;
+  const own = row.source !== 'character' && row.controllerId === viewer.userId && row.createdBy === viewer.userId;
+  if (!own) refuse(403, 'Só o mestre altera este combatente.');
+  if (Object.keys(body).some((key) => !CONTROLLER_FIELDS.includes(key))) {
+    refuse(403, 'Da sua invocação, você muda nome, CA, PV, deslocamento e ataques; o resto é do mestre.');
+  }
 }
 
 function editCombatant(mutation: Mutation, combatant: LoadedCombatant, body: Record<string, unknown>) {
@@ -379,9 +614,28 @@ function editCombatant(mutation: Mutation, combatant: LoadedCombatant, body: Rec
   const changes: Partial<typeof combatants.$inferInsert> = {};
   if (body.hidden !== undefined) changes.hidden = parseHidden(body.hidden);
 
-  const sheetFields = ['name', 'ac', 'hpMax', 'speed', 'attacksPerAction'].filter((key) => body[key] !== undefined);
+  const sheetFields = [...CONTROLLER_FIELDS, 'controllerId', 'summon'].filter((key) => body[key] !== undefined);
   if (sheetFields.length > 0 && row.source === 'character') {
-    refuse(422, 'Nome, CA, PV, deslocamento e ataques de um personagem são alterados na ficha.');
+    refuse(422, 'Nome, CA, PV, deslocamento e ataques de um personagem são alterados na ficha, e quem o controla é o dono dela.');
+  }
+  if (body.attacks !== undefined) changes.attacks = parseAttackList(body.attacks);
+  if (body.controllerId !== undefined) {
+    changes.controllerId = parseController(mutation, body.controllerId);
+  }
+  if ((changes.hidden ?? row.hidden) && (changes.controllerId !== undefined ? changes.controllerId : row.controllerId)) {
+    refuse(422, HIDDEN_CONTROLLED);
+  }
+  if (body.summon !== undefined) {
+    // The edited one counts among the summoner's: it is the one being tied to it.
+    const link = parseLink(mutation, body.summon, 1, row.id);
+    Object.assign(changes, {
+      summonerId: link.summonerId,
+      summonConcentration: link.concentration,
+      initiativeMode: link.initiativeMode,
+      roundsLeft: link.rounds,
+    });
+    // Leaving its summoner's side, it keeps the count it acted on.
+    if (followsIdOf(row) && link.initiativeMode === 'own') changes.initiative = effectiveInitiative(mutation.loaded, combatant);
   }
   if (body.speed !== undefined) {
     if (!isSpeed(body.speed)) refuse(422, `Deslocamento deve estar entre ${TURN_LIMITS.speed.min} e ${TURN_LIMITS.speed.max} metros.`);
@@ -505,8 +759,10 @@ export function leaveWithToken(
   const touched = new Set<string>();
   const ended = handOffTurn(tx, before, combatantId, touched);
   tx.update(encounters).set({ version: sql`${encounters.version} + 1` }).where(eq(encounters.id, encounter.id)).run();
-  const leaving = loadEncounter(tx, encounter).combatants.find((combatant) => combatant.row.id === combatantId);
+  const current = loadEncounter(tx, encounter);
+  const leaving = current.combatants.find((combatant) => combatant.row.id === combatantId);
   if (leaving) clearEffects(tx, leaving, touched);
+  releaseSummons(tx, current, combatantId);
   tx.delete(combatants).where(eq(combatants.id, combatantId)).run();
   // What its concentration held up on the others ends with it.
   ended.push(...settleEffects(tx, encounter, touched));
@@ -529,14 +785,27 @@ function removeCombatant(mutation: Mutation, combatant: LoadedCombatant) {
   // Aid ends with the fight: a character leaves with the sheet's maximum.
   clearEffects(mutation.tx, combatant, mutation.characters);
   tellEnded(mutation, handOffTurn(mutation.tx, mutation.loaded, combatant.row.id, mutation.characters));
+  releaseSummons(mutation.tx, mutation.loaded, combatant.row.id);
   mutation.tx.delete(combatants).where(eq(combatants.id, combatant.row.id)).run();
+}
+
+/** The master removes anyone; a controller dismisses a creature they control (#114). */
+function requireRemover(mutation: Mutation, combatant: LoadedCombatant) {
+  if (mutation.viewer.role === 'master') return;
+  if (combatant.row.source === 'character' || combatant.ownerId !== mutation.viewer.userId) {
+    refuse(403, 'Só o mestre tira um combatente do encontro; você dispensa as criaturas que controla.');
+  }
 }
 
 function setInitiative(mutation: Mutation, combatant: LoadedCombatant, body: Record<string, unknown>) {
   const { viewer } = mutation;
   const master = viewer.role === 'master';
+  const follows = followsIdOf(combatant.row);
+  if (follows && mutation.loaded.combatants.some((other) => other.row.id === follows)) {
+    refuse(409, `${combatant.name} age junto com quem a invocou; mude para a própria vez antes de rolar.`);
+  }
   if (!master) {
-    if (combatant.ownerId !== viewer.userId) refuse(403, 'Você só rola a iniciativa do seu personagem.');
+    if (combatant.ownerId !== viewer.userId) refuse(403, 'Você só rola a iniciativa do seu personagem e das criaturas que controla.');
     if (body.value !== undefined) refuse(403, 'Só o mestre atribui um valor de iniciativa.');
     if (combatant.row.initiative !== null) refuse(409, 'Sua iniciativa já foi rolada neste combate.');
   }
@@ -553,9 +822,9 @@ function setInitiative(mutation: Mutation, combatant: LoadedCombatant, body: Rec
     return;
   }
   if (body.secret !== undefined && typeof body.secret !== 'boolean') refuse(422, 'Valor inválido para "secreta".');
-  // The master's rolls for monsters are secret unless told otherwise; a
-  // character's roll is the table's business.
-  const secret = master ? ((body.secret as boolean | undefined) ?? combatant.row.source !== 'character') : false;
+  // The master's rolls for monsters are secret unless told otherwise; an
+  // ally's roll (a character, a creature a player controls) is the table's business.
+  const secret = master ? ((body.secret as boolean | undefined) ?? !openToTable(combatant)) : false;
   rollInitiative(mutation, combatant, { mode, secret, extra });
 }
 
@@ -590,7 +859,7 @@ function changeTurn(mutation: Mutation, body: Record<string, unknown>) {
   }
 
   if (encounter.round === 0) {
-    const missing = loaded.combatants.filter((combatant) => combatant.row.initiative === null);
+    const missing = missingInitiative(loaded);
     if (missing.length > 0) {
       refuse(409, `Falta iniciativa: ${missing.map((combatant) => combatant.name).join(', ')}.`);
     }
@@ -955,7 +1224,7 @@ function concentrationSave(mutation: Mutation, combatant: LoadedCombatant, body:
   if (body.secret !== undefined && typeof body.secret !== 'boolean') refuse(422, 'Valor inválido para "secreta".');
   const { row } = combatant;
   // A monster's roll is the master's unless told otherwise; a character's is the table's.
-  const secret = mutation.viewer.role === 'master' ? ((body.secret as boolean | undefined) ?? row.source !== 'character') : false;
+  const secret = mutation.viewer.role === 'master' ? ((body.secret as boolean | undefined) ?? !openToTable(combatant)) : false;
   const bonus = saveModifierOf(combatant, 'constitution');
   const result = rollTestWith(bonus, mode, extra);
   mutation.events.push(
@@ -978,8 +1247,17 @@ function concentrationSave(mutation: Mutation, combatant: LoadedCombatant, body:
   writeVitals(mutation, combatant, {}, withoutReminder(combatant, reminder));
 }
 
+/** An ally open to the table: a character, or a creature a player controls (#114). */
+function openToTable(combatant: LoadedCombatant): boolean {
+  return isOpenToTable({ source: combatant.row.source, controllerId: combatant.row.controllerId });
+}
+
+/**
+ * How the feed redacts it: an ally's numbers are the table's, a monster's the
+ * master's. A creature a player controls counts as an ally.
+ */
 function sourceOf(combatant: LoadedCombatant): 'character' | 'monster' {
-  return combatant.row.source === 'character' ? 'character' : 'monster';
+  return openToTable(combatant) ? 'character' : 'monster';
 }
 
 /**
@@ -1140,7 +1418,7 @@ function attack(mutation: Mutation, combatant: LoadedCombatant, body: Record<str
   // the targets of a save, a hidden one only leaves the player's copy, and
   // an area of hidden ones only is secret, so the feed filters it in SQL.
   const secret =
-    (master ? ((body.secret as boolean | undefined) ?? row.source !== 'character') : false) ||
+    (master ? ((body.secret as boolean | undefined) ?? !openToTable(combatant)) : false) ||
     row.hidden ||
     (targets.length > 0 && targets.every((target) => target.row.hidden));
 
@@ -1350,7 +1628,7 @@ function applyEffect(mutation: Mutation, bearer: LoadedCombatant, body: Record<s
   if (viewer.role !== 'master') {
     if (source && source.ownerId !== viewer.userId) refuse(403, 'A origem de um efeito seu é o seu personagem.');
     const ownBearer = bearer.ownerId === viewer.userId;
-    if (!ownBearer && !(source && bearer.row.source === 'character')) {
+    if (!ownBearer && !(source && openToTable(bearer))) {
       refuse(403, 'Você põe efeitos no seu personagem, ou num aliado quando a origem é o seu personagem.');
     }
   }
@@ -1528,6 +1806,8 @@ export function deleteCharacter(deps: Deps, campaignId: string, characterId: str
       const loaded = loadEncounter(tx, findEncounter(tx, campaignId, id)!);
       const combatant = loaded.combatants.find((candidate) => candidate.row.characterId === characterId)!;
       ended.push(...handOffTurn(tx, loaded, combatant.row.id, touched));
+      // Its summons keep the count they acted on (#114), or they would drop out of the queue.
+      releaseSummons(tx, loaded, combatant.row.id);
       tx.update(encounters).set({ version: sql`${encounters.version} + 1` }).where(eq(encounters.id, id)).run();
     }
     tx.delete(characters).where(and(eq(characters.id, characterId), eq(characters.campaignId, campaignId))).run();
@@ -1558,6 +1838,38 @@ export function publishCharacterScenes(deps: Deps, campaignId: string, character
  * only the active and the ended ones, through the same projection the socket
  * uses. Non-members get 404 from `requireCampaignRole`.
  */
+/**
+ * A player left or was removed from the campaign: the creatures they
+ * controlled in the open encounters go back to the master (#114). An ended
+ * encounter is history and keeps them as they were.
+ */
+export function releaseControl(deps: Deps, campaignId: string, userId: string) {
+  const changed = deps.db.transaction((tx) => {
+    const ids = [
+      ...new Set(
+        tx
+          .select({ id: encounters.id })
+          .from(combatants)
+          .innerJoin(encounters, eq(encounters.id, combatants.encounterId))
+          .where(and(eq(encounters.campaignId, campaignId), ne(encounters.status, 'ended'), eq(combatants.controllerId, userId)))
+          .all()
+          .map(({ id }) => id),
+      ),
+    ];
+    if (ids.length === 0) return [];
+    tx.update(combatants)
+      .set({ controllerId: null })
+      .where(and(eq(combatants.controllerId, userId), inArray(combatants.encounterId, ids)))
+      .run();
+    tx.update(encounters)
+      .set({ version: sql`${encounters.version} + 1` })
+      .where(inArray(encounters.id, ids))
+      .run();
+    return ids.map((id) => loadEncounter(tx, findEncounter(tx, campaignId, id)!));
+  });
+  for (const loaded of changed) deps.hub.publishCombat(campaignId, (viewer) => projectEncounter(loaded, viewer));
+}
+
 export function encounterRoutes() {
   const routes = new Hono<Context>();
   routes.use('*', requireAuth, requireCampaignRole());
@@ -1657,9 +1969,9 @@ export function encounterRoutes() {
       requireOpen(mutation.loaded.encounter);
       if (body.secret !== undefined && typeof body.secret !== 'boolean') refuse(422, 'Valor inválido para "secreta".');
       const secret = (body.secret as boolean | undefined) ?? true;
-      const pending = mutation.loaded.combatants.filter(
-        (combatant) => combatant.row.source !== 'character' && combatant.row.initiative === null,
-      );
+      // A creature a player controls is theirs to roll, like a character; one
+      // acting with its summoner waits on the summoner.
+      const pending = missingInitiative(mutation.loaded).filter((combatant) => !openToTable(combatant));
       if (pending.length === 0) refuse(409, 'Todas as criaturas já têm iniciativa.');
       for (const combatant of pending) rollInitiative(mutation, combatant, { mode: 'normal', secret });
     }),
@@ -1677,7 +1989,8 @@ export function encounterRoutes() {
     mutate(
       c,
       (mutation, body) => {
-        requireMaster(mutation.viewer);
+        // A player adds only a summon of their own, which addSummon checks.
+        if (body.source !== 'summon') requireMaster(mutation.viewer);
         requireOpen(mutation.loaded.encounter);
         addCombatants(mutation, body);
       },
@@ -1688,7 +2001,7 @@ export function encounterRoutes() {
   routes.patch('/:encounterId/combatants/:combatantId', (c) =>
     mutate(c, (mutation, body) => {
       const combatant = findCombatant(mutation, c.req.param('combatantId'));
-      requireMaster(mutation.viewer);
+      requireEditor(mutation, combatant, body);
       requireOpen(mutation.loaded.encounter);
       editCombatant(mutation, combatant, body);
     }),
@@ -1697,7 +2010,7 @@ export function encounterRoutes() {
   routes.delete('/:encounterId/combatants/:combatantId', (c) =>
     mutate(c, (mutation) => {
       const combatant = findCombatant(mutation, c.req.param('combatantId'));
-      requireMaster(mutation.viewer);
+      requireRemover(mutation, combatant);
       requireOpen(mutation.loaded.encounter);
       removeCombatant(mutation, combatant);
     }),

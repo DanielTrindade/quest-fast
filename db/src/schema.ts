@@ -8,6 +8,7 @@ import {
   ENCOUNTER_STATUSES,
   ROLES,
   SIZES,
+  SUMMON_INITIATIVE_MODES,
   TOKEN_KINDS,
   type Ability,
   type ActiveCondition,
@@ -400,11 +401,26 @@ export const combatants = sqliteTable(
     dashes: integer('dashes').notNull().default(0),
     /** Metres walked this turn. */
     movementUsed: real('movement_used').notNull().default(0),
+    // Summons and other creatures a player controls (#114). Never on a
+    // character, whose sheet already has an owner.
+    /** The player who acts with it; null for the master's. Open to the table while set. */
+    controllerId: text('controller_id').references(() => users.id, { onDelete: 'set null' }),
+    /** Who added it: a player's own summon is theirs to edit while they control it. */
+    createdBy: text('created_by').references(() => users.id, { onDelete: 'set null' }),
+    /** The combatant that summoned it, in the same encounter. No foreign key, as `active_combatant_id`. */
+    summonerId: text('summoner_id'),
+    /** Ends when the summoner's concentration ends. */
+    summonConcentration: integer('summon_concentration', { mode: 'boolean' }).notNull().default(false),
+    /** `withSummoner`: the summoner's count, right after it; its own `initiative` is then unused. */
+    initiativeMode: text('initiative_mode', { enum: SUMMON_INITIATIVE_MODES }).notNull().default('own'),
+    /** Its own turns left before it ends; null for no limit. */
+    roundsLeft: integer('rounds_left'),
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(now),
   },
   (table) => [
     index('combatants_encounter_id_idx').on(table.encounterId),
     index('combatants_character_id_idx').on(table.characterId),
+    index('combatants_controller_id_idx').on(table.controllerId),
   ],
 );
 

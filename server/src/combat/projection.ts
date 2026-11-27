@@ -1,6 +1,6 @@
-import { effectiveSpeed, healthBand, isDefeated, isSecretReminder, movementLeft, pendingReminders, type CombatantView, type EncounterView, type TurnView } from '@quest-fast/shared';
+import { effectiveSpeed, healthBand, isDefeated, isOpenToTable, isSecretReminder, movementLeft, pendingReminders, type CombatantView, type EncounterView, type SummonView, type TurnView } from '@quest-fast/shared';
 import type { Viewer } from '../events/hub.ts';
-import { attacksOf, queueOrder, type LoadedCombatant, type LoadedEncounter } from './state.ts';
+import { attacksOf, effectiveInitiative, queueOrder, type LoadedCombatant, type LoadedEncounter } from './state.ts';
 
 function defeated(combatant: LoadedCombatant): boolean {
   return isDefeated({ source: combatant.row.source, hpCurrent: combatant.hpCurrent });
@@ -23,12 +23,28 @@ export function turnOf(combatant: LoadedCombatant): TurnView {
   return { ...budget, speed, movementLeft: movementLeft(budget, speed), attacksPerAction: combatant.attacksPerAction };
 }
 
-function projectCombatant(combatant: LoadedCombatant, viewer: Viewer, round: number): CombatantView {
+/** A summon's tie, or null for a combatant summoned by nobody and acting on its own for good. */
+function summonOf(combatant: LoadedCombatant): SummonView | null {
   const { row } = combatant;
+  if (!row.summonerId && row.initiativeMode === 'own' && !row.summonConcentration && row.roundsLeft === null && !row.controllerId) return null;
+  return {
+    summonerId: row.summonerId,
+    initiativeMode: row.initiativeMode,
+    concentration: row.summonConcentration,
+    roundsLeft: row.roundsLeft,
+    editableByController: row.controllerId !== null && row.createdBy === row.controllerId,
+  };
+}
+
+function projectCombatant(loaded: LoadedEncounter, combatant: LoadedCombatant, viewer: Viewer): CombatantView {
+  const { row } = combatant;
+  const { round } = loaded.encounter;
   const master = viewer.role === 'master';
-  // Allies are open to the whole table; a monster's numbers are the master's,
-  // except its hit points, which the table follows (#111).
-  const known = master || row.source === 'character';
+  // Allies (characters and the creatures players control, #114) are open to
+  // the whole table; a monster's numbers are the master's, except its hit
+  // points, which the table follows (#111).
+  const known = master || isOpenToTable({ source: row.source, controllerId: row.controllerId });
+  const initiative = effectiveInitiative(loaded, combatant);
   return {
     id: row.id,
     source: row.source,
@@ -37,8 +53,8 @@ function projectCombatant(combatant: LoadedCombatant, viewer: Viewer, round: num
     name: combatant.name,
     size: combatant.sheet?.size ?? row.size,
     hidden: master && row.hidden,
-    initiative: known ? row.initiative : null,
-    hasInitiative: row.initiative !== null,
+    initiative: known ? initiative : null,
+    hasInitiative: initiative !== null,
     dexModifier: master ? row.dexModifier : null,
     tieOrder: master ? row.tieOrder : null,
     ac: known ? combatant.ac : null,
@@ -63,6 +79,7 @@ function projectCombatant(combatant: LoadedCombatant, viewer: Viewer, round: num
     attacksPerAction: known ? combatant.attacksPerAction : null,
     // The turn is the master's and the owner's to manage, not the table's.
     turn: master || (combatant.ownerId !== null && combatant.ownerId === viewer.userId) ? turnOf(combatant) : null,
+    summon: known ? summonOf(combatant) : null,
   };
 }
 
@@ -93,7 +110,7 @@ export function projectEncounter(loaded: LoadedEncounter, viewer: Viewer): Encou
     createdAt: encounter.createdAt.toISOString(),
     startedAt: encounter.startedAt?.toISOString() ?? null,
     endedAt: encounter.endedAt?.toISOString() ?? null,
-    combatants: visible.map((combatant) => projectCombatant(combatant, viewer, encounter.round)),
+    combatants: visible.map((combatant) => projectCombatant(loaded, combatant, viewer)),
     summary:
       encounter.status === 'ended'
         ? {

@@ -15,7 +15,8 @@ import { SelectField } from './SelectField';
 import { SIZE_LABELS } from '../lib/sheet-labels';
 import { checkLabel, segmentedGroup, segmentedRadio } from './ui/segmented';
 
-type Source = CombatantInput['source'];
+/** A summon is made at the table (#114), not in this form. */
+type Source = Exclude<CombatantInput['source'], 'summon'>;
 type Errors = Record<string, string>;
 type Built = { input: CombatantInput } | { errors: Errors };
 

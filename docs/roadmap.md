@@ -335,12 +335,15 @@ criatura que o jogador controla no combate
 [`history/2026-11-27-summons.md`](history/2026-11-27-summons.md), em quatro
 PRs empilhados:
 
-1. **Regras em `shared/` — em revisão.** A invocação que age junto vem logo
+1. **Regras em `shared/` — entregue.** A invocação que age junto vem logo
    depois de quem a invocou, com a mesma contagem; a ficha simples do
    jogador, o vínculo com quem invocou (concentração e duração em rounds) e a
    regra de quem é aliado aberto à mesa.
-2. **Combate no servidor.** Controlador no combatente, criação pelo mestre e
-   pelo jogador, RBAC pelo controlador e projeção como aliado.
+2. **Combate no servidor — em revisão.** Controlador no combatente (um
+   jogador da campanha, nunca oculto), criação pelo mestre e pelo jogador
+   (ficha simples, a partir do próprio personagem), RBAC pelo controlador,
+   projeção e feed como aliado, iniciativa "junto" sem rolagem própria e a
+   saída de quem invocou. Quem sai da campanha devolve as criaturas ao mestre.
 3. **Mapa e ciclo de vida.** Token do controlador e saída pela concentração,
    pela duração e no fim do combate.
 4. **Na tela.** "Invocar" na Mesa, os campos do mestre e "Agir com".
