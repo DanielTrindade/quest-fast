@@ -12,7 +12,7 @@ import { fogOf } from './projection.ts';
  * Read on every message, so the fog or closing the map take effect at once.
  * Null when the scene is not the open one of this campaign.
  */
-export function previewAudience(db: Db, sender: Viewer & { campaignId: string }, sceneId: string, at: { x: number; y: number }) {
+export function previewAudience(db: Db, sender: Viewer & { campaignId: string }, sceneId: string) {
   const row = db
     .select({
       mapWidth: scenes.mapWidth,
@@ -27,10 +27,12 @@ export function previewAudience(db: Db, sender: Viewer & { campaignId: string },
   if (!row) return null;
   const name = db.select({ name: users.name }).from(users).where(eq(users.id, sender.userId)).get()?.name ?? '';
   const fog = fogOf(row);
-  const visibility = { hidden: false, byMaster: sender.role === 'master', anchor: null, ...at };
+  const byMaster = sender.role === 'master';
   return {
     name,
     map: { width: row.mapWidth, height: row.mapHeight },
-    canSee: (viewer: Viewer) => isAreaVisible(visibility, viewer.role, fog),
+    /** Who may see the area with its origin at `at`: the origin that goes out, already on the map. */
+    canSeeAt: (at: { x: number; y: number }) => (viewer: Viewer) =>
+      isAreaVisible({ hidden: false, byMaster, anchor: null, ...at }, viewer.role, fog),
   };
 }

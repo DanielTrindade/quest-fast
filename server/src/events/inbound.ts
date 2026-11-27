@@ -100,9 +100,11 @@ export function receiveFrom(
 type PreviewState = { last: { x: number; y: number } | null };
 
 /**
- * Relays a reference area to whoever may see it, the sender excepted. A
- * clear goes to whoever could see it where it last was, so it tells nobody
- * else that an area existed.
+ * Relays a reference area to whoever may see it, the sender excepted, with
+ * the fog checked at the origin that goes out (kept on the map). A clear
+ * goes to whoever could see the area where it last was, so it tells nobody
+ * else that an area existed; one let go still stands on the table, so its
+ * place is kept until it is cleared or replaced.
  */
 function relayPreview(
   deps: { db: Db; hub: EventHub },
@@ -111,12 +113,12 @@ function relayPreview(
   state: PreviewState,
 ) {
   const { area } = message;
-  const at = area ? { x: area.x, y: area.y } : state.last;
-  if (!at) return;
-  const audience = previewAudience(deps.db, connection, message.sceneId, at);
+  if (!area && !state.last) return;
+  const audience = previewAudience(deps.db, connection, message.sceneId);
   if (!audience) return;
   const clamped = area ? { ...area, ...clampToMap(area.x, area.y, audience.map.width, audience.map.height) } : null;
-  state.last = clamped && !message.done ? { x: clamped.x, y: clamped.y } : null;
+  const at = clamped ?? state.last!;
+  state.last = clamped ? { x: clamped.x, y: clamped.y } : null;
   deps.hub.publishAreaPreview(
     connection.campaignId,
     {
@@ -126,7 +128,7 @@ function relayPreview(
       done: message.done,
       ts: Date.now(),
     },
-    audience.canSee,
+    audience.canSeeAt(at),
     connection.socket,
   );
 }

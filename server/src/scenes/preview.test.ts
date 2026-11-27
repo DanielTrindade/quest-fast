@@ -103,3 +103,27 @@ test('under the fog a master reference area stops reaching the player, and its c
     await until(() => toMaster.length === 1);
   });
 });
+
+test('a reference area let go can still be cleared for whoever sees it', async () => {
+  await withSockets(async (s, { lia, rafael }) => {
+    const { scene: opened } = await scene(s);
+    const toMaster = previews(lia);
+    rafael.send(JSON.stringify({ type: 'area.preview', sceneId: opened.id, area: sphere(100, 100), done: true }));
+    rafael.send(JSON.stringify({ type: 'area.preview', sceneId: opened.id, area: null, done: false }));
+    await until(() => toMaster.length === 2);
+    assert.deepEqual(toMaster.map((message) => [message.area?.x ?? null, message.done]), [[100, true], [null, false]]);
+  });
+});
+
+test('the fog is checked where the area goes out, kept on the map', async () => {
+  await withSockets(async (s, { lia, rafael }) => {
+    const { scene: opened, path } = await scene(s);
+    await send(s.master, path, 'PATCH', { fogEnabled: true });
+    await send(s.master, `${path}/fog`, 'POST', { mode: 'reveal', shape: { kind: 'all' } });
+    const toPlayer = previews(rafael);
+    // Past the right edge: it goes out at (600, 100), which is revealed.
+    lia.send(JSON.stringify({ type: 'area.preview', sceneId: opened.id, area: sphere(900, 100), done: false }));
+    await until(() => toPlayer.length === 1);
+    assert.equal(toPlayer[0]!.area?.x, 600);
+  });
+});
