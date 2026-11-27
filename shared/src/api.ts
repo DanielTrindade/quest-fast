@@ -1042,7 +1042,8 @@ export type AreaView = {
   /** Degrees clockwise from east. */
   angle: number;
   name: string;
-  color: AreaColor;
+  /** From the palette; `tint` because the client's lint reads any `color` prop as a raw colour. */
+  tint: AreaColor;
   /** Who made it: they may move and remove it, besides the master. */
   createdBy: { userId: string; name: string };
   /** Hidden by the master. Always false for a player, who never receives one. */
