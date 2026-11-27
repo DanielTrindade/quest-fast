@@ -1,13 +1,13 @@
 import { and, asc, desc, eq, or, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/sqlite-core';
 import type { Context as HonoContext } from 'hono';
-import { assets, campaigns, characters, combatants, scenes, statblocks, tokens, type SceneRow } from '@quest-fast/db';
+import { assets, campaignMembers, campaigns, characters, combatants, sceneAreas, scenes, statblocks, tokens, users, type SceneRow } from '@quest-fast/db';
 import { effectiveSpeed, tokenVitality, type GridSettings, type SceneResponse } from '@quest-fast/shared';
 import type { Context, Deps } from '../context.ts';
 import type { Executor } from '../combat/state.ts';
 import type { Viewer } from '../events/hub.ts';
 import { fighterOf, runningFight } from './fight.ts';
-import { projectScene, type LoadedScene, type LoadedToken } from './projection.ts';
+import { projectScene, type LoadedArea, type LoadedScene, type LoadedToken } from './projection.ts';
 
 /**
  * What the scene and token routes share: loading a scene with its tokens,
@@ -149,6 +149,20 @@ function loadTokens({ deps, campaignId }: SceneScope, db: Executor, sceneId: str
     });
 }
 
+/** The areas of a scene, oldest first, with their creator's name and role in the campaign. */
+function loadAreas({ campaignId }: SceneScope, db: Executor, sceneId: string): LoadedArea[] {
+  return db
+    .select({ row: sceneAreas, creatorName: users.name, role: campaignMembers.role })
+    .from(sceneAreas)
+    .innerJoin(users, eq(users.id, sceneAreas.createdBy))
+    // Someone who left the campaign is no longer its master.
+    .leftJoin(campaignMembers, and(eq(campaignMembers.userId, sceneAreas.createdBy), eq(campaignMembers.campaignId, campaignId)))
+    .where(eq(sceneAreas.sceneId, sceneId))
+    .orderBy(asc(sceneAreas.createdAt), asc(sql`${sceneAreas}.rowid`))
+    .all()
+    .map(({ row, creatorName, role }) => ({ row, creatorName, byMaster: role === 'master' }));
+}
+
 /** Scenes without their tokens: enough for the master's list. */
 export function loadScenes(scope: SceneScope, db: Executor, where: ReturnType<typeof and>): LoadedScene[] {
   const active = activeSceneId(db, scope.campaignId);
@@ -159,14 +173,14 @@ export function loadScenes(scope: SceneScope, db: Executor, where: ReturnType<ty
     .where(where)
     .orderBy(desc(scenes.createdAt), desc(sql`${scenes}.rowid`))
     .all()
-    .map(({ scene, path }) => ({ scene, mapUrl: scope.deps.assets.urlFor(path), active: scene.id === active, tokens: [] }));
+    .map(({ scene, path }) => ({ scene, mapUrl: scope.deps.assets.urlFor(path), active: scene.id === active, tokens: [], areas: [] }));
 }
 
 /** One scene of the campaign, with its tokens. */
 export function loadScene(scope: SceneScope, db: Executor, sceneId: string): LoadedScene | undefined {
   const loaded = loadScenes(scope, db, and(eq(scenes.campaignId, scope.campaignId), eq(scenes.id, sceneId)))[0];
   if (!loaded) return undefined;
-  return { ...loaded, tokens: loadTokens(scope, db, sceneId) };
+  return { ...loaded, tokens: loadTokens(scope, db, sceneId), areas: loadAreas(scope, db, sceneId) };
 }
 
 /**

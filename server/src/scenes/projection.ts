@@ -1,5 +1,15 @@
-import type { SceneRow, TokenRow } from '@quest-fast/db';
-import { initials, isTokenVisible, type SceneFog, type SceneSummary, type SceneView, type Size, type TokenView } from '@quest-fast/shared';
+import type { SceneAreaRow, SceneRow, TokenRow } from '@quest-fast/db';
+import {
+  initials,
+  isAreaVisible,
+  isTokenVisible,
+  type AreaView,
+  type SceneFog,
+  type SceneSummary,
+  type SceneView,
+  type Size,
+  type TokenView,
+} from '@quest-fast/shared';
 import type { Viewer } from '../events/hub.ts';
 import type { Fighter } from './fight.ts';
 
@@ -24,6 +34,14 @@ export type LoadedToken = {
   reach: TokenView['reach'];
 };
 
+/** An area with what its projection reads from its creator. */
+export type LoadedArea = {
+  row: SceneAreaRow;
+  creatorName: string;
+  /** Made by the master of the campaign: under the fog, it hides like a monster. */
+  byMaster: boolean;
+};
+
 /** A scene with what its projection needs from outside the row. */
 export type LoadedScene = {
   scene: SceneRow;
@@ -33,6 +51,8 @@ export type LoadedScene = {
   active: boolean;
   /** Empty when only the summary was loaded. */
   tokens: LoadedToken[];
+  /** Empty when only the summary was loaded. */
+  areas: LoadedArea[];
 };
 
 /** The fog as it leaves the server, the same for every viewer. */
@@ -44,6 +64,56 @@ export function fogOf(scene: Pick<SceneRow, 'fogEnabled' | 'fogRevealed'>): Scen
 export function tokenVisibleTo(token: LoadedToken, viewer: Viewer, fog: SceneFog): boolean {
   const { kind, hidden, x, y } = token.row;
   return isTokenVisible({ kind, hidden, combatantHidden: token.combatantHidden, x, y }, viewer.role, fog);
+}
+
+/** The token an area follows, if it follows one and the token is still on the scene. */
+function anchorOf(area: LoadedArea, tokens: LoadedToken[]): LoadedToken | null {
+  const { anchorTokenId } = area.row;
+  return anchorTokenId ? (tokens.find((token) => token.row.id === anchorTokenId) ?? null) : null;
+}
+
+/**
+ * Whether a viewer receives this area at all, over REST or the socket. One
+ * following a token shows only with the token, where the token rests.
+ */
+export function areaVisibleTo(area: LoadedArea, tokens: LoadedToken[], viewer: Viewer, fog: SceneFog): boolean {
+  const { row } = area;
+  const anchor = anchorOf(area, tokens);
+  // The anchor went with its own removal (cascade): an area left without one is not shown.
+  if (row.anchorTokenId && !anchor) return viewer.role === 'master';
+  return isAreaVisible(
+    {
+      hidden: row.hidden,
+      byMaster: area.byMaster,
+      anchor: anchor
+        ? { kind: anchor.row.kind, hidden: anchor.row.hidden, combatantHidden: anchor.combatantHidden, x: anchor.row.x, y: anchor.row.y }
+        : null,
+      x: row.x,
+      y: row.y,
+    },
+    viewer.role,
+    fog,
+  );
+}
+
+export function projectArea(area: LoadedArea, tokens: LoadedToken[]): AreaView {
+  const { row } = area;
+  const anchor = anchorOf(area, tokens);
+  return {
+    id: row.id,
+    shape: row.shape,
+    size: row.size,
+    width: row.width,
+    // Drawn where the token it follows rests.
+    x: anchor ? anchor.row.x : row.x,
+    y: anchor ? anchor.row.y : row.y,
+    angle: row.angle,
+    name: row.name,
+    color: row.color,
+    createdBy: { userId: row.createdBy, name: area.creatorName },
+    hidden: row.hidden,
+    anchorTokenId: row.anchorTokenId,
+  };
 }
 
 /** The reach of a creature tells a player its speed: only characters' reach the table. */
@@ -83,7 +153,7 @@ export function projectToken(token: LoadedToken, viewer: Viewer): TokenView {
  * table (`null` for any other) and only the tokens `isTokenVisible` lets
  * through: none hidden, and with the fog on, none but characters' under it.
  */
-export function projectScene({ scene, mapUrl, active, tokens }: LoadedScene, viewer: Viewer): SceneView | null {
+export function projectScene({ scene, mapUrl, active, tokens, areas }: LoadedScene, viewer: Viewer): SceneView | null {
   if (viewer.role !== 'master' && !active) return null;
   const fog = fogOf(scene);
   return {
@@ -104,6 +174,7 @@ export function projectScene({ scene, mapUrl, active, tokens }: LoadedScene, vie
     active,
     fog,
     tokens: tokens.filter((token) => tokenVisibleTo(token, viewer, fog)).map((token) => projectToken(token, viewer)),
+    areas: areas.filter((area) => areaVisibleTo(area, tokens, viewer, fog)).map((area) => projectArea(area, tokens)),
     version: scene.version,
     createdAt: scene.createdAt.toISOString(),
   };
