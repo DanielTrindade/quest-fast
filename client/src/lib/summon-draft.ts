@@ -1,4 +1,5 @@
 import {
+  SUMMON_LIMITS,
   summonLinkError,
   validateSummonSheet,
   type AttackInput,
@@ -85,10 +86,13 @@ export function summonRequest(
   const rounds = draft.rounds.trim() === '' ? null : numberOf(draft.rounds);
   const summon: SummonLinkInput = { summonerId, initiativeMode: draft.initiativeMode, concentration: draft.concentration, rounds };
   const errors: SummonDraftErrors = { ...validateSummonSheet(sheet) };
-  const linkError = summonLinkError(summon);
-  if (linkError) {
-    if (rounds !== null && /rounds/.test(linkError)) errors.rounds = linkError;
-    else errors.link = linkError;
+  const { min, max } = SUMMON_LIMITS.rounds;
+  // The duration has a field of its own; the rest of the link shows apart.
+  if (rounds !== null && !(Number.isInteger(rounds) && rounds >= min && rounds <= max)) {
+    errors.rounds = `A duração deve ser um número de rodadas entre ${min} e ${max}.`;
+  } else {
+    const linkError = summonLinkError(summon);
+    if (linkError) errors.link = linkError;
   }
   if (Object.keys(errors).length > 0) return { ok: false, errors };
   return { ok: true, request: { source: 'summon', sheet, summon } };

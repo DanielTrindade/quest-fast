@@ -11,7 +11,7 @@ import { PlayerActions, type PlayerFight, type PlayerSummons } from '../../compo
 import { Skeleton } from '../../components/Skeleton';
 import { Button } from '../../components/ui/button';
 import { api } from '../../lib/api';
-import { encounterQuery, encountersQuery } from '../../lib/combat-cache';
+import { encounterQuery, encountersQuery, mergeEncounter } from '../../lib/combat-cache';
 import { mergeFeedEvent } from '../../lib/feed-cache';
 import { errorMessage } from './campaign-screen';
 import { CharacterSheetDialog } from './CharacterSheetDialog';
@@ -56,20 +56,36 @@ function usePlayers(campaignId: string, enabled: boolean) {
 }
 
 /**
- * The creatures this player controls in the fight (#114), and "Invocar"
- * while it runs. Only once their character is in it.
+ * "Invocar" on its own request: a refusal shows in the form alone (not again
+ * in the turn bar), and goes away when the form opens or closes.
  */
-function summonsOf(fight: Fight, ownCombatant: CombatantView | null, viewerId: string): PlayerSummons | undefined {
-  const { encounter, actions, handlers } = fight;
-  if (!encounter || !ownCombatant) return undefined;
-  const { add } = actions;
+function useSummon(campaignId: string, encounterId: string | null) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: SummonInput) => api.addCombatant(campaignId, encounterId!, input),
+    onSuccess: (response) => mergeEncounter(queryClient, campaignId, response.encounter),
+  });
+}
+
+/**
+ * The creatures this player controls in the fight (#114), even with their
+ * own character out of it, and "Invocar" while their character fights.
+ */
+function summonsOf(fight: Fight, ownCombatant: CombatantView | null, viewerId: string, summon: ReturnType<typeof useSummon>): PlayerSummons | undefined {
+  const { encounter, handlers } = fight;
+  if (!encounter) return undefined;
   return {
     controlled: encounter.combatants
       .filter((combatant) => combatant.source !== 'character' && combatant.ownerId === viewerId)
       .map((combatant) => playerFightOf(fight, combatant)),
     onDismiss: (id) => handlers.onRemove?.(id),
-    summon: encounter.status === 'active'
-      ? { pending: add.isPending, error: add.isError ? errorMessage(add.error) : null, onSummon: (input: SummonInput) => add.mutateAsync(input) }
+    summon: ownCombatant && encounter.status === 'active'
+      ? {
+          pending: summon.isPending,
+          error: summon.isError ? errorMessage(summon.error) : null,
+          onSummon: (input: SummonInput) => summon.mutateAsync(input),
+          onReset: () => summon.reset(),
+        }
       : undefined,
   };
 }
@@ -193,6 +209,7 @@ function PlayerPanel({ campaignId, currentUserId, fight, player, ownCombatant }:
 }) {
   const [sheetOpen, setSheetOpen] = useState(false);
   const { encounter } = fight;
+  const summon = useSummon(campaignId, encounter?.id ?? null);
   const { characters, own, sheet, roll, slots, cast } = player;
   const spellError = cast.isError ? errorMessage(cast.error) : slots.isError ? errorMessage(slots.error) : null;
 
@@ -209,7 +226,7 @@ function PlayerPanel({ campaignId, currentUserId, fight, player, ownCombatant }:
         retryingSheet={sheet.isFetching}
         onRetrySheet={() => { void sheet.refetch(); }}
         fight={ownCombatant && encounter ? playerFightOf(fight, ownCombatant) : null}
-        summons={summonsOf(fight, ownCombatant, currentUserId)}
+        summons={summonsOf(fight, ownCombatant, currentUserId, summon)}
         inOtherFight={encounter !== null && ownCombatant === null}
         rolling={roll.isPending}
         rollError={roll.isError ? errorMessage(roll.error) : null}

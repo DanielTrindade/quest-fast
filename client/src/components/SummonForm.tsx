@@ -45,7 +45,8 @@ export function SummonForm({ summoner, pending = false, error = null, onSummon, 
     if (!built.ok) {
       setErrors(built.errors);
       const first = Object.keys(built.errors)[0];
-      event.currentTarget.querySelector<HTMLElement>(`[data-field="${first}"] input`)?.focus();
+      // A field takes the focus; the attacks have no single one, so their group does.
+      event.currentTarget.querySelector<HTMLElement>(`[data-field="${first}"] input, [data-field="${first}"]:is(fieldset)`)?.focus();
       return;
     }
     setErrors({});
@@ -75,7 +76,8 @@ export function SummonForm({ summoner, pending = false, error = null, onSummon, 
         </div>
       </div>
 
-      <fieldset className="m-0 grid min-w-0 gap-3 border-0 p-0" aria-describedby={errors.attacks ? `${id}-attacks` : undefined}>
+      <fieldset data-field="attacks" tabIndex={-1} className="m-0 grid min-w-0 gap-3 border-0 p-0 focus-visible:outline-2 focus-visible:outline-ring"
+        aria-describedby={errors.attacks ? `${id}-attacks` : undefined}>
         <legend className="mb-2 p-0 text-small font-semibold text-text-secondary">Ataques</legend>
         {draft.attacks.length === 0 && <p className="m-0 text-small text-text-muted">Sem ataques: a invocação só se move e ajuda.</p>}
         <ul className="m-0 grid list-none gap-3 p-0">

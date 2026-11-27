@@ -94,8 +94,31 @@ export const ComInvocacao: Story = {
     await expect(panel.getByRole('heading', { name: 'Espírito do Construto' })).toBeVisible();
     await userEvent.click(panel.getByRole('button', { name: 'Atacar com Pancada' }));
     await expect(args.summons!.controlled[0]!.actions.onAttack).toHaveBeenCalledWith('c-spirit', 0, expect.objectContaining({ mode: 'normal' }));
+    // Dismissing has no way back: a second step confirms it.
     await userEvent.click(panel.getByRole('button', { name: 'Dispensar Espírito do Construto' }));
+    await expect(args.summons!.onDismiss).not.toHaveBeenCalled();
+    const confirm = within(panel.getByRole('group', { name: 'Dispensar Espírito do Construto?' }));
+    await userEvent.click(confirm.getByRole('button', { name: 'Dispensar Espírito do Construto' }));
     await expect(args.summons!.onDismiss).toHaveBeenCalledWith('c-spirit');
+  },
+};
+
+/** The character is out of the fight, but the player still controls a creature in it. */
+export const SoACriatura: Story = {
+  name: 'Só a criatura no combate',
+  args: {
+    fight: null,
+    inOtherFight: true,
+    summons: {
+      controlled: [{ ...fightOf(withSpirit), combatant: summonedSpirit, targets: withSpirit.filter((combatant) => combatant.id !== 'c-spirit') }],
+      onDismiss: fn(),
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const panel = firstTheme(canvasElement);
+    await userEvent.click(panel.getByRole('button', { name: 'Atacar com Pancada' }));
+    await expect(args.summons!.controlled[0]!.actions.onAttack).toHaveBeenCalledWith('c-spirit', 0, expect.objectContaining({ mode: 'normal' }));
+    await expect(panel.queryByRole('button', { name: 'Invocar' })).toBeNull();
   },
 };
 

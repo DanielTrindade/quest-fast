@@ -42,8 +42,32 @@ export type PlayerSummons = {
     error: string | null;
     /** Resolves when the server accepted. */
     onSummon: (input: SummonInput) => Promise<unknown> | void;
+    /** The form opened or closed: an old refusal no longer applies. */
+    onReset?: () => void;
   };
 };
+
+/** Taking a creature out of the fight has no way back: a second step confirms it. */
+function DismissCreature({ creature, onDismiss }: { creature: PlayerFight; onDismiss: () => void }) {
+  const [confirming, setConfirming] = useState(false);
+  const { name } = creature.combatant;
+  if (!confirming) {
+    return (
+      <div className="[&>[data-slot=button]]:max-w-full [&>[data-slot=button]]:whitespace-normal">
+        <Button variant="secondary" disabled={creature.busy} onClick={() => setConfirming(true)}>
+          <X size={18} aria-hidden="true" /> Dispensar {name}
+        </Button>
+      </div>
+    );
+  }
+  return (
+    <div role="group" aria-label={`Dispensar ${name}?`}
+      className="flex max-w-full min-w-0 flex-wrap items-center gap-2 [&>[data-slot=button]]:max-w-full [&>[data-slot=button]]:min-w-0 [&>[data-slot=button]]:whitespace-normal [&>[data-slot=button]]:[overflow-wrap:anywhere]">
+      <Button variant="danger" disabled={creature.busy} onClick={onDismiss}>Dispensar {name}</Button>
+      <Button variant="ghost" onClick={() => setConfirming(false)}>Manter</Button>
+    </div>
+  );
+}
 
 /**
  * "Agir com": the character or one of the creatures its player controls. It
@@ -66,35 +90,40 @@ function ActWith({ fights, selectedId, onSelect }: { fights: PlayerFight[]; sele
   );
 }
 
-/** The fight half of the tab: who acts, its controls, and the summons. */
-function FightControls({ fight, summons }: { fight: PlayerFight; summons?: PlayerSummons }) {
-  const fights = [fight, ...(summons?.controlled ?? [])];
-  // Null follows the turn: whoever of these acts now, else the character.
+/**
+ * The fight half of the tab: who acts, its controls, and the summons. The
+ * character may be out of the fight while the player still controls a
+ * creature in it (handed over by the master, or left by its summoner).
+ */
+function FightControls({ fight, summons }: { fight: PlayerFight | null; summons?: PlayerSummons }) {
+  const fights = [...(fight ? [fight] : []), ...(summons?.controlled ?? [])];
+  // Null follows the turn: whoever of these acts now, else the first.
   const [pickedId, setPickedId] = useState<string | null>(null);
   const [summoning, setSummoning] = useState(false);
-  const selected = fights.find(({ combatant }) => combatant.id === pickedId) ?? fights.find(({ active }) => active) ?? fight;
+  const selected = fights.find(({ combatant }) => combatant.id === pickedId) ?? fights.find(({ active }) => active) ?? fights[0];
+  if (!selected) return null;
   const creature = selected !== fight ? selected : null;
+  const toggleSummon = (open: boolean) => {
+    summons?.summon?.onReset?.();
+    setSummoning(open);
+  };
   return (
     <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4">
       {fights.length > 1 && <ActWith fights={fights} selectedId={selected.combatant.id} onSelect={setPickedId} />}
       <CombatantControls key={selected.combatant.id} combatant={selected.combatant} targets={selected.targets} master={false}
         active={selected.active} busy={selected.busy} actions={selected.actions} />
       {creature && summons && (
-        <div className="[&>[data-slot=button]]:max-w-full [&>[data-slot=button]]:whitespace-normal">
-          <Button variant="secondary" disabled={creature.busy} onClick={() => {
-            setPickedId(null);
-            summons.onDismiss(creature.combatant.id);
-          }}>
-            <X size={18} aria-hidden="true" /> Dispensar {creature.combatant.name}
-          </Button>
-        </div>
+        <DismissCreature key={creature.combatant.id} creature={creature} onDismiss={() => {
+          setPickedId(null);
+          summons.onDismiss(creature.combatant.id);
+        }} />
       )}
-      {!creature && summons?.summon && (
+      {fight && !creature && summons?.summon && (
         summoning ? (
           <section aria-label="Invocar" className="grid min-w-0 gap-3 rounded-panel border border-border bg-background p-3">
             <h4 className="m-0 font-display text-h2 font-semibold">Invocar</h4>
             <SummonForm summoner={fight.combatant} pending={summons.summon.pending} error={summons.summon.error}
-              onCancel={() => setSummoning(false)}
+              onCancel={() => toggleSummon(false)}
               onSummon={async (input) => {
                 await summons.summon!.onSummon(input);
                 setSummoning(false);
@@ -102,7 +131,7 @@ function FightControls({ fight, summons }: { fight: PlayerFight; summons?: Playe
           </section>
         ) : (
           <div>
-            <Button variant="secondary" onClick={() => setSummoning(true)}>
+            <Button variant="secondary" onClick={() => toggleSummon(true)}>
               <Ghost size={18} aria-hidden="true" /> Invocar
             </Button>
           </div>
@@ -210,11 +239,16 @@ export function PlayerActions({
 }) {
   // Out of a fight the character attacks from its own token, when it has one on the map.
   const ranges = useRangeToggle(sheet && !fight ? { characterId: sheet.id, combatantId: null } : null);
+  // Without the character in the fight, `FightControls` shows only the
+  // creatures this player controls there, or nothing.
   if (!character) {
     return (
-      <EmptyState icon={UserCircleDashed} title="Nenhum personagem ativo"
-        description="Ative um personagem desta campanha em Meus personagens para agir por aqui. Os dados livres ficam na aba Dados."
-        action={galleryAction} />
+      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-5">
+        <FightControls fight={null} summons={summons} />
+        <EmptyState icon={UserCircleDashed} title="Nenhum personagem ativo"
+          description="Ative um personagem desta campanha em Meus personagens para agir por aqui. Os dados livres ficam na aba Dados."
+          action={galleryAction} />
+      </div>
     );
   }
 
@@ -224,6 +258,7 @@ export function PlayerActions({
         <FightControls fight={fight} summons={summons} />
       ) : (
         <>
+          <FightControls fight={null} summons={summons} />
           <CharacterHead character={character} note={inOtherFight ? 'Fora do combate em andamento.' : null} />
           {sheet && sheet.attacks.length > 0 && (
             <section aria-label={`Ataques de ${character.name}`} className="grid min-w-0 gap-2">
