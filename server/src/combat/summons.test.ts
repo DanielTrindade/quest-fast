@@ -122,6 +122,37 @@ test('the simple sheet and the link are checked, in Portuguese', async () => {
   assert.deepEqual([held.summon?.concentration, held.summon?.roundsLeft], [true, 10]);
 });
 
+test('a malformed attack row is refused, not a server error', async () => {
+  const f = await fight();
+  const response = await f.summon(f.s.player, { sheet: { ...SPIRIT, attacks: [null] } });
+  assert.equal(response.status, 422);
+});
+
+test('a link that would loop back is refused, directly or through others', async () => {
+  const f = await fight();
+  const spirit = await spiritOf(f);
+  // The master may tie a summon to another summon.
+  const wolf = byName(await encounterOf(await f.summon(f.s.master, { sheet: { ...SPIRIT, name: 'Lobo' }, summon: WITH_SUMMONER(spirit) }), 201), 'Lobo').id;
+  for (const summonerId of [spirit, wolf]) {
+    const response = await send(f.s.master, f.at(spirit), 'PATCH', { summon: WITH_SUMMONER(summonerId) });
+    assert.equal(response.status, 422, summonerId);
+  }
+  const kaelenToWolf = await send(f.s.master, f.at(f.id('Kaelen')), 'PATCH', { summon: WITH_SUMMONER(wolf) });
+  assert.equal(kaelenToWolf.status, 422, 'a character has no summoner');
+  const view = await encounterOf(await f.s.master(f.path));
+  assert.deepEqual(view.combatants.map((combatant) => combatant.name), ['Goblin 1', 'Kaelen', SPIRIT.name, 'Lobo', 'Bandido', 'Goblin 2', 'Mira']);
+});
+
+test('editing a link does not take a summoner past 12 summons', async () => {
+  const f = await fight();
+  for (let count = 0; count < 12; count++) await encounterOf(await f.summon(f.s.player, { sheet: { ...SPIRIT, name: `Zumbi ${count}` } }), 201);
+  const tied = await send(f.s.master, f.at(f.id('Goblin 2')), 'PATCH', { summon: WITH_SUMMONER(f.id('Kaelen')) });
+  assert.equal(tied.status, 422);
+  // One already among them keeps its link when edited.
+  const zombie = byName(await encounterOf(await f.s.master(f.path)), 'Zumbi 0').id;
+  await encounterOf(await send(f.s.master, f.at(zombie), 'PATCH', { summon: { ...WITH_SUMMONER(f.id('Kaelen')), rounds: 5 } }));
+});
+
 test('a summoner keeps at most 12 summons at once', async () => {
   const f = await fight();
   for (let count = 0; count < 12; count++) await encounterOf(await f.summon(f.s.player, { sheet: { ...SPIRIT, name: `Zumbi ${count}` } }), 201);
