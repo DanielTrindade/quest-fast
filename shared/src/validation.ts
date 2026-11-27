@@ -295,7 +295,10 @@ export function validateSummonSheet(input: SummonSheetInput): SummonFieldErrors 
   if (input.attacksPerAction !== undefined && !isAttacksPerAction(input.attacksPerAction)) {
     errors.attacksPerAction = `Ataques por ação deve ser um número entre ${TURN_LIMITS.attacksPerAction.min} e ${TURN_LIMITS.attacksPerAction.max}.`;
   }
-  const attacksError = Array.isArray(input.attacks) ? attackListError(input.attacks, S.attacks) : 'Ataques inválidos.';
+  const attacksError =
+    Array.isArray(input.attacks) && input.attacks.every((attack) => typeof attack === 'object' && attack !== null)
+      ? attackListError(input.attacks, S.attacks)
+      : 'Ataques inválidos.';
   if (attacksError) errors.attacks = attacksError;
   return errors;
 }

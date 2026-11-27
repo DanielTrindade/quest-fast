@@ -306,6 +306,11 @@ function parseLink(mutation: Mutation, value: unknown, adding: number, self?: st
     if (!summoner || (summoner.row.hidden && mutation.viewer.role !== 'master')) {
       refuse(422, 'Quem fez a invocação não está neste encontro.');
     }
+    // Up the summoner's own chain the one being edited must not appear: a
+    // loop would leave both out of the turn order for good.
+    if (self && summonedBy(mutation.loaded, summoner.row.id).has(self)) {
+      refuse(422, 'Esse vínculo faria uma invocação ter sido invocada por ela mesma.');
+    }
     // A summon held by a concentration already gone would leave at once.
     if (link.concentration && !summoner.concentrating) refuse(409, `${summoner.name} não está concentrando.`);
     const kept = mutation.loaded.combatants.filter(
@@ -319,6 +324,17 @@ function parseLink(mutation: Mutation, value: unknown, adding: number, self?: st
 }
 
 const LINK_INVALID = 'Vínculo da invocação inválido.';
+
+/** A combatant and everyone up its chain of summoners, loops cut short. */
+function summonedBy(loaded: LoadedEncounter, combatantId: string): Set<string> {
+  const chain = new Set<string>();
+  let current: string | null = combatantId;
+  while (current !== null && !chain.has(current)) {
+    chain.add(current);
+    current = loaded.combatants.find((combatant) => combatant.row.id === current)?.row.summonerId ?? null;
+  }
+  return chain;
+}
 const HIDDEN_CONTROLLED = 'Uma criatura controlada por um jogador fica à vista da mesa: tire o controle antes de ocultá-la.';
 
 /** A creature the master adds: optionally a player's to act with, and tied to a summoner. */
@@ -616,7 +632,8 @@ function editCombatant(mutation: Mutation, combatant: LoadedCombatant, body: Rec
     refuse(422, HIDDEN_CONTROLLED);
   }
   if (body.summon !== undefined) {
-    const link = parseLink(mutation, body.summon, 0, row.id);
+    // The edited one counts among the summoner's: it is the one being tied to it.
+    const link = parseLink(mutation, body.summon, 1, row.id);
     Object.assign(changes, {
       summonerId: link.summonerId,
       summonConcentration: link.concentration,
