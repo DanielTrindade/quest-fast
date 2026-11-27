@@ -335,7 +335,7 @@ criatura que o jogador controla no combate
 [`history/2026-11-27-summons.md`](history/2026-11-27-summons.md), em quatro
 PRs empilhados:
 
-1. **Regras em `shared/` — em revisão.** A invocação que age junto vem logo
+1. **Regras em `shared/` — entregue.** A invocação que age junto vem logo
    depois de quem a invocou, com a mesma contagem; a ficha simples do
    jogador, o vínculo com quem invocou (concentração e duração em rounds) e a
    regra de quem é aliado aberto à mesa.
