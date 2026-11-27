@@ -1,7 +1,7 @@
 {
   "version": "7",
   "dialect": "sqlite",
-  "id": "7e2d663f-7947-4a0f-81c0-2050d63b7fb4",
+  "id": "9bbc916f-e647-4278-84e7-146b089de70d",
   "prevIds": [
     "4d685255-2cb6-4fe0-98fa-15e16ccc088c"
   ],
@@ -1428,7 +1428,7 @@
     },
     {
       "table": "scene_areas",
-      "name": "color",
+      "name": "tint",
       "type": "text",
       "notNull": true,
       "autoincrement": false,

@@ -106,7 +106,7 @@ export function areaRoutes() {
             ...origin,
             angle: input.angle,
             name: input.name,
-            color: input.color,
+            tint: input.tint,
             createdBy: c.var.user.id,
             hidden: input.hidden ?? false,
             anchorTokenId: anchor?.row.id ?? null,
@@ -132,7 +132,7 @@ export function areaRoutes() {
       }
       if (patch.angle !== undefined) changes.angle = patch.angle;
       if (patch.name !== undefined) changes.name = patch.name;
-      if (patch.color !== undefined) changes.color = patch.color;
+      if (patch.tint !== undefined) changes.tint = patch.tint;
       if (patch.hidden !== undefined) changes.hidden = patch.hidden;
       tx.update(sceneAreas).set(changes).where(eq(sceneAreas.id, area.row.id)).run();
     }),

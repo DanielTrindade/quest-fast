@@ -109,7 +109,7 @@ export function projectArea(area: LoadedArea, tokens: LoadedToken[]): AreaView {
     y: anchor ? anchor.row.y : row.y,
     angle: row.angle,
     name: row.name,
-    color: row.color,
+    tint: row.tint,
     createdBy: { userId: row.createdBy, name: area.creatorName },
     hidden: row.hidden,
     anchorTokenId: row.anchorTokenId,
