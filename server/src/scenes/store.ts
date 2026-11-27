@@ -1,7 +1,7 @@
 import { and, asc, desc, eq, or, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/sqlite-core';
 import type { Context as HonoContext } from 'hono';
-import { assets, campaignMembers, campaigns, characters, combatants, sceneAreas, scenes, statblocks, tokens, users, type SceneRow } from '@quest-fast/db';
+import { assets, campaignMembers, campaigns, characters, combatants, encounters, sceneAreas, scenes, statblocks, tokens, users, type SceneRow } from '@quest-fast/db';
 import { effectiveSpeed, tokenVitality, type GridSettings, type SceneResponse } from '@quest-fast/shared';
 import type { Context, Deps } from '../context.ts';
 import type { Executor } from '../combat/state.ts';
@@ -70,6 +70,7 @@ export function gridOf(scene: SceneRow): GridSettings {
 const avatars = alias(assets, 'avatars');
 const images = alias(assets, 'images');
 const fighterSheets = alias(characters, 'fighter_sheets');
+const combatEncounters = alias(encounters, 'combat_encounters');
 
 /**
  * The tokens of a scene with their name, size and owner read from the origin,
@@ -96,6 +97,8 @@ function loadTokens({ deps, campaignId }: SceneScope, db: Executor, sceneId: str
       characterHp: characters.hpCurrent,
       combatantSource: combatants.source,
       combatantHp: combatants.hpCurrent,
+      controllerId: combatants.controllerId,
+      combatStatus: combatEncounters.status,
       fighterSheetHp: fighterSheets.hpCurrent,
       imagePath: images.path,
     })
@@ -103,6 +106,7 @@ function loadTokens({ deps, campaignId }: SceneScope, db: Executor, sceneId: str
     .leftJoin(characters, eq(characters.id, tokens.characterId))
     .leftJoin(avatars, eq(avatars.id, characters.avatarAssetId))
     .leftJoin(combatants, eq(combatants.id, tokens.combatantId))
+    .leftJoin(combatEncounters, eq(combatEncounters.id, combatants.encounterId))
     // A character in a fight keeps its hit points on the sheet.
     .leftJoin(fighterSheets, eq(fighterSheets.id, combatants.characterId))
     // The bestiary entry: the copy's in a fight, or the one a free token came from.
@@ -141,7 +145,8 @@ function loadTokens({ deps, campaignId }: SceneScope, db: Executor, sceneId: str
                 ? { kind: 'creature', hpCurrent: found.combatantHp }
                 : { kind: 'free' },
         ),
-        ownerId: found.ownerId,
+        // A creature a player controls is theirs only while its fight runs (#114).
+        ownerId: found.ownerId ?? (found.combatStatus === 'active' ? found.controllerId : null),
         combatantHidden: found.combatantHidden ?? false,
         encounterId: found.encounterId,
         movingBy: lock ? { userId: lock.userId, name: lock.userName } : null,

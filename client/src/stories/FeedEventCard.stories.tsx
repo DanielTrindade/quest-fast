@@ -114,6 +114,15 @@ const effectExpired = fightEvent('f10', {
   type: 'combat.effect',
   payload: { ...goblin, kind: 'combat.effect', action: 'expired', effect: { id: 'ef2', name: 'Lentidão' } },
 });
+const spirit = { encounterId: 'enc-1', combatantId: 'c-spirit', name: 'Espírito do Construto', source: 'manual' } as const;
+const summonJoined = fightEvent('f11', {
+  type: 'combat.summon',
+  payload: { ...spirit, kind: 'combat.summon', action: 'joined', summonerName: 'Hazin Dan' },
+});
+const summonLeft = fightEvent('f12', {
+  type: 'combat.summon',
+  payload: { ...spirit, kind: 'combat.summon', action: 'left', reason: 'concentration' },
+});
 const deathSave = fightEvent('f7', {
   type: 'combat.deathSave',
   payload: { ...hazin, kind: 'combat.deathSave', d20: 14, saves: { successes: 2, failures: 1 }, outcome: 'pending' },
@@ -299,6 +308,8 @@ export const CondicaoAplicada: Story = { name: 'Condição aplicada', args: { ev
 export const CondicaoExpirada: Story = { name: 'Condição expirada', args: { event: conditionExpired }, play: reads('A condição Caído de Goblin 2 acabou.') };
 export const EfeitoAplicado: Story = { name: 'Efeito aplicado', args: { event: effectApplied }, play: reads('Hazin Dan está sob Escudo da Fé.') };
 export const EfeitoExpirado: Story = { name: 'Efeito expirado', args: { event: effectExpired }, play: reads('Lentidão de Goblin 2 acabou.') };
+export const InvocacaoEntrou: Story = { name: 'Invocação entrou', args: { event: summonJoined }, play: reads('Hazin Dan invocou Espírito do Construto.') };
+export const InvocacaoSumiu: Story = { name: 'Invocação sumiu', args: { event: summonLeft }, play: reads('Espírito do Construto sumiu com a concentração.') };
 export const TesteContraAMorte: Story = { name: 'Teste contra a morte', args: { event: deathSave } };
 export const FalhasPorDano: Story = { name: 'Falhas por dano caído', args: { event: deathFailures } };
 /** A hidden combatant's events are the master's secret, even after it is revealed. */

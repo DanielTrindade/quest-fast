@@ -415,6 +415,13 @@ export const combatants = sqliteTable(
     initiativeMode: text('initiative_mode', { enum: SUMMON_INITIATIVE_MODES }).notNull().default('own'),
     /** Its own turns left before it ends; null for no limit. */
     roundsLeft: integer('rounds_left'),
+    /**
+     * Came in as a summon (tied to a summoner, or made by its player). Kept
+     * for good: the summoner may leave and the control change hands, and it
+     * still leaves when the fight ends. A creature only handed to a player is
+     * not one.
+     */
+    summoned: integer('summoned', { mode: 'boolean' }).notNull().default(false),
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(now),
   },
   (table) => [

@@ -426,6 +426,18 @@ invocou sai do encontro, ela fica com a contagem que tinha e passa a agir na
 própria vez. Quem sai ou é removido da campanha devolve as criaturas que
 controlava ao mestre.
 
+No mapa, o token da criatura controlada é do controlador enquanto o combate
+corre: ele o move como o do próprio personagem (na vez dela, confirmando o
+movimento), vê o alcance e ancora área nele; tirar o controle solta o arrasto
+em curso. A invocação feita pela ficha simples aparece numa casa livre ao
+lado do token de quem a invocou, na cena aberta. A invocação sai do combate,
+com o token, quando a concentração que a sustenta acaba (pelo combate, pela
+ficha ou por uma nova magia de concentração; a saída fica em
+`server/src/combat/leave.ts`, que as rotas da ficha também usam), ao fim da
+duração em rounds (contada no fim do turno dela) e no fim do encontro; se era
+a vez dela, o turno passa adiante. O feed conta a entrada e a saída
+(`combat.summon`), com o motivo.
+
 ### Campo de batalha (VTT) — decidido, em implementação
 
 As escolhas da fase 4 foram fechadas por medição no
@@ -475,9 +487,10 @@ que o `TokenView` do mestre traz `combatantHidden`.
   modo, o servidor calcula o estado oficial e o guarda numa coluna JSON da
   `Scene`; o fog viaja dentro de `scene.updated`, o mesmo estado que recebe
   quem reconecta. O fog também decide visibilidade: token que não é de
-  personagem com o centro na área oculta não sai do servidor para o jogador,
+  aliado com o centro na área oculta não sai do servidor para o jogador,
   assim como o token escondido pelo mestre e o do combatente escondido no
-  encontro. Tokens de personagem aparecem sempre. No arrasto ao vivo vale a
+  encontro. Tokens de aliado aparecem sempre: o de personagem e, no combate
+  em andamento, o da criatura que um jogador controla (#114). No arrasto ao vivo vale a
   posição recebida: o `token.moving` de uma criatura que entra na área oculta
   para de chegar ao jogador ali. Trocar o mapa escala o fog em cada eixo como
   os tokens, para o que estava oculto continuar oculto num mapa de outra

@@ -60,10 +60,18 @@ export function fogOf(scene: Pick<SceneRow, 'fogEnabled' | 'fogRevealed'>): Scen
   return { enabled: scene.fogEnabled, revealed: scene.fogRevealed };
 }
 
+/**
+ * Whether a player moves this token: their character's, or a creature they
+ * control in the running fight (#114). A free token is the master's alone.
+ */
+export function ownsToken(token: Pick<LoadedToken, 'row' | 'ownerId'>, userId: string): boolean {
+  return token.row.kind !== 'free' && token.ownerId === userId;
+}
+
 /** Whether a viewer receives this token at all, over REST or the socket, where it rests. */
 export function tokenVisibleTo(token: LoadedToken, viewer: Viewer, fog: SceneFog): boolean {
   const { kind, hidden, x, y } = token.row;
-  return isTokenVisible({ kind, hidden, combatantHidden: token.combatantHidden, x, y }, viewer.role, fog);
+  return isTokenVisible({ kind, hidden, combatantHidden: token.combatantHidden, x, y, ownerId: token.ownerId }, viewer.role, fog);
 }
 
 /** The token an area follows, if it follows one and the token is still on the scene. */
@@ -86,7 +94,14 @@ export function areaVisibleTo(area: LoadedArea, tokens: LoadedToken[], viewer: V
       hidden: row.hidden,
       byMaster: area.byMaster,
       anchor: anchor
-        ? { kind: anchor.row.kind, hidden: anchor.row.hidden, combatantHidden: anchor.combatantHidden, x: anchor.row.x, y: anchor.row.y }
+        ? {
+            kind: anchor.row.kind,
+            hidden: anchor.row.hidden,
+            combatantHidden: anchor.combatantHidden,
+            x: anchor.row.x,
+            y: anchor.row.y,
+            ownerId: anchor.ownerId,
+          }
         : null,
       x: row.x,
       y: row.y,
@@ -116,9 +131,9 @@ export function projectArea(area: LoadedArea, tokens: LoadedToken[]): AreaView {
   };
 }
 
-/** The reach of a creature tells a player its speed: only characters' reach the table. */
+/** The reach of a creature tells a player its speed: only allies' (characters', controlled creatures') reach the table. */
 function reachFor(token: LoadedToken, viewer: Viewer): TokenView['reach'] {
-  return viewer.role === 'master' || token.row.kind === 'character' ? token.reach : null;
+  return viewer.role === 'master' || token.row.kind === 'character' || token.ownerId !== null ? token.reach : null;
 }
 
 export function projectToken(token: LoadedToken, viewer: Viewer): TokenView {

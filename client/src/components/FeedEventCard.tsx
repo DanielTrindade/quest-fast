@@ -1,4 +1,4 @@
-import { DiceFive, EyeSlash, FirstAidKit, FlagCheckered, Heartbeat, HeartBreak, Hourglass, Info, Lightning, MagicWand, Skull, Sparkle, Sword } from '@phosphor-icons/react';
+import { DiceFive, EyeSlash, FirstAidKit, FlagCheckered, Ghost, Heartbeat, HeartBreak, Hourglass, Info, Lightning, MagicWand, Skull, Sparkle, Sword } from '@phosphor-icons/react';
 import { COMBAT_EVENT_TYPES, type CombatSessionEvent, type RollPayload, type RollSessionEvent, type SessionEvent, type SpellCastSessionEvent, type UnknownSessionEvent } from '@quest-fast/shared';
 import { ABILITY_LABELS, SKILL_LABELS } from '../lib/5e';
 import { attackHeadline, attackOutcome, canRollDamage, damageText, saveTargets, showsAttackRoll, targetOutcome } from '../lib/attack-feed';
@@ -121,12 +121,13 @@ function FightIcon({ payload }: { payload: FightPayload }) {
     return payload.kind === 'combat.effect' ? <Sparkle size={16} aria-hidden="true" /> : <Lightning size={16} aria-hidden="true" />;
   }
   if (payload.kind === 'combat.deathSave') return <Heartbeat size={16} aria-hidden="true" />;
+  if (payload.kind === 'combat.summon') return <Ghost size={16} aria-hidden="true" />;
   if (payload.kind === 'combat.heal') return <FirstAidKit size={16} aria-hidden="true" />;
   if (payload.kind === 'combat.defeated') return <Skull size={16} aria-hidden="true" />;
   return <HeartBreak size={16} aria-hidden="true" />;
 }
 
-/** What happened to one combatant: hit points, a condition, an effect, a death save. */
+/** What happened to one combatant: hit points, a condition, an effect, a death save, a summon coming or going. */
 function FightEventCard({ event, payload }: { event: CombatSessionEvent; payload: FightPayload }) {
   return (
     <>

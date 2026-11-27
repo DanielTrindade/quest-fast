@@ -3,13 +3,32 @@ import type {
   CombatDeathSavePayload,
   CombatEffectPayload,
   CombatHitPointsPayload,
+  CombatSummonPayload,
   DeathSaves,
   HealthBand,
+  SummonEnd,
 } from '@quest-fast/shared';
 import { CONDITION_LABELS, conditionLabel } from './combat-labels';
 
 /** What happens to a combatant, as one sentence of the feed. */
-export type FightPayload = CombatHitPointsPayload | CombatConditionPayload | CombatEffectPayload | CombatDeathSavePayload;
+export type FightPayload =
+  | CombatHitPointsPayload
+  | CombatConditionPayload
+  | CombatEffectPayload
+  | CombatDeathSavePayload
+  | CombatSummonPayload;
+
+const SUMMON_END: Record<SummonEnd, string> = {
+  dismissed: 'foi dispensado',
+  concentration: 'sumiu com a concentração',
+  duration: 'sumiu ao fim da duração',
+  ended: 'sumiu com o fim do combate',
+};
+
+function summonText({ name, action, summonerName, reason }: CombatSummonPayload): string {
+  if (action === 'joined') return summonerName ? `${summonerName} invocou ${name}.` : `${name} entrou no combate como invocação.`;
+  return `${name} ${SUMMON_END[reason ?? 'dismissed']}.`;
+}
 
 const BAND_PHRASE: Record<HealthBand, string> = {
   unhurt: 'está ileso',
@@ -72,5 +91,6 @@ export function combatEventText(payload: FightPayload): string {
   if (payload.kind === 'combat.condition') return conditionText(payload);
   if (payload.kind === 'combat.effect') return effectText(payload);
   if (payload.kind === 'combat.deathSave') return deathSaveText(payload);
+  if (payload.kind === 'combat.summon') return summonText(payload);
   return hitPointsText(payload);
 }

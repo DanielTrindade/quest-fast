@@ -206,20 +206,27 @@ export type TokenVisibility = {
   /** Centre of the token, where the fog is checked: a live drag's position, or the stored one. */
   x: number;
   y: number;
+  /**
+   * Who acts with it besides the master. On a combatant token, set only for
+   * a creature a player controls in the running fight (#114): an ally,
+   * shown under the fog like a character.
+   */
+  ownerId?: string | null;
 };
 
 /**
  * Whether a viewer receives a token at all, in any payload. The master sees
  * every one. A player never receives a token hidden on the map, nor the token
  * of a combatant hidden in the encounter, nor — with the fog on — a token
- * that is not a character's whose centre lies outside the revealed area.
- * Character tokens show even under the fog.
+ * that is not an ally's whose centre lies outside the revealed area. Allies
+ * (characters, and creatures a player controls) show even under the fog.
  */
 export function isTokenVisible(token: TokenVisibility, role: Role, fog: SceneFog | null = null): boolean {
   if (role === 'master') return true;
   if (token.hidden) return false;
   if (token.kind === 'combatant' && token.combatantHidden) return false;
-  if (token.kind === 'character' || !fog?.enabled) return true;
+  const ally = token.kind === 'character' || (token.kind === 'combatant' && !!token.ownerId);
+  if (ally || !fog?.enabled) return true;
   return isRevealed(fog.revealed, token.x, token.y);
 }
 

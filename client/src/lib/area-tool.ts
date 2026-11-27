@@ -132,7 +132,9 @@ export function areasForLook(
     return isAreaVisible({
       hidden: area.hidden,
       byMaster: area.createdBy.userId === context.viewerId,
-      anchor: anchor ? { kind: anchor.kind, hidden: anchor.hidden, combatantHidden: anchor.combatantHidden, x: anchor.x, y: anchor.y } : null,
+      anchor: anchor
+        ? { kind: anchor.kind, hidden: anchor.hidden, combatantHidden: anchor.combatantHidden, x: anchor.x, y: anchor.y, ownerId: anchor.ownerId }
+        : null,
       x: area.x,
       y: area.y,
     }, 'player', context.fog);

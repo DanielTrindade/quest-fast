@@ -339,13 +339,17 @@ PRs empilhados:
    depois de quem a invocou, com a mesma contagem; a ficha simples do
    jogador, o vínculo com quem invocou (concentração e duração em rounds) e a
    regra de quem é aliado aberto à mesa.
-2. **Combate no servidor — em revisão.** Controlador no combatente (um
+2. **Combate no servidor — entregue.** Controlador no combatente (um
    jogador da campanha, nunca oculto), criação pelo mestre e pelo jogador
    (ficha simples, a partir do próprio personagem), RBAC pelo controlador,
    projeção e feed como aliado, iniciativa "junto" sem rolagem própria e a
    saída de quem invocou. Quem sai da campanha devolve as criaturas ao mestre.
-3. **Mapa e ciclo de vida.** Token do controlador e saída pela concentração,
-   pela duração e no fim do combate.
+3. **Mapa e ciclo de vida — em revisão.** O token da invocação nasce ao
+   lado de quem a invocou, o controlador o move na vez dela, vê o alcance,
+   ancora área nele e o vê sob o fog; tirar o controle solta o arrasto. A
+   invocação sai pela concentração (no combate e pela ficha), pela duração e
+   no fim do combate, passando a vez se for dela, e o feed conta a entrada e a
+   saída.
 4. **Na tela.** "Invocar" na Mesa, os campos do mestre e "Agir com".
 
 ### Telas da campanha

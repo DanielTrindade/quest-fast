@@ -11,7 +11,7 @@ import {
 } from '@quest-fast/shared';
 import type { Context } from '../context.ts';
 import type { Executor } from '../combat/state.ts';
-import { areaVisibleTo, fogOf, tokenVisibleTo, type LoadedArea, type LoadedScene } from './projection.ts';
+import { areaVisibleTo, fogOf, ownsToken, tokenVisibleTo, type LoadedArea, type LoadedScene } from './projection.ts';
 import { answer, bodyOf, bumpVersion, findScene, gridOf, loadScene, publish, refuse, refused, scopeOf, viewerOf } from './store.ts';
 
 const AREA_NOT_FOUND = 'Área não encontrada.';
@@ -44,13 +44,13 @@ function requireOwner(c: HonoContext<Context>, area: LoadedArea) {
 
 /**
  * The token a new area follows. The master may anchor on any token of the
- * scene; a player only on their own character's.
+ * scene; a player only on their own character's or a creature they control.
  */
 function anchorFor(c: HonoContext<Context>, loaded: LoadedScene, tokenId: string) {
   const token = loaded.tokens.find((candidate) => candidate.row.id === tokenId);
   if (!token || !tokenVisibleTo(token, viewerOf(c), fogOf(loaded.scene))) refuse(404, 'Token não encontrado.');
-  if (c.var.role !== 'master' && (token.row.kind !== 'character' || token.ownerId !== c.var.user.id)) {
-    refuse(403, 'Você só ancora uma área no seu personagem.');
+  if (c.var.role !== 'master' && !ownsToken(token, c.var.user.id)) {
+    refuse(403, 'Você só ancora uma área no seu personagem ou numa criatura que controla.');
   }
   return token;
 }

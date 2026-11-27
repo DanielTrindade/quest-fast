@@ -954,13 +954,30 @@ export type CombatDeathSavePayload = CombatantRef & {
   outcome: 'pending' | 'stable' | 'dead' | 'revived';
 };
 
+/** Why a summon left the fight (#114). */
+export type SummonEnd = 'dismissed' | 'concentration' | 'duration' | 'ended';
+
+/**
+ * A summon came into the fight, or left it. Summons are allies, so the table
+ * reads it whole; a hidden one stays the master's.
+ */
+export type CombatSummonPayload = CombatantRef & {
+  kind: 'combat.summon';
+  action: 'joined' | 'left';
+  /** Who summoned it, by name, when it came in. */
+  summonerName?: string;
+  /** Only when it left. */
+  reason?: SummonEnd;
+};
+
 export type CombatPayload =
   | CombatStartedPayload
   | CombatEndedPayload
   | CombatHitPointsPayload
   | CombatConditionPayload
   | CombatEffectPayload
-  | CombatDeathSavePayload;
+  | CombatDeathSavePayload
+  | CombatSummonPayload;
 
 /** What happens in a fight; turn changes stay out of the feed. */
 export type CombatSessionEvent = Omit<RollSessionEvent, 'type' | 'payload'> &
@@ -971,6 +988,7 @@ export type CombatSessionEvent = Omit<RollSessionEvent, 'type' | 'payload'> &
     | { type: 'combat.condition'; payload: CombatConditionPayload }
     | { type: 'combat.effect'; payload: CombatEffectPayload }
     | { type: 'combat.deathSave'; payload: CombatDeathSavePayload }
+    | { type: 'combat.summon'; payload: CombatSummonPayload }
   );
 
 export const COMBAT_EVENT_TYPES = [
@@ -982,6 +1000,7 @@ export const COMBAT_EVENT_TYPES = [
   'combat.condition',
   'combat.effect',
   'combat.deathSave',
+  'combat.summon',
 ] as const satisfies readonly CombatSessionEvent['type'][];
 
 // --- Phase 4: battlefield ------------------------------------------------------

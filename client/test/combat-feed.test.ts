@@ -97,3 +97,13 @@ test('the feed spells out a long duration, never the chip abbreviation', () => {
   const payload: CombatConditionPayload = { ...kaelen, kind: 'combat.condition', action: 'applied', condition: { condition: 'blinded', roundsLeft: 100 } };
   assert.equal(combatEventText(payload), 'Kaelen está com a condição Cego (100 rodadas).');
 });
+
+test('a summon coming in names who summoned it, and its leaving says why', () => {
+  const spirit = { encounterId: 'e1', combatantId: 's1', name: 'Espírito do Construto', source: 'manual' } as const;
+  assert.equal(combatEventText({ ...spirit, kind: 'combat.summon', action: 'joined', summonerName: 'Kaelen' }), 'Kaelen invocou Espírito do Construto.');
+  assert.equal(combatEventText({ ...spirit, kind: 'combat.summon', action: 'joined' }), 'Espírito do Construto entrou no combate como invocação.');
+  assert.equal(combatEventText({ ...spirit, kind: 'combat.summon', action: 'left', reason: 'concentration' }), 'Espírito do Construto sumiu com a concentração.');
+  assert.equal(combatEventText({ ...spirit, kind: 'combat.summon', action: 'left', reason: 'duration' }), 'Espírito do Construto sumiu ao fim da duração.');
+  assert.equal(combatEventText({ ...spirit, kind: 'combat.summon', action: 'left', reason: 'ended' }), 'Espírito do Construto sumiu com o fim do combate.');
+  assert.equal(combatEventText({ ...spirit, kind: 'combat.summon', action: 'left', reason: 'dismissed' }), 'Espírito do Construto foi dispensado.');
+});
