@@ -1,6 +1,6 @@
 import { StrictMode, useEffect, useState } from 'react';
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { expect, fn, userEvent, waitFor, within } from 'storybook/test';
+import { expect, fn, userEvent, waitFor, within, type Mock } from 'storybook/test';
 import type { TokenView } from '@quest-fast/shared';
 import { MapCanvas, type MapCanvasProps } from '../components/MapCanvas';
 import { Button } from '../components/ui/button';
@@ -741,6 +741,25 @@ export const AreaFicaNaCena: Story = {
     // The centre follows the pointer and rests on the intersection; a persistent area is never previewed.
     await expect(args.onAreaPlace).toHaveBeenCalledWith(expect.objectContaining({ shape: 'sphere', size: 6, x: at.x, y: at.y }));
     await expect(args.onAreaPreview).not.toHaveBeenCalled();
+  },
+};
+
+export const AreaParada: Story = {
+  name: 'Área: referência parada sob o dedo',
+  args: {
+    ...areaArgs, areas: [], tokens: playerTokens(), viewerId: PLAYER_ID, onAreaPreview: fn(),
+    areaTool: { mode: 'reference', shape: 'sphere', size: 6, width: 1.5 },
+  },
+  render: (args) => <TokenMap {...args} master={false} />,
+  play: async ({ canvasElement, args }) => {
+    const { frame } = await framedMap(canvasElement);
+    const release = await holdDrag(frame, corner(6, 6), corner(9, 6));
+    const sent = (args.onAreaPreview as Mock).mock.calls.length;
+    // Held still past the time a watcher drops a silent preview: it keeps going out.
+    await new Promise((resolve) => setTimeout(resolve, 1700));
+    await expect((args.onAreaPreview as Mock).mock.calls.length).toBeGreaterThan(sent + 1);
+    await release();
+    await expect(args.onAreaPreview).toHaveBeenLastCalledWith(expect.objectContaining({ shape: 'sphere' }), true);
   },
 };
 

@@ -321,7 +321,7 @@ export function MapCanvas({
     frameRef, canvasRef, status, zoom, dragging, retry, zoomBy, frameMap, frameHandlers, canvasHandlers, requestDraw, viewCentre,
   } = useMapViewport({ imageUrl, mapWidth, mapHeight, grid, fog: fogLayer, overlayRef });
   const { overlay: areaOverlay, dragged, areas: shownAreas } = useMapAreas({
-    ...areaOptions(areaProps), tokens, shown, fog, look: fogLook, viewerId, grid, map, motion, requestDraw, themedRef: frameRef,
+    ...areaOptions(areaProps), tokens, shown, fog, look: fogLook, viewerId, grid, map, motion, pendingMove, requestDraw, themedRef: frameRef,
     drag: { onDrag, onDrop, onCancelDrag },
   });
   const { cancelDrag } = useTokenLayer({

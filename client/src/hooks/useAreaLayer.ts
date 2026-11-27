@@ -14,6 +14,11 @@ import type { TokenLayerOptions } from './useTokenLayer';
 
 /** A reference area is sent at most this often while drawn: the pace of a dragged token. */
 const PREVIEW_INTERVAL_MS = 33;
+/**
+ * A reference area held still is sent again this often, so the table keeps
+ * it: whoever watches drops one silent for `AREA_LIMITS.previewStaleMs`.
+ */
+const PREVIEW_HEARTBEAT_MS = 500;
 /** Our own reference area stays on our map as long as it does on the table's. */
 const OWN_LINGER_MS = 5000;
 
@@ -39,6 +44,8 @@ export type AreaLayerOptions = {
   previews?: AreaPreviewSource;
   /** Where the viewer's own drag has a token right now, if it does. */
   ownDrag?: RefObject<{ tokenId: string; x: number; y: number } | null>;
+  /** A move dropped but not confirmed yet: the token waits there, and an area following it too. */
+  pendingMove?: { tokenId: string; x: number; y: number } | null;
 };
 
 type Wiring = { requestDraw: () => void; themedRef: RefObject<Element | null> };
@@ -60,6 +67,9 @@ export function useAreaLayer(options: AreaLayerOptions & Wiring): MapOverlay {
   const press = useRef<Point | null>(null);
   const draft = useRef<{ area: AreaGeometry; done: boolean; at: number } | null>(null);
   const sentAt = useRef(0);
+  const heartbeat = useRef(0);
+  // Unmounted while held: nothing keeps sending.
+  useEffect(() => () => window.clearInterval(heartbeat.current), []);
 
   // Others' previews and drags wake an idle canvas.
   useEffect(() => previews?.subscribe(requestDraw), [previews, requestDraw]);
@@ -69,6 +79,7 @@ export function useAreaLayer(options: AreaLayerOptions & Wiring): MapOverlay {
   const toolKey = tool ? `${tool.mode}:${tool.shape}:${tool.size}:${tool.width}` : '';
   useEffect(() => {
     press.current = null;
+    window.clearInterval(heartbeat.current);
     if (draft.current && !draft.current.done) latest.current.onPreview?.(null, false);
     draft.current = null;
     requestDraw();
@@ -90,6 +101,11 @@ export function useAreaLayer(options: AreaLayerOptions & Wiring): MapOverlay {
       send(area, false, now);
       requestDraw();
     };
+    const beat = () => {
+      const held = draft.current;
+      if (held && !held.done && latest.current.tool?.mode === 'reference') latest.current.onPreview?.(held.area, false);
+    };
+    const stopBeat = () => window.clearInterval(heartbeat.current);
     return {
       draw(context, view, now) {
         const current = latest.current;
@@ -98,6 +114,8 @@ export function useAreaLayer(options: AreaLayerOptions & Wiring): MapOverlay {
         const positionOf = (token: TokenView) => {
           const own = current.ownDrag?.current;
           if (own?.tokenId === token.id) return { x: own.x, y: own.y };
+          const pending = current.pendingMove;
+          if (pending?.tokenId === token.id) return { x: pending.x, y: pending.y };
           return current.motion?.positionOf(token.id, now) ?? token;
         };
         let moving = false;
@@ -134,6 +152,8 @@ export function useAreaLayer(options: AreaLayerOptions & Wiring): MapOverlay {
         if (!latest.current.tool) return false;
         press.current = point;
         aim(point, view);
+        stopBeat();
+        heartbeat.current = window.setInterval(beat, PREVIEW_HEARTBEAT_MS);
         return true;
       },
       pointerMove(point, view) {
@@ -142,6 +162,7 @@ export function useAreaLayer(options: AreaLayerOptions & Wiring): MapOverlay {
       pointerUp(point, view) {
         aim(point, view);
         press.current = null;
+        stopBeat();
         const drawn = draft.current;
         if (!drawn) return;
         const now = performance.now();
@@ -156,6 +177,7 @@ export function useAreaLayer(options: AreaLayerOptions & Wiring): MapOverlay {
       },
       cancel() {
         press.current = null;
+        stopBeat();
         if (draft.current && !draft.current.done) send(null, false, performance.now());
         draft.current = null;
         requestDraw();
@@ -201,7 +223,8 @@ export function useMapAreas({ areas, tokens, shown, fog, look, master, viewerId,
   }), [onDrag, onDrop, onCancelDrag]);
   const overlay = useAreaLayer({ ...layer, areas: areaLook.areas, fadedIds: areaLook.faded, tokens: shown, ownDrag });
   const { requestDraw } = layer;
-  // New areas, or one moved or removed: the map shows it at once.
-  useEffect(() => requestDraw(), [areaLook, requestDraw]);
+  // New areas, or one moved or removed, show at once. A move waiting for confirmation takes the area following its token along.
+  const { pendingMove } = layer;
+  useEffect(() => requestDraw(), [areaLook, pendingMove, requestDraw]);
   return { overlay, dragged, areas: areaLook.areas };
 }
