@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { ClientSocketMessage } from '@quest-fast/shared';
+import { createAreaPreviewStore, type AreaPreviewSource } from '../lib/area-preview';
 import { campaignSocketUrl, openCampaignSocket, type CampaignSocket, type SocketStatus } from '../lib/campaign-socket';
 import { chatKey, mergeChatMessage, removeChatMessage } from '../lib/chat-cache';
 import { mergeEncounter, removeEncounter } from '../lib/combat-cache';
@@ -29,9 +30,11 @@ export type CampaignChannel = {
   /** False when the socket is down: the move is lost, the drop still goes by REST. */
   send: (message: ClientSocketMessage) => boolean;
   motion: TokenMotionSource;
+  /** The reference areas others are drawing (#113). */
+  previews: AreaPreviewSource;
 };
 
-const offline: CampaignChannel = { send: () => false, motion: createMotionStore() };
+const offline: CampaignChannel = { send: () => false, motion: createMotionStore(), previews: createAreaPreviewStore() };
 
 export const CampaignSocketChannel = createContext<CampaignChannel>(offline);
 
@@ -58,17 +61,26 @@ export function useCampaignSocket(campaignId: string, enabled: boolean): { statu
     void campaignId;
     return createMotionStore();
   }, [campaignId]);
+  const previews = useMemo(() => {
+    void campaignId;
+    return createAreaPreviewStore();
+  }, [campaignId]);
   const channel = useMemo<CampaignChannel>(() => ({
     send: (message) => socket.current?.send(message) ?? false,
     motion,
-  }), [motion]);
+    previews,
+  }), [motion, previews]);
 
   useEffect(() => {
     if (!enabled) return undefined;
     const opened = openCampaignSocket(campaignSocketUrl(campaignId), {
       onStatus: (next) => {
         // Drags others were making stop where the scene says: no more moves arrive.
-        if (next === 'disconnected') motion.reset();
+        if (next === 'disconnected') {
+          motion.reset();
+          // No clear will arrive for the areas others were drawing.
+          previews.reset();
+        }
         setStatus(next);
       },
       onReconnected: () => {
@@ -97,6 +109,7 @@ export function useCampaignSocket(campaignId: string, enabled: boolean): { statu
           mergeScene(queryClient, campaignId, message.scene);
         } else if (message.type === 'scene.closed') closeScene(queryClient, campaignId, message.sceneId);
         else if (message.type === 'token.moving') motion.push(message, performance.now());
+        else if (message.type === 'area.previewing') previews.push(message, performance.now());
         else if (message.type === 'chat.message') mergeChatMessage(queryClient, campaignId, message.message);
         else if (message.type === 'chat.removed') removeChatMessage(queryClient, campaignId, message.messageId);
         else if (message.type === 'characters.changed') {
@@ -112,7 +125,7 @@ export function useCampaignSocket(campaignId: string, enabled: boolean): { statu
       socket.current = null;
       opened.close();
     };
-  }, [campaignId, enabled, queryClient, motion]);
+  }, [campaignId, enabled, queryClient, motion, previews]);
 
   // While the campaign is still loading the screens show "connecting"; when it
   // failed, the error replaces them and the status is never read.

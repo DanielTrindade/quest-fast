@@ -1,7 +1,9 @@
 import { useContext, useId, useMemo, useRef, useState, type RefObject } from 'react';
-import { Broadcast, Cloud, GridFour, MapPin, XCircle } from '@phosphor-icons/react';
+import { Broadcast, CaretDown, Cloud, GridFour, MapPin, Ruler, XCircle } from '@phosphor-icons/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { GridSettings as Grid, SceneView, TokenView } from '@quest-fast/shared';
+import { AreaList } from '../../components/AreaList';
+import { AreaToolbar } from '../../components/AreaToolbar';
 import { Button } from '../../components/Button';
 import { FogToolbar } from '../../components/FogToolbar';
 import { GridSettings } from '../../components/GridSettings';
@@ -15,6 +17,7 @@ import type { ActionPanelTab } from '../../components/ActionPanel';
 import { StagePanel } from './StagePanel';
 import { useNotify } from '../../hooks/use-notify';
 import { api } from '../../lib/api';
+import { areasForLook } from '../../lib/area-tool';
 import { activeSceneQuery, mergeScene, sceneListQuery, sceneQuery } from '../../lib/scene-cache';
 import { stopsAtLimit } from '../../lib/move-path';
 import { AttackRangeContext, tokenOf } from '../../lib/attack-range-context';
@@ -25,6 +28,7 @@ import { errorMessage } from './campaign-screen';
 import { FightTurn } from './FightTurn';
 import { TokenPickerPanel } from './TokenPickerPanel';
 import { TokenVitalsPanel } from './TokenVitalsPanel';
+import { useAreaControls, type AreaControls } from './useAreaControls';
 import { useFogControls, type FogControls } from './useFogControls';
 import { useFight, type Fight } from './useFight';
 import { useTokenMoves } from './useTokenMoves';
@@ -103,6 +107,52 @@ function FogPanel({ id, scene, fog }: { id: string; scene: SceneView; fog: FogCo
       <FogToolbar enabled={scene.fog.enabled} onEnabledChange={fog.setEnabled} tool={fog.tool} onToolChange={fog.setTool}
         areas={scene.fog.revealed.length} onWholeMap={(mode) => fog.apply({ mode, shape: { kind: 'all' } })}
         playerView={fog.playerView} onPlayerViewChange={fog.setPlayerView} busy={fog.busy} error={fog.error} />
+    </Surface>
+  );
+}
+
+/**
+ * The area templates beside the map, for everyone at the table: the tools
+ * behind a disclosure (most of the session nobody draws), and the list of
+ * the scene's persistent areas.
+ */
+function AreasPanel({ scene, areas, isMaster, viewerId, selected, onDraw }: {
+  scene: SceneView; areas: AreaControls; isMaster: boolean; viewerId: string | null;
+  /** The selected token, when the viewer may anchor an area on it. */
+  selected: TokenView | null;
+  /** The tool came into hand: the fog's goes away. */
+  onDraw: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const toolsId = useId();
+  const look = useMemo(
+    () => areasForLook(scene.areas, scene.tokens, { fog: scene.fog, look: 'master', master: isMaster, viewerId }),
+    [scene.areas, scene.tokens, scene.fog, isMaster, viewerId],
+  );
+  return (
+    <Surface className="grid min-w-0 gap-3 self-start">
+      <Button variant="secondary" aria-expanded={open} aria-controls={toolsId} className="justify-between"
+        onClick={() => {
+          if (open) areas.putAway();
+          setOpen(!open);
+        }}>
+        <span className="inline-flex items-center gap-2"><Ruler size={18} aria-hidden="true" /> Marcar área</span>
+        <CaretDown size={16} aria-hidden="true" className={cn('transition-transform duration-(--duration-quick) ease-settle', open && 'rotate-180')} />
+      </Button>
+      <div id={toolsId} hidden={!open}>
+        {open && (
+          <AreaToolbar draft={areas.draft} onDraftChange={areas.setDraft} drawing={areas.drawing} master={isMaster}
+            onDrawingChange={(drawing) => {
+              if (drawing) onDraw();
+              areas.setDrawing(drawing);
+            }}
+            anchor={selected?.name ?? null}
+            onAnchor={selected ? () => areas.anchorOn(selected.id, selected) : undefined}
+            busy={areas.busy} error={areas.error} />
+        )}
+      </div>
+      <AreaList areas={scene.areas} tokens={scene.tokens} viewerId={viewerId} master={isMaster} fadedIds={look.faded}
+        busyIds={areas.busyIds} onToggleHidden={isMaster ? areas.toggleHidden : undefined} onRemove={areas.remove} />
     </Surface>
   );
 }
@@ -262,6 +312,27 @@ function stageLayout({ fullscreen, isMaster, mapClassName, name, panel }: {
 }
 
 /**
+ * The two drawing tools of the stage, one in hand at a time: the fog's puts
+ * the area's away, and the other way round. The area may follow the
+ * selected token when the viewer may anchor on it (the master any, a player
+ * their own character).
+ */
+function useDrawingTools(campaignId: string, scene: SceneView, isMaster: boolean, viewerId: string | null, selectedId: string | null) {
+  const fog = useFogControls(campaignId, scene, isMaster);
+  const areas = useAreaControls(campaignId, scene, isMaster);
+  const fogControls: FogControls = {
+    ...fog,
+    setTool: (tool) => {
+      if (tool) areas.putAway();
+      fog.setTool(tool);
+    },
+  };
+  const selected = scene.tokens.find((token) => token.id === selectedId) ?? null;
+  const own = selected?.kind === 'character' && selected.ownerId === viewerId;
+  return { fog, fogControls, areas, anchorable: selected && (isMaster || own) ? selected : null };
+}
+
+/**
  * The map with pan and zoom, its tokens and their list beside it (below on a
  * narrow screen) and, for the master, the table switch, the token picker and
  * the grid panel. An unsaved grid previews on the map until it is saved or
@@ -309,7 +380,7 @@ export function SceneStage({ campaignId, scene, isMaster, mapClassName, allowFul
   const [preview, setPreview] = useState<{ key: string; grid: Grid } | null>(null);
   const previewKey = `${scene.id}:${switches}`;
   const shownGrid = preview?.key === previewKey ? preview.grid : scene.grid;
-  const fog = useFogControls(campaignId, scene, isMaster);
+  const { fog, fogControls, areas, anchorable } = useDrawingTools(campaignId, scene, isMaster, viewerId, selectedId);
   const toggle = (next: OpenPanel) => {
     if (panel === 'grid') setPreview(null);
     if (panel === 'fog') fog.putAway();
@@ -325,8 +396,9 @@ export function SceneStage({ campaignId, scene, isMaster, mapClassName, allowFul
   // its turn and the token list. On the full screen it is the panel's Mapa.
   const column = (
     <>
-      <MasterPanel panel={panel} panelIds={panelIds} campaignId={campaignId} scene={scene} mapRef={mapRef} fog={fog}
+      <MasterPanel panel={panel} panelIds={panelIds} campaignId={campaignId} scene={scene} mapRef={mapRef} fog={fogControls}
         onPreview={(grid) => setPreview(grid ? { key: previewKey, grid } : null)} />
+      <AreasPanel scene={scene} areas={areas} isMaster={isMaster} viewerId={viewerId} selected={anchorable} onDraw={() => fog.setTool(null)} />
       <TokenVitalsPanel key={selectedId} campaignId={campaignId} tokens={scene.tokens} selectedId={selectedId} isMaster={isMaster} viewerId={viewerId} />
       {fight && <FightTurn campaignId={campaignId} fight={fight} focus={focus} viewerId={viewerId} isMaster={isMaster} />}
       <TokenList tokens={scene.tokens} viewerId={viewerId} master={isMaster} fog={scene.fog} fightMarks={marks} selectedId={selectedId} onSelect={setSelected}
@@ -351,6 +423,8 @@ export function SceneStage({ campaignId, scene, isMaster, mapClassName, allowFul
             onGrab={moves.onGrab} onDrag={moves.onDrag} onDrop={moves.onDrop} onCancelDrag={moves.onCancelDrag} motion={motion}
             fullscreen={fullscreen} onFullscreenChange={allowFullscreen ? setFullscreen : undefined}
             fog={scene.fog} fogLook={fog.look} fogTool={fog.tool} onFogShape={fog.apply}
+            sceneId={scene.id} areas={scene.areas} areaTool={areas.tool} onAreaPreview={areas.preview} onAreaPlace={areas.place}
+            areaPreviews={areas.previews} master={isMaster}
             pendingMove={moves.pending} fightMarks={marks} attackRange={attackRange}
             stopAtLimit={(token) => stopsAtLimit(isMaster, fight?.fighterOf(token)?.id, fight?.encounter.activeCombatantId)}
             moveConfirm={{

@@ -299,10 +299,33 @@ em quatro PRs empilhados:
    projeção: de um monstro, o jogador vê só o nome.
 3. **Números do combate — entregue.** CA e deslocamento efetivos, dano
    pendente com a sugestão de resistência e ficha que respeita o Auxílio.
-4. **Na tela — em revisão.** Chips de efeito nos cartões, formulário "Efeito
+4. **Na tela — entregue.** Chips de efeito nos cartões, formulário "Efeito
    de…" em "PV e condições" e no painel da Mesa, motivo da sugestão no dano
    pendente e eventos no feed. Fora desta entrega: modelos prontos das magias
    mais comuns.
+
+### Gabaritos de área
+
+Onde a Bola de Fogo pega, e o que fica no terreno (Teia, Névoa Obscurecente,
+Espírito Guardião) ([#113](https://github.com/DanielTrindade/quest-fast/issues/113)).
+Spec em [`history/2026-11-27-area-templates.md`](history/2026-11-27-area-templates.md),
+em quatro PRs empilhados:
+
+1. **Regras em `shared/` — entregue.** Esfera, cilindro, cone, linha e cubo
+   em casas de 1,5 m, casas atingidas pela regra da meia casa, origem no
+   cruzamento do grid e visibilidade por papel e fog.
+2. **Áreas persistentes — entregue.** Tabela `scene_areas` e rotas com RBAC:
+   o jogador cria, move e remove as próprias e ancora só no próprio
+   personagem; só o mestre oculta. A área do mestre sob o fog e a ancorada
+   num token que o jogador não vê não chegam a ele.
+3. **Prévia ao vivo — entregue.** A área de referência vai pelo socket
+   enquanto é desenhada, com a mesma regra de fog, e fica 5 s depois de
+   soltar.
+4. **Na tela — em revisão.** "Marcar área" ao lado do mapa, para todos: a
+   barra com a forma, a medida e o tipo, a lista acessível das áreas da cena
+   e o desenho no `MapCanvas`, sob os tokens. A área ancorada acompanha o
+   arrasto ao vivo. Fora desta entrega: pré-selecionar os alvos do ataque
+   com vários alvos pela área.
 
 ### Telas da campanha
 
@@ -376,8 +399,9 @@ entrega: entram no roadmap quando ganharem prioridade e escopo.
   assistido, com confirmação a cada passo (sem virar motor de regras); notas
   privadas do personagem; inventário do grupo.
 - **Campo de batalha (além da fase 4):** régua de distância no padrão 5e;
-  gabaritos de área (cone, esfera, linha, cubo); tamanho de criatura ocupando
-  as casas certas; ping e desenho temporário no mapa.
+  tamanho de criatura ocupando as casas certas; ping e desenho temporário no
+  mapa; a área pré-selecionar os alvos do ataque com vários alvos.
+  (Gabaritos de área entraram pela #113.)
 
 ## Questões em aberto
 
