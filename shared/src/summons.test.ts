@@ -194,5 +194,7 @@ test('each field out of bounds says what is wrong, in Portuguese', () => {
 
 test('a summon sheet without an attack list, or with a row that is not an attack, is refused', () => {
   assert.equal(validateSummonSheet({ ...sheet, attacks: undefined as never }).attacks, 'Ataques inválidos.');
-  assert.equal(validateSummonSheet({ ...sheet, attacks: [null, 'x'] as never }).attacks, 'Ataques inválidos.');
+  for (const attacks of [[null], ['x'], [{}], [{ name: 7, damage: '1d6' }], [{ name: 'Mordida' }]]) {
+    assert.equal(validateSummonSheet({ ...sheet, attacks: attacks as never }).attacks, 'Ataques inválidos.', JSON.stringify(attacks));
+  }
 });
