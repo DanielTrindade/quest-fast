@@ -47,6 +47,8 @@ import type {
   TurnRequest,
   ActiveSceneRequest,
   PlaceEncounterRequest,
+  AreaInput,
+  AreaPatch,
   FogOperation,
   SceneInput,
   SceneListResponse,
@@ -251,6 +253,18 @@ export const api = {
       body: JSON.stringify(input),
     }),
   /** Reveals or hides a shape; the server answers with the fog it computed. */
+  createArea: (campaignId: string, sceneId: string, input: AreaInput) =>
+    request<SceneResponse>(`/api/campaigns/${campaignId}/scenes/${sceneId}/areas`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  updateArea: (campaignId: string, sceneId: string, areaId: string, patch: AreaPatch) =>
+    request<SceneResponse>(`/api/campaigns/${campaignId}/scenes/${sceneId}/areas/${areaId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(patch),
+    }),
+  removeArea: (campaignId: string, sceneId: string, areaId: string) =>
+    request<SceneResponse>(`/api/campaigns/${campaignId}/scenes/${sceneId}/areas/${areaId}`, { method: 'DELETE' }),
   changeFog: (campaignId: string, sceneId: string, operation: FogOperation) =>
     request<SceneResponse>(`/api/campaigns/${campaignId}/scenes/${sceneId}/fog`, {
       method: 'POST',

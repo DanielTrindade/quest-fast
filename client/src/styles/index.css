@@ -79,6 +79,17 @@
   --color-focus-ring: #7aa5f5;
   --color-scrim: #131519b8;
 
+  /* Gabaritos de area no mapa (#113). Pintados sobre a imagem do mapa, que
+     nao muda com o tema: iguais nos dois temas, como o preenchimento solido.
+     Matizes bem separados entre si, saturados o bastante para ler sobre
+     mato, pedra e agua, e nenhum igual ao destaque do token selecionado. */
+  --color-area-crimson: #e5484d;
+  --color-area-amber: #f5a524;
+  --color-area-emerald: #30a46c;
+  --color-area-azure: #3e8ef7;
+  --color-area-violet: #9d5bd2;
+  --color-area-slate: #a3acb9;
+
   /* ---- Tipografia ----
      Fontes OFL-1.1 versionadas em public/fonts; licenças em public/licenses.
      Space Grotesk substitui Cabinet para permitir redistribuição no projeto. */

@@ -1,9 +1,12 @@
 import { useEffect, useId, useImperativeHandle, useMemo, useRef, type KeyboardEvent, type Ref, type RefObject } from 'react';
 import { ArrowsIn, ArrowsOut, CornersOut, MagnifyingGlassMinus, MagnifyingGlassPlus, Warning } from '@phosphor-icons/react';
-import { FOG_LIMITS, formatMeters, squaresFor, type FogOperation, type GridSettings, type SceneFog, type TokenView } from '@quest-fast/shared';
+import { FOG_LIMITS, formatMeters, squaresFor, type AreaGeometry, type AreaView, type FogOperation, type GridSettings, type SceneFog, type TokenView } from '@quest-fast/shared';
+import { useMapAreas } from '../hooks/useAreaLayer';
 import { useFogLayer, type PolygonProgress } from '../hooks/useFogLayer';
 import { useMapViewport, ZOOM_STEP, type MapOverlay } from '../hooks/useMapViewport';
 import { useTokenLayer, type TokenLayerOptions } from '../hooks/useTokenLayer';
+import type { AreaPreviewSource } from '../lib/area-preview';
+import { describeGeometry, type AreaTool } from '../lib/area-tool';
 import { tokensForLook, type FogLook, type FogTool } from '../lib/fog-tool';
 import { gridCells } from '../lib/map-view';
 import { describeMove, type ShownRange } from '../lib/reach-draw';
@@ -56,6 +59,20 @@ export type MapCanvasProps = {
    * each combatant's health arc. The list beside the map says both in words.
    */
   fightMarks?: FightMarks;
+  /** The scene's id: the reference areas others draw are of one scene. */
+  sceneId?: string;
+  /** The persistent area templates the viewer receives. The list beside the map is their accessible form. */
+  areas?: readonly AreaView[];
+  /** The area tool in hand: one finger draws instead of panning. */
+  areaTool?: AreaTool | null;
+  /** The reference area the viewer is drawing, for the table: `null` clears it, `done` lets it go. */
+  onAreaPreview?: (area: AreaGeometry | null, done: boolean) => void;
+  /** A persistent area the viewer finished drawing, to save. */
+  onAreaPlace?: (area: AreaGeometry) => void;
+  /** The reference areas others draw, fed by the socket. */
+  areaPreviews?: AreaPreviewSource;
+  /** Whether the viewer is the master: their screen fades the areas the table does not get. */
+  master?: boolean;
 } & Pick<TokenLayerOptions, 'onSelect' | 'canMove' | 'onGrab' | 'onDrag' | 'onDrop' | 'onCancelDrag' | 'motion' | 'pendingMove' | 'stopAtLimit' | 'attackRange'>;
 
 export type MapCanvasHandle = {
@@ -66,23 +83,52 @@ export type MapCanvasHandle = {
 };
 
 const NO_TOKENS: readonly TokenView[] = [];
+const NO_AREAS: readonly AreaView[] = [];
+
+type AreaProps = Pick<MapCanvasProps, 'sceneId' | 'areas' | 'areaTool' | 'onAreaPreview' | 'onAreaPlace' | 'areaPreviews' | 'master'>;
+
+/** The area props as the area layer reads them, with their defaults. */
+function areaOptions(props: AreaProps) {
+  return {
+    sceneId: props.sceneId ?? '',
+    areas: props.areas ?? NO_AREAS,
+    tool: props.areaTool ?? null,
+    onPreview: props.onAreaPreview,
+    onPlace: props.onAreaPlace,
+    previews: props.areaPreviews,
+    master: props.master ?? false,
+  };
+}
+
+/** The tool in hand, if any: the map draws instead of panning, and its help says how. */
+function toolInHand(fogTool: FogTool | null, areaTool: AreaTool | null | undefined): { drawing: boolean; help: keyof typeof MAP_HELP } {
+  if (fogTool) return { drawing: true, help: fogTool.shape };
+  return areaTool ? { drawing: true, help: 'area' } : { drawing: false, help: 'pan' };
+}
 
 /**
- * The token layer and the fog tools share the canvas: with a fog tool in
- * hand the press is the tool's, otherwise the tokens'. A press stays with
- * the layer that took it until it ends.
+ * The areas, the tokens and the fog tools share the canvas. The areas lie on
+ * the ground, under the tokens; what the fog tool draws goes on top. A fog
+ * tool in hand takes every press; an area tool in hand takes the press next;
+ * otherwise it is the tokens'. A press stays with the layer that took it
+ * until it ends.
  */
-function layered(tokens: RefObject<MapOverlay | null>, fog: RefObject<MapOverlay | null>): MapOverlay {
+function layered(areas: RefObject<MapOverlay | null>, tokens: RefObject<MapOverlay | null>, fog: RefObject<MapOverlay | null>): MapOverlay {
   let owner: MapOverlay | null = null;
   return {
     draw(context, view, now) {
+      const drawingAreas = areas.current?.draw(context, view, now) ?? false;
       const moving = tokens.current?.draw(context, view, now) ?? false;
       fog.current?.draw(context, view, now);
-      return moving;
+      return moving || drawingAreas;
     },
     pointerDown(point, view) {
-      const layer = fog.current ?? tokens.current;
-      owner = layer?.pointerDown(point, view) ? layer : null;
+      if (fog.current) {
+        owner = fog.current.pointerDown(point, view) ? fog.current : null;
+        return owner !== null;
+      }
+      const layer = [areas.current, tokens.current].find((candidate) => candidate?.pointerDown(point, view)) ?? null;
+      owner = layer;
       return owner !== null;
     },
     pointerMove(point, view) {
@@ -136,6 +182,7 @@ function keysFirst(tool: (key: string) => boolean, map: (event: KeyboardEvent<HT
 const MAP_HELP = {
   pan: 'Arraste para mover e use a roda do mouse ou dois dedos para aproximar. Pelo teclado, as setas movem o mapa, mais e menos aproximam e afastam, e zero enquadra o mapa inteiro.',
   rect: 'Arraste para desenhar o retângulo do fog; dois dedos movem o mapa. Esc cancela.',
+  area: 'Pressione onde a área começa e arraste para apontá-la; uma esfera ou um cilindro segue o dedo. Ao soltar, a área fica no mapa. Dois dedos movem o mapa.',
   polygon: 'Clique para pôr cada ponto do polígono do fog e feche no primeiro ponto ou com Enter; Backspace tira o último ponto e Esc cancela. Dois dedos movem o mapa.',
 } as const;
 
@@ -162,6 +209,14 @@ function PolygonBar({ polygon }: { polygon: PolygonProgress }) {
       <Button size="sm" disabled={!enough} onClick={polygon.finish}>Concluir</Button>
     </div>
   );
+}
+
+/** The areas on the map, for whoever cannot see the canvas; the list beside the map has them whole. */
+function describeAreas(areas: readonly AreaView[]): string {
+  if (areas.length === 0) return '';
+  const names = areas.slice(0, 5).map((area) => `${area.name} (${describeGeometry(area)})`).join(', ');
+  const more = areas.length > 5 ? ` e mais ${areas.length - 5}` : '';
+  return ` ${areas.length === 1 ? '1 área' : `${areas.length} áreas`} no mapa: ${names}${more}.`;
 }
 
 function describeTokens(tokens: readonly TokenView[], marks?: FightMarks): string {
@@ -250,8 +305,11 @@ export function MapCanvas({
   imageUrl, mapWidth, mapHeight, grid, label, className, tokens = NO_TOKENS, viewerId = null, selectedTokenId = null,
   onSelect, canMove, onGrab, onDrag, onDrop, onCancelDrag, motion, ref, fullscreen = false, onFullscreenChange,
   pendingMove = null, moveConfirm, stopAtLimit, fog = null, fogLook = 'master', fogTool = null, onFogShape, fightMarks, attackRange = null,
+  ...areaProps
 }: MapCanvasProps) {
+  const inHand = toolInHand(fogTool, areaProps.areaTool);
   const tokenOverlayRef = useRef<MapOverlay | null>(null);
+  const areaOverlayRef = useRef<MapOverlay | null>(null);
   const fogOverlayRef = useRef<MapOverlay | null>(null);
   /** What the viewport draws and hands presses to: both layers, joined once mounted. */
   const overlayRef = useRef<MapOverlay | null>(null);
@@ -262,15 +320,26 @@ export function MapCanvas({
   const {
     frameRef, canvasRef, status, zoom, dragging, retry, zoomBy, frameMap, frameHandlers, canvasHandlers, requestDraw, viewCentre,
   } = useMapViewport({ imageUrl, mapWidth, mapHeight, grid, fog: fogLayer, overlayRef });
+  const { overlay: areaOverlay, dragged, areas: shownAreas } = useMapAreas({
+    ...areaOptions(areaProps), tokens, shown, fog, look: fogLook, viewerId, grid, map, motion, requestDraw, themedRef: frameRef,
+    drag: { onDrag, onDrop, onCancelDrag },
+  });
   const { cancelDrag } = useTokenLayer({
     tokens: shown, grid, map, viewerId, selectedId: selectedTokenId,
-    onSelect, canMove, onGrab, onDrag, onDrop, onCancelDrag, motion, pendingMove, stopAtLimit, marks: fightMarks, attackRange, overlayRef: tokenOverlayRef, requestDraw, themedRef: frameRef,
+    onSelect, canMove, onGrab, ...dragged, motion, pendingMove, stopAtLimit, marks: fightMarks, attackRange, overlayRef: tokenOverlayRef, requestDraw, themedRef: frameRef,
     labelRef: moveLabelRef,
   });
+  useEffect(() => {
+    areaOverlayRef.current = areaOverlay;
+    requestDraw();
+    return () => {
+      areaOverlayRef.current = null;
+    };
+  }, [areaOverlay, requestDraw]);
   const drawing = useFogLayer({ tool: fogTool, grid, map, onShape: onFogShape, requestDraw, themedRef: frameRef });
   const fogOverlay = drawing.overlay;
   useEffect(() => {
-    overlayRef.current = layered(tokenOverlayRef, fogOverlayRef);
+    overlayRef.current = layered(areaOverlayRef, tokenOverlayRef, fogOverlayRef);
     requestDraw();
     return () => {
       overlayRef.current = null;
@@ -309,7 +378,7 @@ export function MapCanvas({
         className="absolute inset-0 size-full touch-none select-none not-data-[status=ready]:hidden data-[dragging=true]:cursor-grabbing data-[status=ready]:cursor-grab data-[status=ready]:data-[drawing=true]:cursor-crosshair"
         data-status={status}
         data-dragging={dragging}
-        data-drawing={fogTool !== null}
+        data-drawing={inHand.drawing}
         {...canvasHandlers}
       />
 
@@ -317,9 +386,9 @@ export function MapCanvas({
       <p ref={moveLabelRef} hidden aria-hidden="true" data-slot="move-label"
         className="pointer-events-none absolute top-0 left-0 m-0 rounded-control border border-border bg-card w-max max-w-[calc(100%-0.5rem)] px-2.5 py-1 text-small text-balance text-foreground edge-raised data-[over=true]:border-danger data-[over=true]:text-danger-text" />
 
-      <p id={summaryId} className="sr-only">Mapa de {mapWidth} por {mapHeight} pixels. {describeGrid(grid, mapWidth, mapHeight)} {describeTokens(shown, fightMarks)}{describeReach(shown.find((token) => token.id === selectedTokenId))}{describeAttackRange(shown, attackRange)}{describeFog(fog, fogLook)}</p>
+      <p id={summaryId} className="sr-only">Mapa de {mapWidth} por {mapHeight} pixels. {describeGrid(grid, mapWidth, mapHeight)} {describeTokens(shown, fightMarks)}{describeReach(shown.find((token) => token.id === selectedTokenId))}{describeAttackRange(shown, attackRange)}{describeAreas(shownAreas)}{describeFog(fog, fogLook)}</p>
       <p id={helpId} className="sr-only">
-        {MAP_HELP[fogTool?.shape ?? 'pan']}
+        {MAP_HELP[inHand.help]}
       </p>
 
       <MapStatus status={status} onRetry={retry} />

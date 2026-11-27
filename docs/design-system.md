@@ -392,6 +392,18 @@ A entrega 5 do VTT liga o token ao combate em andamento (stories em `Componentes
 - **Só contorno, no tom de perigo.** O alcance normal é um contorno firme (3 px, com halo) sobre um véu de 10%; o longo, um contorno mais leve (2 px a 50%) em volta. Branco se confundia com as linhas do grid, e os ladrilhos em `accent` já são o movimento. O botão pressionado usa o mesmo tom (`danger-surface`, `danger-text`).
 - **Texto que não é distância** ("Toque", "Pessoal (cone de 4,5 m)") fica só como texto: áreas são da #113.
 
+## Gabaritos de área (27 de novembro de 2026)
+
+A #113 põe as áreas de magia no `MapCanvas`, a barra no `AreaToolbar` e a lista no `AreaList` (stories em `Componentes/MapCanvas`, seção "Áreas", `Componentes/AreaToolbar` e `Componentes/AreaList`).
+
+- **Seis tokens novos, `--color-area-*`.** Vermelho, âmbar, verde, azul, violeta e cinza (`crimson`, `amber`, `emerald`, `azure`, `violet`, `slate` no contrato). Pintados sobre a imagem do mapa, que não muda com o tema, são iguais nos dois temas, como o preenchimento sólido. Matizes bem separados e saturados o bastante para ler sobre mato, pedra e água. O campo da API é `tint`: o lint lê qualquer prop `color` com literal como cor crua.
+- **No chão, sob os tokens.** A área é desenhada depois do mapa e do fog e antes das peças, então nunca cobre um token. As casas que ela pega pela regra da mesa (metade ou mais) ganham um véu de 28%, e o contorno verdadeiro da forma vai por cima, sólido. Sem grid, só o contorno com o véu.
+- **Tracejado é "a mesa não vê" ou "ainda não é da cena".** A área oculta, sob o fog ou ancorada num token que a mesa não vê esmaece e fica tracejada no mapa do mestre, como o token escondido; "Ver como jogador" a tira. A referência de outra pessoa é tracejada em azul com o nome de quem desenha, e a sua, em âmbar.
+- **Desenhar.** "Marcar área", ao lado do mapa, abre a barra para todos. Com "Desenhar no mapa", um dedo desenha em vez de mover o mapa: a esfera e o cilindro seguem o dedo, e o cone, a linha e o cubo nascem onde o dedo pousou e apontam para onde ele vai (o cubo por quartos de volta). Uma ferramenta de fog na mão guarda a de área, e o contrário também.
+- **Seguir um token.** Com "Fica na cena", uma esfera ou um cilindro e um token selecionado que o viewer pode ancorar, aparece "Seguir <token>": a área conta a partir da borda da criatura, como a emanação de 2024.
+- **Acessível.** O resumo do mapa diz as áreas ("2 áreas no mapa: Teia (Cubo de 6 m), …"), a ajuda muda para a ferramenta na mão, e a lista diz forma, medida, quem fez e o token que a área segue. Cada cor tem nome para o leitor de tela.
+- Regras da ferramenta em `lib/area-tool.ts` e o store das prévias em `lib/area-preview.ts` (com teste em `client/test/area-tool.test.ts`), desenho em `lib/area-draw.ts` e a camada em `hooks/useAreaLayer.ts`.
+
 ## Modificadores das rolagens (23 de novembro de 2026)
 
 - **Uma barra, não um campo por botão.** "Modificadores" fica no topo da aba Ações da Mesa e na ficha aberta lá, com dois campos: **No d20** (acerto, testes, salvaguardas e iniciativa) e **No dano**. É como a mesa pensa ("estou abençoado"): a mesma Bênção vale para o ataque e para a salvaguarda.

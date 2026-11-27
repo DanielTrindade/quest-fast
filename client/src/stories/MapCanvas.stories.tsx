@@ -4,9 +4,11 @@ import { expect, fn, userEvent, waitFor, within } from 'storybook/test';
 import type { TokenView } from '@quest-fast/shared';
 import { MapCanvas, type MapCanvasProps } from '../components/MapCanvas';
 import { Button } from '../components/ui/button';
+import { createAreaPreviewStore } from '../lib/area-preview';
 import { fitView } from '../lib/map-view';
 import { canMoveToken } from '../lib/token-labels';
 import { createMotionStore } from '../lib/token-motion';
+import { corner, sceneAreas } from './fixtures/areas';
 import { fogOn, fogStart } from './fixtures/fog';
 import { PRINTED_CELL, PRINTED_OFFSET, SYNTHETIC_MAP, alignedSceneGrid, defaultSceneGrid, syntheticMapUrl } from './fixtures/maps';
 import { MASTER_ID, PLAYER_ID, cell, fightMarksFor, fightTokens, manyTokens, masterTokens, playerFightTokens, playerTokens, vitalityTokens } from './fixtures/tokens';
@@ -666,5 +668,101 @@ export const FogTrocaDeFerramenta: Story = {
     await pressOnMap(frame, cell(5, 5));
     await expect(within(map.getByRole('group', { name: 'Polígono do fog' })).getByText('1')).toBeInTheDocument();
     await expect(args.onFogShape).not.toHaveBeenCalled();
+  },
+};
+
+// --- Areas (#113) ---------------------------------------------------------
+
+const areaArgs = { ...tokenArgs, sceneId: 's-hall', areas: sceneAreas() };
+
+export const AreasMestre: Story = {
+  name: 'Áreas (mestre)',
+  args: { ...areaArgs, tokens: masterTokens(), viewerId: MASTER_ID, master: true },
+  render: (args) => <TokenMap {...args} master />,
+  play: async ({ canvasElement }) => {
+    const { frame, map } = await framedMap(canvasElement);
+    await expect(map.getByText(/6 áreas no mapa: Teia \(Cubo de 6 m\)/)).toBeInTheDocument();
+    await waitFor(() => expect(painted(frame)).toBe(true));
+  },
+};
+
+export const AreasJogador: Story = {
+  name: 'Áreas (jogador)',
+  args: { ...areaArgs, areas: sceneAreas().filter((area) => !area.hidden), tokens: playerTokens(), viewerId: PLAYER_ID },
+  render: (args) => <TokenMap {...args} master={false} />,
+  play: async ({ canvasElement }) => {
+    const { map } = await framedMap(canvasElement);
+    await expect(map.getByText(/5 áreas no mapa/)).toBeInTheDocument();
+  },
+};
+
+export const AreasComoJogador: Story = {
+  name: 'Áreas: ver como jogador',
+  args: { ...areaArgs, tokens: masterTokens(), viewerId: MASTER_ID, master: true, fogLook: 'player' },
+  render: (args) => <TokenMap {...args} master />,
+  play: async ({ canvasElement }) => {
+    const { map } = await framedMap(canvasElement);
+    // The hidden glyph is not the table's.
+    await expect(map.getByText(/5 áreas no mapa/)).toBeInTheDocument();
+  },
+};
+
+export const AreaDesenhando: Story = {
+  name: 'Área: desenhar uma referência',
+  args: {
+    ...areaArgs, areas: [], tokens: playerTokens(), viewerId: PLAYER_ID, onAreaPreview: fn(), onAreaPlace: fn(),
+    areaTool: { mode: 'reference', shape: 'cone', size: 4.5, width: 1.5 },
+  },
+  render: (args) => <TokenMap {...args} master={false} />,
+  play: async ({ canvasElement, args }) => {
+    const { frame } = await framedMap(canvasElement);
+    const origin = corner(6, 6);
+    await dragOnMap(frame, origin, { x: origin.x + PRINTED_CELL * 3, y: origin.y });
+    // The table sees it while drawn, and once more when let go: pointing east from the corner.
+    await expect(args.onAreaPreview).toHaveBeenCalled();
+    await expect(args.onAreaPreview).toHaveBeenLastCalledWith(expect.objectContaining({ shape: 'cone', x: origin.x, y: origin.y, angle: 0 }), true);
+    await expect(args.onAreaPlace).not.toHaveBeenCalled();
+    // Nothing was grabbed: the tool took the press.
+    await expect(args.onGrab).not.toHaveBeenCalled();
+  },
+};
+
+export const AreaFicaNaCena: Story = {
+  name: 'Área: pôr na cena',
+  args: {
+    ...areaArgs, areas: [], tokens: playerTokens(), viewerId: PLAYER_ID, onAreaPreview: fn(), onAreaPlace: fn(),
+    areaTool: { mode: 'persistent', shape: 'sphere', size: 6, width: 1.5 },
+  },
+  render: (args) => <TokenMap {...args} master={false} />,
+  play: async ({ canvasElement, args }) => {
+    const { frame } = await framedMap(canvasElement);
+    const at = corner(8, 8);
+    await dragOnMap(frame, corner(6, 6), { x: at.x + 9, y: at.y - 7 });
+    // The centre follows the pointer and rests on the intersection; a persistent area is never previewed.
+    await expect(args.onAreaPlace).toHaveBeenCalledWith(expect.objectContaining({ shape: 'sphere', size: 6, x: at.x, y: at.y }));
+    await expect(args.onAreaPreview).not.toHaveBeenCalled();
+  },
+};
+
+/** Someone else's reference area arriving by the socket. */
+function OthersPreview(props: MapCanvasProps) {
+  const [previews] = useState(() => {
+    const store = createAreaPreviewStore();
+    store.push({
+      type: 'area.previewing', sceneId: 's-hall', by: { userId: 'u-bia', name: 'Bia Souza' },
+      area: { shape: 'sphere', size: 6, width: 1.5, ...corner(12, 9), angle: 0 }, done: true, ts: 0,
+    }, performance.now());
+    return store;
+  });
+  return <TokenMap {...props} master={false} areaPreviews={previews} />;
+}
+
+export const AreaDeOutraPessoa: Story = {
+  name: 'Área: referência de outra pessoa',
+  args: { ...areaArgs, areas: [], tokens: playerTokens(), viewerId: PLAYER_ID },
+  render: (args) => <OthersPreview {...args} />,
+  play: async ({ canvasElement }) => {
+    const { frame } = await framedMap(canvasElement);
+    await waitFor(() => expect(painted(frame)).toBe(true));
   },
 };

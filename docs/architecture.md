@@ -516,6 +516,21 @@ que o `TokenView` do mestre traz `combatantHidden`.
   combatente era removido. A troca de nomes confundia o mestre, que removia a
   criatura errada (#156).
 
+- **Gabaritos de área** ([spec](history/2026-11-27-area-templates.md)):
+  a geometria é regra pura em `shared/src/areas.ts` (as formas em metros, as
+  casas que a área cobre por pelo menos metade, a origem no cruzamento do
+  grid). A área persistente fica na tabela `scene_areas`, com as medidas em
+  metros, então recalibrar o grid a redimensiona; trocar o mapa move a origem
+  na proporção, como os tokens. Ela viaja em `SceneView.areas`, projetada por
+  `isAreaVisible`: o jogador não recebe área oculta, nem a ancorada num token
+  que ele não recebe (ela denunciaria o token), nem a do mestre com a origem
+  sob o fog; a do jogador aparece sempre, como o token de personagem. A área
+  ancorada sai em cascata com o token e é desenhada na posição dele, inclusive
+  a do arrasto ao vivo. A área de referência nunca é gravada: o cliente manda
+  `area.preview` pelo socket e o servidor repassa `area.previewing` a quem
+  pode ver, só na cena aberta para a mesa; quem assiste a descarta 1,5 s sem
+  notícia, ou 5 s depois de solta, sem precisar de trava.
+
 ```mermaid
 sequenceDiagram
   participant J as Jogador (arrasta)
