@@ -49,6 +49,12 @@ function SetupPanel({ campaignId, encounter, onAdd, pending }: {
 }) {
   const characters = useQuery({ queryKey: ['characters', campaignId], queryFn: () => api.characters(campaignId) });
   const statblocks = useQuery({ queryKey: ['statblocks', campaignId], queryFn: () => api.statblocks(campaignId) });
+  const members = useQuery({ queryKey: ['members', campaignId], queryFn: () => api.members(campaignId) });
+  // A creature may go to a player and be tied to its summoner (#114).
+  const control = {
+    players: (members.data?.members ?? []).filter((member) => member.role === 'player').map(({ userId, name }) => ({ id: userId, name })),
+    combatants: encounter.combatants.map(({ id, name, concentrating }) => ({ id, name, concentrating })),
+  };
   const inEncounter = new Set(encounter.combatants.map((combatant) => combatant.characterId));
   const available = (characters.data?.characters ?? [])
     .filter((character) => !inEncounter.has(character.id))
@@ -61,7 +67,7 @@ function SetupPanel({ campaignId, encounter, onAdd, pending }: {
         <Skeleton shape="panel" />
       ) : (
         <EncounterSetup characters={available} statblocks={statblocks.data?.statblocks ?? []}
-          reinforcement={encounter.status === 'active'} pending={pending} onAdd={onAdd} />
+          reinforcement={encounter.status === 'active'} pending={pending} onAdd={onAdd} control={control} />
       )}
     </Surface>
   );

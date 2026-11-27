@@ -5,7 +5,7 @@ import { PlayerActions, type PlayerFight } from '../components/PlayerActions';
 import { Button } from '../components/ui/button';
 import { hazinDan, lyraVentoclaro } from './fixtures/characters';
 import { PORTRAIT, partyMember, worstCase } from './fixtures/my-characters';
-import { downedPlayer, playerCombatants } from './fixtures/encounters';
+import { downedPlayer, playerCombatants, summonedSpirit } from './fixtures/encounters';
 import { playerWithHits } from './fixtures/table';
 
 const hazinCharacter = { ...partyMember({ ...hazinDan, campaignName: 'Mesa de quinta' }), hpCurrent: 38, hpTemp: 5 };
@@ -69,6 +69,68 @@ export const NaVez: Story = {
     await userEvent.click(within(panel.getByRole('group', { name: 'Alvos de Hazin Dan' })).getByRole('checkbox', { name: /^Goblin 2 —/ }));
     await userEvent.click(panel.getByRole('button', { name: 'Atacar com Machado Grande' }));
     await expect(args.fight!.actions.onAttack).toHaveBeenCalledWith('c-hazin', 0, { targetIds: ['g2'], mode: 'normal', secret: false });
+  },
+};
+
+const withSpirit = [...playerCombatants.slice(0, 2), summonedSpirit, ...playerCombatants.slice(2)];
+
+/**
+ * Hazin controls a summon (#114): "Agir com" picks who acts, the spirit's
+ * controls are its own, and the player dismisses it.
+ */
+export const ComInvocacao: Story = {
+  name: 'Com invocação',
+  args: {
+    fight: fightOf(withSpirit),
+    summons: {
+      controlled: [{ ...fightOf(withSpirit, false), combatant: summonedSpirit, targets: withSpirit.filter((combatant) => combatant.id !== 'c-spirit') }],
+      onDismiss: fn(),
+      summon: { pending: false, error: null, onSummon: fn() },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const panel = firstTheme(canvasElement);
+    await userEvent.click(panel.getByRole('radio', { name: 'Espírito do Construto' }));
+    await expect(panel.getByRole('heading', { name: 'Espírito do Construto' })).toBeVisible();
+    await userEvent.click(panel.getByRole('button', { name: 'Atacar com Pancada' }));
+    await expect(args.summons!.controlled[0]!.actions.onAttack).toHaveBeenCalledWith('c-spirit', 0, expect.objectContaining({ mode: 'normal' }));
+    // Dismissing has no way back: a second step confirms it.
+    await userEvent.click(panel.getByRole('button', { name: 'Dispensar Espírito do Construto' }));
+    await expect(args.summons!.onDismiss).not.toHaveBeenCalled();
+    const confirm = within(panel.getByRole('group', { name: 'Dispensar Espírito do Construto?' }));
+    await userEvent.click(confirm.getByRole('button', { name: 'Dispensar Espírito do Construto' }));
+    await expect(args.summons!.onDismiss).toHaveBeenCalledWith('c-spirit');
+  },
+};
+
+/** The character is out of the fight, but the player still controls a creature in it. */
+export const SoACriatura: Story = {
+  name: 'Só a criatura no combate',
+  args: {
+    fight: null,
+    inOtherFight: true,
+    summons: {
+      controlled: [{ ...fightOf(withSpirit), combatant: summonedSpirit, targets: withSpirit.filter((combatant) => combatant.id !== 'c-spirit') }],
+      onDismiss: fn(),
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const panel = firstTheme(canvasElement);
+    await userEvent.click(panel.getByRole('button', { name: 'Atacar com Pancada' }));
+    await expect(args.summons!.controlled[0]!.actions.onAttack).toHaveBeenCalledWith('c-spirit', 0, expect.objectContaining({ mode: 'normal' }));
+    await expect(panel.queryByRole('button', { name: 'Invocar' })).toBeNull();
+  },
+};
+
+/** "Invocar" opens the simple sheet under the character's controls. */
+export const Invocar: Story = {
+  args: { fight: fightOf(playerCombatants), summons: { controlled: [], onDismiss: fn(), summon: { pending: false, error: null, onSummon: fn() } } },
+  play: async ({ canvasElement }) => {
+    const panel = firstTheme(canvasElement);
+    await userEvent.click(panel.getByRole('button', { name: 'Invocar' }));
+    await expect(panel.getByRole('form', { name: 'Invocar com Hazin Dan' })).toBeVisible();
+    await userEvent.click(panel.getByRole('button', { name: 'Cancelar' }));
+    await expect(panel.getByRole('button', { name: 'Invocar' })).toBeVisible();
   },
 };
 

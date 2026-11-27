@@ -104,6 +104,19 @@ export const masterCombatants: CombatantView[] = [
   monster('g4', 'Goblin 4', 7, 5, 7, 'wounded'),
 ];
 
+/**
+ * Hazin's summon (#114): a construct spirit he controls, acting right after
+ * him. An ally, so the table reads it whole.
+ */
+export const summonedSpirit: CombatantView = monster('c-spirit', 'Espírito do Construto', 15, 40, 40, 'unhurt', {
+  source: 'manual',
+  ownerId: PLAYER_ID,
+  ac: 16,
+  dexModifier: 0,
+  attacks: [{ kind: 'attack', cost: 'attack', name: 'Pancada', bonus: 6, damage: '1d8+4', damageType: 'Contundente', notes: '', range: '1,5 m' }],
+  summon: { summonerId: 'c-hazin', initiativeMode: 'withSummoner', concentration: true, roundsLeft: null, editableByController: true },
+});
+
 /** The player's copy: no hidden bandit and nothing of a monster but its band. */
 export const playerCombatants: CombatantView[] = masterCombatants
   .filter((combatant) => !combatant.hidden)

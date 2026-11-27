@@ -31,6 +31,31 @@ export const Bestiario: Story = {
   },
 };
 
+const control = {
+  players: [{ id: 'daniel', name: 'Daniel' }, { id: 'carla', name: 'Carla' }],
+  combatants: [{ id: 'c-hazin', name: 'Hazin Dan', concentrating: true }, { id: 'c-lyra', name: 'Lyra Ventoclaro', concentrating: false }],
+};
+
+/** A bestiary beast for Hazin's player (#114): controlled, summoned by Hazin, held by his concentration. */
+export const Invocacao: Story = {
+  name: 'Invocação do bestiário',
+  args: { control },
+  play: async ({ canvasElement, args }) => {
+    const [region] = within(canvasElement).getAllByRole('region', { name: /^Tema / });
+    const form = within(region);
+    await userEvent.selectOptions(form.getByLabelText('Controlado por'), 'daniel');
+    await expect(form.getByLabelText('Controlada por um jogador: fica à vista')).toBeDisabled();
+    await userEvent.selectOptions(form.getByLabelText('Invocado por'), 'c-hazin');
+    await userEvent.click(form.getByLabelText('Some quando Hazin Dan perder a concentração'));
+    await userEvent.type(form.getByLabelText('Duração em rodadas (opcional)'), '10');
+    await userEvent.click(form.getByRole('button', { name: 'Adicionar ao encontro' }));
+    await expect(args.onAdd).toHaveBeenCalledWith({
+      source: 'statblock', statblockId: 'goblin', count: 1, hp: 'average', hidden: false, controllerId: 'daniel',
+      summon: { summonerId: 'c-hazin', initiativeMode: 'withSummoner', concentration: true, rounds: 10 },
+    });
+  },
+};
+
 export const CriaturaSemFormula: Story = {
   name: 'Criatura sem fórmula de PV',
   play: async ({ canvasElement }) => {

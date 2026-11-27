@@ -49,6 +49,8 @@ export type InitiativeActions = {
    */
   onApplyEffect?: (bearerId: string, effect: EffectRequest) => void;
   onRemoveEffect?: (bearerId: string, effectId: string) => void;
+  /** The master only, not on a character: hands a creature to a player, or null to take it back (#114). */
+  onSetController?: (combatantId: string, controllerId: string | null) => void;
 };
 
 type RowProps = InitiativeActions & {
