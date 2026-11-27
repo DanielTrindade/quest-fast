@@ -344,7 +344,7 @@ PRs empilhados:
    (ficha simples, a partir do próprio personagem), RBAC pelo controlador,
    projeção e feed como aliado, iniciativa "junto" sem rolagem própria e a
    saída de quem invocou. Quem sai da campanha devolve as criaturas ao mestre.
-3. **Mapa e ciclo de vida — em revisão.** O token da invocação nasce ao
+3. **Mapa e ciclo de vida — entregue.** O token da invocação nasce ao
    lado de quem a invocou, o controlador o move na vez dela, vê o alcance,
    ancora área nele e o vê sob o fog; tirar o controle solta o arrasto. A
    invocação sai pela concentração (no combate e pela ficha), pela duração e
