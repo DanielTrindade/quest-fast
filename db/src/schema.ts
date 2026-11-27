@@ -2,6 +2,8 @@ import { sql } from 'drizzle-orm';
 import { index, integer, real, sqliteTable, text, uniqueIndex, type AnySQLiteColumn } from 'drizzle-orm/sqlite-core';
 import {
   ABILITIES,
+  AREA_COLORS,
+  AREA_SHAPES,
   COMBATANT_SOURCES,
   ENCOUNTER_STATUSES,
   ROLES,
@@ -488,6 +490,43 @@ export const tokens = sqliteTable(
 );
 
 export type TokenRow = typeof tokens.$inferSelect;
+
+/**
+ * A persistent area template on a scene (#113). Measures in metres, so a
+ * recalibrated grid resizes it; `x`/`y` are its origin in map pixels. An area
+ * following a token takes the token's centre as its origin and goes with it.
+ * Whoever made it may move and remove it, besides the master.
+ */
+export const sceneAreas = sqliteTable(
+  'scene_areas',
+  {
+    id: text('id').primaryKey(),
+    sceneId: text('scene_id')
+      .notNull()
+      .references(() => scenes.id, { onDelete: 'cascade' }),
+    shape: text('shape', { enum: AREA_SHAPES }).notNull(),
+    size: real('size').notNull(),
+    width: real('width').notNull(),
+    x: real('x').notNull(),
+    y: real('y').notNull(),
+    angle: real('angle').notNull().default(0),
+    name: text('name').notNull(),
+    tint: text('tint', { enum: AREA_COLORS }).notNull(),
+    createdBy: text('created_by')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    hidden: integer('hidden', { mode: 'boolean' }).notNull().default(false),
+    anchorTokenId: text('anchor_token_id').references(() => tokens.id, { onDelete: 'cascade' }),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(now),
+  },
+  (table) => [
+    index('scene_areas_scene_id_idx').on(table.sceneId),
+    index('scene_areas_anchor_token_id_idx').on(table.anchorTokenId),
+    index('scene_areas_created_by_idx').on(table.createdBy),
+  ],
+);
+
+export type SceneAreaRow = typeof sceneAreas.$inferSelect;
 
 // --- Table chat ---------------------------------------------------------------
 

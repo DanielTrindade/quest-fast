@@ -466,7 +466,7 @@ function openScene(state: DataState, master: boolean, withMap: boolean): SceneVi
     id: 's-hall', campaignId: CAMPAIGN_ID,
     name: state === 'worst' ? fit('Ponte sobre o Rio Triboar: o acampamento dos bandidos ao entardecer, com a carroça tombada', SCENE_LIMITS.name) : 'Salão em ruínas',
     mapUrl: syntheticMapUrl(), mapWidth: SYNTHETIC_MAP.width, mapHeight: SYNTHETIC_MAP.height, grid: defaultSceneGrid,
-    active: true, fog: { enabled: false, revealed: [] }, tokens: master ? tokens : tokens.filter((token) => !token.hidden), version: 1, createdAt: '2026-11-12T21:00:00.000Z',
+    active: true, fog: { enabled: false, revealed: [] }, tokens: master ? tokens : tokens.filter((token) => !token.hidden), areas: [], version: 1, createdAt: '2026-11-12T21:00:00.000Z',
   };
 }
 

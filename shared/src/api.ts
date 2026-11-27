@@ -926,6 +926,12 @@ export type SceneView = {
   fog: SceneFog;
   /** Only the tokens the receiver may see: a player never gets a hidden one. */
   tokens: TokenView[];
+  /**
+   * The persistent area templates the receiver may see (`isAreaVisible`):
+   * a player never gets a hidden one, one following a token they do not
+   * get, nor one of the master's with its origin under the fog.
+   */
+  areas: AreaView[];
   /** Grows with every saved change, opening and closing included; the client drops an older one. */
   version: number;
   createdAt: string;

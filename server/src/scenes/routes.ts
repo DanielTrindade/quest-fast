@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { Hono, type Context as HonoContext } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
-import { assets, campaigns, scenes, tokens, type SceneRow } from '@quest-fast/db';
+import { assets, campaigns, sceneAreas, scenes, tokens, type SceneRow } from '@quest-fast/db';
 import {
   MAP_LIMITS as M,
   SCENE_LIMITS as S,
@@ -38,6 +38,7 @@ import {
   requireMaster,
   scopeOf,
 } from './store.ts';
+import { areaRoutes } from './areas.ts';
 import { tokenRoutes } from './tokens.ts';
 
 const MAP_TOO_LARGE = `O mapa deve ter até ${M.maxBytes / (1024 * 1024)} MB.`;
@@ -136,7 +137,7 @@ function insertAsset(c: HonoContext<Context>, db: Executor, map: NormalizedMap, 
 }
 
 /**
- * Tokens follow a new map in proportion, as the grid does: the master usually
+ * Tokens and areas follow a new map in proportion, as the grid does: the master usually
  * swaps a map for a better copy of the same one.
  */
 function rescaleTokens(db: Executor, scene: SceneRow, map: NormalizedMap) {
@@ -146,6 +147,11 @@ function rescaleTokens(db: Executor, scene: SceneRow, map: NormalizedMap) {
   for (const token of db.select({ id: tokens.id, x: tokens.x, y: tokens.y }).from(tokens).where(eq(tokens.sceneId, scene.id)).all()) {
     const position = clampToMap(token.x * ratioX, token.y * ratioY, map.width, map.height);
     db.update(tokens).set(position).where(eq(tokens.id, token.id)).run();
+  }
+  // Areas keep their measures in metres, which follow the grid; only the origin moves.
+  for (const area of db.select({ id: sceneAreas.id, x: sceneAreas.x, y: sceneAreas.y }).from(sceneAreas).where(eq(sceneAreas.sceneId, scene.id)).all()) {
+    const origin = clampToMap(area.x * ratioX, area.y * ratioY, map.width, map.height);
+    db.update(sceneAreas).set(origin).where(eq(sceneAreas.id, area.id)).run();
   }
 }
 
@@ -172,6 +178,7 @@ export function sceneRoutes() {
   const routes = new Hono<Context>();
   routes.use('*', requireAuth, requireCampaignRole());
   routes.route('/:sceneId/tokens', tokenRoutes());
+  routes.route('/:sceneId/areas', areaRoutes());
 
   routes.get('/', (c) => {
     try {

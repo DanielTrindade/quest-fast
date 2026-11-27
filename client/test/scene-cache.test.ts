@@ -19,6 +19,7 @@ function scene(id: string, version: number, changes: Partial<SceneView> = {}): S
     grid: { enabled: true, cellSize: 60, offsetX: 0, offsetY: 0, snap: true },
     active: false,
     tokens: [],
+    areas: [],
     version,
     createdAt: '2026-11-12T00:00:00.000Z',
     ...changes,
