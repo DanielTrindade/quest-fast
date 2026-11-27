@@ -339,7 +339,7 @@ PRs empilhados:
    depois de quem a invocou, com a mesma contagem; a ficha simples do
    jogador, o vínculo com quem invocou (concentração e duração em rounds) e a
    regra de quem é aliado aberto à mesa.
-2. **Combate no servidor — em revisão.** Controlador no combatente (um
+2. **Combate no servidor — entregue.** Controlador no combatente (um
    jogador da campanha, nunca oculto), criação pelo mestre e pelo jogador
    (ficha simples, a partir do próprio personagem), RBAC pelo controlador,
    projeção e feed como aliado, iniciativa "junto" sem rolagem própria e a
